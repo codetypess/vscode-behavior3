@@ -1,5 +1,27 @@
+import * as fs from "fs";
 import * as vscode from "vscode";
 import type { HostToInspectorMessage, InspectorToHostMessage } from "./types";
+
+function buildWebviewHtml(
+  webview: vscode.Webview,
+  extensionUri: vscode.Uri,
+  entry: "editor" | "inspector"
+): string {
+  const htmlPath = vscode.Uri.joinPath(extensionUri, "dist", "webview", entry, "index.html");
+  let html = fs.readFileSync(htmlPath.fsPath, "utf-8");
+
+  const assetsUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionUri, "dist", "webview", "assets")
+  );
+  html = html.replace(/\.\.\/assets\//g, `${assetsUri}/`);
+  html = html.replace(/(?<!=")\.\/assets\//g, `${assetsUri}/`);
+
+  const src = webview.cspSource;
+  const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${src} data: blob:; style-src ${src} 'unsafe-inline'; script-src ${src} 'unsafe-inline'; font-src ${src} data:; worker-src blob:;">`;
+  html = html.replace("</head>", `  ${csp}\n</head>`);
+
+  return html;
+}
 
 /**
  * Provides the Inspector sidebar webview.
@@ -56,46 +78,6 @@ export class InspectorViewProvider implements vscode.WebviewViewProvider {
   }
 
   private _getHtml(webview: vscode.Webview): string {
-    const baseUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, "dist", "webview", "inspector")
-    );
-    const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, "dist", "webview", "assets", "inspector.js")
-    );
-    const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, "dist", "webview", "assets", "inspector.css")
-    );
-    const nonce = getNonce();
-
-    return /* html */ `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy"
-    content="default-src 'none';
-    img-src ${webview.cspSource} data: blob:;
-    style-src ${webview.cspSource} 'unsafe-inline';
-    script-src 'nonce-${nonce}';
-    font-src ${webview.cspSource} data:;
-    worker-src blob:;">
-  <base href="${baseUri}/">
-  <link rel="stylesheet" href="${styleUri}">
-  <title>Inspector</title>
-</head>
-<body style="padding: 0; margin: 0; overflow: hidden;">
-  <div id="root"></div>
-  <script nonce="${nonce}" src="${scriptUri}"></script>
-</body>
-</html>`;
+    return buildWebviewHtml(webview, this._extensionUri, "inspector");
   }
-}
-
-function getNonce() {
-  let text = "";
-  const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  for (let i = 0; i < 32; i++) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  }
-  return text;
 }

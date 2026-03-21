@@ -1,3 +1,4 @@
+import * as fs from "fs";
 import * as vscode from "vscode";
 import type { InspectorViewProvider } from "./inspectorViewProvider";
 import { resolveNodeDefs, watchSettingFile } from "./settingResolver";
@@ -8,13 +9,46 @@ import type {
   NodeDef,
 } from "./types";
 
-function getNonce() {
-  let text = "";
-  const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  for (let i = 0; i < 32; i++) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
+/**
+ * Read the Vite-generated HTML for a webview entry (e.g. "editor" or "inspector"),
+ * and rewrite all asset references to proper vscode-webview-resource: URIs.
+ *
+ * Vite outputs relative paths like `../assets/editor-abc123.js`.
+ * We replace them with the extension's webview URI so the browser can load them.
+ */
+function buildWebviewHtml(
+  webview: vscode.Webview,
+  extensionUri: vscode.Uri,
+  entry: "editor" | "inspector",
+  title: string,
+  bodyStyle = ""
+): string {
+  const htmlPath = vscode.Uri.joinPath(extensionUri, "dist", "webview", entry, "index.html");
+  let html = fs.readFileSync(htmlPath.fsPath, "utf-8");
+
+  // Replace relative ../assets/ paths with proper webview URIs
+  const assetsUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionUri, "dist", "webview", "assets")
+  );
+  html = html.replace(/\.\.\/assets\//g, `${assetsUri}/`);
+
+  // Replace same-directory ./assets/ paths (just in case)
+  html = html.replace(/(?<!=")\.\/assets\//g, `${assetsUri}/`);
+
+  // Set title
+  html = html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`);
+
+  // Inject CSP before </head>
+  const src = webview.cspSource;
+  const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${src} data: blob:; style-src ${src} 'unsafe-inline'; script-src ${src} 'unsafe-inline'; font-src ${src} data:; worker-src blob:; connect-src ${src};">`;
+  html = html.replace("</head>", `  ${csp}\n</head>`);
+
+  // Inject body style
+  if (bodyStyle) {
+    html = html.replace("<body", `<body ${bodyStyle}`);
   }
-  return text;
+
+  return html;
 }
 
 function getWorkdir(documentUri: vscode.Uri): vscode.Uri {
@@ -216,39 +250,13 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
   }
 
   private _getEditorHtml(webview: vscode.Webview): string {
-    const baseUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, "dist", "webview", "editor")
+    return buildWebviewHtml(
+      webview,
+      this._extensionUri,
+      "editor",
+      "Behavior Tree Editor",
+      `style="padding: 0; margin: 0; width: 100vw; height: 100vh; overflow: hidden;"`
     );
-    const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, "dist", "webview", "assets", "editor.js")
-    );
-    const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, "dist", "webview", "assets", "editor.css")
-    );
-    const nonce = getNonce();
-
-    return /* html */ `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy"
-    content="default-src 'none';
-    img-src ${webview.cspSource} data: blob:;
-    style-src ${webview.cspSource} 'unsafe-inline';
-    script-src 'nonce-${nonce}';
-    font-src ${webview.cspSource} data:;
-    worker-src blob:;
-    connect-src ${webview.cspSource};">
-  <base href="${baseUri}/">
-  <link rel="stylesheet" href="${styleUri}">
-  <title>Behavior Tree Editor</title>
-</head>
-<body style="padding: 0; margin: 0; width: 100vw; height: 100vh; overflow: hidden;">
-  <div id="root" style="width: 100%; height: 100%;"></div>
-  <script nonce="${nonce}" src="${scriptUri}"></script>
-</body>
-</html>`;
   }
 }
 
