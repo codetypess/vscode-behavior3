@@ -2,22 +2,24 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "type": "npm",
-      "script": "build",
-      "group": "build",
-      "label": "npm: build",
+      "label": "build",
+      "type": "shell",
+      "command": "npm run build",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
       "problemMatcher": ["$tsc"],
-      "isBackground": false,
       "presentation": {
         "reveal": "silent",
         "panel": "shared"
       }
     },
     {
-      "type": "npm",
-      "script": "watch:ext",
+      "label": "watch:ext",
+      "type": "shell",
+      "command": "npm run watch:ext",
       "group": "build",
-      "label": "npm: watch:ext",
       "problemMatcher": ["$tsc-watch"],
       "isBackground": true,
       "presentation": {
@@ -26,10 +28,10 @@
       }
     },
     {
-      "type": "npm",
-      "script": "watch:webview",
+      "label": "watch:webview",
+      "type": "shell",
+      "command": "npm run watch:webview",
       "group": "build",
-      "label": "npm: watch:webview",
       "problemMatcher": [],
       "isBackground": true,
       "presentation": {
