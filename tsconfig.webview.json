@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "paths": {
+      "@shared/*": ["./webview/shared/*"],
+      "@behavior3/*": ["./behavior3/src/behavior3/*"]
+    }
+  },
+  "include": ["webview/**/*", "behavior3/src/**/*"],
+  "exclude": ["node_modules", "dist", "src"]
+}

@@ -1,0 +1,17 @@
+.vscode/**
+node_modules/**
+src/**
+webview/**
+behavior3/**
+public/**
+**/*.ts
+**/*.tsx
+**/*.scss
+**/*.map
+esbuild.js
+vite.config.ts
+tsconfig*.json
+tailwind.config.js
+postcss.config.js
+.gitignore
+.gitmodules
