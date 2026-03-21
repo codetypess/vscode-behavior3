@@ -20,8 +20,7 @@ function buildWebviewHtml(
   webview: vscode.Webview,
   extensionUri: vscode.Uri,
   entry: "editor" | "inspector",
-  title: string,
-  bodyStyle = ""
+  title?: string
 ): string {
   const htmlPath = vscode.Uri.joinPath(extensionUri, "dist", "webview", entry, "index.html");
   let html = fs.readFileSync(htmlPath.fsPath, "utf-8");
@@ -31,22 +30,16 @@ function buildWebviewHtml(
     vscode.Uri.joinPath(extensionUri, "dist", "webview", "assets")
   );
   html = html.replace(/\.\.\/assets\//g, `${assetsUri}/`);
-
-  // Replace same-directory ./assets/ paths (just in case)
   html = html.replace(/(?<!=")\.\/assets\//g, `${assetsUri}/`);
 
-  // Set title
-  html = html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`);
+  if (title) {
+    html = html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`);
+  }
 
   // Inject CSP before </head>
   const src = webview.cspSource;
   const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${src} data: blob:; style-src ${src} 'unsafe-inline'; script-src ${src} 'unsafe-inline'; font-src ${src} data:; worker-src blob:; connect-src ${src};">`;
   html = html.replace("</head>", `  ${csp}\n</head>`);
-
-  // Inject body style
-  if (bodyStyle) {
-    html = html.replace("<body", `<body ${bodyStyle}`);
-  }
 
   return html;
 }
@@ -250,13 +243,7 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
   }
 
   private _getEditorHtml(webview: vscode.Webview): string {
-    return buildWebviewHtml(
-      webview,
-      this._extensionUri,
-      "editor",
-      "Behavior Tree Editor",
-      `style="padding: 0; margin: 0; width: 100vw; height: 100vh; overflow: hidden;"`
-    );
+    return buildWebviewHtml(webview, this._extensionUri, "editor", "Behavior Tree Editor");
   }
 }
 

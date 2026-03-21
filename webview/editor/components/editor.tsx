@@ -312,7 +312,7 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
       className="b3-editor"
       ref={sizeRef}
       tabIndex={-1}
-      style={{ maxWidth: "inherit", maxHeight: "inherit" }}
+      style={{ width: "100%", height: "100%", ...props.style }}
     >
       {showingSearch && (
         <Flex

@@ -62,38 +62,38 @@ const EditorApp = () => {
   const theme = getThemeConfig(workspace.theme);
 
   return (
-    <ConfigProvider theme={theme}>
-      <App>
-        <GlobalHooksBridge />
-        {ready && workspace.editor ? (
-          <Editor
-            data={workspace.editor}
-            onChange={() => {
-              // Notify extension host about content change
-              if (workspace.editor) {
-                const content = JSON.stringify(workspace.editor.data, null, 2);
-                vscodeApi.postMessage({ type: "update", content });
-              }
-            }}
-            style={{ width: "100%", height: "100vh" }}
-          />
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "100%",
-              height: "100vh",
-              color: "#666",
-              fontSize: 14,
-            }}
-          >
-            Loading...
-          </div>
-        )}
-      </App>
-    </ConfigProvider>
+    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
+      <ConfigProvider theme={theme}>
+        <App style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <GlobalHooksBridge />
+          {ready && workspace.editor ? (
+            <Editor
+              data={workspace.editor}
+              onChange={() => {
+                if (workspace.editor) {
+                  const content = JSON.stringify(workspace.editor.data, null, 2);
+                  vscodeApi.postMessage({ type: "update", content });
+                }
+              }}
+              style={{ flex: 1, minHeight: 0 }}
+            />
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flex: 1,
+                color: "#666",
+                fontSize: 14,
+              }}
+            >
+              Loading...
+            </div>
+          )}
+        </App>
+      </ConfigProvider>
+    </div>
   );
 };
 
