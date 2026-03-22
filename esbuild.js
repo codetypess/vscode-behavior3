@@ -1,5 +1,6 @@
 const esbuild = require("esbuild");
 const isWatch = process.argv.includes("--watch");
+const isDev = isWatch || process.argv.includes("--dev");
 
 const buildOptions = {
   entryPoints: ["src/extension.ts"],
@@ -9,7 +10,7 @@ const buildOptions = {
   format: "cjs",
   platform: "node",
   target: "node18",
-  sourcemap: true,
+  sourcemap: isDev,
   minify: false,
 };
 

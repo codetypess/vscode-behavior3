@@ -17,6 +17,7 @@ import {
   UpsertHooks,
 } from "@antv/g6";
 import { NodeStyle } from "@antv/g6/lib/spec/element/node";
+import { ExpressionEvaluator } from "../../../behavior3/src/behavior3/evaluator";
 import { NodeDef, getNodeType, isExprType, NodeData, NodeLayout } from "../../shared/misc/b3type";
 import * as b3util from "../../shared/misc/b3util";
 import i18n from "../../shared/misc/i18n";
@@ -164,14 +165,16 @@ const hasErrorInArgExpr = (def: NodeDef, data: NodeData) => {
     if (!expr) {
       continue;
     }
-    // Simple syntax check using ExpressionEvaluator if available
     try {
       if (typeof expr === "string") {
-        // basic check: try parsing as JS expression
-        new Function(`return (${expr})`);
+        if (!new ExpressionEvaluator(expr).dryRun()) {
+          return true;
+        }
       } else if (Array.isArray(expr)) {
         for (const str of expr) {
-          new Function(`return (${str})`);
+          if (!new ExpressionEvaluator(str).dryRun()) {
+            return true;
+          }
         }
       }
     } catch {

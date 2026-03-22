@@ -118,8 +118,9 @@
   "scripts": {
     "vscode:prepublish": "npm run build",
     "build": "node esbuild.js && vite build",
+    "build:dev": "node esbuild.js --dev && vite build --mode development",
     "watch:ext": "node esbuild.js --watch",
-    "watch:webview": "vite build --watch",
+    "watch:webview": "vite build --watch --mode development",
     "dev": "npm run watch:webview",
     "package": "vsce package",
     "postinstall": "git submodule update --init --recursive"

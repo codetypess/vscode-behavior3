@@ -2,7 +2,7 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import { defineConfig } from "vite";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   root: "webview",
   base: "./",
@@ -16,7 +16,9 @@ export default defineConfig({
         inspector: path.resolve(__dirname, "webview/inspector/index.html"),
       },
     },
-    sourcemap: true,
+    // dev mode: inline sourcemaps (CSP-safe, no separate .map files)
+    // production: no sourcemaps to keep bundle size small
+    sourcemap: mode === "development" ? "inline" : false,
   },
   css: {
     preprocessorOptions: {
@@ -25,4 +27,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

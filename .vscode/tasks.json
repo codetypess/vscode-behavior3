@@ -5,6 +5,17 @@
       "label": "build",
       "type": "shell",
       "command": "npm run build",
+      "group": "build",
+      "problemMatcher": ["$tsc"],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "build:dev",
+      "type": "shell",
+      "command": "npm run build:dev",
       "group": {
         "kind": "build",
         "isDefault": true

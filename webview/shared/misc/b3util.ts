@@ -23,17 +23,7 @@ import {
 import { stringifyJson } from "./stringify";
 import { basenameWithoutExt, nanoid, readTree } from "./util";
 
-// Import ExpressionEvaluator from behavior3 submodule (resolved via vite alias @behavior3)
-// If the submodule isn't available, the expression check degrades gracefully.
-let ExpressionEvaluator: { new (expr: string): { dryRun(): boolean } } | undefined;
-try {
-  // Dynamic import attempt; bundler will resolve @behavior3/evaluator
-  // This is resolved at build time via vite alias
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  ExpressionEvaluator = require("@behavior3/evaluator").ExpressionEvaluator;
-} catch {
-  // no-op: expression validation will be skipped
-}
+import { ExpressionEvaluator } from "../../../behavior3/src/behavior3/evaluator";
 
 export class NodeDefs extends Map<string, NodeDef> {
   override get(key: string): NodeDef {
