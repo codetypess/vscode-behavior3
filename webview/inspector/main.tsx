@@ -1,10 +1,10 @@
 import { App, ConfigProvider } from "antd";
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
-import { NodeDef, TreeData, NodeData, VarDecl } from "@shared/misc/b3type";
-import { setGlobalHooks } from "@shared/misc/hooks";
-import "@shared/misc/i18n";
-import { getThemeConfig } from "@shared/misc/theme";
+import { NodeDef, TreeData, NodeData, VarDecl } from "../shared/misc/b3type";
+import { setGlobalHooks } from "../shared/misc/hooks";
+import "../shared/misc/i18n";
+import { getThemeConfig } from "../shared/misc/theme";
 import { Inspector, InspectorState } from "./components/inspector";
 import * as vscodeApi from "./vscodeApi";
 import "./style.scss";

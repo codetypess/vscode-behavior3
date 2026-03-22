@@ -9,11 +9,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "paths": {
-      "@shared/*": ["./webview/shared/*"],
-      "@behavior3/*": ["./behavior3/src/behavior3/*"]
-    }
+    "resolveJsonModule": true
   },
   "include": ["webview/**/*", "behavior3/src/**/*"],
   "exclude": ["node_modules", "dist", "src"]

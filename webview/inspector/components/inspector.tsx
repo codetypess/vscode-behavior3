@@ -26,7 +26,7 @@ import React, { FC, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Markdown from "react-markdown";
 import { useDebounceCallback } from "usehooks-ts";
-import { ExpressionEvaluator } from "@behavior3/evaluator";
+import { ExpressionEvaluator } from "../../../behavior3/src/behavior3/evaluator";
 import {
   hasArgOptions,
   isBoolType,
@@ -40,7 +40,7 @@ import {
   NodeDef,
   TreeData,
   VarDecl,
-} from "@shared/misc/b3type";
+} from "../../shared/misc/b3type";
 import {
   checkNodeArgValue,
   checkOneof,
@@ -54,8 +54,8 @@ import {
   isVariadic,
   NodeDefs,
   parseExpr,
-} from "@shared/misc/b3util";
-import i18n from "@shared/misc/i18n";
+} from "../../shared/misc/b3util";
+import i18n from "../../shared/misc/i18n";
 import { postMessage } from "../vscodeApi";
 
 interface OptionType extends DefaultOptionType {

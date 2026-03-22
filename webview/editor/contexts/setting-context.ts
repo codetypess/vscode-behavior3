@@ -4,7 +4,7 @@
  * Only keeps the node layout preference (stored in localStorage).
  */
 import { create } from "zustand";
-import { NodeLayout } from "@shared/misc/b3type";
+import { NodeLayout } from "../../shared/misc/b3type";
 
 const LAYOUT_KEY = "b3.nodeLayout";
 

@@ -5,18 +5,18 @@
  */
 import React from "react";
 import { create } from "zustand";
-import { NodeDef } from "@shared/misc/b3type";
+import { NodeDef } from "../../shared/misc/b3type";
 import {
   FileVarDecl,
   ImportDecl,
   NodeData,
   TreeData,
   VarDecl,
-} from "@shared/misc/b3type";
-import * as b3util from "@shared/misc/b3util";
-import { message } from "@shared/misc/hooks";
-import i18n from "@shared/misc/i18n";
-import { basenameWithoutExt, nanoid, readTree, writeTree } from "@shared/misc/util";
+} from "../../shared/misc/b3type";
+import * as b3util from "../../shared/misc/b3util";
+import { message } from "../../shared/misc/hooks";
+import i18n from "../../shared/misc/i18n";
+import { basenameWithoutExt, nanoid, readTree, writeTree } from "../../shared/misc/util";
 import * as vscodeApi from "../vscodeApi";
 
 export type EditEvent =
@@ -232,11 +232,10 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
 
   applyHostVars: (vars) => {
     b3util.updateUsingVars(vars);
+    // Updating usingVars in the store causes Editor's useEffect to fire
+    // graph.repaint(), which redraws node error states without clearing
+    // the graph or resetting selection.
     set({ usingVars: b3util.usingVars });
-    // Repaint node colors to reflect updated usingVars.
-    // Use "repaint" (not "refresh") to avoid triggering selectNode(null)
-    // → onEditingTree → treeSelected → varDeclLoaded infinite loop.
-    get().editor?.dispatch?.("repaint");
   },
 
   onEditingNode: (node) => {

@@ -17,10 +17,10 @@ import {
   UpsertHooks,
 } from "@antv/g6";
 import { NodeStyle } from "@antv/g6/lib/spec/element/node";
-import { NodeDef, getNodeType, isExprType, NodeData, NodeLayout } from "@shared/misc/b3type";
-import * as b3util from "@shared/misc/b3util";
-import i18n from "@shared/misc/i18n";
-import { isMacos } from "@shared/misc/keys";
+import { NodeDef, getNodeType, isExprType, NodeData, NodeLayout } from "../../shared/misc/b3type";
+import * as b3util from "../../shared/misc/b3util";
+import i18n from "../../shared/misc/i18n";
+import { isMacos } from "../../shared/misc/keys";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Constructor<T> = new (...args: any[]) => T;
 import { useSetting } from "../contexts/setting-context";

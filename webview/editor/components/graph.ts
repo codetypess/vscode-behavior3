@@ -13,11 +13,11 @@ import {
   IPointerEvent as IG6PointerEvent,
   treeToGraphData,
 } from "@antv/g6";
-import { ImportDecl, isExprType, NodeData, TreeData, VarDecl } from "@shared/misc/b3type";
-import * as b3util from "@shared/misc/b3util";
-import { message } from "@shared/misc/hooks";
-import i18n from "@shared/misc/i18n";
-import { basenameWithoutExt, nanoid, readTree, writeTree } from "@shared/misc/util";
+import { ImportDecl, isExprType, NodeData, TreeData, VarDecl } from "../../shared/misc/b3type";
+import * as b3util from "../../shared/misc/b3util";
+import { message } from "../../shared/misc/hooks";
+import i18n from "../../shared/misc/i18n";
+import { basenameWithoutExt, nanoid, readTree, writeTree } from "../../shared/misc/util";
 import { EditNode, EditorStore, EditTree, useWorkspace } from "../contexts/workspace-context";
 import * as vscodeApi from "../vscodeApi";
 import { TreeNodeState, TreeNodeStyle } from "./register-node";
@@ -506,9 +506,15 @@ export class Graph {
    * changes to b3util.usingVars/usingGroups are reflected immediately,
    * WITHOUT clearing data, resetting selection, or triggering any
    * treeSelected/nodeSelected messages back to the host.
+   *
+   * We call _graph.render() directly (skipping the zoom-reset dance in
+   * _render()) because data and layout haven't changed — only the
+   * external b3util.usingVars used inside the custom node renderer.
    */
   async repaint() {
-    await this._graph.draw();
+    if (this._graph.rendered) {
+      await this._graph.render();
+    }
   }
 
   async reload() {

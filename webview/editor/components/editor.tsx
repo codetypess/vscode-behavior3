@@ -10,9 +10,9 @@ import { RiFocus3Line } from "react-icons/ri";
 import { VscCaseSensitive } from "react-icons/vsc";
 import { useDebounceCallback } from "usehooks-ts";
 import { useShallow } from "zustand/react/shallow";
-import i18n from "@shared/misc/i18n";
-import { Hotkey, isMacos } from "@shared/misc/keys";
-import { mergeClassNames } from "@shared/misc/util";
+import i18n from "../../shared/misc/i18n";
+import { Hotkey, isMacos } from "../../shared/misc/keys";
+import { mergeClassNames } from "../../shared/misc/util";
 import { EditEvent, EditNode, EditorStore, EditTree, useWorkspace } from "../contexts/workspace-context";
 import { FilterOption, Graph } from "./graph";
 import "./register-node";
@@ -106,6 +106,7 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
   const workspace = useWorkspace(
     useShallow((state) => ({
       editor: state.editor,
+      usingVars: state.usingVars,
     }))
   );
 
@@ -307,6 +308,16 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
       graph.refresh();
     }
   }, [t]);
+
+  // When usingVars changes OR graph first becomes available, repaint nodes
+  // so error states reflect the latest b3util.usingVars.
+  // Depend on both [graph, usingVars] to handle the timing where either
+  // usingVars arrives before graph is ready, or graph is ready first.
+  useEffect(() => {
+    if (graph) {
+      graph.repaint();
+    }
+  }, [graph, workspace.usingVars]);
 
   return (
     <div

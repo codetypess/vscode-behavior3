@@ -7,12 +7,6 @@ export default defineConfig({
   root: "webview",
   base: "./",
   publicDir: path.resolve(__dirname, "public"),
-  resolve: {
-    alias: {
-      "@shared": path.resolve(__dirname, "webview/shared"),
-      "@behavior3": path.resolve(__dirname, "behavior3/src/behavior3"),
-    },
-  },
   build: {
     outDir: path.resolve(__dirname, "dist/webview"),
     emptyOutDir: true,
