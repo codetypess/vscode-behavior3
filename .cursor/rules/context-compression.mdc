@@ -1,0 +1,13 @@
+---
+description: Proactively compress or summarize when context usage is high (~60%+)
+alwaysApply: true
+---
+
+# Context budget
+
+- Treat **~60% context usage** as a signal to **reduce footprint** before work grows heavier.
+- When approaching that level (or when the session has accumulated long transcripts, many tool results, or large pasted code):
+  - **Summarize** decisions, open questions, and file paths touched into a short checklist.
+  - **Drop** redundant details already captured in summaries; avoid re-quoting huge blocks.
+  - Prefer **one consolidated reply** over many parallel large reads when possible.
+- If the user is mid-task, offer a **compressed handoff** (goal → done → next → blockers) so follow-up turns need less history.

@@ -1,0 +1,30 @@
+{
+  "version": "1.8.0",
+  "name": "subtree1",
+  "desc": "子树1",
+  "firstid": 1,
+  "group": [],
+  "import": [],
+  "vars": [],
+  "root": {
+    "id": 1,
+    "name": "Sequence",
+    "desc": "新建行为树",
+    "children": [
+      {
+        "id": 2,
+        "name": "Log",
+        "args": {
+          "message": "d"
+        }
+      },
+      {
+        "id": 3,
+        "name": "Wait",
+        "args": {
+          "time": 1
+        }
+      }
+    ]
+  }
+}

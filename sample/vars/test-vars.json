@@ -1,0 +1,140 @@
+{
+  "$override": {
+  },
+  "custom": {
+  },
+  "desc": "",
+  "export": true,
+  "group": [
+    "Client",
+    "Server"
+  ],
+  "import": [
+    "vars/declare-core.json",
+    "vars/declare-vars.json"
+  ],
+  "name": "test-vars",
+  "prefix": "A",
+  "root": {
+    "$id": "jmQVFO674o",
+    "children": [
+      {
+        "$id": "jrdDQ2IaJT",
+        "id": "2",
+        "name": "Sequence",
+        "path": "vars/test-subtree.json"
+      },
+      {
+        "$id": "ZpXcZl6oDz",
+        "args": {
+        },
+        "id": "4",
+        "name": "FindEnemy",
+        "output": [
+          "target1"
+        ]
+      },
+      {
+        "$id": "2LzD04xCDS",
+        "id": "5",
+        "input": [
+          "target1"
+        ],
+        "name": "Attack"
+      },
+      {
+        "$id": "vkbssyIliL",
+        "args": {
+          "value": "target[0].x > 0 "
+        },
+        "id": "6",
+        "name": "Check"
+      },
+      {
+        "$id": "IQrhE8LPc5",
+        "id": "7",
+        "input": [
+          "target"
+        ],
+        "name": "MoveToTarget"
+      },
+      {
+        "$id": "qS2lvvtrTI",
+        "id": "8",
+        "name": "Clear",
+        "output": [
+          "test"
+        ]
+      },
+      {
+        "$id": "ofZMb7TDwp",
+        "args": {
+          "check": "1",
+          "name": "1",
+          "open": true,
+          "status": "FAILURE",
+          "time": 1
+        },
+        "id": "9",
+        "name": "TestB3"
+      },
+      {
+        "$id": "0SCKW5eqY6",
+        "args": {
+          "check": "1",
+          "name": "1",
+          "open": true,
+          "status": "RUNNING",
+          "time": 1
+        },
+        "id": "10",
+        "name": "TestB3"
+      },
+      {
+        "$id": "R27WGek92H",
+        "id": "11",
+        "name": "Clear",
+        "output": [
+          "context"
+        ]
+      },
+      {
+        "$id": "3o4RYMLKXE",
+        "args": {
+          "builtin": "afterRunFailure"
+        },
+        "id": "12",
+        "input": [
+        ],
+        "name": "Listen",
+        "output": [
+        ]
+      },
+      {
+        "$id": "WHf37oUmnE",
+        "args": {
+        },
+        "id": "13",
+        "input": [
+          "context"
+        ],
+        "name": "TestOneof",
+        "output": [
+        ]
+      }
+    ],
+    "id": "1",
+    "name": "Sequence"
+  },
+  "vars": [
+    {
+      "desc": "目标",
+      "name": "target"
+    },
+    {
+      "desc": "其它目标",
+      "name": "target1"
+    }
+  ],
+  "version": "1.9.0"
+}

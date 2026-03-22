@@ -45,11 +45,11 @@
       {
         "command": "behavior3.build",
         "title": "Build Behavior Tree",
-        "icon": "$(play)"
+        "icon": "$(tools)"
       },
       {
         "command": "behavior3.newTree",
-        "title": "Behavior Tree: New .b3tree File"
+        "title": "New .b3tree File"
       },
       {
         "command": "behavior3.openSettings",
@@ -58,6 +58,14 @@
       {
         "command": "behavior3.openWithEditor",
         "title": "Open with Behavior3"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "behavior3.build",
+        "key": "ctrl+b",
+        "mac": "cmd+b",
+        "when": "activeCustomEditorId == 'behavior3.treeEditor'"
       }
     ],
     "menus": {

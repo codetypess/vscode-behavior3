@@ -16,6 +16,7 @@ import { mergeClassNames } from "../../shared/misc/util";
 import { EditEvent, EditNode, EditorStore, EditTree, useWorkspace } from "../contexts/workspace-context";
 import { FilterOption, Graph } from "./graph";
 import { Inspector } from "./inspector";
+import * as vscodeApi from "../vscodeApi";
 import "./register-node";
 
 /** Same as desktop `workspace.tsx` hotkeyMap — tree canvas editing shortcuts */
@@ -287,7 +288,7 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
   };
 
   // Tree canvas shortcuts: copy/paste/insert/delete/undo/redo + in-tree search (Ctrl/Cmd+F,G).
-  // Save/Build/Close/QuickOpen are handled by the VS Code host when the webview does not capture them.
+  // Save/Close/QuickOpen: VS Code host. Build: editor title bar command; webview mirrors Ctrl/Cmd+B via postMessage when iframe has focus.
   useKeyPress(Hotkey.SearchNode, null, (event) => {
     event.preventDefault();
     editor.dispatch?.("searchNode");
@@ -326,6 +327,18 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
     }
     e.stopPropagation();
     editor.dispatch?.(hotkeyMap[key]);
+  });
+
+  /**
+   * When focus is inside the webview iframe, VS Code keybindings may not run — mirror title-bar Build (Ctrl/Cmd+B).
+   */
+  useKeyPress(Hotkey.Build, null, (e) => {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    vscodeApi.postMessage({ type: "build" });
   });
 
   if (graph) {

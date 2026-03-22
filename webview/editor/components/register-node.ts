@@ -1,5 +1,5 @@
 // Adapted from original register-node.ts:
-// - Replaced behavior3 NodeDef import with local b3type
+// NodeDef 来自 shared b3type（与 behavior3 `node.ts` 一致）
 // - Updated imports to use @shared/ aliases
 // - Replaced Electron-specific setting-context with local webview version
 // - Replaced `assert` (Node.js) with inline assertion

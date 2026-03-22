@@ -1,7 +1,9 @@
-// Adapted from original: removed fs/path Node.js imports (browser-safe version)
+// Browser + extension host: string-based readTree for webview; file-based helpers use getFs (after setFs).
 import { customAlphabet } from "nanoid";
-import { VERSION, type TreeData } from "./b3type";
+import { VERSION, type TreeData, type WorkspaceModel } from "./b3type";
+import { getFs } from "./b3fs";
 import { createNode, dfs } from "./b3util";
+import Path from "./path";
 import { stringifyJson } from "./stringify";
 
 export const nanoid = customAlphabet(
@@ -37,8 +39,7 @@ export const writeTree = (data: TreeData, name: string): string => {
   return stringifyJson(treeDataForPersistence(data, name), { indent: 2 });
 };
 
-export const readTree = (text: string): TreeData => {
-  const data = JSON.parse(text) as TreeData;
+const applyTreeDefaults = (data: TreeData): TreeData => {
   data.version = data.version ?? VERSION;
   data.prefix = data.prefix ?? "";
   data.group = data.group || [];
@@ -56,6 +57,50 @@ export const readTree = (text: string): TreeData => {
   });
 
   return data;
+};
+
+/** Parse tree JSON from editor / postMessage string content. */
+export const readTree = (text: string): TreeData => {
+  return applyTreeDefaults(JSON.parse(text) as TreeData);
+};
+
+// ─── Node-only (after setFs) — used by buildProject / createBuildData ───
+
+export const readJson = <T>(path: string): T => {
+  const str = getFs().readFileSync(path, "utf-8");
+  return JSON.parse(str) as T;
+};
+
+export const writeJson = <T>(path: string, data: T) => {
+  const str = stringifyJson(data, { indent: 2 });
+  getFs().writeFileSync(path, str, "utf-8");
+};
+
+export const readWorkspace = (path: string) => {
+  const data = readJson(path) as WorkspaceModel;
+  data.settings = data.settings ?? {};
+  return data;
+};
+
+/** Load tree from disk path (extension build). */
+export const readTreeFromFile = (path: string): TreeData => {
+  return applyTreeDefaults(readJson(path) as TreeData);
+};
+
+export const writeTreeToFile = (path: string, data: TreeData) => {
+  writeJson<TreeData>(path, {
+    version: VERSION,
+    name: Path.basenameWithoutExt(path),
+    desc: data.desc,
+    prefix: data.prefix,
+    export: data.export,
+    group: data.group,
+    import: data.import,
+    vars: data.vars,
+    root: data.root,
+    custom: data.custom,
+    $override: data.$override,
+  });
 };
 
 export function mergeClassNames(...cls: (string | boolean)[]): string {

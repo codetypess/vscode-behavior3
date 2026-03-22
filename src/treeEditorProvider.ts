@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
+import { getBehavior3OutputChannel } from "./outputChannel";
 import { resolveNodeDefs, watchSettingFile } from "./settingResolver";
 import type {
   EditorToHostMessage,
@@ -226,6 +227,31 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
           break;
         }
 
+        case "webviewLog": {
+          const out = getBehavior3OutputChannel();
+          const text = msg.message;
+          switch (msg.level) {
+            case "log":
+              out.info(text);
+              break;
+            case "info":
+              out.info(text);
+              break;
+            case "debug":
+              out.debug(text);
+              break;
+            case "warn":
+              out.warn(text);
+              break;
+            case "error":
+              out.error(text);
+              break;
+            default:
+              out.info(text);
+          }
+          break;
+        }
+
         case "readFile": {
           const fileUri = vscode.Uri.file(path.normalize(msg.path));
           try {
@@ -430,7 +456,7 @@ function readVarsFromFile(
     // Also recurse into transitive imports for global vars
     for (const imp of fileTree.import ?? []) {
       if (typeof imp === "string") {
-        loadVarsFromFile(imp, workdirFs, globalVars, visitedForGlobal);
+        readVarsFromFile(imp, workdirFs, visitedForGlobal, globalVars);
       }
     }
   } catch {

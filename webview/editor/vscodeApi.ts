@@ -17,6 +17,45 @@ export const postMessage = (msg: EditorToHostMessage) => {
   vscode.postMessage(msg);
 };
 
+function formatWebviewConsoleArg(a: unknown): string {
+  if (typeof a === "string") {
+    return a;
+  }
+  if (a instanceof Error) {
+    return a.stack ?? a.message;
+  }
+  try {
+    if (typeof a === "object" && a !== null) {
+      return JSON.stringify(a);
+    }
+  } catch {
+    /* ignore */
+  }
+  return String(a);
+}
+
+/**
+ * Mirror webview `console.*` to the extension host Output channel ("Behavior3").
+ * Original console still runs in DevTools.
+ */
+function installWebviewConsoleForward(): void {
+  const levels = ["log", "info", "warn", "error", "debug"] as const;
+  for (const level of levels) {
+    const orig = console[level].bind(console);
+    console[level] = (...args: unknown[]) => {
+      orig(...args);
+      try {
+        const message = args.map(formatWebviewConsoleArg).join(" ");
+        postMessage({ type: "webviewLog", level, message });
+      } catch {
+        /* ignore bridge errors */
+      }
+    };
+  }
+}
+
+installWebviewConsoleForward();
+
 type MessageHandler = (msg: HostToEditorMessage) => void;
 const handlers: MessageHandler[] = [];
 

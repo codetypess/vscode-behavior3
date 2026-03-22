@@ -1,0 +1,27 @@
+{
+  "version": "1.8.0",
+  "name": "declare-core",
+  "desc": "",
+  "firstid": 1,
+  "export": true,
+  "group": [],
+  "import": [],
+  "vars": [
+    {
+      "name": "context",
+      "desc": "上下文"
+    },
+    {
+      "name": "version",
+      "desc": "版本"
+    }
+  ],
+  "root": {
+    "id": 1,
+    "name": "Wait",
+    "args": {
+      "time": 1
+    },
+    "input": ["version"]
+  }
+}

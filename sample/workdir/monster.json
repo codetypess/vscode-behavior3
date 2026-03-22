@@ -1,0 +1,72 @@
+{
+  "version": "1.8.0",
+  "name": "monster",
+  "desc": "怪物测试AI",
+  "firstid": 1,
+  "export": true,
+  "group": ["Test"],
+  "import": [],
+  "vars": [],
+  "root": {
+    "id": 1,
+    "name": "Sequence",
+    "desc": "怪物测试AI",
+    "children": [
+      {
+        "id": 2,
+        "name": "Sequence",
+        "desc": "攻击",
+        "children": [
+          {
+            "id": 3,
+            "name": "GetHp",
+            "output": ["hp"],
+            "children": [
+              {
+                "id": 4,
+                "name": "Sequence",
+                "desc": "新建行为树",
+                "path": "workdir/subtree2.json"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "name": "Cmp",
+            "args": {
+              "value": "hp",
+              "gt": 50
+            },
+            "input": ["hp"]
+          },
+          {
+            "id": 7,
+            "name": "TestB3",
+            "desc": "攻击",
+            "args": {
+              "time": 1,
+              "open": true,
+              "check": "1",
+              "name": "1",
+              "status": "FAILURE"
+            }
+          },
+          {
+            "id": 8,
+            "name": "Sequence",
+            "desc": "新建行为树",
+            "path": "workdir/subtree1.json"
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "name": "Log",
+        "desc": "逃跑",
+        "args": {
+          "message": "Run!"
+        }
+      }
+    ]
+  }
+}

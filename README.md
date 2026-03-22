@@ -96,6 +96,14 @@ The Inspector is the **right-hand panel inside the tree editor** (not a separate
 | `Ctrl/Cmd+A` | Select all |
 | `Ctrl/Cmd+F` | Fit canvas to screen |
 
+## Developing this extension
+
+**Shared misc** lives in **`webview/shared/misc/`** (single source for webview + extension build). **`b3fs.ts`** exposes **`setFs` / `getFs` / `hasFs`**: until **`setFs`** is called, **`b3util`** behaves in **browser-safe** mode (no disk reads); the **extension host build** (`behavior3.build`) loads **`buildProject`** / **`initWorkdirFromSettingFile`** from the same **`b3util`**, and **`src/build/runBuild.ts`** calls **`setFs(fs)`** with Node’s **`fs`** so file access uses the real filesystem.
+
+**Logs:** Open **View → Output**, choose channel **Behavior3**. **Extension host** `console.log` / `console.info` / `console.warn` / `console.error` are mirrored there (still also in the Debug Console). **Webview** `console.log` / `info` / `warn` / `error` / `debug` are mirrored the same way (still in DevTools).
+
+**Build scripts** (`settings.buildScript` in `.b3-workspace`): the extension temporarily **`process.chdir`**s to the workspace file’s directory (same as desktop). Prefer **`path.join(env.workdir, …)`** for any `fs` paths in `onSetup` / hooks so it works even if cwd differs.
+
 ## Requirements
 
 - VSCode 1.85.0 or higher

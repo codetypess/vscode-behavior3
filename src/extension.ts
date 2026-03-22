@@ -1,7 +1,13 @@
 import * as vscode from "vscode";
+import { runBuild } from "./build/runBuild";
+import { installExtensionConsoleToOutputChannel } from "./extensionConsole";
+import { getBehavior3OutputChannel } from "./outputChannel";
 import { TreeEditorProvider } from "./treeEditorProvider";
 
 export function activate(context: vscode.ExtensionContext) {
+  context.subscriptions.push(getBehavior3OutputChannel());
+  installExtensionConsoleToOutputChannel();
+
   const editorProvider = new TreeEditorProvider(context.extensionUri, context);
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(TreeEditorProvider.viewType, editorProvider, {
@@ -12,22 +18,10 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  // Command: build
+  // Command: build (same pipeline as desktop behavior3editor `b3util.buildProject`)
   context.subscriptions.push(
     vscode.commands.registerCommand("behavior3.build", async () => {
-      const outputDir = await vscode.window.showOpenDialog({
-        canSelectFiles: false,
-        canSelectFolders: true,
-        canSelectMany: false,
-        openLabel: "Select Output Directory",
-        title: "Build Behavior Tree - Select Output Directory",
-      });
-      if (!outputDir || outputDir.length === 0) {
-        return;
-      }
-      vscode.window.showInformationMessage(
-        `[Behavior3] Build to: ${outputDir[0].fsPath} (coming soon)`
-      );
+      await runBuild(context);
     })
   );
 

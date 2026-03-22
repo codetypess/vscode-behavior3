@@ -2,23 +2,9 @@
  * Shared message protocol types between Extension Host and Webview.
  */
 
-export interface NodeDef {
-  name: string;
-  type: string;
-  desc?: string;
-  doc?: string;
-  args?: Array<{
-    name: string;
-    type: string;
-    desc?: string;
-    default?: unknown;
-    options?: unknown;
-    optional?: boolean;
-  }>;
-  input?: string[];
-  output?: string[];
-  children?: number;
-}
+import type { NodeDef } from "../behavior3/src/behavior3/node";
+
+export type { NodeDef };
 
 // ─── Editor Webview → Extension Host ────────────────────────────────────────
 
@@ -29,7 +15,9 @@ export type EditorToHostMessage =
   | { type: "requestSetting" }
   | { type: "build" }
   | { type: "readFile"; requestId: string; path: string }
-  | { type: "saveSubtree"; requestId: string; path: string; content: string };
+  | { type: "saveSubtree"; requestId: string; path: string; content: string }
+  /** Forward webview `console.*` to extension Output panel. */
+  | { type: "webviewLog"; level: "log" | "info" | "warn" | "error" | "debug"; message: string };
 
 // ─── Extension Host → Editor Webview ────────────────────────────────────────
 

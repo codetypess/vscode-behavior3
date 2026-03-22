@@ -181,17 +181,17 @@ export class Graph {
   }
 
   /**
-   * Load all referenced subtree JSON files into b3util.subtreeCache so
-   * refreshNodeData can merge external roots (same as Electron fs.readFileSync).
+   * Read every referenced subtree file from the extension host (each graph refresh), same spirit as
+   * behavior3editor `readTree(workdir + "/" + node.path)` — no long-lived b3util cache.
    */
   private async _preloadSubtreeCaches(root: NodeData): Promise<void> {
-    b3util.clearSubtreeCache();
     const workdir = useWorkspace.getState().workdir.replace(/[/\\]+$/, "");
     const pending = new Set<string>();
     const loaded = new Set<string>();
+    const reads = new Map<string, TreeData>();
 
     const collectFromMemory = (node: NodeData) => {
-      if (node.path) pending.add(node.path);
+      if (node.path) pending.add(b3util.normalizeSubtreePathKey(node.path));
       node.children?.forEach(collectFromMemory);
     };
     collectFromMemory(root);
@@ -206,11 +206,14 @@ export class Graph {
       const absPath = `${workdir}/${relPath.replace(/^[/\\]+/, "")}`;
       const content = await vscodeApi.readFile(absPath);
       if (!content) continue;
-      b3util.setSubtreeCache(relPath, content);
       try {
         const sub = readTree(content);
+        reads.set(relPath, sub);
         const discover = (n: NodeData) => {
-          if (n.path && !loaded.has(n.path)) pending.add(n.path);
+          if (n.path) {
+            const k = b3util.normalizeSubtreePathKey(n.path);
+            if (!loaded.has(k)) pending.add(k);
+          }
           n.children?.forEach(discover);
         };
         discover(sub.root);
@@ -218,6 +221,7 @@ export class Graph {
         /* invalid subtree JSON */
       }
     }
+    b3util.setWebviewSubtreeReads(reads);
   }
 
   private async _update(data: TreeData, refreshId: boolean = true, refreshVars: boolean = false) {
@@ -225,6 +229,7 @@ export class Graph {
     if (refreshId) {
       await this._preloadSubtreeCaches(data.root);
       b3util.refreshNodeData(this.data, this.data.root, 1);
+      b3util.clearWebviewSubtreeReads();
     }
 
     if (refreshVars) {

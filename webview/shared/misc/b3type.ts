@@ -1,34 +1,12 @@
-// Copied from original project, with NodeDef import replaced by local definition
-// to avoid Node.js-specific imports in browser context.
+import type { NodeDef } from "../../../behavior3/src/behavior3/node";
+
+export type { NodeDef };
+export type NodeType = NodeDef["type"] | "Other" | "Error";
+export type NodeArg = Exclude<NodeDef["args"], undefined>[number];
 
 export const VERSION = "1.9.0";
 
 export const keyWords = ["true", "false", "null", "undefined", "NaN", "Infinity"];
-
-/** Minimal NodeDef type used in the webview (mirrors behavior3 runtime) */
-export interface NodeDefArg {
-  name: string;
-  type: string;
-  desc?: string;
-  default?: unknown;
-  options?: unknown;
-  optional?: boolean;
-  oneof?: string;
-}
-
-export interface NodeDef {
-  name: string;
-  type: string;
-  desc?: string;
-  doc?: string;
-  args?: NodeDefArg[];
-  input?: string[];
-  output?: string[];
-  children?: number;
-}
-
-export type NodeType = "Action" | "Composite" | "Decorator" | "Condition" | "Other" | "Error";
-export type NodeArg = NodeDefArg;
 
 export const isIntType = (type: string) => type.startsWith("int");
 export const isFloatType = (type: string) => type.startsWith("float");
@@ -101,6 +79,14 @@ export interface TreeData {
 
   $override: {
     [key: string]: Pick<NodeData, "desc" | "input" | "output" | "args" | "debug" | "disabled">;
+  };
+}
+
+/** `.b3-workspace` file shape. Extension build only reads `settings`; `files` is optional (desktop may still use it). */
+export interface WorkspaceModel {
+  settings: {
+    checkExpr?: boolean;
+    buildScript?: string;
   };
 }
 
