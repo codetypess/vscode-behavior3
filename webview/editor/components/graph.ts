@@ -18,7 +18,13 @@ import * as b3util from "../../shared/misc/b3util";
 import { message } from "../../shared/misc/hooks";
 import i18n from "../../shared/misc/i18n";
 import { basenameWithoutExt, nanoid, readTree, writeTree } from "../../shared/misc/util";
-import { EditNode, EditorStore, EditTree, useWorkspace } from "../contexts/workspace-context";
+import {
+  buildEditingTreeSnapshot,
+  EditNode,
+  EditorStore,
+  EditTree,
+  useWorkspace,
+} from "../contexts/workspace-context";
 import * as vscodeApi from "../vscodeApi";
 import { TreeNodeState, TreeNodeStyle } from "./register-node";
 
@@ -506,6 +512,13 @@ export class Graph {
       useWorkspace.getState().refresh();
       await this.refresh({ preserveSelection: true });
       this._storeHistory();
+
+      const st = useWorkspace.getState();
+      if (st.editingTree != null && st.editingNode == null) {
+        useWorkspace.setState({
+          editingTree: buildEditingTreeSnapshot(this.editor),
+        });
+      }
     }
   }
 

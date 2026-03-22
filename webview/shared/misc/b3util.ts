@@ -819,11 +819,25 @@ export const refreshVarDecl = (root: NodeData, group: string[], declare: FileVar
     });
   });
 
-  declare.subtree = collectSubtree(root).map((v) => ({
-    path: v,
-    vars: [],
-    depends: [],
-  }));
+  // Keep per-path vars from host (subtree JSON); do not wipe to [] — that briefly
+  // shrinks usingVars and nodes flash red until varDeclLoaded returns.
+  const prevSubtreeByPath = new Map(declare.subtree.map((s) => [s.path, s]));
+  declare.subtree = collectSubtree(root).map((path) => {
+    const prev = prevSubtreeByPath.get(path);
+    return {
+      path,
+      vars: prev?.vars?.length ? prev.vars.map((v) => ({ ...v })) : [],
+      depends: prev?.depends ?? [],
+    };
+  });
+
+  declare.subtree.forEach((entry) => {
+    entry.vars.forEach((v) => {
+      if (!vars.find((x) => x.name === v.name)) {
+        vars.push({ ...v });
+      }
+    });
+  });
 
   let changed = false;
   const lastGroup = Array.from(Object.keys(usingGroups ?? {})).sort();

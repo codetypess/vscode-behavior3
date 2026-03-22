@@ -1063,6 +1063,9 @@ const TreeInspector: FC<{
     return count;
   }, [tree, nodeDefs]);
 
+  // Sync form from store when `tree` changes only. Do not depend on `usingCount` here:
+  // otherwise blur→updateTree→usingCount change re-runs resetFields with stale `tree.vars`
+  // before Zustand editingTree sync, and inputs snap back to old values.
   useEffect(() => {
     form.resetFields();
     form.setFieldValue("name", tree.name);
@@ -1100,7 +1103,37 @@ const TreeInspector: FC<{
         })),
       }))
     );
-  }, [tree, usingCount]);
+  }, [tree]);
+
+  // Update reference-count badges only (no full reset).
+  useEffect(() => {
+    const patchRows = (basePath: (string | number)[], rows: VarItem[] | undefined) => {
+      (rows ?? []).forEach((row, i) => {
+        if (!row?.name) return;
+        const c = usingCount[row.name] ?? 0;
+        if (row.count === c) return;
+        const p = [...basePath, i];
+        const cur = form.getFieldValue(p) as VarItem | undefined;
+        if (cur) {
+          form.setFieldValue(p, { ...cur, count: c });
+        }
+      });
+    };
+
+    const vars = form.getFieldValue("vars") as VarItem[] | undefined;
+    patchRows(["vars"], vars);
+
+    const imports = form.getFieldValue("import") as Array<{ vars?: VarItem[] }> | undefined;
+    (imports ?? []).forEach((imp, i) => {
+      patchRows(["import", i, "vars"], imp.vars);
+    });
+
+    const subs = form.getFieldValue("subtree") as Array<{ vars?: VarItem[] }> | undefined;
+    (subs ?? []).forEach((_sub, i) => {
+      const rows = form.getFieldValue(["subtree", i, "vars"]) as VarItem[] | undefined;
+      patchRows(["subtree", i, "vars"], rows);
+    });
+  }, [usingCount, form]);
 
   const finish = (values: Record<string, unknown>) => {
     const vars = ((values.vars ?? []) as VarItem[])

@@ -99,6 +99,27 @@ export type EditTree = {
   root: NodeData;
 };
 
+/** Fresh snapshot for TreeInspector props (clone vars/import/subtree so store !== live declare refs). */
+export function buildEditingTreeSnapshot(editor: EditorStore): EditTree {
+  return {
+    ...editor.data,
+    root: editor.data.root,
+    import: editor.declare.import.map((d) => ({
+      path: d.path,
+      modified: d.modified,
+      vars: d.vars.map((v) => ({ name: v.name, desc: v.desc ?? "" })),
+      depends: (d.depends ?? []).map((x) => ({ path: x.path, modified: x.modified })),
+    })),
+    subtree: editor.declare.subtree.map((d) => ({
+      path: d.path,
+      modified: d.modified,
+      vars: d.vars.map((v) => ({ name: v.name, desc: v.desc ?? "" })),
+      depends: (d.depends ?? []).map((x) => ({ path: x.path, modified: x.modified })),
+    })),
+    vars: editor.declare.vars.map((v) => ({ name: v.name, desc: v.desc ?? "" })),
+  };
+}
+
 export type WorkspaceStore = {
   // init state (received from extension host)
   filePath: string;
@@ -244,12 +265,30 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
   refresh: () => {
     const editor = get().editor;
     if (!editor) return;
-    b3util.refreshVarDecl(editor.data.root, editor.data.group, editor.declare);
-    set({ usingGroups: b3util.usingGroups, usingVars: b3util.usingVars });
+    const changed = b3util.refreshVarDecl(editor.data.root, editor.data.group, editor.declare);
+    if (changed) {
+      set({ usingGroups: b3util.usingGroups, usingVars: b3util.usingVars });
+    }
   },
 
   applyHostVars: (vars, allFiles, importDecls, subtreeDecls) => {
-    b3util.updateUsingVars(vars);
+    const usingVarsSig = (m: typeof b3util.usingVars) =>
+      m
+        ? Object.keys(m)
+            .sort()
+            .map((k) => `${k}\x00${m![k].desc ?? ""}`)
+            .join("\x01")
+        : "";
+
+    const incomingSig = [...vars]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((v) => `${v.name}\x00${v.desc ?? ""}`)
+      .join("\x01");
+
+    const varsUnchanged = incomingSig === usingVarsSig(b3util.usingVars);
+    if (!varsUnchanged) {
+      b3util.updateUsingVars(vars);
+    }
 
     const editor = get().editor;
     if (editor) {
@@ -269,22 +308,28 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       }
     }
 
-    // Updating usingVars in the store causes Editor's useEffect to fire
-    // graph.repaint(), which redraws node error states without clearing
-    // the graph or resetting selection.
-    const update: Partial<WorkspaceStore> = { usingVars: b3util.usingVars };
-    if (allFiles) update.allFiles = allFiles;
-    // Trigger editingTree re-render when import/subtree vars are updated
-    if (editor && (importDecls || subtreeDecls)) {
-      update.editingTree = {
-        ...editor.data,
-        root: editor.data.root,
-        import: editor.declare.import,
-        subtree: editor.declare.subtree,
-        vars: editor.declare.vars,
-      };
+    const update: Partial<WorkspaceStore> = {};
+    if (!varsUnchanged) {
+      update.usingVars = b3util.usingVars;
     }
-    set(update);
+    if (allFiles) update.allFiles = allFiles;
+
+    if (editor && (importDecls || subtreeDecls)) {
+      const candidate = buildEditingTreeSnapshot(editor);
+      const prev = get().editingTree;
+      const treeChanged =
+        !prev ||
+        JSON.stringify(prev.import) !== JSON.stringify(candidate.import) ||
+        JSON.stringify(prev.subtree) !== JSON.stringify(candidate.subtree) ||
+        JSON.stringify(prev.vars) !== JSON.stringify(candidate.vars);
+      if (treeChanged) {
+        update.editingTree = candidate;
+      }
+    }
+
+    if (Object.keys(update).length > 0) {
+      set(update);
+    }
   },
 
   onEditingNode: (node) => {
@@ -303,15 +348,15 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
   },
 
   onEditingTree: (editor) => {
+    const s = get();
+    // Already showing tree inspector and user clicked empty canvas again: avoid
+    // refresh / host round-trip / editingTree object churn (right panel flash).
+    if (s.editingNode === null && s.editingTree !== null) {
+      return;
+    }
     get().refresh();
     set({
-      editingTree: {
-        ...editor.data,
-        root: editor.data.root,
-        import: editor.declare.import,
-        subtree: editor.declare.subtree,
-        vars: editor.declare.vars,
-      },
+      editingTree: buildEditingTreeSnapshot(editor),
       editingNodeDef: null,
       editingNode: null,
     });
