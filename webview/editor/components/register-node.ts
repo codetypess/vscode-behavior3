@@ -22,10 +22,9 @@ import { NodeDef, getNodeType, isExprType, NodeData, NodeLayout } from "../../sh
 import * as b3util from "../../shared/misc/b3util";
 import i18n from "../../shared/misc/i18n";
 import { isMacos } from "../../shared/misc/keys";
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Constructor<T> = new (...args: any[]) => T;
 import { useSetting } from "../contexts/setting-context";
 import { useWorkspace } from "../contexts/workspace-context";
+import { Constructor } from "../../../behavior3/src/behavior3/context";
 
 function assert(condition: unknown, msg?: string): asserts condition {
   if (!condition) throw new Error(msg ?? "assertion failed");

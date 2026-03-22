@@ -41,24 +41,6 @@
         "priority": "option"
       }
     ],
-    "views": {
-      "behavior3-sidebar": [
-        {
-          "type": "webview",
-          "id": "behavior3.inspector",
-          "name": "Inspector"
-        }
-      ]
-    },
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "behavior3-sidebar",
-          "title": "Behavior Tree",
-          "icon": "$(list-tree)"
-        }
-      ]
-    },
     "commands": [
       {
         "command": "behavior3.build",

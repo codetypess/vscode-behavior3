@@ -145,9 +145,50 @@ export class Graph {
     this.onChange?.();
   }
 
+  /**
+   * Load all referenced subtree JSON files into b3util.subtreeCache so
+   * refreshNodeData can merge external roots (same as Electron fs.readFileSync).
+   */
+  private async _preloadSubtreeCaches(root: NodeData): Promise<void> {
+    b3util.clearSubtreeCache();
+    const workdir = useWorkspace.getState().workdir.replace(/[/\\]+$/, "");
+    const pending = new Set<string>();
+    const loaded = new Set<string>();
+
+    const collectFromMemory = (node: NodeData) => {
+      if (node.path) pending.add(node.path);
+      node.children?.forEach(collectFromMemory);
+    };
+    collectFromMemory(root);
+
+    while (pending.size > 0) {
+      const relPath = pending.values().next().value as string;
+      pending.delete(relPath);
+      if (loaded.has(relPath)) continue;
+      loaded.add(relPath);
+
+      // Same absolute path shape as editSubtree() → extension host readFile
+      const absPath = `${workdir}/${relPath.replace(/^[/\\]+/, "")}`;
+      const content = await vscodeApi.readFile(absPath);
+      if (!content) continue;
+      b3util.setSubtreeCache(relPath, content);
+      try {
+        const sub = readTree(content);
+        const discover = (n: NodeData) => {
+          if (n.path && !loaded.has(n.path)) pending.add(n.path);
+          n.children?.forEach(discover);
+        };
+        discover(sub.root);
+      } catch {
+        /* invalid subtree JSON */
+      }
+    }
+  }
+
   private async _update(data: TreeData, refreshId: boolean = true, refreshVars: boolean = false) {
     this.editor.data = data;
     if (refreshId) {
+      await this._preloadSubtreeCaches(data.root);
       b3util.refreshNodeData(this.data, this.data.root, 1);
     }
 
@@ -507,13 +548,19 @@ export class Graph {
    * WITHOUT clearing data, resetting selection, or triggering any
    * treeSelected/nodeSelected messages back to the host.
    *
-   * We call _graph.render() directly (skipping the zoom-reset dance in
-   * _render()) because data and layout haven't changed — only the
-   * external b3util.usingVars used inside the custom node renderer.
+   * We preserve the viewport (zoom + pan) by using the same approach as
+   * _render(): normalize to zoom=1/(0,0) first so G6 computes layout
+   * correctly, render, then restore the saved position and zoom.
    */
   async repaint() {
     if (this._graph.rendered) {
+      const zoom = this._graph.getZoom();
+      await this._graph.zoomTo(1, false);
+      const [x, y] = this._graph.getPosition();
+      await this._graph.translateTo([0, 0], false);
       await this._graph.render();
+      await this._graph.translateTo([x, y], false);
+      await this._graph.zoomTo(zoom, false);
     }
   }
 

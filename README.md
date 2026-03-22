@@ -5,7 +5,7 @@ A visual behavior tree editor for VSCode, designed for game AI development.
 ## Features
 
 - **Visual canvas** — drag-and-drop behavior tree editing powered by AntV G6
-- **Inspector sidebar** — click any node or tree to edit its properties in a dedicated panel
+- **Inspector panel** — click any node or tree to edit its properties in the right-hand panel of the editor
 - **`.b3tree` file format** — dedicated extension to avoid conflict with plain JSON; also supports opening `.json` files via right-click → "Open With"
 - **Node definitions** — load custom node types from a `.b3-setting` config file
 - **Build command** — compile behavior trees with a single click (requires `.b3-setting`)
@@ -57,9 +57,16 @@ Click the **▶ Build** button in the editor title bar (requires a `.b3-setting`
 | `behavior3.settingFile` | string | `""` | Path to node config file (relative to workspace root). Leave empty for auto-discovery. |
 | `behavior3.checkExpr` | boolean | `true` | Enable expression syntax validation for expression-type node arguments. |
 
-## Inspector Sidebar
+The extension **does not read or write** breadcrumb settings in code or `package.json`. If breadcrumbs disappeared after trying an experimental build, your **User** or **Workspace** `settings.json` may still contain values written at runtime. Open **Settings (JSON)** and remove or fix entries such as:
 
-Click the **Behavior Tree** icon in the Activity Bar to open the Inspector panel.
+- `"breadcrumbs.enabled": false` → delete the line or set to `true`
+- `"breadcrumbs.filePath": "off"` → use `"on"` or `"last"` if you want a visible path
+
+Then **Developer: Reload Window**.
+
+## Inspector (embedded)
+
+The Inspector is the **right-hand panel inside the tree editor** (not a separate activity-bar view).
 
 - **Select a node** on the canvas → edit its `args`, `input`/`output` variables, `desc`, `debug`, `disabled`
 - **Click empty canvas** → edit tree-level properties (`name`, `desc`, `vars`, `import`, `group`)

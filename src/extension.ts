@@ -1,15 +1,8 @@
 import * as vscode from "vscode";
-import { InspectorViewProvider } from "./inspectorViewProvider";
 import { TreeEditorProvider } from "./treeEditorProvider";
 
 export function activate(context: vscode.ExtensionContext) {
-  const inspectorProvider = new InspectorViewProvider(context.extensionUri);
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(InspectorViewProvider.viewId, inspectorProvider)
-  );
-
   const editorProvider = new TreeEditorProvider(context.extensionUri, context);
-  editorProvider.setInspectorProvider(inspectorProvider);
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(TreeEditorProvider.viewType, editorProvider, {
       supportsMultipleEditorsPerDocument: false,

@@ -1,10 +1,11 @@
 /**
- * Inspector sidebar panel — ported from original behavior3editor/src/components/inspector.tsx.
- * Receives node/tree data from the extension host via props instead of useWorkspace.
- * Sends changes back via vscodeApi.postMessage.
+ * Inspector panel — embedded directly in the editor webview.
+ * Reads state from the Zustand workspace store and dispatches changes
+ * via editor.dispatch() instead of postMessage.
  */
 import {
   AimOutlined,
+  EditOutlined,
   MinusCircleOutlined,
   PlusOutlined,
 } from "@ant-design/icons";
@@ -25,6 +26,7 @@ import { DefaultOptionType } from "antd/es/select";
 import React, { FC, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Markdown from "react-markdown";
+import { useShallow } from "zustand/react/shallow";
 import { useDebounceCallback } from "usehooks-ts";
 import { ExpressionEvaluator } from "../../../behavior3/src/behavior3/evaluator";
 import {
@@ -38,9 +40,9 @@ import {
   NodeArg,
   NodeData,
   NodeDef,
-  TreeData,
   VarDecl,
 } from "../../shared/misc/b3type";
+import { EditTree } from "../contexts/workspace-context";
 import {
   checkNodeArgValue,
   checkOneof,
@@ -56,43 +58,14 @@ import {
   parseExpr,
 } from "../../shared/misc/b3util";
 import i18n from "../../shared/misc/i18n";
-import { postMessage } from "../vscodeApi";
+import { useWorkspace } from "../contexts/workspace-context";
 
 interface OptionType extends DefaultOptionType {
   value: string;
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export type InspectorState =
-  | { kind: "empty" }
-  | {
-      kind: "node";
-      node: NodeData;
-      nodeDefs: NodeDef[];
-      editingTree: TreeData | null;
-      workdir: string;
-      checkExpr: boolean;
-      allFiles: string[];
-      usingVars: Record<string, { name: string; desc: string }> | null;
-      groupDefs: string[];
-    }
-  | {
-      kind: "tree";
-      tree: TreeData;
-      nodeDefs: NodeDef[];
-      workdir: string;
-      checkExpr: boolean;
-      allFiles: string[];
-      usingVars: Record<string, { name: string; desc: string }> | null;
-      groupDefs: string[];
-    };
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Populate Antd form fields from node data — mirrors original updateFormWithNode().
- */
 const updateFormWithNode = (
   form: ReturnType<typeof Form.useForm>[0],
   node: NodeData,
@@ -157,9 +130,6 @@ const updateFormWithNode = (
   });
 };
 
-/**
- * Read form values back into a NodeData object — mirrors original createNodeFromForm().
- */
 const createNodeFromForm = (
   form: ReturnType<typeof Form.useForm>[0],
   node: NodeData,
@@ -238,9 +208,6 @@ const createNodeFromForm = (
   return data;
 };
 
-/**
- * Validate a single arg value — mirrors original validateArg().
- */
 const validateArg = (
   node: NodeData,
   arg: NodeArg,
@@ -285,10 +252,6 @@ const validateArg = (
   return Promise.resolve(value);
 };
 
-/**
- * Build AutoComplete options for input/output variable fields.
- * Uses usingVars (dict) or falls back to scanning tree root.
- */
 const createInOutOptions = (
   usingVars: Record<string, { name: string; desc: string }> | null,
   editingTree: TreeData | null,
@@ -381,6 +344,7 @@ const VarDeclItem: FC<VarDeclItemProps> = ({ value, onChange, onRemove, onSubmit
             borderTop: "1px solid #3d506c",
             borderBottom: "1px solid #3d506c",
           }}
+          onClick={() => local.name && useWorkspace.getState().editor?.dispatch?.("clickVar", local.name)}
         >
           <AimOutlined />
           <span style={{ marginLeft: 4 }}>{local.count ?? 0}</span>
@@ -411,6 +375,22 @@ const VarDeclItem: FC<VarDeclItemProps> = ({ value, onChange, onRemove, onSubmit
   );
 };
 
+const VarDeclItemFormWrapper: FC<{
+  value?: VarItem;
+  onChange?: (v: VarItem) => void;
+  onRemove?: () => void;
+  onSubmit?: () => void;
+  disabled?: boolean;
+}> = ({ value, onChange, onRemove, onSubmit, disabled }) => (
+  <VarDeclItem
+    value={value}
+    onChange={onChange}
+    onRemove={onRemove}
+    onSubmit={onSubmit}
+    disabled={disabled}
+  />
+);
+
 // ─── NodeInspector ────────────────────────────────────────────────────────────
 
 const NodeInspector: FC<{
@@ -422,12 +402,13 @@ const NodeInspector: FC<{
   usingVars: Record<string, { name: string; desc: string }> | null;
   groupDefs: string[];
   disabled: boolean;
-}> = ({ node, nodeDefs, editingTree, checkExpr, allFiles, usingVars, groupDefs, disabled }) => {
+  /** When false, subtree path field is read-only (node is under an external subtree). */
+  subtreeEditable: boolean;
+}> = ({ node, nodeDefs, editingTree, checkExpr, allFiles, usingVars, groupDefs, disabled, subtreeEditable }) => {
   const { t } = useTranslation();
   const [form] = Form.useForm();
   const def = nodeDefs.get(node.name);
 
-  // Track current args for options that depend on other arg values
   const [nodeArgs, setNodeArgs] = useState<Record<string, unknown>>(node.args ?? {});
 
   const validateFieldsLater = useDebounceCallback(
@@ -452,10 +433,14 @@ const NodeInspector: FC<{
 
   const finish = () => {
     const data = createNodeFromForm(form, node, nodeDefs);
-    postMessage({ type: "propertyChanged", nodeId: data.id!, data: data as unknown as Record<string, unknown> });
+    const ws = useWorkspace.getState();
+    ws.editor?.dispatch?.("updateNode", {
+      data: { id: data.id!, ...data },
+      prefix: ws.editor.data.prefix,
+      disabled: false,
+    });
   };
 
-  // AutoComplete options
   const nodeOptions = useMemo(
     () =>
       Array.from(nodeDefs.entries()).map(([name, d]) => ({
@@ -558,7 +543,7 @@ const NodeInspector: FC<{
               disabled={disabled}
               options={nodeOptions}
               onBlur={() => submit()}
-              onSelect={(v: string) => submit()}
+              onSelect={(_v: string) => submit()}
               filterOption={filterOption as unknown as boolean}
             />
           </Form.Item>
@@ -573,7 +558,7 @@ const NodeInspector: FC<{
           </Form.Item>
           <Form.Item label={t("node.subtree")} name="path">
             <AutoComplete
-              disabled={disabled}
+              disabled={disabled && !subtreeEditable}
               options={subtreeOptions}
               onBlur={() => submit()}
               filterOption={filterOption as unknown as boolean}
@@ -835,7 +820,6 @@ const NodeInspector: FC<{
                   );
                 }
 
-                // Scalar arg
                 return (
                   <Form.Item
                     name={`args.${arg.name}`}
@@ -1022,6 +1006,18 @@ const NodeInspector: FC<{
             </>
           )}
         </Form>
+        {disabled && (
+          <Flex style={{ paddingTop: 30 }}>
+            <Button
+              type="primary"
+              style={{ width: "100%" }}
+              icon={<EditOutlined />}
+              onClick={() => useWorkspace.getState().editor?.dispatch?.("editSubtree")}
+            >
+              {t("editSubtree")}
+            </Button>
+          </Flex>
+        )}
       </div>
     </>
   );
@@ -1030,7 +1026,7 @@ const NodeInspector: FC<{
 // ─── TreeInspector ────────────────────────────────────────────────────────────
 
 const TreeInspector: FC<{
-  tree: TreeData;
+  tree: EditTree;
   nodeDefs: NodeDefs;
   groupDefs: string[];
   allFiles: string[];
@@ -1039,7 +1035,6 @@ const TreeInspector: FC<{
   const { t } = useTranslation();
   const [form] = Form.useForm();
 
-  // Compute variable usage counts by traversing tree root
   const usingCount = useMemo<Record<string, number>>(() => {
     const count: Record<string, number> = {};
     const collect = (node: NodeData) => {
@@ -1085,10 +1080,25 @@ const TreeInspector: FC<{
     );
     form.setFieldValue(
       "import",
-      (tree.import ?? []).map((entry) => {
-        // TreeData.import is string[] (file paths only)
-        return { path: entry as string, vars: [] };
-      })
+      (tree.import ?? []).map((entry) => ({
+        path: entry.path,
+        vars: (entry.vars ?? []).map((v) => ({
+          name: v.name,
+          desc: v.desc,
+          count: usingCount[v.name] ?? 0,
+        })),
+      }))
+    );
+    form.setFieldValue(
+      "subtree",
+      (tree.subtree ?? []).map((entry) => ({
+        path: entry.path,
+        vars: (entry.vars ?? []).map((v) => ({
+          name: v.name,
+          desc: v.desc,
+          count: usingCount[v.name] ?? 0,
+        })),
+      }))
     );
   }, [tree, usingCount]);
 
@@ -1098,26 +1108,26 @@ const TreeInspector: FC<{
       .map((v) => ({ name: v.name, desc: v.desc }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
-    const importArr: string[] = ((values.import ?? []) as Array<unknown>)
-      .filter((v) => v != null && typeof v === "object" && (v as { path?: string }).path)
-      .map((v) => (v as { path: string }).path)
-      .sort((a, b) => a.localeCompare(b));
+    const importArr = ((values.import ?? []) as Array<{ path?: string; vars?: VarItem[] }>)
+      .filter((v) => v?.path)
+      .sort((a, b) => a.path!.localeCompare(b.path!))
+      .map((v) => ({
+        path: v.path!,
+        vars: (v.vars ?? []).map((v1) => ({ name: v1.name, desc: v1.desc })),
+      }));
 
     const group = ((values.group ?? []) as string[])
       .filter((g) => g)
       .sort((a, b) => a.localeCompare(b));
 
-    postMessage({
-      type: "treePropertyChanged",
-      data: {
-        name: values.name as string,
-        desc: values.desc as string | undefined,
-        export: values.export as boolean | undefined,
-        prefix: values.prefix as string | undefined,
-        group,
-        vars,
-        import: importArr,
-      },
+    useWorkspace.getState().editor?.dispatch?.("updateTree", {
+      name: values.name as string,
+      desc: values.desc as string | undefined,
+      export: values.export as boolean | undefined,
+      prefix: values.prefix as string | undefined,
+      group,
+      vars,
+      import: importArr,
     });
   };
 
@@ -1224,6 +1234,55 @@ const TreeInspector: FC<{
             )}
           </Form.List>
 
+          {/* ── Subtree Variables (read-only) ── */}
+          {(tree.subtree ?? []).length > 0 && (
+            <>
+              <Divider orientation="left">
+                <h4>{t("tree.vars.subtree")}</h4>
+              </Divider>
+              <Form.List name="subtree">
+                {(items) => (
+                  <div style={{ display: "flex", flexDirection: "column", rowGap: 4 }}>
+                    {items.map((item) => (
+                      <Space.Compact
+                        key={item.key}
+                        direction="vertical"
+                        style={{ marginBottom: 5 }}
+                      >
+                        <Flex gap={4} style={{ width: "100%" }}>
+                          <Form.Item
+                            name={[item.name, "path"]}
+                            style={{ width: "100%", marginBottom: 2 }}
+                          >
+                            <AutoComplete
+                              disabled
+                              options={subtreeOptions}
+                              filterOption={(v, opt) =>
+                                (opt?.label as string)?.toUpperCase().includes(v.toUpperCase()) ?? false
+                              }
+                            />
+                          </Form.Item>
+                          <div style={{ width: 20 }} />
+                        </Flex>
+                        <Form.List name={[item.name, "vars"]}>
+                          {(vars) => (
+                            <div style={{ display: "flex", flexDirection: "column", rowGap: 0 }}>
+                              {vars.map((v) => (
+                                <Form.Item key={v.key} name={v.name} style={{ marginBottom: 2 }}>
+                                  <VarDeclItemFormWrapper disabled />
+                                </Form.Item>
+                              ))}
+                            </div>
+                          )}
+                        </Form.List>
+                      </Space.Compact>
+                    ))}
+                  </div>
+                )}
+              </Form.List>
+            </>
+          )}
+
           {/* ── Import Variables ── */}
           <Divider orientation="left">
             <h4>{t("tree.vars.imports")}</h4>
@@ -1261,7 +1320,7 @@ const TreeInspector: FC<{
                         <div style={{ display: "flex", flexDirection: "column", rowGap: 0 }}>
                           {vars.map((v) => (
                             <Form.Item key={v.key} name={v.name} style={{ marginBottom: 2 }}>
-                              <VarDeclItemFormWrapper disabled onSubmit={form.submit} />
+                              <VarDeclItemFormWrapper disabled />
                             </Form.Item>
                           ))}
                         </div>
@@ -1274,7 +1333,7 @@ const TreeInspector: FC<{
                 >
                   <Button
                     type="dashed"
-                    onClick={() => add({})}
+                    onClick={() => add({ path: "", vars: [] })}
                     style={{ width: "100%" }}
                     icon={<PlusOutlined />}
                   >
@@ -1291,97 +1350,117 @@ const TreeInspector: FC<{
   );
 };
 
-/**
- * Thin wrapper so VarDeclItem can work as a Form.Item value prop controller.
- * Antd Form.Item injects `value` and `onChange` automatically.
- */
-const VarDeclItemFormWrapper: FC<{
-  value?: VarItem;
-  onChange?: (v: VarItem) => void;
-  onRemove?: () => void;
-  onSubmit?: () => void;
-  disabled?: boolean;
-}> = ({ value, onChange, onRemove, onSubmit, disabled }) => (
-  <VarDeclItem
-    value={value}
-    onChange={onChange}
-    onRemove={onRemove}
-    onSubmit={onSubmit}
-    disabled={disabled}
-  />
-);
+// ─── Main Inspector ───────────────────────────────────────────────────────────
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
-
-export const Inspector: FC<{ state: InspectorState }> = ({ state }) => {
+export const Inspector: FC = () => {
   const { t } = useTranslation();
 
-  if (state.kind === "empty") {
-    return (
-      <div className="b3-inspector" style={{ height: "100%" }}>
-        <div
-          style={{
-            padding: 16,
-            color: "#666",
-            fontSize: 13,
-            textAlign: "center",
-            marginTop: 40,
-          }}
-        >
-          {t("node.noNodeSelected")}
-        </div>
-      </div>
-    );
-  }
+  const {
+    editingNode,
+    editingTree,
+    nodeDefs,
+    groupDefs,
+    checkExpr,
+    allFiles,
+    usingVars,
+    editor,
+  } = useWorkspace(
+    useShallow((s) => ({
+      editingNode: s.editingNode,
+      editingTree: s.editingTree,
+      nodeDefs: s.nodeDefs,
+      groupDefs: s.groupDefs,
+      checkExpr: s.checkExpr,
+      allFiles: s.allFiles,
+      usingVars: s.usingVars,
+      editor: s.editor,
+    }))
+  );
 
-  const rawDefs = state.nodeDefs;
-  const nodeDefs = new NodeDefs();
-  rawDefs.forEach((d) => {
-    // Normalize flat options [{name, value}] → [{source: [{name, value}]}]
-    // (mirrors initWithNodeDefs in b3util.ts)
-    d.args?.forEach((arg) => {
+  // Convert usingVars array/map → Record for NodeInspector/TreeInspector
+  const usingVarsRecord = useMemo(() => {
+    if (!usingVars) return null;
+    const rec: Record<string, { name: string; desc: string }> = {};
+    Object.values(usingVars).forEach((v) => { rec[v.name] = v; });
+    return rec;
+  }, [usingVars]);
+
+  if (editingNode) {
+    const rawDefs = Array.from(nodeDefs.values());
+    const defs = new NodeDefs();
+    rawDefs.forEach((d) => {
       if (
-        arg.options &&
-        !Array.isArray((arg.options as Array<{ source: unknown }>)[0]?.source)
+        d.args &&
+        d.args.some(
+          (arg) =>
+            arg.options &&
+            !Array.isArray((arg.options as Array<{ source: unknown }>)[0]?.source)
+        )
       ) {
-        arg.options = [
-          { source: arg.options as unknown as Array<{ name: string; value: unknown }> },
-        ];
+        d = { ...d, args: d.args.map((arg) => {
+          if (
+            arg.options &&
+            !Array.isArray((arg.options as Array<{ source: unknown }>)[0]?.source)
+          ) {
+            return {
+              ...arg,
+              options: [{ source: arg.options as unknown as Array<{ name: string; value: unknown }> }],
+            };
+          }
+          return arg;
+        })};
       }
+      defs.set(d.name, d);
     });
-    nodeDefs.set(d.name, d);
-  });
 
-  if (state.kind === "node") {
     return (
       <div className="b3-inspector" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
         <NodeInspector
-          node={state.node}
-          nodeDefs={nodeDefs}
-          editingTree={state.editingTree}
-          checkExpr={state.checkExpr}
-          allFiles={state.allFiles}
-          usingVars={state.usingVars}
-          groupDefs={state.groupDefs}
-          disabled={false}
+          node={editingNode.data}
+          nodeDefs={defs}
+          editingTree={editor?.data ?? null}
+          checkExpr={checkExpr}
+          allFiles={allFiles}
+          usingVars={usingVarsRecord}
+          groupDefs={groupDefs}
+          disabled={editingNode.disabled}
+          subtreeEditable={editingNode.subtreeEditable ?? true}
         />
       </div>
     );
   }
 
-  if (state.kind === "tree") {
+  if (editingTree) {
+    const rawDefs = Array.from(nodeDefs.values());
+    const defs = new NodeDefs();
+    rawDefs.forEach((d) => defs.set(d.name, d));
+
     return (
       <div className="b3-inspector" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
         <TreeInspector
-          tree={state.tree}
-          nodeDefs={nodeDefs}
-          groupDefs={state.groupDefs}
-          allFiles={state.allFiles}
-          usingVars={state.usingVars}
+          tree={editingTree}
+          nodeDefs={defs}
+          groupDefs={groupDefs}
+          allFiles={allFiles}
+          usingVars={usingVarsRecord}
         />
       </div>
     );
   }
 
-  return null;
+  return (
+    <div className="b3-inspector" style={{ height: "100%" }}>
+      <div
+        style={{
+          padding: 16,
+          color: "#666",
+          fontSize: 13,
+          textAlign: "center",
+          marginTop: 40,
+        }}
+      >
+        {t("node.noNodeSelected")}
+      </div>
+    </div>
+  );
 };

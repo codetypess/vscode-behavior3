@@ -15,6 +15,7 @@ import { Hotkey, isMacos } from "../../shared/misc/keys";
 import { mergeClassNames } from "../../shared/misc/util";
 import { EditEvent, EditNode, EditorStore, EditTree, useWorkspace } from "../contexts/workspace-context";
 import { FilterOption, Graph } from "./graph";
+import { Inspector } from "./inspector";
 import "./register-node";
 
 export interface EditorProps extends React.HTMLAttributes<HTMLElement> {
@@ -261,10 +262,8 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
 
   if (graph) {
     graph.onChange = () => {
-      if (!editor.changed) {
-        editor.changed = true;
-        onChange();
-      }
+      editor.changed = true;
+      onChange();
     };
     graph.onUpdateSearch = () => {
       if (filterOption.filterStr) {
@@ -323,129 +322,149 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
     <div
       {...props}
       className="b3-editor"
-      ref={sizeRef}
       tabIndex={-1}
-      style={{ width: "100%", height: "100%", ...props.style }}
+      style={{ display: "flex", width: "100%", height: "100%", ...props.style }}
     >
-      {showingSearch && (
-        <Flex
-          style={{
-            position: "absolute",
-            width: "100%",
-            justifyContent: "end",
-            paddingRight: "10px",
-            paddingTop: "10px",
-            zIndex: 100,
-          }}
-        >
+      {/* Graph area */}
+      <div
+        ref={sizeRef}
+        style={{ flex: 1, minWidth: 0, height: "100%", position: "relative" }}
+      >
+        {showingSearch && (
           <Flex
             style={{
-              backgroundColor: "#161b22",
-              padding: "4px 10px 4px 10px",
-              borderRadius: "4px",
-              borderLeft: "3px solid #f78166",
-              boxShadow: "0 0 8px 2px #0000005c",
-              alignItems: "center",
+              position: "absolute",
+              width: "100%",
+              justifyContent: "end",
+              paddingRight: "10px",
+              paddingTop: "10px",
+              zIndex: 100,
             }}
           >
-            <Input
-              ref={searchInputRef}
-              placeholder={filterOption.placeholder}
-              autoFocus
-              size="small"
-              style={{ borderRadius: "2px", paddingTop: "1px", paddingBottom: "1px" }}
-              onChange={(e) =>
-                onDebounceSearchChange({
-                  ...filterOption,
-                  filterStr: e.currentTarget.value,
-                  index: 0,
-                })
-              }
-              onKeyDownCapture={handleKeyDown}
-              suffix={
-                <Flex gap="2px" style={{ alignItems: "center" }}>
-                  {filterOption.filterType !== "id" && (
+            <Flex
+              style={{
+                backgroundColor: "#161b22",
+                padding: "4px 10px 4px 10px",
+                borderRadius: "4px",
+                borderLeft: "3px solid #f78166",
+                boxShadow: "0 0 8px 2px #0000005c",
+                alignItems: "center",
+              }}
+            >
+              <Input
+                ref={searchInputRef}
+                placeholder={filterOption.placeholder}
+                autoFocus
+                size="small"
+                style={{ borderRadius: "2px", paddingTop: "1px", paddingBottom: "1px" }}
+                onChange={(e) =>
+                  onDebounceSearchChange({
+                    ...filterOption,
+                    filterStr: e.currentTarget.value,
+                    index: 0,
+                  })
+                }
+                onKeyDownCapture={handleKeyDown}
+                suffix={
+                  <Flex gap="2px" style={{ alignItems: "center" }}>
+                    {filterOption.filterType !== "id" && (
+                      <Button
+                        type="text"
+                        size="small"
+                        className={mergeClassNames(
+                          "b3-editor-filter",
+                          filterOption.filterCase && "b3-editor-filter-selected"
+                        )}
+                        icon={<VscCaseSensitive style={{ width: "18px", height: "18px" }} />}
+                        onClick={() =>
+                          onSearchChange({ ...filterOption, filterCase: !filterOption.filterCase })
+                        }
+                      />
+                    )}
                     <Button
                       type="text"
                       size="small"
                       className={mergeClassNames(
                         "b3-editor-filter",
-                        filterOption.filterCase && "b3-editor-filter-selected"
+                        filterOption.filterFocus && "b3-editor-filter-selected"
                       )}
-                      icon={<VscCaseSensitive style={{ width: "18px", height: "18px" }} />}
+                      icon={<RiFocus3Line />}
                       onClick={() =>
-                        onSearchChange({ ...filterOption, filterCase: !filterOption.filterCase })
+                        onSearchChange({ ...filterOption, filterFocus: !filterOption.filterFocus })
                       }
                     />
-                  )}
-                  <Button
-                    type="text"
-                    size="small"
-                    className={mergeClassNames(
-                      "b3-editor-filter",
-                      filterOption.filterFocus && "b3-editor-filter-selected"
-                    )}
-                    icon={<RiFocus3Line />}
-                    onClick={() =>
-                      onSearchChange({ ...filterOption, filterFocus: !filterOption.filterFocus })
-                    }
-                  />
-                </Flex>
-              }
-            />
-            <div style={{ padding: "0 10px 0 5px", minWidth: "40px" }}>
-              {filterOption.results.length
-                ? `${filterOption.index + 1}/${filterOption.results.length}`
-                : ""}
-            </div>
-            {filterOption.filterType !== "id" && (
+                  </Flex>
+                }
+              />
+              <div style={{ padding: "0 10px 0 5px", minWidth: "40px" }}>
+                {filterOption.results.length
+                  ? `${filterOption.index + 1}/${filterOption.results.length}`
+                  : ""}
+              </div>
+              {filterOption.filterType !== "id" && (
+                <Button
+                  icon={<ArrowDownOutlined />}
+                  type="text"
+                  size="small"
+                  style={{ width: "30px" }}
+                  disabled={filterOption.results.length === 0}
+                  onClick={nextResult}
+                />
+              )}
+              {filterOption.filterType !== "id" && (
+                <Button
+                  icon={<ArrowUpOutlined />}
+                  type="text"
+                  size="small"
+                  style={{ width: "30px" }}
+                  disabled={filterOption.results.length === 0}
+                  onClick={prevResult}
+                />
+              )}
               <Button
-                icon={<ArrowDownOutlined />}
+                icon={<CloseOutlined />}
                 type="text"
                 size="small"
                 style={{ width: "30px" }}
-                disabled={filterOption.results.length === 0}
-                onClick={nextResult}
+                onClick={() => {
+                  setShowingSearch(false);
+                  onSearchChange({
+                    results: [],
+                    index: 0,
+                    filterCase: false,
+                    filterFocus: true,
+                    filterStr: "",
+                    filterType: "content",
+                    placeholder: "",
+                  });
+                }}
               />
-            )}
-            {filterOption.filterType !== "id" && (
-              <Button
-                icon={<ArrowUpOutlined />}
-                type="text"
-                size="small"
-                style={{ width: "30px" }}
-                disabled={filterOption.results.length === 0}
-                onClick={prevResult}
-              />
-            )}
-            <Button
-              icon={<CloseOutlined />}
-              type="text"
-              size="small"
-              style={{ width: "30px" }}
-              onClick={() => {
-                setShowingSearch(false);
-                onSearchChange({
-                  results: [],
-                  index: 0,
-                  filterCase: false,
-                  filterFocus: true,
-                  filterStr: "",
-                  filterType: "content",
-                  placeholder: "",
-                });
-              }}
-            />
+            </Flex>
           </Flex>
-        </Flex>
-      )}
+        )}
 
-      <Dropdown
-        menu={{ items: menuItems, onClick: (info) => editor.dispatch?.(info.key as EditEvent) }}
-        trigger={["contextMenu"]}
+        <Dropdown
+          menu={{ items: menuItems, onClick: (info) => editor.dispatch?.(info.key as EditEvent) }}
+          trigger={["contextMenu"]}
+        >
+          <div tabIndex={-1} style={{ width: "100%", height: "100%" }} ref={graphRef} />
+        </Dropdown>
+      </div>
+
+      {/* Inspector panel */}
+      <div
+        style={{
+          width: 360,
+          minWidth: 360,
+          height: "100%",
+          borderLeft: "1px solid #30363d",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}
       >
-        <div tabIndex={-1} style={{ width: "100%", height: "100%" }} ref={graphRef} />
-      </Dropdown>
+        <Inspector />
+      </div>
     </div>
   );
 };

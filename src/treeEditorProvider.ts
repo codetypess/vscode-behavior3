@@ -1,36 +1,29 @@
 import * as fs from "fs";
+import * as path from "path";
 import * as vscode from "vscode";
-import type { InspectorViewProvider } from "./inspectorViewProvider";
 import { resolveNodeDefs, watchSettingFile } from "./settingResolver";
 import type {
   EditorToHostMessage,
   HostToEditorMessage,
-  HostToInspectorMessage,
   NodeDef,
 } from "./types";
 
 /**
- * Read the Vite-generated HTML for a webview entry (e.g. "editor" or "inspector"),
+ * Read the Vite-generated HTML for the editor webview entry,
  * and rewrite all asset references to proper vscode-webview-resource: URIs.
- *
- * Vite outputs relative paths like `../assets/editor-abc123.js`.
- * We replace them with the extension's webview URI so the browser can load them.
  */
 function buildWebviewHtml(
   webview: vscode.Webview,
   extensionUri: vscode.Uri,
-  entry: "editor" | "inspector",
   title?: string
 ): string {
-  const htmlPath = vscode.Uri.joinPath(extensionUri, "dist", "webview", entry, "index.html");
+  const htmlPath = vscode.Uri.joinPath(extensionUri, "dist", "webview", "editor", "index.html");
   let html = fs.readFileSync(htmlPath.fsPath, "utf-8");
 
-  // The webview root for dist/webview/ – used for base href and icon resolution
   const webviewRootUri = webview.asWebviewUri(
     vscode.Uri.joinPath(extensionUri, "dist", "webview")
   );
 
-  // Replace relative ../assets/ paths with proper webview URIs
   const assetsUri = `${webviewRootUri}/assets`;
   html = html.replace(/\.\.\/assets\//g, `${assetsUri}/`);
   html = html.replace(/(?<!=")\.\/assets\//g, `${assetsUri}/`);
@@ -39,11 +32,8 @@ function buildWebviewHtml(
     html = html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`);
   }
 
-  // Inject <base href> pointing to dist/webview/ so that relative paths like
-  // ./icons/Action.svg resolve to dist/webview/icons/Action.svg correctly.
   const baseTag = `<base href="${webviewRootUri}/">`;
 
-  // Inject CSP + base before </head>
   const src = webview.cspSource;
   const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${src} data: blob:; style-src ${src} 'unsafe-inline'; script-src ${src} 'unsafe-inline'; font-src ${src} data:; worker-src blob:; connect-src ${src};">`;
   html = html.replace("</head>", `  ${baseTag}\n  ${csp}\n</head>`);
@@ -62,42 +52,10 @@ function getWorkdir(documentUri: vscode.Uri): vscode.Uri {
 export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = "behavior3.treeEditor";
 
-  private _inspectorProvider?: InspectorViewProvider;
-
-  /** Currently active editor webview panel */
-  private _activePanel?: vscode.WebviewPanel;
-  private _activeNodeDefs: NodeDef[] = [];
-  private _activePanelWorkdir?: vscode.Uri;
-
   constructor(
     private readonly _extensionUri: vscode.Uri,
     private readonly _context: vscode.ExtensionContext
   ) {}
-
-  setInspectorProvider(provider: InspectorViewProvider) {
-    this._inspectorProvider = provider;
-    // Wire up Inspector → Editor forwarding
-    provider._onPropertyChanged = (nodeId, data) => {
-      this._activePanel?.webview.postMessage({
-        type: "propertyChanged",
-        nodeId,
-        data,
-      } satisfies HostToEditorMessage);
-    };
-    provider._onTreePropertyChanged = (data) => {
-      this._activePanel?.webview.postMessage({
-        type: "treePropertyChanged",
-        data,
-      } satisfies HostToEditorMessage);
-    };
-    // When the Inspector webview first loads (or reloads), ask the active editor
-    // to re-send the current tree selection so the panel is never empty.
-    provider._onReady = () => {
-      this._activePanel?.webview.postMessage({
-        type: "requestTreeSelection",
-      } satisfies HostToEditorMessage);
-    };
-  }
 
   async resolveCustomTextEditor(
     document: vscode.TextDocument,
@@ -118,15 +76,6 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
     };
 
     webviewPanel.webview.html = this._getEditorHtml(webviewPanel.webview);
-
-    // When this panel becomes active, make it the "active" editor
-    webviewPanel.onDidChangeViewState(() => {
-      if (webviewPanel.active) {
-        this._activePanel = webviewPanel;
-        this._activePanelWorkdir = workdir;
-        this._activeNodeDefs = nodeDefs;
-      }
-    });
 
     // Watch .b3-setting for changes
     const settingWatcher = watchSettingFile(workdir, (newDefs) => {
@@ -152,14 +101,18 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
         case "ready": {
           const theme = getVSCodeTheme();
           const content = document.getText();
-          let initUsingVars: Array<{ name: string; desc: string }> | undefined;
+
+          // Compute allFiles and initial usingVars
+          const allFiles = await collectAllFiles(workdir);
+          let initUsingVars: VarDeclResult | undefined;
           try {
             const treeJson = JSON.parse(content) as TreeLike;
-            const [, uv] = await buildInspectorContext(workdir, nodeDefs, treeJson);
-            if (uv) initUsingVars = Object.values(uv);
+            const uv = await buildUsingVars(workdir, treeJson);
+            if (uv) initUsingVars = uv;
           } catch {
             // parse error — send init without usingVars
           }
+
           const initMsg: HostToEditorMessage = {
             type: "init",
             content,
@@ -168,18 +121,19 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
             nodeDefs,
             checkExpr,
             theme,
+            allFiles,
           };
           webviewPanel.webview.postMessage(initMsg);
+
           if (initUsingVars) {
             const varMsg: HostToEditorMessage = {
               type: "varDeclLoaded",
-              usingVars: initUsingVars,
+              usingVars: initUsingVars.usingVars ? Object.values(initUsingVars.usingVars) : [],
+              importDecls: initUsingVars.importDecls,
+              subtreeDecls: initUsingVars.subtreeDecls,
             };
             webviewPanel.webview.postMessage(varMsg);
           }
-          this._activePanel = webviewPanel;
-          this._activePanelWorkdir = workdir;
-          this._activeNodeDefs = nodeDefs;
           break;
         }
 
@@ -190,49 +144,17 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
           break;
         }
 
-        case "nodeSelected": {
-          const [allFiles, usingVars, groupDefs] = await buildInspectorContext(
-            workdir,
-            nodeDefs,
-            msg.tree as TreeLike | null
-          );
-          const inspectorMsg: HostToInspectorMessage = {
-            type: "nodeSelected",
-            node: msg.node,
-            nodeDefs,
-            editingTree: msg.tree ?? null,
-            workdir: workdir.fsPath,
-            checkExpr,
-            allFiles,
-            usingVars,
-            groupDefs,
-          };
-          this._inspectorProvider?.postMessage(inspectorMsg);
-          break;
-        }
-
         case "treeSelected": {
-          const [allFiles, usingVars, groupDefs] = await buildInspectorContext(
-            workdir,
-            nodeDefs,
-            msg.tree as TreeLike | null
-          );
-          const inspectorMsg: HostToInspectorMessage = {
-            type: "treeSelected",
-            tree: msg.tree,
-            nodeDefs,
-            workdir: workdir.fsPath,
-            checkExpr,
-            allFiles,
-            usingVars,
-            groupDefs,
-          };
-          this._inspectorProvider?.postMessage(inspectorMsg);
-          // Also update the editor's own usingVars so checkNodeData is accurate
-          if (usingVars) {
+          // Recompute usingVars (and optionally refresh allFiles) and send back
+          const allFiles = await collectAllFiles(workdir);
+          const result = await buildUsingVars(workdir, msg.tree as TreeLike | null);
+          if (result) {
             const varMsg: HostToEditorMessage = {
               type: "varDeclLoaded",
-              usingVars: Object.values(usingVars),
+              usingVars: Object.values(result.usingVars),
+              allFiles,
+              importDecls: result.importDecls,
+              subtreeDecls: result.subtreeDecls,
             };
             webviewPanel.webview.postMessage(varMsg);
           }
@@ -253,10 +175,18 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
         }
 
         case "readFile": {
+          const fileUri = vscode.Uri.file(path.normalize(msg.path));
           try {
-            const fileUri = vscode.Uri.file(msg.path);
             const raw = await vscode.workspace.fs.readFile(fileUri);
             const content = Buffer.from(raw).toString("utf-8");
+            if (msg.requestId === "open-subtree") {
+              try {
+                const doc = await vscode.workspace.openTextDocument(fileUri);
+                await vscode.window.showTextDocument(doc, { preview: true });
+              } catch {
+                /* ignore open failure */
+              }
+            }
             const reply: HostToEditorMessage = {
               type: "readFileResult",
               requestId: msg.requestId,
@@ -289,15 +219,11 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
     webviewPanel.onDidDispose(() => {
       settingWatcher.dispose();
       docChangeDisposable.dispose();
-      if (this._activePanel === webviewPanel) {
-        this._activePanel = undefined;
-        this._activePanelWorkdir = undefined;
-      }
     });
   }
 
   private _getEditorHtml(webview: vscode.Webview): string {
-    return buildWebviewHtml(webview, this._extensionUri, "editor", "Behavior Tree Editor");
+    return buildWebviewHtml(webview, this._extensionUri, "Behavior Tree Editor");
   }
 }
 
@@ -312,76 +238,16 @@ interface TreeNodeLike {
   children?: TreeNodeLike[];
 }
 
-/** Parsed tree file shape (only the fields we need). */
 interface TreeFileLike {
   vars?: Array<{ name: string; desc?: string }>;
   import?: string[];
 }
 
 /**
- * Recursively collect all subtree path values from a tree's node graph.
+ * Collect all .b3tree / .json files under the workspace directory.
  */
-function collectSubtreePaths(node: TreeNodeLike | undefined): string[] {
-  if (!node) return [];
-  const paths: string[] = [];
-  const stack: TreeNodeLike[] = [node];
-  while (stack.length) {
-    const cur = stack.pop()!;
-    if (cur.path) paths.push(cur.path);
-    cur.children?.forEach((c) => stack.push(c));
-  }
-  return paths;
-}
-
-/**
- * Recursively load vars from a tree file (by relative path) and its imports.
- * Already-visited paths are skipped to prevent cycles.
- */
-function loadVarsFromFile(
-  relativePath: string,
-  workdirFs: string,
-  into: Record<string, { name: string; desc: string }>,
-  visited: Set<string>
-): void {
-  if (visited.has(relativePath)) return;
-  visited.add(relativePath);
-
-  const fs = require("fs") as typeof import("fs");
-  const nodePath = require("path") as typeof import("path");
-  const fullPath = nodePath.join(workdirFs, relativePath);
-
-  try {
-    const raw = fs.readFileSync(fullPath, "utf-8");
-    const tree = JSON.parse(raw) as TreeFileLike;
-    for (const v of tree.vars ?? []) {
-      if (v.name && !into[v.name]) {
-        into[v.name] = { name: v.name, desc: v.desc ?? "" };
-      }
-    }
-    for (const imp of tree.import ?? []) {
-      if (typeof imp === "string") {
-        loadVarsFromFile(imp, workdirFs, into, visited);
-      }
-    }
-  } catch {
-    // file not found or parse error — silently skip
-  }
-}
-
-/**
- * Collect context data needed by the Inspector panel:
- *  - allFiles: relative paths of all .b3tree / .json files in workspace
- *  - usingVars: merged variable dictionary (tree vars + imported + subtree)
- *  - groupDefs: all unique group names defined across all node definitions
- */
-async function buildInspectorContext(
-  workdir: vscode.Uri,
-  nodeDefs: NodeDef[],
-  tree: TreeLike | null
-): Promise<[string[], Record<string, { name: string; desc: string }> | null, string[]]> {
+async function collectAllFiles(workdir: vscode.Uri): Promise<string[]> {
   const path = require("path") as typeof import("path");
-
-  // allFiles: find all tree files under the workdir
   const allFiles: string[] = [];
   try {
     const uris = await vscode.workspace.findFiles(
@@ -395,42 +261,99 @@ async function buildInspectorContext(
   } catch {
     // workspace may not be open
   }
+  return allFiles;
+}
 
-  // groupDefs: unique group names from all node defs
-  const groupSet = new Set<string>();
-  for (const def of nodeDefs) {
-    const g = (def as NodeDef & { group?: string[] }).group;
-    g?.forEach((name) => groupSet.add(name));
+function collectSubtreePaths(node: TreeNodeLike | undefined): string[] {
+  if (!node) return [];
+  const paths: string[] = [];
+  const stack: TreeNodeLike[] = [node];
+  while (stack.length) {
+    const cur = stack.pop()!;
+    if (cur.path) paths.push(cur.path);
+    cur.children?.forEach((c) => stack.push(c));
   }
-  const groupDefs = Array.from(groupSet).sort();
+  return paths;
+}
 
-  // usingVars: tree.vars + vars from imported files + vars from subtree files
-  let usingVars: Record<string, { name: string; desc: string }> | null = null;
-  if (tree) {
-    usingVars = {};
 
-    // 1. Tree's own vars
-    for (const v of tree.vars ?? []) {
-      if (v.name) usingVars[v.name] = { name: v.name, desc: v.desc ?? "" };
-    }
+interface VarDeclResult {
+  usingVars: Record<string, { name: string; desc: string }>;
+  importDecls: Array<{ path: string; vars: Array<{ name: string; desc: string }> }>;
+  subtreeDecls: Array<{ path: string; vars: Array<{ name: string; desc: string }> }>;
+}
 
-    const visited = new Set<string>();
+/**
+ * Read vars from a single file, returning them as a list (without merging into global map).
+ */
+function readVarsFromFile(
+  relativePath: string,
+  workdirFs: string,
+  visitedForGlobal: Set<string>,
+  globalVars: Record<string, { name: string; desc: string }>
+): Array<{ name: string; desc: string }> {
+  const localVars: Array<{ name: string; desc: string }> = [];
+  if (visitedForGlobal.has(relativePath)) return localVars;
+  visitedForGlobal.add(relativePath);
 
-    // 2. Vars from imported files (tree.import is string[])
-    for (const imp of tree.import ?? []) {
-      if (typeof imp === "string") {
-        loadVarsFromFile(imp, workdir.fsPath, usingVars, visited);
+  const fsLib = require("fs") as typeof import("fs");
+  const nodePath = require("path") as typeof import("path");
+  const fullPath = nodePath.join(workdirFs, relativePath);
+
+  try {
+    const raw = fsLib.readFileSync(fullPath, "utf-8");
+    const fileTree = JSON.parse(raw) as TreeFileLike;
+    for (const v of fileTree.vars ?? []) {
+      if (v.name) {
+        localVars.push({ name: v.name, desc: v.desc ?? "" });
+        if (!globalVars[v.name]) globalVars[v.name] = { name: v.name, desc: v.desc ?? "" };
       }
     }
+    // Also recurse into transitive imports for global vars
+    for (const imp of fileTree.import ?? []) {
+      if (typeof imp === "string") {
+        loadVarsFromFile(imp, workdirFs, globalVars, visitedForGlobal);
+      }
+    }
+  } catch {
+    // file not found or parse error — silently skip
+  }
+  return localVars;
+}
 
-    // 3. Vars from subtree files (nodes with .path property)
-    const subtreePaths = collectSubtreePaths(tree.root);
-    for (const subtreePath of subtreePaths) {
-      loadVarsFromFile(subtreePath, workdir.fsPath, usingVars, visited);
+/**
+ * Build the usingVars dictionary + full ImportDecl data for display in Inspector.
+ */
+async function buildUsingVars(
+  workdir: vscode.Uri,
+  tree: TreeLike | null
+): Promise<VarDeclResult | null> {
+  if (!tree) return null;
+
+  const usingVars: Record<string, { name: string; desc: string }> = {};
+
+  for (const v of tree.vars ?? []) {
+    if (v.name) usingVars[v.name] = { name: v.name, desc: v.desc ?? "" };
+  }
+
+  const visited = new Set<string>();
+  const importDecls: Array<{ path: string; vars: Array<{ name: string; desc: string }> }> = [];
+
+  for (const imp of tree.import ?? []) {
+    if (typeof imp === "string") {
+      const vars = readVarsFromFile(imp, workdir.fsPath, visited, usingVars);
+      importDecls.push({ path: imp, vars });
     }
   }
 
-  return [allFiles, usingVars, groupDefs];
+  const subtreePaths = collectSubtreePaths(tree.root);
+  const subtreeDecls: Array<{ path: string; vars: Array<{ name: string; desc: string }> }> = [];
+  for (const subtreePath of subtreePaths) {
+    const vars = readVarsFromFile(subtreePath, workdir.fsPath, visited, usingVars);
+    subtreeDecls.push({ path: subtreePath, vars });
+  }
+
+  return { usingVars, importDecls, subtreeDecls };
 }
 
 function getVSCodeTheme(): "dark" | "light" {

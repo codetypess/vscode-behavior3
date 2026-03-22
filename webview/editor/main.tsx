@@ -29,11 +29,11 @@ const EditorApp = () => {
           nodeDefs: msg.nodeDefs,
           checkExpr: msg.checkExpr,
           theme: msg.theme,
+          allFiles: msg.allFiles ?? [],
         });
         setReady(true);
       } else if (msg.type === "fileChanged") {
         if (workspace.editor?.changed) {
-          // Mark as needing reload
           if (workspace.editor) {
             workspace.editor.alertReload = true;
           }
@@ -42,23 +42,8 @@ const EditorApp = () => {
         }
       } else if (msg.type === "settingLoaded") {
         workspace.updateNodeDefs(msg.nodeDefs);
-      } else if (msg.type === "propertyChanged") {
-        workspace.editor?.dispatch?.("updateNode", {
-          data: { id: msg.nodeId, ...msg.data },
-          prefix: workspace.editor.data.prefix,
-          disabled: false,
-        });
-      } else if (msg.type === "treePropertyChanged") {
-        workspace.editor?.dispatch?.("updateTree", msg.data);
-      } else if (msg.type === "requestTreeSelection") {
-        // Inspector panel just loaded — re-send current tree selection
-        const editor = workspace.editor;
-        if (editor) {
-          vscodeApi.postMessage({ type: "treeSelected", tree: editor.data });
-        }
       } else if (msg.type === "varDeclLoaded") {
-        // Host has computed the full usingVars (including import/subtree files)
-        workspace.applyHostVars(msg.usingVars);
+        workspace.applyHostVars(msg.usingVars, msg.allFiles, msg.importDecls, msg.subtreeDecls);
       }
     });
 

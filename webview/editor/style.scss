@@ -47,3 +47,47 @@ body {
     background-color: #388bfd !important;
   }
 }
+
+/* ─── Inspector ─────────────────────────────────────────────────────────── */
+
+.b3-inspector-content {
+  padding: 20px;
+}
+
+.b3-inspector .ant-form-item {
+  margin-bottom: 10px;
+}
+
+.b3-inspector .ant-form-item-label {
+  min-width: 100px;
+}
+
+.b3-inspector .ant-form-item-explain {
+  word-wrap: break-word;
+  font-size: small;
+}
+
+.ant-divider-horizontal.ant-divider-with-text {
+  margin-bottom: 0px;
+}
+
+.ant-input-number {
+  width: 100%;
+}
+
+.b3-markdown {
+  padding: 0 4px;
+  font-size: 13px;
+  color: #8b949e;
+  word-break: break-word;
+
+  code {
+    background-color: #6e768166;
+    border-radius: 6px;
+    padding: 0.15em 0.3em;
+    white-space: break-spaces;
+    font-weight: 600;
+    line-height: 1.8;
+    box-sizing: border-box;
+  }
+}

@@ -107,6 +107,7 @@ export type WorkspaceStore = {
   groupDefs: string[];
   checkExpr: boolean;
   theme: "dark" | "light";
+  allFiles: string[];
 
   // single editor (no multi-tab in VSCode extension; each file has its own tab)
   editor?: EditorStore;
@@ -123,6 +124,7 @@ export type WorkspaceStore = {
     nodeDefs: NodeDef[];
     checkExpr: boolean;
     theme: "dark" | "light";
+    allFiles: string[];
   }) => void;
 
   // update node defs (from setting file change)
@@ -138,7 +140,12 @@ export type WorkspaceStore = {
   refresh: () => void;
 
   // apply pre-computed vars from the extension host (includes import/subtree vars)
-  applyHostVars: (vars: Array<{ name: string; desc: string }>) => void;
+  applyHostVars: (
+    vars: Array<{ name: string; desc: string }>,
+    allFiles?: string[],
+    importDecls?: Array<{ path: string; vars: Array<{ name: string; desc: string }> }>,
+    subtreeDecls?: Array<{ path: string; vars: Array<{ name: string; desc: string }> }>
+  ) => void;
 
   usingGroups: typeof b3util.usingGroups;
   usingVars: typeof b3util.usingVars;
@@ -166,6 +173,7 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
   groupDefs: [],
   checkExpr: true,
   theme: "dark",
+  allFiles: [],
   editor: undefined,
   modifiedTime: 0,
   isShowingSearch: false,
@@ -174,7 +182,7 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
 
   onShowingSearch: (v) => set({ isShowingSearch: v }),
 
-  init: ({ content, filePath, workdir, nodeDefs: defs, checkExpr, theme }) => {
+  init: ({ content, filePath, workdir, nodeDefs: defs, checkExpr, theme, allFiles }) => {
     b3util.initWithNodeDefs(
       defs,
       (msg) => message.error(msg),
@@ -192,6 +200,7 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       groupDefs: b3util.groupDefs,
       checkExpr,
       theme,
+      allFiles: allFiles ?? [],
       editor,
       usingGroups: b3util.usingGroups,
       usingVars: b3util.usingVars,
@@ -230,27 +239,52 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
     set({ usingGroups: b3util.usingGroups, usingVars: b3util.usingVars });
   },
 
-  applyHostVars: (vars) => {
+  applyHostVars: (vars, allFiles, importDecls, subtreeDecls) => {
     b3util.updateUsingVars(vars);
+
+    const editor = get().editor;
+    if (editor) {
+      if (importDecls) {
+        editor.declare.import = importDecls.map((d) => ({
+          path: d.path,
+          vars: d.vars.map((v) => ({ name: v.name, desc: v.desc })),
+          depends: [],
+        }));
+      }
+      if (subtreeDecls) {
+        editor.declare.subtree = subtreeDecls.map((d) => ({
+          path: d.path,
+          vars: d.vars.map((v) => ({ name: v.name, desc: v.desc })),
+          depends: [],
+        }));
+      }
+    }
+
     // Updating usingVars in the store causes Editor's useEffect to fire
     // graph.repaint(), which redraws node error states without clearing
     // the graph or resetting selection.
-    set({ usingVars: b3util.usingVars });
+    const update: Partial<WorkspaceStore> = { usingVars: b3util.usingVars };
+    if (allFiles) update.allFiles = allFiles;
+    // Trigger editingTree re-render when import/subtree vars are updated
+    if (editor && (importDecls || subtreeDecls)) {
+      update.editingTree = {
+        ...editor.data,
+        root: editor.data.root,
+        import: editor.declare.import,
+        subtree: editor.declare.subtree,
+        vars: editor.declare.vars,
+      };
+    }
+    set(update);
   },
 
   onEditingNode: (node) => {
     set({ editingNode: node, editingNodeDef: null, editingTree: null });
-    if (node) {
-      const currentTree = get().editor?.data ?? null;
-      vscodeApi.postMessage({ type: "nodeSelected", node: node.data, tree: currentTree });
-    } else {
-      // notify tree selected
+    if (!node) {
+      // Notify host so it can recompute varDeclLoaded
       const editor = get().editor;
       if (editor) {
-        vscodeApi.postMessage({
-          type: "treeSelected",
-          tree: editor.data,
-        });
+        vscodeApi.postMessage({ type: "treeSelected", tree: editor.data });
       }
     }
   },
