@@ -504,7 +504,7 @@ export class Graph {
       this.editor.declare.vars = editTree.vars || [];
       this.editor.declare.import = editTree.import || [];
       useWorkspace.getState().refresh();
-      await this.refresh();
+      await this.refresh({ preserveSelection: true });
       this._storeHistory();
     }
   }
@@ -530,15 +530,35 @@ export class Graph {
     // update subtree
     if (subtree !== editNode.data.path) {
       this.editor.data.root = this._nodeToData("1");
-      await this.refresh();
+      await this.refresh({ preserveSelection: true });
     }
 
     this._storeHistory();
   }
 
-  async refresh() {
-    this.selectNode(null);
+  /**
+   * Rebuild graph from current `this.data`. By default clears selection (→ tree inspector).
+   * Use `preserveSelection: true` after subtree sync / resize / external reload so the node inspector stays open.
+   */
+  async refresh(options?: { preserveSelection?: boolean }) {
+    const keepId = options?.preserveSelection ? this._selectedId : null;
+    // Avoid selectNode(null): it calls onEditingTree() and makes the right panel flash tree → node.
+    if (keepId) {
+      this._clearVisualSelectionOnly();
+    } else {
+      this.selectNode(null);
+    }
     await this._update(this.data);
+    if (keepId) {
+      try {
+        if (this._graph.getNodeData(keepId)) {
+          this.selectNode(keepId);
+          return;
+        }
+      } catch {
+        /* node id no longer in graph */
+      }
+    }
     this.selectNode(null);
   }
 
@@ -554,6 +574,9 @@ export class Graph {
    */
   async repaint() {
     if (this._graph.rendered) {
+      const active = document.activeElement;
+      const inspectorField =
+        active instanceof HTMLElement && active.closest(".b3-inspector") ? active : null;
       const zoom = this._graph.getZoom();
       await this._graph.zoomTo(1, false);
       const [x, y] = this._graph.getPosition();
@@ -561,14 +584,38 @@ export class Graph {
       await this._graph.render();
       await this._graph.translateTo([x, y], false);
       await this._graph.zoomTo(zoom, false);
+      if (inspectorField && document.body.contains(inspectorField)) {
+        queueMicrotask(() => {
+          try {
+            inspectorField.focus({ preventScroll: true });
+          } catch {
+            /* ignore */
+          }
+        });
+      }
     }
   }
 
   async reload() {
-    this.selectNode(null);
+    const keepId = this._selectedId;
+    if (keepId) {
+      this._clearVisualSelectionOnly();
+    } else {
+      this.selectNode(null);
+    }
     // Use in-memory data (already updated by extension host via fileChanged message)
     await this._update(this.editor.data);
     this._storeHistory(false);
+    if (keepId) {
+      try {
+        if (this._graph.getNodeData(keepId)) {
+          this.selectNode(keepId);
+          return;
+        }
+      } catch {
+        /* missing */
+      }
+    }
     this.selectNode(null);
   }
 
@@ -580,6 +627,17 @@ export class Graph {
 
   get selectedId() {
     return this._selectedId;
+  }
+
+  /** Drop G6 "selected" styling and internal id without notifying workspace (no tree-inspector flash). */
+  private _clearVisualSelectionOnly() {
+    if (this._selectedId) {
+      this._setState(
+        this._selectedId,
+        this._getState(this._selectedId).filter((v) => v !== "selected")
+      );
+    }
+    this._selectedId = null;
   }
 
   selectNode(id: string | null) {
@@ -595,12 +653,20 @@ export class Graph {
     if (this._selectedId) {
       const node = this._graph.getNodeData(this._selectedId);
       const data = node.data as unknown as NodeData;
-      useWorkspace.getState().onEditingNode({
+      const payload = {
         data: { ...data },
         prefix: this.data.prefix,
         disabled: this._isSubtreeNode(node.id),
         subtreeEditable: !this._isSubtreeNode(this._findParent(node.id)?.id),
-      });
+      };
+      const prev = useWorkspace.getState().editingNode;
+      if (
+        !prev ||
+        prev.data.id !== data.id ||
+        !b3util.isNodeEqual(prev.data, data)
+      ) {
+        useWorkspace.getState().onEditingNode(payload);
+      }
       const states = this._getState(this._selectedId);
       this._setState(this._selectedId, [...states, "selected"]);
     } else {
@@ -954,7 +1020,7 @@ export class Graph {
   }
 
   async refreshSubtree() {
-    await this.refresh();
+    await this.refresh({ preserveSelection: true });
     this._storeHistory();
   }
 
@@ -1031,7 +1097,7 @@ export class Graph {
     data.path = relPath;
     this._graph.updateNodeData([node]);
     this.editor.data.root = this._nodeToData("1");
-    await this.refresh();
+    await this.refresh({ preserveSelection: true });
     this._storeHistory();
   }
 }

@@ -21,6 +21,19 @@ Open any `.b3tree` file — the editor will open automatically in the custom can
 To open a `.json` behavior tree:
 - Right-click the file in Explorer → **Open With** → **Behavior Tree Editor**
 
+To **always** open JSON under a given folder with this editor (without “Open With” each time), set **`workbench.editorAssociations`** in **User** or **Workspace** settings. Value is the custom editor id `behavior3.treeEditor`.
+
+**Important:** If the pattern contains a `/`, VS Code matches it against **`scheme:absolutePath`** (e.g. `file:/Users/you/project/vars/foo.json`), **not** relative to the workspace root. So do **not** use `vars/**/*.json` — it will never match. Start the pattern with `**/` so any path prefix is allowed:
+
+```json
+"workbench.editorAssociations": {
+  "**/vars/**/*.json": "behavior3.treeEditor",
+  "**/workdir/**/*.json": "behavior3.treeEditor"
+}
+```
+
+Use forward slashes in patterns. Keep globs narrow so other JSON files still open in the default editor. After changing settings, run **Developer: Reload Window** once. If it still opens wrong, use **View: Reopen Editor With…** and reset any remembered choice for that file type.
+
 ### 2. Create a new tree
 
 Right-click a folder in the Explorer → **Behavior Tree: New .b3tree File**

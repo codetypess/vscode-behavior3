@@ -77,6 +77,32 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
 
     webviewPanel.webview.html = this._getEditorHtml(webviewPanel.webview);
 
+    let cachedSubtreeRefs: Set<string> | null = null;
+    const invalidateSubtreeRefs = () => {
+      cachedSubtreeRefs = null;
+    };
+    const getSubtreeRefSet = (): Set<string> => {
+      if (!cachedSubtreeRefs) {
+        cachedSubtreeRefs = getTransitiveSubtreeRelativePaths(workdir.fsPath, document.getText());
+      }
+      return cachedSubtreeRefs;
+    };
+
+    let subtreeRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+    const flushParentSubtreeRefresh = () => {
+      const msg: HostToEditorMessage = { type: "subtreeFileChanged" };
+      webviewPanel.webview.postMessage(msg);
+    };
+    const scheduleParentSubtreeRefresh = () => {
+      if (subtreeRefreshTimer) {
+        clearTimeout(subtreeRefreshTimer);
+      }
+      subtreeRefreshTimer = setTimeout(() => {
+        subtreeRefreshTimer = undefined;
+        flushParentSubtreeRefresh();
+      }, 450);
+    };
+
     // Watch .b3-setting for changes
     const settingWatcher = watchSettingFile(workdir, (newDefs) => {
       nodeDefs.splice(0, nodeDefs.length, ...newDefs);
@@ -84,15 +110,41 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
       webviewPanel.webview.postMessage(msg);
     });
 
-    // Sync document changes made externally (e.g., git checkout, external editor)
+    // Main document → webview; subtree documents → debounced refresh parent canvas
     const docChangeDisposable = vscode.workspace.onDidChangeTextDocument((e) => {
-      if (e.document.uri.toString() === document.uri.toString() && e.contentChanges.length > 0) {
-        const msg: HostToEditorMessage = {
-          type: "fileChanged",
-          content: document.getText(),
-        };
-        webviewPanel.webview.postMessage(msg);
+      if (e.document.uri.toString() === document.uri.toString()) {
+        invalidateSubtreeRefs();
+        if (e.contentChanges.length > 0) {
+          const msg: HostToEditorMessage = {
+            type: "fileChanged",
+            content: document.getText(),
+          };
+          webviewPanel.webview.postMessage(msg);
+        }
+        return;
       }
+      const rel = uriToWorkdirRelative(e.document.uri, workdir);
+      if (!rel || !getSubtreeRefSet().has(rel)) {
+        return;
+      }
+      if (e.contentChanges.length > 0) {
+        scheduleParentSubtreeRefresh();
+      }
+    });
+
+    const subtreeSaveDisposable = vscode.workspace.onDidSaveTextDocument((saved) => {
+      if (saved.uri.toString() === document.uri.toString()) {
+        return;
+      }
+      const rel = uriToWorkdirRelative(saved.uri, workdir);
+      if (!rel || !getSubtreeRefSet().has(rel)) {
+        return;
+      }
+      if (subtreeRefreshTimer) {
+        clearTimeout(subtreeRefreshTimer);
+        subtreeRefreshTimer = undefined;
+      }
+      flushParentSubtreeRefresh();
     });
 
     // Handle messages from the editor webview
@@ -177,12 +229,20 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
         case "readFile": {
           const fileUri = vscode.Uri.file(path.normalize(msg.path));
           try {
-            const raw = await vscode.workspace.fs.readFile(fileUri);
-            const content = Buffer.from(raw).toString("utf-8");
+            const openDoc = vscode.workspace.textDocuments.find(
+              (d) => d.uri.fsPath === fileUri.fsPath || d.uri.toString() === fileUri.toString()
+            );
+            const content = openDoc
+              ? openDoc.getText()
+              : Buffer.from(await vscode.workspace.fs.readFile(fileUri)).toString("utf-8");
             if (msg.requestId === "open-subtree") {
               try {
-                const doc = await vscode.workspace.openTextDocument(fileUri);
-                await vscode.window.showTextDocument(doc, { preview: true });
+                await vscode.commands.executeCommand(
+                  "vscode.openWith",
+                  fileUri,
+                  TreeEditorProvider.viewType,
+                  vscode.ViewColumn.Active
+                );
               } catch {
                 /* ignore open failure */
               }
@@ -217,8 +277,12 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
     });
 
     webviewPanel.onDidDispose(() => {
+      if (subtreeRefreshTimer) {
+        clearTimeout(subtreeRefreshTimer);
+      }
       settingWatcher.dispose();
       docChangeDisposable.dispose();
+      subtreeSaveDisposable.dispose();
     });
   }
 
@@ -274,6 +338,60 @@ function collectSubtreePaths(node: TreeNodeLike | undefined): string[] {
     cur.children?.forEach((c) => stack.push(c));
   }
   return paths;
+}
+
+function normalizePathKey(p: string): string {
+  return p.replace(/\\/g, "/").replace(/^[/\\]+/, "");
+}
+
+/**
+ * Subtree paths referenced by the main tree JSON, transitively (nested subtree files).
+ */
+function getTransitiveSubtreeRelativePaths(workdirFs: string, mainContent: string): Set<string> {
+  const pending = new Set<string>();
+  const loaded = new Set<string>();
+  let tree: TreeLike;
+  try {
+    tree = JSON.parse(mainContent) as TreeLike;
+  } catch {
+    return loaded;
+  }
+  const collectFromMemory = (node: TreeNodeLike | undefined) => {
+    if (!node) return;
+    if (node.path) pending.add(normalizePathKey(node.path));
+    node.children?.forEach(collectFromMemory);
+  };
+  collectFromMemory(tree.root);
+  while (pending.size > 0) {
+    const relPath = pending.values().next().value as string;
+    pending.delete(relPath);
+    if (loaded.has(relPath)) continue;
+    loaded.add(relPath);
+    try {
+      const fullPath = path.join(workdirFs, relPath);
+      const raw = fs.readFileSync(fullPath, "utf-8");
+      const sub = JSON.parse(raw) as TreeLike;
+      const discover = (n: TreeNodeLike | undefined) => {
+        if (!n) return;
+        if (n.path) {
+          const q = normalizePathKey(n.path);
+          if (!loaded.has(q)) pending.add(q);
+        }
+        n.children?.forEach(discover);
+      };
+      discover(sub.root);
+    } catch {
+      /* missing or invalid subtree file */
+    }
+  }
+  return loaded;
+}
+
+function uriToWorkdirRelative(uri: vscode.Uri, workdir: vscode.Uri): string | undefined {
+  if (uri.scheme !== "file") return undefined;
+  const rel = path.relative(workdir.fsPath, uri.fsPath).replace(/\\/g, "/");
+  if (rel.startsWith("..") || path.isAbsolute(rel)) return undefined;
+  return normalizePathKey(rel);
 }
 
 

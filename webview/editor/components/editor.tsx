@@ -108,6 +108,7 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
     useShallow((state) => ({
       editor: state.editor,
       usingVars: state.usingVars,
+      hostSubtreeRefreshSeq: state.hostSubtreeRefreshSeq,
     }))
   );
 
@@ -235,7 +236,11 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
       await graph.redo();
       updateSearchState();
     } else if (event === "refresh") {
-      await graph.refresh();
+      const preserve =
+        data &&
+        typeof data === "object" &&
+        (data as { preserveSelection?: boolean }).preserveSelection === true;
+      await graph.refresh(preserve ? { preserveSelection: true } : undefined);
     } else if (event === "repaint") {
       await graph.repaint();
     } else if (event === "reload") {
@@ -279,13 +284,11 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
     if (graph.hasSubtreeUpdated()) {
       await graph.refreshSubtree();
     } else {
-      await graph.refresh();
+      await graph.refresh({ preserveSelection: true });
     }
     if (editor.focusId) {
       graph.focusNode(editor.focusId);
       editor.focusId = null;
-    } else if (graph.selectedId) {
-      graph.selectNode(graph.selectedId);
     }
   };
 
@@ -304,7 +307,7 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
 
   useEffect(() => {
     if (graph) {
-      graph.refresh();
+      void graph.refresh({ preserveSelection: true });
     }
   }, [t]);
 
@@ -317,6 +320,12 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
       graph.repaint();
     }
   }, [graph, workspace.usingVars]);
+
+  // Subtree file edited/saved in another tab → extension bumps seq → reload merged subtree view
+  useEffect(() => {
+    if (!graph || workspace.hostSubtreeRefreshSeq === 0) return;
+    void graph.refresh({ preserveSelection: true });
+  }, [graph, workspace.hostSubtreeRefreshSeq]);
 
   return (
     <div

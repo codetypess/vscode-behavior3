@@ -44,6 +44,8 @@ const EditorApp = () => {
         workspace.updateNodeDefs(msg.nodeDefs);
       } else if (msg.type === "varDeclLoaded") {
         workspace.applyHostVars(msg.usingVars, msg.allFiles, msg.importDecls, msg.subtreeDecls);
+      } else if (msg.type === "subtreeFileChanged") {
+        workspace.requestHostSubtreeRefresh();
       }
     });
 

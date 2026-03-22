@@ -45,6 +45,8 @@ export type HostToEditorMessage =
       allFiles: string[];
     }
   | { type: "fileChanged"; content: string }
+  /** A referenced subtree file was saved or edited; parent canvas should reload subtree data. */
+  | { type: "subtreeFileChanged" }
   | { type: "settingLoaded"; nodeDefs: NodeDef[] }
   | { type: "buildResult"; success: boolean; message: string }
   | { type: "readFileResult"; requestId: string; content: string | null }

@@ -1416,6 +1416,7 @@ export const Inspector: FC = () => {
     return (
       <div className="b3-inspector" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
         <NodeInspector
+          key={editingNode.data.id}
           node={editingNode.data}
           nodeDefs={defs}
           editingTree={editor?.data ?? null}

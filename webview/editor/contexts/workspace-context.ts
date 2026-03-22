@@ -113,6 +113,10 @@ export type WorkspaceStore = {
   editor?: EditorStore;
   modifiedTime: number;
 
+  /** Incremented when a referenced subtree file changes on disk/buffer; Editor refreshes the graph. */
+  hostSubtreeRefreshSeq: number;
+  requestHostSubtreeRefresh: () => void;
+
   isShowingSearch: boolean;
   onShowingSearch: (v: boolean) => void;
 
@@ -176,11 +180,15 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
   allFiles: [],
   editor: undefined,
   modifiedTime: 0,
+  hostSubtreeRefreshSeq: 0,
   isShowingSearch: false,
   usingGroups: null,
   usingVars: null,
 
   onShowingSearch: (v) => set({ isShowingSearch: v }),
+
+  requestHostSubtreeRefresh: () =>
+    set((s) => ({ hostSubtreeRefreshSeq: s.hostSubtreeRefreshSeq + 1 })),
 
   init: ({ content, filePath, workdir, nodeDefs: defs, checkExpr, theme, allFiles }) => {
     b3util.initWithNodeDefs(
@@ -202,6 +210,7 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       theme,
       allFiles: allFiles ?? [],
       editor,
+      hostSubtreeRefreshSeq: 0,
       usingGroups: b3util.usingGroups,
       usingVars: b3util.usingVars,
     });
@@ -213,7 +222,7 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
     b3util.initWithNodeDefs(defs, (msg) => message.error(msg), get().checkExpr);
     const editor = get().editor;
     set({ nodeDefs: b3util.nodeDefs, groupDefs: b3util.groupDefs });
-    editor?.dispatch?.("refresh");
+    editor?.dispatch?.("refresh", { preserveSelection: true });
   },
 
   reloadContent: (content) => {
@@ -227,7 +236,7 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       usingVars: b3util.usingVars,
       modifiedTime: Date.now(),
     });
-    editor.dispatch?.("refresh");
+    editor.dispatch?.("refresh", { preserveSelection: true });
   },
 
   save: () => saveEditor(get().editor),
