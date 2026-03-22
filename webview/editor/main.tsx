@@ -5,6 +5,7 @@ import { setGlobalHooks } from "../shared/misc/hooks";
 import "../shared/misc/i18n";
 import { getThemeConfig } from "../shared/misc/theme";
 import { useWorkspace } from "./contexts/workspace-context";
+import { writeTree } from "../shared/misc/util";
 import { Editor } from "./components/editor";
 import "./components/register-node";
 import * as vscodeApi from "./vscodeApi";
@@ -67,7 +68,7 @@ const EditorApp = () => {
               data={workspace.editor}
               onChange={() => {
                 if (workspace.editor) {
-                  const content = JSON.stringify(workspace.editor.data, null, 2);
+                  const content = writeTree(workspace.editor.data, workspace.editor.data.name);
                   vscodeApi.postMessage({ type: "update", content });
                 }
               }}

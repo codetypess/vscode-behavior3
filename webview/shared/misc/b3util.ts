@@ -20,7 +20,6 @@ import {
   VarDecl,
   VERSION,
 } from "./b3type";
-import { stringifyJson } from "./stringify";
 import { basenameWithoutExt, nanoid, readTree } from "./util";
 
 import { ExpressionEvaluator } from "../../../behavior3/src/behavior3/evaluator";
@@ -805,38 +804,28 @@ export const isTreeFile = (path: string) => {
 };
 
 /**
- * Simplified refreshVarDecl for webview: only updates group/var state
- * without reading subtree files (file reading handled by extension host).
+ * Webview: rebuild `declare.subtree` paths + refresh enabled groups.
+ *
+ * Do **not** call `updateUsingVars` here. The extension host reads imports/subtree JSON
+ * from disk in `buildUsingVars` and sends the authoritative map via `varDeclLoaded`.
+ * Merging declare.vars + import + subtree locally can miss vars (e.g. path-key mismatch)
+ * and would overwrite `usingVars` with a subset — then Clear/subtree vars flash "undefined"
+ * until the next host round-trip.
  */
 export const refreshVarDecl = (root: NodeData, group: string[], declare: FileVarDecl) => {
-  const vars: VarDecl[] = [...declare.vars];
-
-  declare.import.forEach((entry) => {
-    entry.vars.forEach((v) => {
-      if (!vars.find((x) => x.name === v.name)) {
-        vars.push(v);
-      }
-    });
-  });
-
   // Keep per-path vars from host (subtree JSON); do not wipe to [] — that briefly
   // shrinks usingVars and nodes flash red until varDeclLoaded returns.
-  const prevSubtreeByPath = new Map(declare.subtree.map((s) => [s.path, s]));
+  // Match keys with extension host `normalizePathKey` / tree JSON: \ vs /, leading slashes, ./.
+  const prevSubtreeByPath = new Map(
+    declare.subtree.map((s) => [normalizeSubtreePathKey(s.path), s])
+  );
   declare.subtree = collectSubtree(root).map((path) => {
-    const prev = prevSubtreeByPath.get(path);
+    const prev = prevSubtreeByPath.get(normalizeSubtreePathKey(path));
     return {
       path,
       vars: prev?.vars?.length ? prev.vars.map((v) => ({ ...v })) : [],
       depends: prev?.depends ?? [],
     };
-  });
-
-  declare.subtree.forEach((entry) => {
-    entry.vars.forEach((v) => {
-      if (!vars.find((x) => x.name === v.name)) {
-        vars.push({ ...v });
-      }
-    });
   });
 
   let changed = false;
@@ -850,14 +839,12 @@ export const refreshVarDecl = (root: NodeData, group: string[], declare: FileVar
     updateUsingGroups(group);
   }
 
-  const lastVars = Array.from(Object.keys(usingVars ?? {})).sort();
-  vars.sort((a, b) => a.name.localeCompare(b.name));
-  if (lastVars.length !== vars.length || lastVars.some((v, i) => v !== vars[i].name)) {
-    changed = true;
-    updateUsingVars(vars);
-  }
   return changed;
 };
+
+/** Align with extension `treeEditorProvider.normalizePathKey` for subtree path lookup. */
+const normalizeSubtreePathKey = (p: string) =>
+  p.replace(/\\/g, "/").replace(/^[/\\]+/, "").replace(/^\.\//, "");
 
 const collectSubtree = (data: NodeData) => {
   const list: string[] = [];
@@ -867,23 +854,4 @@ const collectSubtree = (data: NodeData) => {
     }
   });
   return list;
-};
-
-export const stringifyTree = (data: TreeData, name: string): string => {
-  return stringifyJson(
-    {
-      version: VERSION,
-      name,
-      desc: data.desc,
-      prefix: data.prefix,
-      export: data.export,
-      group: data.group,
-      import: data.import,
-      vars: data.vars,
-      root: data.root,
-      custom: data.custom,
-      $override: data.$override,
-    },
-    { indent: 2 }
-  );
 };

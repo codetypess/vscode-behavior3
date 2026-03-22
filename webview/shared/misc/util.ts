@@ -1,7 +1,7 @@
 // Adapted from original: removed fs/path Node.js imports (browser-safe version)
 import { customAlphabet } from "nanoid";
 import { VERSION, type TreeData } from "./b3type";
-import { dfs } from "./b3util";
+import { createNode, dfs } from "./b3util";
 import { stringifyJson } from "./stringify";
 
 export const nanoid = customAlphabet(
@@ -13,8 +13,28 @@ export const parseJson = <T>(text: string): T => {
   return JSON.parse(text) as T;
 };
 
-export const stringifyTree = (data: TreeData): string => {
-  return stringifyJson(data, { indent: 2 });
+/**
+ * 与原版 `writeTree` 写入磁盘的对象结构一致（version/name/root(createNode)/…），供 postMessage 等传对象用。
+ */
+export const treeDataForPersistence = (data: TreeData, name: string): TreeData => {
+  return {
+    version: VERSION,
+    name,
+    desc: data.desc,
+    prefix: data.prefix,
+    export: data.export,
+    group: data.group,
+    import: data.import,
+    vars: data.vars,
+    root: createNode(data.root),
+    custom: data.custom,
+    $override: data.$override,
+  };
+};
+
+/** 原版：writeJson(writeTree(...)) → stringifyJson，禁止 JSON.stringify 整棵 editor.data */
+export const writeTree = (data: TreeData, name: string): string => {
+  return stringifyJson(treeDataForPersistence(data, name), { indent: 2 });
 };
 
 export const readTree = (text: string): TreeData => {
@@ -36,25 +56,6 @@ export const readTree = (text: string): TreeData => {
   });
 
   return data;
-};
-
-export const writeTree = (data: TreeData, name: string): string => {
-  return stringifyJson(
-    {
-      version: VERSION,
-      name,
-      desc: data.desc,
-      prefix: data.prefix,
-      export: data.export,
-      group: data.group,
-      import: data.import,
-      vars: data.vars,
-      root: data.root,
-      custom: data.custom,
-      $override: data.$override,
-    },
-    { indent: 2 }
-  );
 };
 
 export function mergeClassNames(...cls: (string | boolean)[]): string {

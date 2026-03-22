@@ -62,6 +62,11 @@ body {
   min-width: 100px;
 }
 
+/* 窄侧栏 + 校验错误时避免 flex 把 label/控件挤成上下错位（与原版 span:auto 一致） */
+.b3-inspector .ant-form-item-control {
+  min-width: 0;
+}
+
 .b3-inspector .ant-form-item-explain {
   word-wrap: break-word;
   font-size: small;

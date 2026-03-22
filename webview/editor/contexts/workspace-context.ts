@@ -16,7 +16,12 @@ import {
 import * as b3util from "../../shared/misc/b3util";
 import { message } from "../../shared/misc/hooks";
 import i18n from "../../shared/misc/i18n";
-import { basenameWithoutExt, nanoid, readTree, writeTree } from "../../shared/misc/util";
+import {
+  basenameWithoutExt,
+  nanoid,
+  readTree,
+  treeDataForPersistence,
+} from "../../shared/misc/util";
 import * as vscodeApi from "../vscodeApi";
 
 export type EditEvent =
@@ -31,7 +36,6 @@ export type EditEvent =
   | "undo"
   | "redo"
   | "refresh"
-  | "repaint"
   | "rename"
   | "reload"
   | "updateTree"
@@ -258,6 +262,11 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       modifiedTime: Date.now(),
     });
     editor.dispatch?.("refresh", { preserveSelection: true });
+    // 与 graph 编辑一致：变量表以宿主 buildUsingVars 为准，避免 refreshVarDecl 不读盘导致 usingVars 陈旧
+    vscodeApi.postMessage({
+      type: "treeSelected",
+      tree: treeDataForPersistence(editor.data, editor.data.name),
+    });
   },
 
   save: () => saveEditor(get().editor),
@@ -265,9 +274,12 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
   refresh: () => {
     const editor = get().editor;
     if (!editor) return;
-    const changed = b3util.refreshVarDecl(editor.data.root, editor.data.group, editor.declare);
-    if (changed) {
-      set({ usingGroups: b3util.usingGroups, usingVars: b3util.usingVars });
+    b3util.refreshVarDecl(editor.data.root, editor.data.group, editor.declare);
+    const usingGroups = b3util.usingGroups;
+    const usingVars = b3util.usingVars;
+    const s = get();
+    if (s.usingGroups !== usingGroups || s.usingVars !== usingVars) {
+      set({ usingGroups, usingVars });
     }
   },
 
@@ -338,7 +350,10 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       // Notify host so it can recompute varDeclLoaded
       const editor = get().editor;
       if (editor) {
-        vscodeApi.postMessage({ type: "treeSelected", tree: editor.data });
+        vscodeApi.postMessage({
+          type: "treeSelected",
+          tree: treeDataForPersistence(editor.data, editor.data.name),
+        });
       }
     }
   },
@@ -362,7 +377,7 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
     });
     vscodeApi.postMessage({
       type: "treeSelected",
-      tree: editor.data,
+      tree: treeDataForPersistence(editor.data, editor.data.name),
     });
   },
 }));

@@ -400,11 +400,25 @@ const NodeInspector: FC<{
   checkExpr: boolean;
   allFiles: string[];
   usingVars: Record<string, { name: string; desc: string }> | null;
+  /** 全局可选分组名（来自 node-config），用于是否显示「节点分组」一行 */
   groupDefs: string[];
+  /** 当前行为树已启用的分组，与 register-node / checkNodeData 一致；用于校验 def.group */
+  usingGroups: Record<string, boolean> | null;
   disabled: boolean;
   /** When false, subtree path field is read-only (node is under an external subtree). */
   subtreeEditable: boolean;
-}> = ({ node, nodeDefs, editingTree, checkExpr, allFiles, usingVars, groupDefs, disabled, subtreeEditable }) => {
+}> = ({
+  node,
+  nodeDefs,
+  editingTree,
+  checkExpr,
+  allFiles,
+  usingVars,
+  groupDefs,
+  usingGroups,
+  disabled,
+  subtreeEditable,
+}) => {
   const { t } = useTranslation();
   const [form] = Form.useForm();
   const def = nodeDefs.get(node.name);
@@ -420,7 +434,12 @@ const NodeInspector: FC<{
     updateFormWithNode(form, node, nodeDefs, checkExpr);
     setNodeArgs(node.args ?? {});
     validateFieldsLater();
-  }, [node]);
+  }, [node, nodeDefs, checkExpr]);
+
+  // usingVars / groupDefs / usingGroups 变时补校验（与画布红框、原版 Inspector 一致）
+  useEffect(() => {
+    validateFieldsLater();
+  }, [usingVars, groupDefs, usingGroups]);
 
   const submit = () => {
     setNodeArgs(createNodeFromForm(form, node, nodeDefs).args ?? {});
@@ -473,8 +492,8 @@ const NodeInspector: FC<{
       <div className="b3-inspector-content" style={{ overflow: "auto", height: "100%" }}>
         <Form
           form={form}
-          labelCol={{ flex: "100px" }}
-          wrapperCol={{ flex: "auto" }}
+          labelCol={{ span: "auto" }}
+          wrapperCol={{ span: "auto" }}
           onFinish={finish}
         >
           {/* ── Meta (read-only) ── */}
@@ -492,7 +511,8 @@ const NodeInspector: FC<{
                 {
                   validator() {
                     const g = (def as NodeDef & { group?: string[] }).group;
-                    if (g && !g.some((name) => groupDefs.includes(name))) {
+                    // 原版：def.group 中至少有一个须在「当前树已启用分组」usingGroups 中为 true
+                    if (g && !g.some((name) => usingGroups?.[name])) {
                       return Promise.reject(
                         new Error(t("node.groupNotEnabled", { group: g }))
                       );
@@ -1177,8 +1197,8 @@ const TreeInspector: FC<{
       <div className="b3-inspector-content" style={{ overflow: "auto", height: "100%" }}>
         <Form
           form={form}
-          labelCol={{ flex: "100px" }}
-          wrapperCol={{ flex: "auto" }}
+          labelCol={{ span: "auto" }}
+          wrapperCol={{ span: "auto" }}
           onFinish={finish}
         >
           <Form.Item name="name" label={t("tree.name")}>
@@ -1393,6 +1413,7 @@ export const Inspector: FC = () => {
     editingTree,
     nodeDefs,
     groupDefs,
+    usingGroups,
     checkExpr,
     allFiles,
     usingVars,
@@ -1403,6 +1424,7 @@ export const Inspector: FC = () => {
       editingTree: s.editingTree,
       nodeDefs: s.nodeDefs,
       groupDefs: s.groupDefs,
+      usingGroups: s.usingGroups,
       checkExpr: s.checkExpr,
       allFiles: s.allFiles,
       usingVars: s.usingVars,
@@ -1457,6 +1479,7 @@ export const Inspector: FC = () => {
           allFiles={allFiles}
           usingVars={usingVarsRecord}
           groupDefs={groupDefs}
+          usingGroups={usingGroups}
           disabled={editingNode.disabled}
           subtreeEditable={editingNode.subtreeEditable ?? true}
         />

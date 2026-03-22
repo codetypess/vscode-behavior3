@@ -108,6 +108,7 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
     useShallow((state) => ({
       editor: state.editor,
       usingVars: state.usingVars,
+      usingGroups: state.usingGroups,
       hostSubtreeRefreshSeq: state.hostSubtreeRefreshSeq,
     }))
   );
@@ -241,8 +242,6 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
         typeof data === "object" &&
         (data as { preserveSelection?: boolean }).preserveSelection === true;
       await graph.refresh(preserve ? { preserveSelection: true } : undefined);
-    } else if (event === "repaint") {
-      await graph.repaint();
     } else if (event === "reload") {
       graph.reload();
       editor.changed = false;
@@ -311,15 +310,12 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
     }
   }, [t]);
 
-  // When usingVars changes OR graph first becomes available, repaint nodes
-  // so error states reflect the latest b3util.usingVars.
-  // Depend on both [graph, usingVars] to handle the timing where either
-  // usingVars arrives before graph is ready, or graph is ready first.
+  /** usingVars/Groups 变而图未整页 refresh 时（如 varDeclLoaded），补一次节点绘制以更新红框 */
   useEffect(() => {
     if (graph) {
       graph.repaint();
     }
-  }, [graph, workspace.usingVars]);
+  }, [graph, workspace.usingVars, workspace.usingGroups]);
 
   // Subtree file edited/saved in another tab → extension bumps seq → reload merged subtree view
   useEffect(() => {

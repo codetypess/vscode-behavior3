@@ -17,7 +17,14 @@ import { ImportDecl, isExprType, NodeData, TreeData, VarDecl } from "../../share
 import * as b3util from "../../shared/misc/b3util";
 import { message } from "../../shared/misc/hooks";
 import i18n from "../../shared/misc/i18n";
-import { basenameWithoutExt, nanoid, readTree, writeTree } from "../../shared/misc/util";
+import { stringifyJson } from "../../shared/misc/stringify";
+import {
+  basenameWithoutExt,
+  nanoid,
+  readTree,
+  treeDataForPersistence,
+  writeTree,
+} from "../../shared/misc/util";
 import {
   buildEditingTreeSnapshot,
   EditNode,
@@ -37,6 +44,22 @@ type IGraph = {
     };
   };
 };
+
+/** 宿主用 buildUsingVars 重算 import/子树变量；与 webview refreshVarDecl（不读盘）分工，防抖合并多次编辑 */
+let hostTreeVarsTimer: ReturnType<typeof setTimeout> | undefined;
+
+function scheduleHostTreeVarsFromGraph(editor: EditorStore) {
+  if (hostTreeVarsTimer !== undefined) {
+    clearTimeout(hostTreeVarsTimer);
+  }
+  hostTreeVarsTimer = setTimeout(() => {
+    hostTreeVarsTimer = undefined;
+    vscodeApi.postMessage({
+      type: "treeSelected",
+      tree: treeDataForPersistence(editor.data, editor.data.name),
+    });
+  }, 300);
+}
 
 // Minimal ObjectType for key deletion
 type ObjectType = Record<string, unknown>;
@@ -120,6 +143,10 @@ export class Graph {
   }
 
   destroy() {
+    if (hostTreeVarsTimer !== undefined) {
+      clearTimeout(hostTreeVarsTimer);
+      hostTreeVarsTimer = undefined;
+    }
     this._graph.destroy();
   }
 
@@ -131,12 +158,13 @@ export class Graph {
     if (this._graph.rendered) {
       this.editor.data.root = this._nodeToData("1");
     }
-    const str = JSON.stringify(this.data, null, 2);
+    const str = writeTree(this.data, this.data.name);
     if (this._historyStack[this._historyIndex] !== str) {
       this._historyStack.length = ++this._historyIndex;
       this._historyStack.push(str);
       if (changed) {
         this.onChange?.();
+        scheduleHostTreeVarsFromGraph(this.editor);
       }
     }
   }
@@ -149,6 +177,7 @@ export class Graph {
     await this._update(data, true, true);
     this.selectNode(null);
     this.onChange?.();
+    scheduleHostTreeVarsFromGraph(this.editor);
   }
 
   /**
@@ -519,6 +548,13 @@ export class Graph {
           editingTree: buildEditingTreeSnapshot(this.editor),
         });
       }
+
+      // Webview 的 refreshVarDecl 不读磁盘，子树变量只靠上次 varDeclLoaded；改树级变量后须让 host
+      // 用 buildUsingVars 重算并下发，否则 Clear 等仍报「未定义」，直到再点节点触发其它刷新。
+      vscodeApi.postMessage({
+        type: "treeSelected",
+        tree: treeDataForPersistence(this.editor.data, this.editor.data.name),
+      });
     }
   }
 
@@ -565,7 +601,7 @@ export class Graph {
     if (keepId) {
       try {
         if (this._graph.getNodeData(keepId)) {
-          this.selectNode(keepId);
+          this.selectNode(keepId, { forceNotify: true });
           return;
         }
       } catch {
@@ -622,7 +658,7 @@ export class Graph {
     if (keepId) {
       try {
         if (this._graph.getNodeData(keepId)) {
-          this.selectNode(keepId);
+          this.selectNode(keepId, { forceNotify: true });
           return;
         }
       } catch {
@@ -653,7 +689,7 @@ export class Graph {
     this._selectedId = null;
   }
 
-  selectNode(id: string | null) {
+  selectNode(id: string | null, options?: { forceNotify?: boolean }) {
     if (this._selectedId && id !== this._selectedId) {
       this._setState(
         this._selectedId,
@@ -674,6 +710,7 @@ export class Graph {
       };
       const prev = useWorkspace.getState().editingNode;
       if (
+        options?.forceNotify ||
         !prev ||
         prev.data.id !== data.id ||
         !b3util.isNodeEqual(prev.data, data)
@@ -888,7 +925,7 @@ export class Graph {
       const node = this._graph.getNodeData(this._selectedId);
       if (node) {
         const data = node.data as unknown as NodeData;
-        const str = JSON.stringify(b3util.createNode(data));
+        const str = stringifyJson(b3util.createNode(data), { indent: 2 });
         navigator.clipboard.writeText(str).catch(console.error);
       }
     }
@@ -1102,7 +1139,7 @@ export class Graph {
       desc: data.desc,
     } as TreeData;
 
-    const content = JSON.stringify(subtreeModel, null, 2);
+    const content = stringifyJson(subtreeModel, { indent: 2 });
     await vscodeApi.saveSubtree(subpath, content);
 
     // Update the current node to reference the subtree
