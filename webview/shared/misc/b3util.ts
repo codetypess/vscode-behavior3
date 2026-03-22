@@ -20,6 +20,7 @@ import {
   VarDecl,
   VERSION,
 } from "./b3type";
+import { logger } from "./logger";
 import Path from "./path";
 import { stringifyJson } from "./stringify";
 import { nanoid, readJson, readTreeFromFile, readWorkspace } from "./util";
@@ -93,7 +94,7 @@ export const initWorkdirFromSettingFile = (
       arg.options?.forEach((option) => {
         Object.keys(option.match ?? {}).forEach((key) => {
           if (!node.args?.find((v) => v.name === key)) {
-            console.error(
+            logger.error(
               `match key '${key}' in arg '${arg.name}' of ` +
                 `node '${node.name}' is not found in args`
             );
@@ -851,7 +852,7 @@ export const refreshNodeData = (tree: TreeData, node: NodeData, id: number) => {
       }
     } catch (e) {
       alertError(`解析子树失败：${node.path}`);
-      console.log("parse subtree:", e);
+      logger.log("parse subtree:", e);
     }
     parsingStack.pop();
   } else if (node.children?.length) {
@@ -893,7 +894,7 @@ export const createBuildData = (path: string) => {
     clearUnnecessaryKey(treeModel);
     return treeModel;
   } catch (e) {
-    console.log("build error:", path, e);
+    logger.log("build error:", path, e);
   }
   return null;
 };
@@ -965,6 +966,27 @@ export const syncFilesFromDisk = () => {
   }
 };
 
+/** Non–behavior-tree JSON under the workspace (VS Code / tooling) must not be fed to `readTreeFromFile`. */
+const SKIP_JSON_BASENAMES = new Set([
+  "package.json",
+  "package-lock.json",
+  "jsconfig.json",
+  "components.json",
+]);
+
+const shouldSkipJsonForBuild = (absPath: string): boolean => {
+  const base = Path.basename(absPath);
+  const lower = base.toLowerCase();
+  if (SKIP_JSON_BASENAMES.has(lower)) {
+    return true;
+  }
+  if (lower === "tsconfig.json" || /^tsconfig\..*\.json$/i.test(base)) {
+    return true;
+  }
+  const norm = Path.posixPath(absPath).toLowerCase();
+  return ["/.vscode/", "/.git/", "/node_modules/", "/dist/", "/build/"].some((m) => norm.includes(m));
+};
+
 export const buildProject = async (project: string, buildDir: string) => {
   if (hasFs()) {
     syncFilesFromDisk();
@@ -980,7 +1002,7 @@ export const buildProject = async (project: string, buildDir: string) => {
     try {
       buildScript = await loadModule(scriptPath);
     } catch (e) {
-      console.error(`'${scriptPath}' is not a valid build script`);
+      logger.error(`'${scriptPath}' is not a valid build script`);
     }
   }
   if (buildScript) {
@@ -994,7 +1016,7 @@ export const buildProject = async (project: string, buildDir: string) => {
 
   const allErrors: string[] = [];
   for (const path of Path.ls(Path.dirname(project), true)) {
-    if (path.endsWith(".json")) {
+    if (path.endsWith(".json") && !shouldSkipJsonForBuild(path)) {
       const buildpath = buildDir + "/" + path.substring(workdir.length + 1);
       let tree = createBuildData(path);
       const errors: string[] = [];
@@ -1005,10 +1027,10 @@ export const buildProject = async (project: string, buildDir: string) => {
         continue;
       }
       if (tree.export === false) {
-        console.log("skip:", buildpath);
+        logger.log("skip:", buildpath);
         continue;
       }
-      console.log("build:", buildpath);
+      logger.log("build:", buildpath);
       if (errors.length) {
         hasError = true;
       }
@@ -1030,7 +1052,7 @@ export const buildProject = async (project: string, buildDir: string) => {
       getFs().writeFileSync(buildpath, stringifyJson(tree, { indent: 2 }));
     }
   }
-  allErrors.forEach((v) => console.error(v));
+  allErrors.forEach((v) => logger.error(v));
   buildScript?.onComplete?.(hasError ? "failure" : "success");
   return hasError;
 };
@@ -1054,7 +1076,7 @@ export const loadModule = async (path: string) => {
       return ret;
     }
   } catch (e) {
-    console.error(`failed to load module: ${path}`, e);
+    logger.error(`failed to load module: ${path}`, e);
     return null;
   }
 };
@@ -1119,7 +1141,7 @@ export const isTreeFile = (path: string) => {
 const loadVarDecl = (list: ImportDecl[], arr: Array<VarDecl>) => {
   for (const entry of list) {
     if (!files[entry.path]) {
-      console.warn(`file not found: ${workdir}/${entry.path}`);
+      logger.warn(`file not found: ${workdir}/${entry.path}`);
       continue;
     }
 
@@ -1166,7 +1188,7 @@ const loadVarDecl = (list: ImportDecl[], arr: Array<VarDecl>) => {
           load(subPath);
           depends.add(subPath);
         });
-        console.debug(`load var: ${path}`);
+        logger.debug(`load var: ${path}`);
       } catch (e) {
         alertError(`parsing error: ${path}`);
       }
@@ -1252,7 +1274,7 @@ const refreshVarDeclNode = (root: NodeData, group: string[], declare: FileVarDec
   group.sort();
   if (lastGroup.length !== group.length || lastGroup.some((v, i) => v !== group[i])) {
     changed = true;
-    console.debug("refresh group:", lastGroup, group);
+    logger.debug("refresh group:", lastGroup, group);
     updateUsingGroups(group);
   }
 
@@ -1260,7 +1282,7 @@ const refreshVarDeclNode = (root: NodeData, group: string[], declare: FileVarDec
   vars.sort((a, b) => a.name.localeCompare(b.name));
   if (lastVars.length !== vars.length || lastVars.some((v, i) => v !== vars[i].name)) {
     changed = true;
-    console.debug("refresh vars:", lastVars, vars);
+    logger.debug("refresh vars:", lastVars, vars);
     updateUsingVars(vars);
   }
   return changed;

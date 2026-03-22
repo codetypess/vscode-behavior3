@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
+import { logger } from "../webview/shared/misc/logger";
 import type { NodeDef } from "./types";
 
 /** True if `dir` is the workspace root or a subdirectory of it. */
@@ -169,7 +170,7 @@ export async function resolveNodeDefs(
     const text = Buffer.from(raw).toString("utf-8");
     return JSON.parse(text) as NodeDef[];
   } catch (e) {
-    console.error("[behavior3] failed to load setting file:", filePath, e);
+    logger.error("[behavior3] failed to load setting file:", filePath, e);
     return [];
   }
 }

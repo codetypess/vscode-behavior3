@@ -3,6 +3,7 @@
  * The `acquireVsCodeApi()` function is injected by VSCode into the webview context.
  */
 import type { EditorToHostMessage, HostToEditorMessage } from "../../src/types";
+import { composeLoggers, createConsoleLogger, setLogger, type Logger } from "../shared/misc/logger";
 
 declare function acquireVsCodeApi(): {
   postMessage(message: EditorToHostMessage): void;
@@ -34,27 +35,27 @@ function formatWebviewConsoleArg(a: unknown): string {
   return String(a);
 }
 
-/**
- * Mirror webview `console.*` to the extension host Output channel ("Behavior3").
- * Original console still runs in DevTools.
- */
-function installWebviewConsoleForward(): void {
-  const levels = ["log", "info", "warn", "error", "debug"] as const;
-  for (const level of levels) {
-    const orig = console[level].bind(console);
-    console[level] = (...args: unknown[]) => {
-      orig(...args);
+function createWebviewForwardLogger(post: (msg: EditorToHostMessage) => void): Logger {
+  const forward =
+    (level: "log" | "info" | "warn" | "error" | "debug") =>
+    (...args: unknown[]) => {
       try {
         const message = args.map(formatWebviewConsoleArg).join(" ");
-        postMessage({ type: "webviewLog", level, message });
+        post({ type: "webviewLog", level, message });
       } catch {
         /* ignore bridge errors */
       }
     };
-  }
+  return {
+    log: forward("log"),
+    info: forward("info"),
+    warn: forward("warn"),
+    error: forward("error"),
+    debug: forward("debug"),
+  };
 }
 
-installWebviewConsoleForward();
+setLogger(composeLoggers(createConsoleLogger(), createWebviewForwardLogger(postMessage)));
 
 type MessageHandler = (msg: HostToEditorMessage) => void;
 const handlers: MessageHandler[] = [];

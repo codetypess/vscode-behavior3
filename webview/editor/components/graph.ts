@@ -18,6 +18,7 @@ import * as b3util from "../../shared/misc/b3util";
 import { message } from "../../shared/misc/hooks";
 import i18n from "../../shared/misc/i18n";
 import { stringifyJson } from "../../shared/misc/stringify";
+import { logger } from "../../shared/misc/logger";
 import {
   basenameWithoutExt,
   nanoid,
@@ -393,7 +394,7 @@ export class Graph {
   }
 
   clickVar(...names: string[]) {
-    console.debug("click variable:", names);
+    logger.debug("click variable:", names);
     const nodes = this._findHightlight(this.data.root, names);
     for (const [node, states] of nodes) {
       const oldStates = this._getState(node.id).sort();
@@ -931,7 +932,7 @@ export class Graph {
       if (node) {
         const data = node.data as unknown as NodeData;
         const str = stringifyJson(b3util.createNode(data), { indent: 2 });
-        navigator.clipboard.writeText(str).catch(console.error);
+        navigator.clipboard.writeText(str).catch((e) => logger.error(e));
       }
     }
   }
@@ -971,7 +972,7 @@ export class Graph {
       this._storeHistory();
     } catch (error) {
       message.error(i18n.t("node.pasteDataError"));
-      console.log(error);
+      logger.log(error);
     }
   }
 
@@ -1008,7 +1009,7 @@ export class Graph {
       this._storeHistory();
     } catch (error) {
       message.error(i18n.t("node.pasteDataError"));
-      console.log(error);
+      logger.log(error);
     }
   }
 

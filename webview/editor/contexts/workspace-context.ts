@@ -5,6 +5,7 @@
  */
 import React from "react";
 import { create } from "zustand";
+import * as vscodeApi from "../vscodeApi";
 import { NodeDef } from "../../shared/misc/b3type";
 import {
   FileVarDecl,
@@ -22,7 +23,6 @@ import {
   readTree,
   treeDataForPersistence,
 } from "../../shared/misc/util";
-import * as vscodeApi from "../vscodeApi";
 
 export type EditEvent =
   | "close"

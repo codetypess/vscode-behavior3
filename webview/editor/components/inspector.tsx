@@ -42,6 +42,7 @@ import {
   NodeDef,
   VarDecl,
 } from "../../shared/misc/b3type";
+import { logger } from "../../shared/misc/logger";
 import { EditTree } from "../contexts/workspace-context";
 import {
   checkNodeArgValue,
@@ -247,7 +248,7 @@ const validateArg = (
     value = undefined;
   }
 
-  if (!checkNodeArgValue(node, arg, value, console.error)) {
+  if (!checkNodeArgValue(node, arg, value, logger.error)) {
     return Promise.reject(new Error(i18n.t("node.invalidValue")));
   }
 

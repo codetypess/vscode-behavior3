@@ -1,6 +1,7 @@
 import { App, ConfigProvider } from "antd";
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
+import * as vscodeApi from "./vscodeApi";
 import { setGlobalHooks } from "../shared/misc/hooks";
 import "../shared/misc/i18n";
 import { getThemeConfig } from "../shared/misc/theme";
@@ -8,7 +9,6 @@ import { useWorkspace } from "./contexts/workspace-context";
 import { writeTree } from "../shared/misc/util";
 import { Editor } from "./components/editor";
 import "./components/register-node";
-import * as vscodeApi from "./vscodeApi";
 import "./style.scss";
 
 const GlobalHooksBridge = () => {

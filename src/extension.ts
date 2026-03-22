@@ -1,13 +1,15 @@
 import * as vscode from "vscode";
+import { composeLoggers, createConsoleLogger, setLogger } from "../webview/shared/misc/logger";
 import { runBuild } from "./build/runBuild";
-import { installExtensionConsoleToOutputChannel } from "./extensionConsole";
+import { createLogOutputChannelLogger } from "./logChannel";
 import { getBehavior3OutputChannel } from "./outputChannel";
 import { findB3SettingPath } from "./settingResolver";
 import { TreeEditorProvider } from "./treeEditorProvider";
 
 export function activate(context: vscode.ExtensionContext) {
-  context.subscriptions.push(getBehavior3OutputChannel());
-  installExtensionConsoleToOutputChannel();
+  const out = getBehavior3OutputChannel();
+  context.subscriptions.push(out);
+  setLogger(composeLoggers(createConsoleLogger(), createLogOutputChannelLogger(out)));
 
   const editorProvider = new TreeEditorProvider(context.extensionUri, context);
   context.subscriptions.push(

@@ -1,11 +1,29 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { formatConsoleArgs, getBehavior3OutputChannel } from "../outputChannel";
+import { getLogger, logger, setLogger, type Logger } from "../../webview/shared/misc/logger";
+import { getBehavior3OutputChannel } from "../outputChannel";
 import { findB3SettingPath, findB3WorkspacePath } from "../settingResolver";
 import { TreeEditorProvider } from "../treeEditorProvider";
 import { setFs } from "../../webview/shared/misc/b3fs";
 import { buildProject, initWorkdirFromSettingFile, setCheckExpr } from "../../webview/shared/misc/b3util";
+
+/**
+ * During build: suppress debug. Delegate log/info/warn/error to `prev` only — `prev` is already the
+ * extension's composed logger (console + OutputChannel); do not add another channel sink or lines
+ * appear twice in the Output panel.
+ */
+function createBuildScopedLogger(prev: Logger): Logger {
+  return {
+    log: (...args: unknown[]) => prev.log(...args),
+    debug: () => {
+      /* suppress noisy debug from b3util during build */
+    },
+    info: (...args: unknown[]) => prev.info(...args),
+    warn: (...args: unknown[]) => prev.warn(...args),
+    error: (...args: unknown[]) => prev.error(...args),
+  };
+}
 
 /** Inject Node `fs` into shared `b3util` / `getFs()` (see `webview/shared/misc/b3fs.ts`). */
 setFs(fs);
@@ -165,29 +183,8 @@ export async function runBuild(context: vscode.ExtensionContext): Promise<void> 
   out.show(true);
   out.info(`Build output → ${outputDirFs}`);
 
-  // Suppress noisy debug from b3util during build; log/info/error already mirror to Output via extensionConsole.
-  const prevDebug = console.debug;
-  const prevLog = console.log;
-  const prevInfo = console.info;
-  const prevWarn = console.warn;
-  const prevError = console.error;
-  console.debug = () => {};
-  console.log = (...args: unknown[]) => {
-    prevLog(...args);
-    out.info(formatConsoleArgs(args));
-  };
-  console.info = (...args: unknown[]) => {
-    prevInfo(...args);
-    out.info(formatConsoleArgs(args));
-  };
-  console.warn = (...args: unknown[]) => {
-    prevWarn(...args);
-    out.warn(formatConsoleArgs(args));
-  };
-  console.error = (...args: unknown[]) => {
-    prevError(...args);
-    out.error(formatConsoleArgs(args));
-  };
+  const prevLogger = getLogger();
+  setLogger(createBuildScopedLogger(prevLogger));
   const prevCwd = process.cwd();
   try {
     // Match desktop behavior3editor: cwd is the project root. Extension host cwd is often not the workspace.
@@ -204,10 +201,11 @@ export async function runBuild(context: vscode.ExtensionContext): Promise<void> 
         "Build finished with validation errors. See the Output panel for details."
       );
     } else {
+      out.info(`Build completed: ${outputDirFs}`);
       void vscode.window.showInformationMessage(`Build completed: ${outputDirFs}`);
     }
   } catch (e) {
-    console.error("build failed:", e);
+    logger.error("build failed:", e);
     void vscode.window.showErrorMessage(`Build failed: ${e}`);
   } finally {
     try {
@@ -215,10 +213,6 @@ export async function runBuild(context: vscode.ExtensionContext): Promise<void> 
     } catch {
       /* ignore chdir restore failure */
     }
-    console.debug = prevDebug;
-    console.log = prevLog;
-    console.info = prevInfo;
-    console.warn = prevWarn;
-    console.error = prevError;
+    setLogger(prevLogger);
   }
 }
