@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { formatConsoleArgs, getBehavior3OutputChannel } from "../outputChannel";
+import { findB3SettingPath } from "../settingResolver";
 import { setFs } from "../../webview/shared/misc/b3fs";
 import { buildProject, initWorkdirFromSettingFile, setCheckExpr } from "../../webview/shared/misc/b3util";
 
@@ -43,8 +44,12 @@ export async function saveLastBuildOutput(
 
 /**
  * Resolve `.b3-setting` path (same rules as `settingResolver.resolveNodeDefs`, synchronous).
+ * @param searchFromDir Optional directory to start walking upward from (e.g. dirname of `.b3-workspace`).
  */
-export function resolveSettingFilePathSync(workspaceRootFsPath: string): string | undefined {
+export function resolveSettingFilePathSync(
+  workspaceRootFsPath: string,
+  searchFromDir?: string
+): string | undefined {
   const config = vscode.workspace.getConfiguration("behavior3");
   const settingFile = config.get<string>("settingFile", "");
   if (settingFile) {
@@ -53,19 +58,10 @@ export function resolveSettingFilePathSync(workspaceRootFsPath: string): string 
       return p;
     }
   }
-  let found: string | undefined;
-  try {
-    const entries = fs.readdirSync(workspaceRootFsPath);
-    for (const name of entries) {
-      if (name.endsWith(".b3-setting")) {
-        found = path.join(workspaceRootFsPath, name);
-        break;
-      }
-    }
-  } catch {
-    return undefined;
-  }
-  return found;
+  const start = searchFromDir ?? workspaceRootFsPath;
+  const anchor = vscode.Uri.file(path.join(path.resolve(start), ".behavior3-anchor"));
+  const rootUri = vscode.Uri.file(path.resolve(workspaceRootFsPath));
+  return findB3SettingPath(anchor, rootUri);
 }
 
 /**
@@ -101,7 +97,10 @@ export async function runBuild(context: vscode.ExtensionContext): Promise<void> 
     return;
   }
 
-  const settingPath = resolveSettingFilePathSync(workspaceRoot);
+  const settingPath = resolveSettingFilePathSync(
+    workspaceRoot,
+    workspaceFile ? path.dirname(workspaceFile) : undefined
+  );
   if (!settingPath) {
     void vscode.window.showErrorMessage(
       "No .b3-setting file found. Add behavior3.settingFile or place a *.b3-setting in the workspace root."

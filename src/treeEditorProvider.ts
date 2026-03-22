@@ -64,7 +64,7 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
     _token: vscode.CancellationToken
   ): Promise<void> {
     const workdir = getWorkdir(document.uri);
-    const nodeDefs = await resolveNodeDefs(workdir);
+    const nodeDefs = await resolveNodeDefs(workdir, document.uri);
     const config = vscode.workspace.getConfiguration("behavior3");
     const checkExpr = config.get<boolean>("checkExpr", true);
 
@@ -105,7 +105,7 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
     };
 
     // Watch .b3-setting for changes
-    const settingWatcher = watchSettingFile(workdir, (newDefs) => {
+    const settingWatcher = watchSettingFile(workdir, document.uri, (newDefs) => {
       nodeDefs.splice(0, nodeDefs.length, ...newDefs);
       const msg: HostToEditorMessage = { type: "settingLoaded", nodeDefs: newDefs };
       webviewPanel.webview.postMessage(msg);
@@ -215,7 +215,7 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
         }
 
         case "requestSetting": {
-          const freshDefs = await resolveNodeDefs(workdir);
+          const freshDefs = await resolveNodeDefs(workdir, document.uri);
           nodeDefs.splice(0, nodeDefs.length, ...freshDefs);
           const replyMsg: HostToEditorMessage = { type: "settingLoaded", nodeDefs: freshDefs };
           webviewPanel.webview.postMessage(replyMsg);

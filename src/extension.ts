@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { runBuild } from "./build/runBuild";
 import { installExtensionConsoleToOutputChannel } from "./extensionConsole";
 import { getBehavior3OutputChannel } from "./outputChannel";
+import { findB3SettingPath } from "./settingResolver";
 import { TreeEditorProvider } from "./treeEditorProvider";
 
 export function activate(context: vscode.ExtensionContext) {
@@ -77,19 +78,30 @@ export function activate(context: vscode.ExtensionContext) {
   // Command: open node settings
   context.subscriptions.push(
     vscode.commands.registerCommand("behavior3.openSettings", async () => {
-      const workdir = vscode.workspace.workspaceFolders?.[0]?.uri;
-      if (!workdir) {
+      const folder = vscode.workspace.workspaceFolders?.[0]?.uri;
+      if (!folder) {
+        void vscode.window.showInformationMessage("Open a workspace folder first.");
         return;
       }
-      const found = await vscode.workspace.findFiles(
-        new vscode.RelativePattern(workdir.fsPath, "*.b3-setting"),
-        null,
-        1
-      );
-      if (found.length > 0) {
-        await vscode.window.showTextDocument(found[0]);
+      const active = vscode.window.activeTextEditor?.document.uri;
+      let fsPath: string | undefined;
+      if (active?.scheme === "file") {
+        fsPath = findB3SettingPath(active, vscode.workspace.getWorkspaceFolder(active)?.uri);
+      }
+      if (!fsPath) {
+        const hits = await vscode.workspace.findFiles(
+          new vscode.RelativePattern(folder.fsPath, "**/*.b3-setting"),
+          null,
+          1
+        );
+        fsPath = hits[0]?.fsPath;
+      }
+      if (fsPath) {
+        await vscode.window.showTextDocument(vscode.Uri.file(fsPath));
       } else {
-        vscode.window.showInformationMessage("No .b3-setting file found in workspace root.");
+        void vscode.window.showInformationMessage(
+          "No .b3-setting file found. Place one next to your trees or under a parent folder, or set behavior3.settingFile."
+        );
       }
     })
   );

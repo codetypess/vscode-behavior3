@@ -95,7 +95,7 @@
         "behavior3.settingFile": {
           "type": "string",
           "default": "",
-          "description": "节点定义配置文件路径（相对工作区根目录，留空则自动发现 *.b3-setting 文件）"
+          "description": "节点定义配置文件路径（相对工作区根目录）。留空时从当前打开的树文件所在目录向父级搜索到工作区根目录，使用第一个 *.b3-setting；若仍无则回退到工作区根目录下的 *.b3-setting"
         },
         "behavior3.checkExpr": {
           "type": "boolean",
