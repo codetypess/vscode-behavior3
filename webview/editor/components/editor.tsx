@@ -11,12 +11,25 @@ import { VscCaseSensitive } from "react-icons/vsc";
 import { useDebounceCallback } from "usehooks-ts";
 import { useShallow } from "zustand/react/shallow";
 import i18n from "../../shared/misc/i18n";
-import { Hotkey, isMacos } from "../../shared/misc/keys";
+import { Hotkey, isMacos, useKeyPress } from "../../shared/misc/keys";
 import { mergeClassNames } from "../../shared/misc/util";
 import { EditEvent, EditNode, EditorStore, EditTree, useWorkspace } from "../contexts/workspace-context";
 import { FilterOption, Graph } from "./graph";
 import { Inspector } from "./inspector";
 import "./register-node";
+
+/** Same as desktop `workspace.tsx` hotkeyMap — tree canvas editing shortcuts */
+const hotkeyMap: Record<string, EditEvent> = {
+  [Hotkey.Copy]: "copy",
+  [Hotkey.Replace]: "replace",
+  [Hotkey.Paste]: "paste",
+  [Hotkey.Insert]: "insert",
+  [Hotkey.Enter]: "insert",
+  [Hotkey.Delete]: "delete",
+  [Hotkey.Backspace]: "delete",
+  [Hotkey.Undo]: "undo",
+  [Hotkey.Redo]: "redo",
+};
 
 export interface EditorProps extends React.HTMLAttributes<HTMLElement> {
   data: EditorStore;
@@ -113,6 +126,7 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
     }))
   );
 
+  const keysRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<InputRef>(null);
   const graphRef = useRef<HTMLDivElement>(null);
   const sizeRef = useRef<HTMLDivElement>(null);
@@ -120,6 +134,8 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
   const { t } = useTranslation();
   const menuItems = useMemo(() => createMenu(), [t]);
   const [graph, setGraph] = useState<Graph>(null!);
+  const graphInstanceRef = useRef<Graph | null>(null);
+  graphInstanceRef.current = graph;
 
   const [showingSearch, setShowingSearch] = useState(false);
   const [filterOption, setFilterOption] = useState<FilterOption>({
@@ -213,6 +229,14 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
   };
 
   editor.dispatch = async (event: EditEvent, data: unknown) => {
+    if (event === "rename") {
+      editor.path = data as string;
+      return;
+    }
+    const graph = graphInstanceRef.current;
+    if (!graph) {
+      return;
+    }
     if (event === "close") {
       graph.destroy();
     } else if (event === "copy") {
@@ -245,8 +269,6 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
     } else if (event === "reload") {
       graph.reload();
       editor.changed = false;
-    } else if (event === "rename") {
-      editor.path = data as string;
     } else if (event === "updateTree") {
       graph.updateTree(data as EditTree);
     } else if (event === "updateNode") {
@@ -263,6 +285,48 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
       graph.clickVar(data as string);
     }
   };
+
+  // Tree canvas shortcuts: copy/paste/insert/delete/undo/redo + in-tree search (Ctrl/Cmd+F,G).
+  // Save/Build/Close/QuickOpen are handled by the VS Code host when the webview does not capture them.
+  useKeyPress(Hotkey.SearchNode, null, (event) => {
+    event.preventDefault();
+    editor.dispatch?.("searchNode");
+  });
+
+  useKeyPress(Hotkey.JumpNode, null, (event) => {
+    event.preventDefault();
+    editor.dispatch?.("jumpNode");
+  });
+
+  useKeyPress(
+    [
+      Hotkey.Copy,
+      Hotkey.Replace,
+      Hotkey.Paste,
+      Hotkey.Insert,
+      Hotkey.Enter,
+      Hotkey.Delete,
+      Hotkey.Backspace,
+    ],
+    null,
+    (e, key) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      e.stopPropagation();
+      editor.dispatch?.(hotkeyMap[key]);
+    }
+  );
+
+  useKeyPress([Hotkey.Undo, Hotkey.Redo], null, (e, key) => {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+    e.stopPropagation();
+    editor.dispatch?.(hotkeyMap[key]);
+  });
 
   if (graph) {
     graph.onChange = () => {
@@ -323,9 +387,17 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
     void graph.refresh({ preserveSelection: true });
   }, [graph, workspace.hostSubtreeRefreshSeq]);
 
+  /** Restore focus to tree hotkey layer when closing search (same idea as desktop workspace keysRef) */
+  useEffect(() => {
+    if (!showingSearch) {
+      keysRef.current?.focus({ preventScroll: true });
+    }
+  }, [showingSearch]);
+
   return (
     <div
       {...props}
+      ref={keysRef}
       className="b3-editor"
       tabIndex={-1}
       style={{ display: "flex", width: "100%", height: "100%", ...props.style }}

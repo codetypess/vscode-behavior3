@@ -135,12 +135,14 @@ const createNodeFromForm = (
   node: NodeData,
   defs: NodeDefs
 ): NodeData => {
-  const def = defs.get(node.name);
   const values = form.getFieldsValue() as Record<string, unknown>;
+  const nameFromForm =
+    (((values.name as string) ?? node.name) || "").trim() || node.name;
+  const def = defs.get(nameFromForm);
   const data = {} as NodeData;
   data.$id = node.$id;
   data.id = node.id;
-  data.name = values.name as string;
+  data.name = nameFromForm;
   data.debug = (values.debug as boolean) || undefined;
   data.disabled = (values.disabled as boolean) || undefined;
   const descVal = values.desc as string | undefined;
@@ -421,7 +423,10 @@ const NodeInspector: FC<{
 }) => {
   const { t } = useTranslation();
   const [form] = Form.useForm();
-  const def = nodeDefs.get(node.name);
+  /** 与画布 node.name 解耦：正在编辑的节点名以表单为准（修复从 unknow 改为合法名仍报「不存在」） */
+  const watchedName = Form.useWatch("name", form) as string | undefined;
+  const effectiveName = (watchedName ?? node.name ?? "").trim() || node.name;
+  const def = nodeDefs.get(effectiveName);
 
   const [nodeArgs, setNodeArgs] = useState<Record<string, unknown>>(node.args ?? {});
 
@@ -458,6 +463,21 @@ const NodeInspector: FC<{
       prefix: ws.editor.data.prefix,
       disabled: false,
     });
+  };
+
+  /**
+   * 与原版 `changeSubtree` 一致：仅子树路径变化时直接 `finish()`，不走 `form.submit()`，
+   * 避免 unknown/非法节点名等其它字段校验挡住子树引用更新。
+   */
+  const changeSubtree = (pathOverride?: string) => {
+    const raw = pathOverride ?? (form.getFieldValue("path") as string | undefined);
+    const nextPath = (raw ?? "").trim() || undefined;
+    const prevPath = (node.path ?? "").trim() || undefined;
+    if (nextPath !== prevPath) {
+      finish();
+    } else {
+      submit();
+    }
   };
 
   const nodeOptions = useMemo(
@@ -548,10 +568,11 @@ const NodeInspector: FC<{
             name="name"
             rules={[
               {
-                validator() {
-                  if (!nodeDefs.has(node.name)) {
+                validator(_, value: string) {
+                  const n = (value ?? "").trim();
+                  if (!n || !nodeDefs.has(n)) {
                     return Promise.reject(
-                      new Error(t("node.notFound", { name: node.name }))
+                      new Error(t("node.notFound", { name: n || node.name }))
                     );
                   }
                   return Promise.resolve();
@@ -580,7 +601,8 @@ const NodeInspector: FC<{
             <AutoComplete
               disabled={disabled && !subtreeEditable}
               options={subtreeOptions}
-              onBlur={() => submit()}
+              onBlur={() => changeSubtree()}
+              onSelect={(v: string) => changeSubtree(v)}
               filterOption={filterOption as unknown as boolean}
             />
           </Form.Item>

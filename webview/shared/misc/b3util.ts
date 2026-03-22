@@ -693,6 +693,13 @@ export const clearSubtreeCache = () => {
 
 const parsingStack: string[] = [];
 
+/**
+ * Electron 原版每次 readTree 得到新对象；webview 使用 subtreeCache 会复用同一引用。
+ * 若多个节点引用同一子树 JSON，直接 `node.children = subtree.root.children` 会共享子节点，
+ * 复制粘贴后出现「两个父节点连到同一批子节点」的图结构错误。合并前必须深拷贝一份再 refresh。
+ */
+const cloneTreeDataFromCache = (t: TreeData): TreeData => JSON.parse(JSON.stringify(t)) as TreeData;
+
 export const refreshNodeData = (tree: TreeData, node: NodeData, id: number): number => {
   node.id = (id++).toString();
   node.$size = calcSize(node);
@@ -715,8 +722,9 @@ export const refreshNodeData = (tree: TreeData, node: NodeData, id: number): num
     delete node.$mtime;
     parsingStack.push(node.path);
     try {
-      const subtree = subtreeCache[node.path];
-      if (subtree) {
+      const cached = subtreeCache[node.path];
+      if (cached) {
+        const subtree = cloneTreeDataFromCache(cached);
         id = refreshNodeData(subtree, subtree.root, --id);
         node.name = subtree.root.name;
         node.desc = subtree.root.desc;
