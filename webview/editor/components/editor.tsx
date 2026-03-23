@@ -37,7 +37,7 @@ export interface EditorProps extends React.HTMLAttributes<HTMLElement> {
   onChange: () => void;
 }
 
-const createMenu = () => {
+const createMenu = (showEditSubtree: boolean) => {
   const t = i18n.t;
   const MenuItem: FC<FlexProps> = (itemProps) => {
     return (
@@ -95,15 +95,19 @@ const createMenu = () => {
       ),
       key: "delete",
     },
-    {
-      label: (
-        <MenuItem>
-          <div>{t("editSubtree")}</div>
-          <div></div>
-        </MenuItem>
-      ),
-      key: "editSubtree",
-    },
+    ...(showEditSubtree
+      ? [
+          {
+            label: (
+              <MenuItem>
+                <div>{t("editSubtree")}</div>
+                <div></div>
+              </MenuItem>
+            ),
+            key: "editSubtree",
+          },
+        ]
+      : []),
     {
       label: (
         <MenuItem>
@@ -133,7 +137,8 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
   const sizeRef = useRef<HTMLDivElement>(null);
   const editorSize = useSize(sizeRef);
   const { t } = useTranslation();
-  const menuItems = useMemo(() => createMenu(), [t]);
+  const [menuShowEditSubtree, setMenuShowEditSubtree] = useState(false);
+  const menuItems = useMemo(() => createMenu(menuShowEditSubtree), [t, menuShowEditSubtree]);
   const [graph, setGraph] = useState<Graph>(null!);
   const graphInstanceRef = useRef<Graph | null>(null);
   graphInstanceRef.current = graph;
@@ -536,6 +541,14 @@ export const Editor: FC<EditorProps> = ({ onChange, data: editor, ...props }) =>
         <Dropdown
           menu={{ items: menuItems, onClick: (info) => editor.dispatch?.(info.key as EditEvent) }}
           trigger={["contextMenu"]}
+          onOpenChange={(open) => {
+            if (open) {
+              const g = graphInstanceRef.current;
+              setMenuShowEditSubtree(!!g?.canShowEditSubtreeMenu());
+            } else {
+              setMenuShowEditSubtree(false);
+            }
+          }}
         >
           <div tabIndex={-1} style={{ width: "100%", height: "100%" }} ref={graphRef} />
         </Dropdown>

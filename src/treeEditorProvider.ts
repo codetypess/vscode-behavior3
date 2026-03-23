@@ -317,6 +317,63 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
           }
           break;
         }
+
+        case "saveSubtreeAs": {
+          const workdirUri = projectRootUri;
+          const reply = (r: HostToEditorMessage) => webviewPanel.webview.postMessage(r);
+          try {
+            const defaultUri = vscode.Uri.joinPath(workdirUri, `${msg.suggestedBaseName}.json`);
+            const picked = await vscode.window.showSaveDialog({
+              defaultUri,
+              filters: { JSON: ["json"] },
+            });
+            if (!picked) {
+              reply({
+                type: "saveSubtreeAsResult",
+                requestId: msg.requestId,
+                savedPath: null,
+              });
+              break;
+            }
+            const rel = uriToWorkdirRelative(picked, workdirUri);
+            if (!rel) {
+              const err = "Save location must be inside the behavior tree work directory.";
+              vscode.window.showErrorMessage(err);
+              reply({
+                type: "saveSubtreeAsResult",
+                requestId: msg.requestId,
+                savedPath: null,
+                error: err,
+              });
+              break;
+            }
+            let body = msg.content;
+            try {
+              const parsed = JSON.parse(msg.content) as { name?: string };
+              const base = path.basename(picked.fsPath, path.extname(picked.fsPath));
+              parsed.name = base;
+              body = JSON.stringify(parsed, null, 2);
+            } catch {
+              /* keep original */
+            }
+            await vscode.workspace.fs.writeFile(picked, Buffer.from(body, "utf-8"));
+            reply({
+              type: "saveSubtreeAsResult",
+              requestId: msg.requestId,
+              savedPath: rel,
+            });
+          } catch (e) {
+            const err = String(e);
+            vscode.window.showErrorMessage(`Failed to save subtree: ${err}`);
+            reply({
+              type: "saveSubtreeAsResult",
+              requestId: msg.requestId,
+              savedPath: null,
+              error: err,
+            });
+          }
+          break;
+        }
       }
     });
 

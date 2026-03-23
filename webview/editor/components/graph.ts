@@ -19,13 +19,7 @@ import { message } from "../../shared/misc/hooks";
 import i18n from "../../shared/misc/i18n";
 import { stringifyJson } from "../../shared/misc/stringify";
 import { logger } from "../../shared/misc/logger";
-import {
-  basenameWithoutExt,
-  nanoid,
-  readTree,
-  treeDataForPersistence,
-  writeTree,
-} from "../../shared/misc/util";
+import { nanoid, readTree, treeDataForPersistence, writeTree } from "../../shared/misc/util";
 import {
   buildEditingTreeSnapshot,
   EditNode,
@@ -684,6 +678,10 @@ export class Graph {
     return this._selectedId;
   }
 
+  canShowEditSubtreeMenu(): boolean {
+    return !!this._selectedId && this._isSubtreeNode(this._selectedId);
+  }
+
   /** Drop G6 "selected" styling and internal id without notifying workspace (no tree-inspector flash). */
   private _clearVisualSelectionOnly() {
     if (this._selectedId) {
@@ -1125,31 +1123,21 @@ export class Graph {
       return;
     }
 
-    // Prompt for filename using a simple browser input
-    const ws = useWorkspace.getState();
-    const filename = window.prompt(
-      "Save subtree as (filename without extension):",
-      "subtree"
-    );
-    if (!filename) {
-      return;
-    }
-
-    const subpath = `${ws.workdir}/${filename}.json`;
     const node = this._graph.getNodeData(this._selectedId);
     const data = node.data as unknown as NodeData;
     const subroot = b3util.createFileData(data);
     const subtreeModel = {
-      name: basenameWithoutExt(subpath),
+      name: "subtree",
       root: subroot,
       desc: data.desc,
     } as TreeData;
 
     const content = stringifyJson(subtreeModel, { indent: 2 });
-    await vscodeApi.saveSubtree(subpath, content);
+    const relPath = await vscodeApi.saveSubtreeAs(content, "subtree");
+    if (!relPath) {
+      return;
+    }
 
-    // Update the current node to reference the subtree
-    const relPath = subpath.replace(`${ws.workdir}/`, "");
     data.path = relPath;
     this._graph.updateNodeData([node]);
     this.editor.data.root = this._nodeToData("1");

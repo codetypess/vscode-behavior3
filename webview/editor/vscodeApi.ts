@@ -105,3 +105,17 @@ export const saveSubtree = (filePath: string, content: string): Promise<void> =>
     resolve();
   });
 };
+
+/** Pick save path in the host and write subtree JSON; returns relative path under workdir or null if cancelled / failed */
+export const saveSubtreeAs = (content: string, suggestedBaseName: string): Promise<string | null> => {
+  return new Promise((resolve) => {
+    const requestId = Math.random().toString(36).slice(2);
+    const off = onMessage((msg) => {
+      if (msg.type === "saveSubtreeAsResult" && msg.requestId === requestId) {
+        off();
+        resolve(msg.savedPath);
+      }
+    });
+    postMessage({ type: "saveSubtreeAs", requestId, content, suggestedBaseName });
+  });
+};
