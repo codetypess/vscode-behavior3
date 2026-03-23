@@ -84,7 +84,7 @@ export function resolveSettingFilePathSync(
 }
 
 /**
- * Prefer the active behavior tree tab (custom editor or .json / .b3tree); webview focus may hide activeTextEditor.
+ * Prefer the active behavior tree tab (custom editor or .json); webview focus may hide activeTextEditor.
  */
 function getActiveBehaviorTreeFileUri(): vscode.Uri | undefined {
   const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
@@ -97,7 +97,7 @@ function getActiveBehaviorTreeFileUri(): vscode.Uri | undefined {
     const u = tab.input.uri;
     if (u.scheme === "file") {
       const ext = path.extname(u.fsPath).toLowerCase();
-      if (ext === ".json" || ext === ".b3tree") {
+      if (ext === ".json") {
         return u;
       }
     }
@@ -106,7 +106,7 @@ function getActiveBehaviorTreeFileUri(): vscode.Uri | undefined {
   if (ed?.document.uri.scheme === "file") {
     const u = ed.document.uri;
     const ext = path.extname(u.fsPath).toLowerCase();
-    if (ext === ".json" || ext === ".b3tree") {
+    if (ext === ".json") {
       return u;
     }
   }

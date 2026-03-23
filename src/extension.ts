@@ -24,6 +24,35 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
+  // Auto-open JSON files with Behavior3 editor only when they look like trees and
+  // a parent `.b3-setting` exists. Scope: once per open cycle (re-check after close/reopen).
+  const autoCheckedJsonWhileOpen = new Set<string>();
+  const autoOpeningJsonUris = new Set<string>();
+  const skipNextAutoOpenUris = new Set<string>();
+  context.subscriptions.push(
+    vscode.window.tabGroups.onDidChangeTabs((event) => {
+      for (const tab of event.closed) {
+        const input = tab.input;
+        if (input instanceof vscode.TabInputText) {
+          const key = input.uri.toString();
+          autoCheckedJsonWhileOpen.delete(key);
+          autoOpeningJsonUris.delete(key);
+        }
+      }
+      for (const tab of event.opened) {
+        const input = tab.input;
+        if (input instanceof vscode.TabInputText) {
+          void tryAutoOpenBehaviorEditor(
+            input.uri,
+            autoCheckedJsonWhileOpen,
+            autoOpeningJsonUris,
+            skipNextAutoOpenUris
+          );
+        }
+      }
+    })
+  );
+
   // Command: build (same pipeline as desktop behavior3editor `b3util.buildProject`)
   context.subscriptions.push(
     vscode.commands.registerCommand("behavior3.build", async () => {
@@ -44,6 +73,7 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
       if (input instanceof vscode.TabInputCustom && input.viewType === TreeEditorProvider.viewType) {
+        skipNextAutoOpenUris.add(input.uri.toString());
         await vscode.commands.executeCommand("vscode.openWith", input.uri, "default");
         return;
       }
@@ -51,14 +81,14 @@ export function activate(context: vscode.ExtensionContext) {
         const uri = input.uri;
         if (uri.scheme === "file") {
           const p = uri.fsPath.toLowerCase();
-          if (p.endsWith(".b3tree") || p.endsWith(".json")) {
+          if (p.endsWith(".json")) {
             await vscode.commands.executeCommand("vscode.openWith", uri, TreeEditorProvider.viewType);
             return;
           }
         }
       }
       void vscode.window.showInformationMessage(
-        "Editor mode toggle applies to Behavior Tree files (.b3tree / .json)."
+        "Editor mode toggle applies to Behavior Tree JSON files (.json)."
       );
     })
   );
@@ -186,6 +216,109 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {}
+
+async function tryAutoOpenBehaviorEditor(
+  uri: vscode.Uri,
+  autoCheckedJsonWhileOpen: Set<string>,
+  autoOpeningJsonUris: Set<string>,
+  skipNextAutoOpenUris: Set<string>
+): Promise<void> {
+  if (uri.scheme !== "file") {
+    return;
+  }
+  if (path.extname(uri.fsPath).toLowerCase() !== ".json") {
+    return;
+  }
+  const key = uri.toString();
+  if (skipNextAutoOpenUris.has(key)) {
+    skipNextAutoOpenUris.delete(key);
+    return;
+  }
+  if (autoCheckedJsonWhileOpen.has(key) || autoOpeningJsonUris.has(key)) {
+    return;
+  }
+  autoCheckedJsonWhileOpen.add(key);
+  const content = await readJsonFileText(uri);
+  if (content === undefined || !isLikelyBehaviorTreeJson(content)) {
+    return;
+  }
+  const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+  const settingPath = findB3SettingPath(uri, workspaceFolder?.uri);
+  if (!settingPath) {
+    return;
+  }
+  autoOpeningJsonUris.add(key);
+  try {
+    await vscode.commands.executeCommand("vscode.openWith", uri, TreeEditorProvider.viewType, {
+      viewColumn: vscode.ViewColumn.Active,
+      preserveFocus: false,
+      preview: true,
+    });
+    await closeDuplicateTextTabForUri(uri);
+  } catch {
+    // Ignore openWith failures and keep default text editor.
+  } finally {
+    autoOpeningJsonUris.delete(key);
+  }
+}
+
+async function readJsonFileText(uri: vscode.Uri): Promise<string | undefined> {
+  try {
+    const raw = await vscode.workspace.fs.readFile(uri);
+    return Buffer.from(raw).toString("utf-8");
+  } catch {
+    return undefined;
+  }
+}
+
+async function closeDuplicateTextTabForUri(uri: vscode.Uri): Promise<void> {
+  const tabsToClose: vscode.Tab[] = [];
+  for (const group of vscode.window.tabGroups.all) {
+    for (const tab of group.tabs) {
+      const input = tab.input;
+      if (input instanceof vscode.TabInputText && input.uri.toString() === uri.toString()) {
+        tabsToClose.push(tab);
+      }
+    }
+  }
+  if (tabsToClose.length > 0) {
+    await vscode.window.tabGroups.close(tabsToClose);
+  }
+}
+
+function isLikelyBehaviorTreeJson(content: string): boolean {
+  try {
+    const parsed = JSON.parse(content) as {
+      root?: unknown;
+      vars?: unknown;
+      import?: unknown;
+    };
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return false;
+    }
+    if (!parsed.root || typeof parsed.root !== "object" || Array.isArray(parsed.root)) {
+      return false;
+    }
+    const root = parsed.root as Record<string, unknown>;
+    const hasTreeNodeShape =
+      typeof root.name === "string" ||
+      Array.isArray(root.children) ||
+      typeof root.path === "string" ||
+      typeof root.id === "number";
+    if (!hasTreeNodeShape) {
+      return false;
+    }
+    if (parsed.vars !== undefined && !Array.isArray(parsed.vars)) {
+      return false;
+    }
+    if (parsed.import !== undefined && !Array.isArray(parsed.import)) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function createNodeConfigFromBuiltins(): string {
   // Keep behavior aligned with behavior3editor's zhNodeDef():

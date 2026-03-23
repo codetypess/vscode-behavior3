@@ -1,46 +1,31 @@
 # Behavior Tree Editor
 
-A visual behavior tree editor for VSCode, designed for game AI development.
+VS Code behavior tree visual editor for game AI workflows.
 
 ## Features
 
-- **Visual canvas** — drag-and-drop behavior tree editing powered by AntV G6
-- **Inspector panel** — click any node or tree to edit its properties in the right-hand panel of the editor
-- **`.b3tree` file format** — dedicated extension to avoid conflict with plain JSON; also supports opening `.json` files via right-click → "Open With"
-- **Node definitions** — load custom node types from a `.b3-setting` config file
-- **Build command** — compile behavior trees with a single click (requires `.b3-setting`)
-- **Expression validation** — optional syntax checking for expression-type arguments
-- **Dark / light theme** — follows VSCode's current color theme
+- Visual canvas editor (drag, connect, organize nodes)
+- Built-in inspector panel for node/tree properties
+- Custom node definitions via `.b3-setting`
+- One-click build command in editor title bar
+- Optional expression validation for node args
+- Auto theme adaptation (dark/light)
 
-## Getting Started
+## Quick Start
 
-### 1. Open a behavior tree file
+### Open a tree file
 
-Open any `.b3tree` file — the editor will open automatically in the custom canvas view.
+- Right-click a tree `.json` file in Explorer
+- Select **Open With** → **Behavior Tree Editor**
 
-To open a `.json` behavior tree:
-- Right-click the file in Explorer → **Open With** → **Behavior Tree Editor**
+### Create a new project
 
-To **always** open JSON under a given folder with this editor (without “Open With” each time), set **`workbench.editorAssociations`** in **User** or **Workspace** settings. Value is the custom editor id `behavior3.treeEditor`.
+- Right-click a folder in Explorer
+- Run **Behavior Tree: Create Project**
 
-**Important:** If the pattern contains a `/`, VS Code matches it against **`scheme:absolutePath`** (e.g. `file:/Users/you/project/vars/foo.json`), **not** relative to the workspace root. So do **not** use `vars/**/*.json` — it will never match. Start the pattern with `**/` so any path prefix is allowed:
+### Configure nodes
 
-```json
-"workbench.editorAssociations": {
-  "**/vars/**/*.json": "behavior3.treeEditor",
-  "**/workdir/**/*.json": "behavior3.treeEditor"
-}
-```
-
-Use forward slashes in patterns. Keep globs narrow so other JSON files still open in the default editor. After changing settings, run **Developer: Reload Window** once. If it still opens wrong, use **View: Reopen Editor With…** and reset any remembered choice for that file type.
-
-### 2. Create a new tree
-
-Right-click a folder in the Explorer → **Behavior Tree: New .b3tree File**
-
-### 3. Configure node definitions
-
-Create a `.b3-setting` JSON file in your workspace that defines your custom node types:
+Create a `.b3-setting` file in workspace:
 
 ```json
 {
@@ -57,56 +42,50 @@ Create a `.b3-setting` JSON file in your workspace that defines your custom node
 }
 ```
 
-The extension will automatically discover `.b3-setting` files in your workspace root. You can also specify a path explicitly via settings.
+### Build
 
-### 4. Build
-
-Click the **▶ Build** button in the editor title bar (requires a `.b3-setting` file with a build configuration).
+Click **Build** in the editor title bar.
 
 ## Extension Settings
 
-| Setting | Type | Default | Description |
-|---|---|---|---|
-| `behavior3.settingFile` | string | `""` | Path to node config file (relative to workspace root). Leave empty for auto-discovery. |
-| `behavior3.checkExpr` | boolean | `true` | Enable expression syntax validation for expression-type node arguments. |
+| Setting                   | Type    | Default      | Description                                                                     |
+| ------------------------- | ------- | ------------ | ------------------------------------------------------------------------------- |
+| `behavior3.settingFile` | string  | `""`       | Path to `.b3-setting` relative to workspace root. Empty means auto-discovery. |
+| `behavior3.checkExpr`   | boolean | `true`     | Enable expression syntax validation for expression-type args.                   |
+| `behavior3.language`    | string  | `"auto"`   | Editor UI language. Options: `auto` (follow VS Code), `zh`, `en`.          |
+| `behavior3.nodeLayout`  | string  | `"normal"` | Node layout style. Options: `normal`, `compact`.                            |
 
-The extension **does not read or write** breadcrumb settings in code or `package.json`. If breadcrumbs disappeared after trying an experimental build, your **User** or **Workspace** `settings.json` may still contain values written at runtime. Open **Settings (JSON)** and remove or fix entries such as:
+## Inspector
 
-- `"breadcrumbs.enabled": false` → delete the line or set to `true`
-- `"breadcrumbs.filePath": "off"` → use `"on"` or `"last"` if you want a visible path
+Inspector is embedded on the right side of the tree editor.
 
-Then **Developer: Reload Window**.
-
-## Inspector (embedded)
-
-The Inspector is the **right-hand panel inside the tree editor** (not a separate activity-bar view).
-
-- **Select a node** on the canvas → edit its `args`, `input`/`output` variables, `desc`, `debug`, `disabled`
-- **Click empty canvas** → edit tree-level properties (`name`, `desc`, `vars`, `import`, `group`)
+- Select a node to edit node fields (`args`, `input`, `output`, `desc`, `debug`, `disabled`)
+- Click empty canvas to edit tree fields (`name`, `desc`, `vars`, `import`, `group`)
 
 ## Keyboard Shortcuts
 
-| Key | Action |
-|---|---|
-| `Ctrl/Cmd+Z` | Undo |
-| `Ctrl/Cmd+Shift+Z` | Redo |
-| `Delete` / `Backspace` | Delete selected node |
-| `Ctrl/Cmd+C` | Copy node |
-| `Ctrl/Cmd+V` | Paste node |
-| `Ctrl/Cmd+A` | Select all |
-| `Ctrl/Cmd+F` | Fit canvas to screen |
+| Key                          | Action                         |
+| ---------------------------- | ------------------------------ |
+| `Ctrl/Cmd+Z`               | Undo                           |
+| `Ctrl+Y` / `Cmd+Shift+Z` | Redo                           |
+| `Ctrl/Cmd+C`               | Copy node                      |
+| `Ctrl/Cmd+V`               | Paste node                     |
+| `Ctrl/Cmd+Shift+V`         | Replace node                   |
+| `Enter` / `Insert`       | Insert node                    |
+| `Delete` / `Backspace`   | Delete selected node           |
+| `Ctrl/Cmd+F`               | Search node content            |
+| `Ctrl/Cmd+G`               | Jump to node by id             |
+| `Ctrl/Cmd+B`               | Build                          |
+| `F4`                       | Toggle Text / Behavior3 editor |
 
-## Developing this extension
+## Development
 
-**Shared misc** lives in **`webview/shared/misc/`** (single source for webview + extension build). **`b3fs.ts`** exposes **`setFs` / `getFs` / `hasFs`**: until **`setFs`** is called, **`b3util`** behaves in **browser-safe** mode (no disk reads); the **extension host build** (`behavior3.build`) loads **`buildProject`** / **`initWorkdirFromSettingFile`** from the same **`b3util`**, and **`src/build/runBuild.ts`** calls **`setFs(fs)`** with Node’s **`fs`** so file access uses the real filesystem.
-
-**Logs:** Open **View → Output**, choose channel **Behavior3**. **Extension host** `console.log` / `console.info` / `console.warn` / `console.error` are mirrored there (still also in the Debug Console). **Webview** `console.log` / `info` / `warn` / `error` / `debug` are mirrored the same way (still in DevTools).
-
-**Build scripts** (`settings.buildScript` in `.b3-workspace`): the extension temporarily **`process.chdir`**s to the workspace file’s directory (same as desktop). Prefer **`path.join(env.workdir, …)`** for any `fs` paths in `onSetup` / hooks so it works even if cwd differs.
+- Output logs: **View → Output** → channel **Behavior3**
+- Webview logs are also available in DevTools
 
 ## Requirements
 
-- VSCode 1.85.0 or higher
+- VS Code 1.85.0+
 
 ## License
 

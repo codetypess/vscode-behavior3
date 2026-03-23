@@ -1135,7 +1135,7 @@ export const createNewTree = (name: string) => {
 
 export const isTreeFile = (path: string) => {
   const lower = path.toLocaleLowerCase();
-  return lower.endsWith(".json") || lower.endsWith(".b3tree");
+  return lower.endsWith(".json");
 };
 
 const loadVarDecl = (list: ImportDecl[], arr: Array<VarDecl>) => {

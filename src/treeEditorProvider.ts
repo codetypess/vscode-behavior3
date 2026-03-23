@@ -415,14 +415,14 @@ interface TreeFileLike {
 }
 
 /**
- * Collect all .b3tree / .json files under the workspace directory.
+ * Collect all behavior tree .json files under the workspace directory.
  */
 async function collectAllFiles(workdir: vscode.Uri): Promise<string[]> {
   const path = require("path") as typeof import("path");
   const allFiles: string[] = [];
   try {
     const uris = await vscode.workspace.findFiles(
-      new vscode.RelativePattern(workdir, "**/*.{b3tree,json}"),
+      new vscode.RelativePattern(workdir, "**/*.json"),
       "**/node_modules/**"
     );
     for (const uri of uris) {
