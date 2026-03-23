@@ -6,6 +6,7 @@
 import {
   AimOutlined,
   EditOutlined,
+  FormOutlined,
   MinusCircleOutlined,
   PlusOutlined,
 } from "@ant-design/icons";
@@ -61,6 +62,7 @@ import {
 } from "../../shared/misc/b3util";
 import i18n from "../../shared/misc/i18n";
 import { useWorkspace } from "../contexts/workspace-context";
+import * as vscodeApi from "../vscodeApi";
 
 interface OptionType extends DefaultOptionType {
   value: string;
@@ -374,7 +376,7 @@ const VarDeclItem: FC<VarDeclItemProps> = ({ value, onChange, onRemove, onSubmit
           onClick={() => onRemove?.()}
         />
       )}
-      {disabled && <div style={{ width: 20 }} />}
+      {disabled && <div style={{ width: 16 }} />}
     </Flex>
   );
 };
@@ -1331,15 +1333,52 @@ const TreeInspector: FC<{
                             name={[item.name, "path"]}
                             style={{ width: "100%", marginBottom: 2 }}
                           >
-                            <AutoComplete
+                            <Select
                               disabled
+                              showSearch
                               options={subtreeOptions}
-                              filterOption={(v, opt) =>
-                                (opt?.label as string)?.toUpperCase().includes(v.toUpperCase()) ?? false
-                              }
+                              onBlur={form.submit}
+                              filterOption={(value, option) => {
+                                const label = option!.label as string;
+                                return label.toUpperCase().includes(value.toUpperCase());
+                              }}
                             />
                           </Form.Item>
-                          <div style={{ width: 20 }} />
+                          <FormOutlined
+                            onClick={() => {
+                              const path = form.getFieldValue(["subtree", item.name, "path"]) as
+                                | string
+                                | undefined;
+                              if (!path) {
+                                logger.error("Subtree path not found.");
+                                return;
+                              }
+                              const ws = useWorkspace.getState();
+                              if (!ws.workdir) {
+                                logger.error("Workspace workdir is missing; cannot open subtree.");
+                                return;
+                              }
+                              const requestId = "open-subtree";
+                              // Listen for a single read result so we can confirm the file exists.
+                              const off = vscodeApi.onMessage?.((msg: unknown) => {
+                                const m = msg as { type?: string; requestId?: string; content?: unknown };
+                                if (m.type === "readFileResult" && m.requestId === requestId) {
+                                  off?.();
+                                  if (m.content === null) {
+                                    logger.error(
+                                      `Failed to open subtree: file not found or unreadable (${path}).`
+                                    );
+                                  }
+                                }
+                              });
+
+                              vscodeApi.postMessage({
+                                type: "readFile",
+                                requestId,
+                                path: `${ws.workdir}/${path}`,
+                              });
+                            }}
+                          />
                         </Flex>
                         <Form.List name={[item.name, "vars"]}>
                           {(vars) => (
