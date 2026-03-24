@@ -129,6 +129,7 @@
   "node.subtree": "子树",
   "node.subtreePathError": "子树必须保存在当前工作区的目录内",
   "node.subtreeSaveRootError": "根节点不能保存为子树",
+  "node.subtreeSaveSuccess": "已保存并转换为子树节点：{{path}}",
   "node.type": "节点类型",
   "node.undefinedVariable": "变量 “{{variable}}” 未定义",
   "node.jsonData": "JSON 数据",

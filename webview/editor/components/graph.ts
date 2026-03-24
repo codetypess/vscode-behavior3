@@ -1123,7 +1123,8 @@ export class Graph {
       return;
     }
 
-    const node = this._graph.getNodeData(this._selectedId);
+    const selectedId = this._selectedId;
+    const node = this._graph.getNodeData(selectedId);
     const data = node.data as unknown as NodeData;
     const subroot = b3util.createFileData(data);
     const subtreeModel = {
@@ -1138,10 +1139,17 @@ export class Graph {
       return;
     }
 
-    data.path = relPath;
-    this._graph.updateNodeData([node]);
-    this.editor.data.root = this._nodeToData("1");
+    // Update the canonical tree data first (instead of only patching G6 node data),
+    // so subtree-link semantics are applied reliably during refreshNodeData().
+    const root = this._nodeToData("1");
+    b3util.dfs(root, (n) => {
+      if (n.id === selectedId) {
+        n.path = relPath;
+      }
+    });
+    await this._update({ ...this.data, root }, false);
     await this.refresh({ preserveSelection: true });
+    message.success(i18n.t("node.subtreeSaveSuccess", { path: relPath }));
     this._storeHistory();
   }
 }
