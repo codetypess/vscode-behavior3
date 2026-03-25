@@ -81,8 +81,13 @@ export class Graph {
   private _dragId?: string;
   private _dropId?: string;
   private _selectedId: string | null = null;
+  /** Map from subtree node $id → original NodeData (from disk), used to compute $override diffs. */
+  private _subtreeOriginals: Map<string, NodeData> = new Map();
 
-  constructor(readonly editor: EditorStore, ref: React.RefObject<HTMLDivElement>) {
+  constructor(
+    readonly editor: EditorStore,
+    ref: React.RefObject<HTMLDivElement>
+  ) {
     this._graph = new G6Graph({
       container: ref.current!,
       behaviors: ["drag-canvas", "zoom-canvas", "hover-activate"],
@@ -178,6 +183,9 @@ export class Graph {
   /**
    * Read every referenced subtree file from the extension host (each graph refresh), same spirit as
    * behavior3editor `readTree(workdir + "/" + node.path)` — no long-lived b3util cache.
+   *
+   * Also writes back any subtree files that were missing `$id` on their nodes so subsequent
+   * $override lookups by $id work correctly.
    */
   private async _preloadSubtreeCaches(root: NodeData): Promise<void> {
     const workdir = useWorkspace.getState().workdir.replace(/[/\\]+$/, "");
@@ -202,8 +210,20 @@ export class Graph {
       const content = await vscodeApi.readFile(absPath);
       if (!content) continue;
       try {
+        // Check whether any node is missing $id before parsing (applyTreeDefaults will assign them)
+        const rawParsed = JSON.parse(content) as { root?: unknown };
+        const needsIdWriteback = b3util.subtreeNeedsMissingIds(rawParsed.root);
         const sub = readTree(content);
         reads.set(relPath, sub);
+
+        // Write back $id to disk so they are stable across sessions
+        if (needsIdWriteback) {
+          const updatedContent = writeTree(sub, sub.name);
+          vscodeApi.saveSubtree(absPath, updatedContent).catch(() => {
+            /* best effort — ignore error */
+          });
+        }
+
         const discover = (n: NodeData) => {
           if (n.path) {
             const k = b3util.normalizeSubtreePathKey(n.path);
@@ -217,6 +237,13 @@ export class Graph {
       }
     }
     b3util.setWebviewSubtreeReads(reads);
+    // Rebuild the subtree originals map for override diffing
+    this._subtreeOriginals.clear();
+    for (const sub of reads.values()) {
+      b3util.dfs(sub.root, (node) => {
+        if (node.$id) this._subtreeOriginals.set(node.$id, node);
+      });
+    }
   }
 
   private async _update(data: TreeData, refreshId: boolean = true, refreshVars: boolean = false) {
@@ -576,6 +603,21 @@ export class Graph {
     this._graph.updateNodeData([node]);
     await this._graph.draw();
 
+    // If this node belongs to an external subtree, persist the diff into $override
+    if (editNode.subtreeNode && data.$id) {
+      const original = this._subtreeOriginals.get(data.$id);
+      if (original) {
+        const def = b3util.nodeDefs.get(data.name);
+        const diff = b3util.computeNodeOverride(original, data, def);
+        if (diff !== null) {
+          this.editor.data.$override[data.$id] = diff;
+        } else {
+          // No diff — remove any existing override entry
+          delete this.editor.data.$override[data.$id];
+        }
+      }
+    }
+
     // update subtree
     if (subtree !== editNode.data.path) {
       this.editor.data.root = this._nodeToData("1");
@@ -709,8 +751,9 @@ export class Graph {
       const payload = {
         data: { ...data },
         prefix: this.data.prefix,
-        disabled: this._isSubtreeNode(node.id),
-        subtreeEditable: !this._isSubtreeNode(this._findParent(node.id)?.id),
+        disabled: false,
+        subtreeEditable: true,
+        subtreeNode: this._isSubtreeNode(node.id),
       };
       const prev = useWorkspace.getState().editingNode;
       if (

@@ -1,28 +1,48 @@
 {
-  "version": "1.8.1",
-  "name": "test-subtree",
-  "desc": "",
-  "firstid": 1,
-  "export": true,
-  "group": [],
-  "import": ["vars/declare-core.json"],
-  "vars": [
-    {
-      "name": "test",
-      "desc": "测试"
+  "$override": {
+    "z56njSp7U6": {
+      "output": [
+        "version"
+      ]
     }
+  },
+  "custom": {
+  },
+  "desc": "",
+  "export": true,
+  "group": [
   ],
+  "import": [
+    "vars/declare-core.json"
+  ],
+  "name": "test-subtree",
+  "prefix": "",
   "root": {
-    "id": "1",
-    "name": "Sequence",
+    "$id": "tSW6GXY2SB",
     "children": [
       {
-        "id": "2",
-        "name": "Log",
+        "$id": "OUL4MGlC0Q",
         "args": {
           "message": "hello"
-        }
+        },
+        "id": "2",
+        "name": "Log"
+      },
+      {
+        "$id": "LHYLmXFNdH",
+        "id": "3",
+        "name": "Selector",
+        "path": "vars/subtree.json"
       }
-    ]
-  }
+    ],
+    "id": "1",
+    "name": "Sequence"
+  },
+  "vars": [
+    {
+      "desc": "测试",
+      "name": "test"
+    }
+  ],
+  "version": "1.9.0"
 }

@@ -717,6 +717,107 @@ export const clearWebviewSubtreeReads = () => {
   webviewSubtreeReads = null;
 };
 
+/**
+ * Return true if any node in the subtree root (raw parsed JSON, before applyTreeDefaults)
+ * is missing a `$id`. Used to decide whether to write-back $id to the subtree file.
+ */
+export const subtreeNeedsMissingIds = (root: unknown): boolean => {
+  if (!root || typeof root !== "object") return false;
+  const node = root as { $id?: string; children?: unknown[] };
+  if (!node.$id) return true;
+  if (node.children) {
+    for (const child of node.children) {
+      if (subtreeNeedsMissingIds(child)) return true;
+    }
+  }
+  return false;
+};
+
+/**
+ * Compute the diff between the original subtree node data and the edited node data.
+ * Returns only the fields that differ (keyed by field name). Empty input/output arrays
+ * are treated as "no data" (same as undefined).
+ */
+export const computeNodeOverride = (
+  original: NodeData,
+  edited: NodeData,
+  def: ReturnType<typeof nodeDefs.get>
+): Pick<NodeData, "desc" | "input" | "output" | "args" | "debug" | "disabled"> | null => {
+  const diff: Pick<NodeData, "desc" | "input" | "output" | "args" | "debug" | "disabled"> = {};
+  let hasDiff = false;
+
+  if ((edited.desc || undefined) !== (original.desc || undefined)) {
+    diff.desc = edited.desc || undefined;
+    hasDiff = true;
+  }
+
+  if ((edited.debug || undefined) !== (original.debug || undefined)) {
+    diff.debug = edited.debug || undefined;
+    hasDiff = true;
+  }
+
+  if ((edited.disabled || undefined) !== (original.disabled || undefined)) {
+    diff.disabled = edited.disabled || undefined;
+    hasDiff = true;
+  }
+
+  // args: k/v comparison; only track keys defined in the node def
+  if (def.args?.length) {
+    let argsDiff = false;
+    const diffArgs: { [key: string]: unknown } = {};
+    for (const arg of def.args) {
+      const origVal = original.args?.[arg.name];
+      const editVal = edited.args?.[arg.name];
+      if (JSON.stringify(origVal) !== JSON.stringify(editVal)) {
+        diffArgs[arg.name] = editVal;
+        argsDiff = true;
+      }
+    }
+    if (argsDiff) {
+      diff.args = diffArgs;
+      hasDiff = true;
+    }
+  }
+
+  // input: empty array [] treated as no data
+  const origInput = (original.input ?? []).filter((v) => v);
+  const editInput = (edited.input ?? []).filter((v) => v);
+  if (JSON.stringify(origInput) !== JSON.stringify(editInput)) {
+    diff.input = editInput.length ? edited.input : undefined;
+    hasDiff = true;
+  }
+
+  // output: same as input
+  const origOutput = (original.output ?? []).filter((v) => v);
+  const editOutput = (edited.output ?? []).filter((v) => v);
+  if (JSON.stringify(origOutput) !== JSON.stringify(editOutput)) {
+    diff.output = editOutput.length ? edited.output : undefined;
+    hasDiff = true;
+  }
+
+  return hasDiff ? diff : null;
+};
+
+/**
+ * Apply $override entries from the parent tree onto the loaded subtree nodes
+ * (recursive DFS). Must be called after applySubtreeRootToNode loads children.
+ */
+export const applyOverridesToSubtree = (node: NodeData, overrides: TreeData["$override"]): void => {
+  if (!overrides) return;
+  const patch = overrides[node.$id];
+  if (patch) {
+    if (patch.desc !== undefined) node.desc = patch.desc;
+    if (patch.debug !== undefined) node.debug = patch.debug;
+    if (patch.disabled !== undefined) node.disabled = patch.disabled;
+    if (patch.args !== undefined) {
+      node.args = { ...(node.args ?? {}), ...patch.args };
+    }
+    if (patch.input !== undefined) node.input = patch.input;
+    if (patch.output !== undefined) node.output = patch.output;
+  }
+  node.children?.forEach((child) => applyOverridesToSubtree(child, overrides));
+};
+
 const cloneTreeData = (t: TreeData): TreeData => JSON.parse(JSON.stringify(t)) as TreeData;
 
 /** Merge external subtree root into the referencing node (subtree link). */
@@ -878,7 +979,12 @@ const isValidInputOrOutput = (def: string[], data: string[] | undefined, index: 
   return def[index].includes("?") || data?.[index] || isVariadic(def, index);
 };
 
-export const refreshNodeData = (tree: TreeData, node: NodeData, id: number) => {
+export const refreshNodeData = (
+  tree: TreeData,
+  node: NodeData,
+  id: number,
+  rootOverrides?: TreeData["$override"]
+) => {
   node.id = (id++).toString();
   node.$size = calcSize(node);
 
@@ -918,8 +1024,14 @@ export const refreshNodeData = (tree: TreeData, node: NodeData, id: number) => {
         if (raw) subtree = cloneTreeData(raw);
       }
       if (subtree) {
-        id = refreshNodeData(subtree, subtree.root, --id);
+        // Use root-level overrides (from the main tree) for all sub-subtree recursion
+        const overrides = rootOverrides ?? tree.$override;
+        id = refreshNodeData(subtree, subtree.root, --id, overrides);
         applySubtreeRootToNode(node, subtree);
+        // Apply any overrides from the main tree onto the loaded subtree nodes
+        if (overrides && Object.keys(overrides).length > 0) {
+          applyOverridesToSubtree(node, overrides);
+        }
         if (hasFs()) {
           node.$mtime = getFs().statSync(subtreePath).mtimeMs;
         }
@@ -932,7 +1044,7 @@ export const refreshNodeData = (tree: TreeData, node: NodeData, id: number) => {
     parsingStack.pop();
   } else if (node.children?.length) {
     for (let i = 0; i < node.children.length; i++) {
-      id = refreshNodeData(tree, node.children[i], id);
+      id = refreshNodeData(tree, node.children[i], id, rootOverrides);
     }
   }
 

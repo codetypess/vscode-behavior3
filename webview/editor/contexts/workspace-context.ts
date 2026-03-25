@@ -7,13 +7,7 @@ import React from "react";
 import { create } from "zustand";
 import * as vscodeApi from "../vscodeApi";
 import { NodeDef } from "../../shared/misc/b3type";
-import {
-  FileVarDecl,
-  ImportDecl,
-  NodeData,
-  TreeData,
-  VarDecl,
-} from "../../shared/misc/b3type";
+import { FileVarDecl, ImportDecl, NodeData, TreeData, VarDecl } from "../../shared/misc/b3type";
 import * as b3util from "../../shared/misc/b3util";
 import { message } from "../../shared/misc/hooks";
 import i18n from "../../shared/misc/i18n";
@@ -98,6 +92,8 @@ export type EditNode = {
   prefix: string;
   disabled: boolean;
   subtreeEditable?: boolean;
+  /** True when the node belongs to an external subtree (not the main tree). */
+  subtreeNode?: boolean;
 };
 
 export type EditNodeDef = {
@@ -230,11 +226,7 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
     set((s) => ({ hostSubtreeRefreshSeq: s.hostSubtreeRefreshSeq + 1 })),
 
   init: ({ content, filePath, workdir, nodeDefs: defs, checkExpr, theme, allFiles }) => {
-    b3util.initWithNodeDefs(
-      defs,
-      (msg) => message.error(msg),
-      checkExpr
-    );
+    b3util.initWithNodeDefs(defs, (msg) => message.error(msg), checkExpr);
 
     const editor = new EditorStore(filePath, content);
 

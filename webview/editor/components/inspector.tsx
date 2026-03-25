@@ -422,6 +422,8 @@ const NodeInspector: FC<{
   disabled: boolean;
   /** When false, subtree path field is read-only (node is under an external subtree). */
   subtreeEditable: boolean;
+  /** True when the node belongs to an external subtree (not the main tree). */
+  subtreeNode: boolean;
 }> = ({
   node,
   nodeDefs,
@@ -433,6 +435,7 @@ const NodeInspector: FC<{
   usingGroups,
   disabled,
   subtreeEditable,
+  subtreeNode,
 }) => {
   const { t } = useTranslation();
   const [form] = Form.useForm();
@@ -480,6 +483,7 @@ const NodeInspector: FC<{
       data: { ...data, id: data.id },
       prefix: ws.editor.data.prefix,
       disabled: false,
+      subtreeNode,
     });
   };
 
@@ -1637,6 +1641,7 @@ export const Inspector: FC = () => {
           usingGroups={usingGroups}
           disabled={editingNode.disabled}
           subtreeEditable={editingNode.subtreeEditable ?? true}
+          subtreeNode={editingNode.subtreeNode ?? false}
         />
       </div>
     );
