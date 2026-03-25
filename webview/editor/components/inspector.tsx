@@ -99,6 +99,7 @@ const updateFormWithNode = (
   } else {
     form.setFieldValue("children", def.children);
   }
+  form.setFieldValue("json-data", JSON.stringify(node, null, 2));
   def.args?.forEach((arg) => {
     const type = getNodeArgRawType(arg);
     const value = node.args?.[arg.name];
@@ -144,8 +145,7 @@ const createNodeFromForm = (
   defs: NodeDefs
 ): NodeData => {
   const values = form.getFieldsValue() as Record<string, unknown>;
-  const nameFromForm =
-    (((values.name as string) ?? node.name) || "").trim() || node.name;
+  const nameFromForm = (((values.name as string) ?? node.name) || "").trim() || node.name;
   const def = defs.get(nameFromForm);
   const data = {} as NodeData;
   data.$id = node.$id;
@@ -168,7 +168,11 @@ const createNodeFromForm = (
           if (Array.isArray(value)) {
             value.forEach((item) => {
               if (isJsonType(type)) {
-                try { arr.push(item === "null" ? null : JSON.parse(item as string)); } catch { /* ignore */ }
+                try {
+                  arr.push(item === "null" ? null : JSON.parse(item as string));
+                } catch {
+                  /* ignore */
+                }
               } else if (item !== null && item !== undefined) {
                 arr.push(item);
               }
@@ -177,7 +181,11 @@ const createNodeFromForm = (
           data.args[arg.name] = !isNodeArgOptional(arg) ? arr : arr.length ? arr : undefined;
         } else if (isJsonType(type)) {
           const sv = value as string;
-          try { data.args[arg.name] = sv === "null" ? null : JSON.parse(sv); } catch { /* ignore */ }
+          try {
+            data.args[arg.name] = sv === "null" ? null : JSON.parse(sv);
+          } catch {
+            /* ignore */
+          }
         } else {
           data.args[arg.name] = value;
         }
@@ -285,7 +293,7 @@ const createInOutOptions = (
         const desc =
           inputDef?.length && i >= inputDef.length && isVariadic(inputDef, -1)
             ? inputDef[inputDef.length - 1]
-            : inputDef?.[i] ?? "<unknown>";
+            : (inputDef?.[i] ?? "<unknown>");
         if (v && !seen[v]) {
           options.push({ label: `${v}(${desc})`, value: v });
           seen[v] = true;
@@ -296,7 +304,7 @@ const createInOutOptions = (
         const desc =
           outputDef?.length && i >= outputDef.length && isVariadic(outputDef, -1)
             ? outputDef[outputDef.length - 1]
-            : outputDef?.[i] ?? "<unknown>";
+            : (outputDef?.[i] ?? "<unknown>");
         if (v && !seen[v]) {
           options.push({ label: `${v}(${desc})`, value: v });
           seen[v] = true;
@@ -352,7 +360,9 @@ const VarDeclItem: FC<VarDeclItemProps> = ({ value, onChange, onRemove, onSubmit
             borderTopLeftRadius: "4px",
             borderBottomLeftRadius: "4px",
           }}
-          onClick={() => local.name && useWorkspace.getState().editor?.dispatch?.("clickVar", local.name)}
+          onClick={() =>
+            local.name && useWorkspace.getState().editor?.dispatch?.("clickVar", local.name)
+          }
         >
           <AimOutlined />
           <span style={{ marginLeft: 4 }}>{local.count ?? 0}</span>
@@ -373,10 +383,7 @@ const VarDeclItem: FC<VarDeclItemProps> = ({ value, onChange, onRemove, onSubmit
         />
       </Space.Compact>
       {!disabled && (
-        <MinusCircleOutlined
-          style={{ marginBottom: "6px" }}
-          onClick={() => onRemove?.()}
-        />
+        <MinusCircleOutlined style={{ marginBottom: "6px" }} onClick={() => onRemove?.()} />
       )}
       {disabled && <div style={{ width: 16 }} />}
     </Flex>
@@ -445,10 +452,7 @@ const NodeInspector: FC<{
   useEffect(() => {
     const prev = prevNodeIdentityRef.current;
     const identity = { id: node.id, name: node.name };
-    const soft =
-      prev !== null &&
-      prev.id === identity.id &&
-      prev.name === identity.name;
+    const soft = prev !== null && prev.id === identity.id && prev.name === identity.name;
     prevNodeIdentityRef.current = identity;
     updateFormWithNode(form, node, nodeDefs, checkExpr, soft);
     setNodeArgs(node.args ?? {});
@@ -473,10 +477,23 @@ const NodeInspector: FC<{
     const data = createNodeFromForm(form, node, nodeDefs);
     const ws = useWorkspace.getState();
     ws.editor?.dispatch?.("updateNode", {
-      data: {...data, id: data.id },
+      data: { ...data, id: data.id },
       prefix: ws.editor.data.prefix,
       disabled: false,
     });
+  };
+
+  /**
+   * 与原版 `changeNodeDef` 一致：节点名变化时直接 `finish()`，不走 `form.submit()`，
+   * 避免 unknown 节点等其它字段校验阻止名称更新。
+   */
+  const changeNodeDef = (newname: string) => {
+    const trimmed = (newname ?? "").trim();
+    if (trimmed && trimmed !== node.name) {
+      finish();
+    } else {
+      submit();
+    }
   };
 
   /**
@@ -508,10 +525,7 @@ const NodeInspector: FC<{
     [usingVars, editingTree]
   );
 
-  const subtreeOptions = useMemo(
-    () => allFiles.map((f) => ({ label: f, value: f })),
-    [allFiles]
-  );
+  const subtreeOptions = useMemo(() => allFiles.map((f) => ({ label: f, value: f })), [allFiles]);
 
   const filterOption = (input: string, option?: OptionType) => {
     const label = option!.label as string;
@@ -547,9 +561,7 @@ const NodeInspector: FC<{
                     const g = (def as NodeDef & { group?: string[] }).group;
                     // 原版：def.group 中至少有一个须在「当前树已启用分组」usingGroups 中为 true
                     if (g && !g.some((name) => usingGroups?.[name])) {
-                      return Promise.reject(
-                        new Error(t("node.groupNotEnabled", { group: g }))
-                      );
+                      return Promise.reject(new Error(t("node.groupNotEnabled", { group: g })));
                     }
                     return Promise.resolve();
                   },
@@ -585,9 +597,7 @@ const NodeInspector: FC<{
                 validator(_, value: string) {
                   const n = (value ?? "").trim();
                   if (!n || !nodeDefs.has(n)) {
-                    return Promise.reject(
-                      new Error(t("node.notFound", { name: n || node.name }))
-                    );
+                    return Promise.reject(new Error(t("node.notFound", { name: n || node.name })));
                   }
                   return Promise.resolve();
                 },
@@ -597,8 +607,8 @@ const NodeInspector: FC<{
             <AutoComplete
               disabled={disabled}
               options={nodeOptions}
-              onBlur={() => submit()}
-              onSelect={(_v: string) => submit()}
+              onBlur={() => changeNodeDef(form.getFieldValue("name") as string)}
+              onSelect={(_v: string) => changeNodeDef(_v)}
               filterOption={filterOption as unknown as boolean}
             />
           </Form.Item>
@@ -650,11 +660,15 @@ const NodeInspector: FC<{
                                       validator(_, value) {
                                         if (value && usingVars && !usingVars[value]) {
                                           return Promise.reject(
-                                            new Error(t("node.undefinedVariable", { variable: value }))
+                                            new Error(
+                                              t("node.undefinedVariable", { variable: value })
+                                            )
                                           );
                                         }
                                         if (value && !isValidVariableName(value)) {
-                                          return Promise.reject(new Error(t("node.invalidVariableName")));
+                                          return Promise.reject(
+                                            new Error(t("node.invalidVariableName"))
+                                          );
                                         }
                                         return Promise.resolve();
                                       },
@@ -670,14 +684,19 @@ const NodeInspector: FC<{
                                 </Form.Item>
                                 <MinusCircleOutlined
                                   style={{ marginBottom: "6px" }}
-                                  onClick={() => { remove(field.name); submit(); }}
+                                  onClick={() => {
+                                    remove(field.name);
+                                    submit();
+                                  }}
                                 />
                               </Flex>
                             ))}
                             <Form.Item>
                               <Button
                                 type="dashed"
-                                onClick={() => { add(""); }}
+                                onClick={() => {
+                                  add("");
+                                }}
                                 style={{ width: fields.length === 0 ? "100%" : "200px" }}
                                 icon={<PlusOutlined />}
                               >
@@ -708,7 +727,9 @@ const NodeInspector: FC<{
                           if (value && !isValidVariableName(value)) {
                             return Promise.reject(new Error(t("node.invalidVariableName")));
                           }
-                          const arg = def.args?.find((a) => a.oneof && v.replace("?", "") === a.oneof);
+                          const arg = def.args?.find(
+                            (a) => a.oneof && v.replace("?", "") === a.oneof
+                          );
                           if (arg) {
                             const argName = `args.${arg.name}`;
                             if (!isFieldValidating(argName)) {
@@ -717,7 +738,13 @@ const NodeInspector: FC<{
                             }
                             if (!checkOneof(arg, getFieldValue(argName), value)) {
                               return Promise.reject(
-                                new Error(t("node.oneof.error", { input: v, arg: arg.name, desc: arg.desc ?? "" }))
+                                new Error(
+                                  t("node.oneof.error", {
+                                    input: v,
+                                    arg: arg.name,
+                                    desc: arg.desc ?? "",
+                                  })
+                                )
                               );
                             }
                           }
@@ -772,9 +799,13 @@ const NodeInspector: FC<{
                             }
                             if (!checkOneof(arg, value, form.getFieldValue(inputName))) {
                               return Promise.reject(
-                                new Error(t("node.oneof.error", {
-                                  input: def.input![idx], arg: arg.name, desc: arg.desc ?? "",
-                                }))
+                                new Error(
+                                  t("node.oneof.error", {
+                                    input: def.input![idx],
+                                    arg: arg.name,
+                                    desc: arg.desc ?? "",
+                                  })
+                                )
                               );
                             }
                             return Promise.resolve();
@@ -791,7 +822,9 @@ const NodeInspector: FC<{
                                 label={idx === 0 ? `${arg.desc}[${idx}]` : `[${idx}]`}
                                 validateTrigger={["onChange", "onBlur"]}
                                 style={{ width: "100%", marginBottom: 5 }}
-                                initialValue={isBoolType(type) ? (arg.default ?? false) : arg.default}
+                                initialValue={
+                                  isBoolType(type) ? (arg.default ?? false) : arg.default
+                                }
                                 valuePropName={isBoolType(type) ? "checked" : undefined}
                                 rules={[
                                   { required, message: t("fieldRequired", { field: arg.desc }) },
@@ -844,7 +877,10 @@ const NodeInspector: FC<{
                               </Form.Item>
                               <MinusCircleOutlined
                                 style={{ marginBottom: "6px" }}
-                                onClick={() => { remove(item.name); submit(); }}
+                                onClick={() => {
+                                  remove(item.name);
+                                  submit();
+                                }}
                               />
                             </Flex>
                           ))}
@@ -911,9 +947,13 @@ const NodeInspector: FC<{
                             }
                             if (!checkOneof(arg, value, form.getFieldValue(inputName))) {
                               return Promise.reject(
-                                new Error(t("node.oneof.error", {
-                                  input: def.input![idx], arg: arg.name, desc: arg.desc ?? "",
-                                }))
+                                new Error(
+                                  t("node.oneof.error", {
+                                    input: def.input![idx],
+                                    arg: arg.name,
+                                    desc: arg.desc ?? "",
+                                  })
+                                )
                               );
                             }
                             return Promise.resolve();
@@ -987,11 +1027,15 @@ const NodeInspector: FC<{
                                       validator(_, value) {
                                         if (value && usingVars && !usingVars[value]) {
                                           return Promise.reject(
-                                            new Error(t("node.undefinedVariable", { variable: value }))
+                                            new Error(
+                                              t("node.undefinedVariable", { variable: value })
+                                            )
                                           );
                                         }
                                         if (value && !isValidVariableName(value)) {
-                                          return Promise.reject(new Error(t("node.invalidVariableName")));
+                                          return Promise.reject(
+                                            new Error(t("node.invalidVariableName"))
+                                          );
                                         }
                                         return Promise.resolve();
                                       },
@@ -1007,7 +1051,10 @@ const NodeInspector: FC<{
                                 </Form.Item>
                                 <MinusCircleOutlined
                                   style={{ marginBottom: "6px" }}
-                                  onClick={() => { remove(field.name); submit(); }}
+                                  onClick={() => {
+                                    remove(field.name);
+                                    submit();
+                                  }}
                                 />
                               </Flex>
                             ))}
@@ -1061,6 +1108,11 @@ const NodeInspector: FC<{
               })}
             </>
           )}
+          {!nodeDefs.has(node.name) && (
+            <Form.Item name="json-data" label={t("node.jsonData")}>
+              <TextArea autoSize disabled />
+            </Form.Item>
+          )}
         </Form>
         {disabled && (
           <Flex style={{ paddingTop: 30 }}>
@@ -1096,19 +1148,29 @@ const TreeInspector: FC<{
     const collect = (node: NodeData) => {
       const def = nodeDefs.get(node.name);
       if (def.input) {
-        node.input?.forEach((v) => { if (v) count[v] = (count[v] ?? 0) + 1; });
+        node.input?.forEach((v) => {
+          if (v) count[v] = (count[v] ?? 0) + 1;
+        });
       }
       if (def.output) {
-        node.output?.forEach((v) => { if (v) count[v] = (count[v] ?? 0) + 1; });
+        node.output?.forEach((v) => {
+          if (v) count[v] = (count[v] ?? 0) + 1;
+        });
       }
       if (def.args) {
         def.args.forEach((arg) => {
           const expr = node.args?.[arg.name] as string | string[] | undefined;
           if (!isExprType(arg.type) || !expr) return;
           if (Array.isArray(expr)) {
-            expr.forEach((str) => { parseExpr(str).forEach((v) => { count[v] = (count[v] ?? 0) + 1; }); });
+            expr.forEach((str) => {
+              parseExpr(str).forEach((v) => {
+                count[v] = (count[v] ?? 0) + 1;
+              });
+            });
           } else {
-            parseExpr(expr).forEach((v) => { count[v] = (count[v] ?? 0) + 1; });
+            parseExpr(expr).forEach((v) => {
+              count[v] = (count[v] ?? 0) + 1;
+            });
           }
         });
       }
@@ -1225,10 +1287,7 @@ const TreeInspector: FC<{
     });
   };
 
-  const subtreeOptions = useMemo(
-    () => allFiles.map((f) => ({ label: f, value: f })),
-    [allFiles]
-  );
+  const subtreeOptions = useMemo(() => allFiles.map((f) => ({ label: f, value: f })), [allFiles]);
 
   return (
     <>
@@ -1302,7 +1361,10 @@ const TreeInspector: FC<{
                     ]}
                   >
                     <VarDeclItemFormWrapper
-                      onRemove={() => { remove(item.name); form.submit(); }}
+                      onRemove={() => {
+                        remove(item.name);
+                        form.submit();
+                      }}
                       onSubmit={form.submit}
                     />
                   </Form.Item>
@@ -1376,7 +1438,11 @@ const TreeInspector: FC<{
                               const requestId = "open-subtree";
                               // Listen for a single read result so we can confirm the file exists.
                               const off = vscodeApi.onMessage?.((msg: unknown) => {
-                                const m = msg as { type?: string; requestId?: string; content?: unknown };
+                                const m = msg as {
+                                  type?: string;
+                                  requestId?: string;
+                                  content?: unknown;
+                                };
                                 if (m.type === "readFileResult" && m.requestId === requestId) {
                                   off?.();
                                   if (m.content === null) {
@@ -1422,11 +1488,7 @@ const TreeInspector: FC<{
             {(items, { add, remove }, { errors }) => (
               <div style={{ display: "flex", flexDirection: "column", rowGap: 4 }}>
                 {items.map((item) => (
-                  <Space.Compact
-                    key={item.key}
-                    direction="vertical"
-                    style={{ marginBottom: 5 }}
-                  >
+                  <Space.Compact key={item.key} direction="vertical" style={{ marginBottom: 5 }}>
                     <Flex gap={4} style={{ width: "100%" }}>
                       <Form.Item
                         name={[item.name, "path"]}
@@ -1443,7 +1505,10 @@ const TreeInspector: FC<{
                       </Form.Item>
                       <MinusCircleOutlined
                         style={{ marginBottom: "6px" }}
-                        onClick={() => { remove(item.name); form.submit(); }}
+                        onClick={() => {
+                          remove(item.name);
+                          form.submit();
+                        }}
                       />
                     </Flex>
                     <Form.List name={[item.name, "vars"]}>
@@ -1460,7 +1525,10 @@ const TreeInspector: FC<{
                   </Space.Compact>
                 ))}
                 <Form.Item
-                  style={{ marginRight: items.length === 0 ? undefined : "18px", alignItems: "end" }}
+                  style={{
+                    marginRight: items.length === 0 ? undefined : "18px",
+                    alignItems: "end",
+                  }}
                 >
                   <Button
                     type="dashed"
@@ -1514,7 +1582,9 @@ export const Inspector: FC = () => {
   const usingVarsRecord = useMemo(() => {
     if (!usingVars) return null;
     const rec: Record<string, { name: string; desc: string }> = {};
-    Object.values(usingVars).forEach((v) => { rec[v.name] = v; });
+    Object.values(usingVars).forEach((v) => {
+      rec[v.name] = v;
+    });
     return rec;
   }, [usingVars]);
 
@@ -1526,28 +1596,35 @@ export const Inspector: FC = () => {
         d.args &&
         d.args.some(
           (arg) =>
-            arg.options &&
-            !Array.isArray((arg.options as Array<{ source: unknown }>)[0]?.source)
+            arg.options && !Array.isArray((arg.options as Array<{ source: unknown }>)[0]?.source)
         )
       ) {
-        d = { ...d, args: d.args.map((arg) => {
-          if (
-            arg.options &&
-            !Array.isArray((arg.options as Array<{ source: unknown }>)[0]?.source)
-          ) {
-            return {
-              ...arg,
-              options: [{ source: arg.options as unknown as Array<{ name: string; value: unknown }> }],
-            };
-          }
-          return arg;
-        })};
+        d = {
+          ...d,
+          args: d.args.map((arg) => {
+            if (
+              arg.options &&
+              !Array.isArray((arg.options as Array<{ source: unknown }>)[0]?.source)
+            ) {
+              return {
+                ...arg,
+                options: [
+                  { source: arg.options as unknown as Array<{ name: string; value: unknown }> },
+                ],
+              };
+            }
+            return arg;
+          }),
+        };
       }
       defs.set(d.name, d);
     });
 
     return (
-      <div className="b3-inspector" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <div
+        className="b3-inspector"
+        style={{ height: "100%", display: "flex", flexDirection: "column" }}
+      >
         <NodeInspector
           key={editingNode.data.id}
           node={editingNode.data}
@@ -1571,7 +1648,10 @@ export const Inspector: FC = () => {
     rawDefs.forEach((d) => defs.set(d.name, d));
 
     return (
-      <div className="b3-inspector" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <div
+        className="b3-inspector"
+        style={{ height: "100%", display: "flex", flexDirection: "column" }}
+      >
         <TreeInspector
           tree={editingTree}
           nodeDefs={defs}
