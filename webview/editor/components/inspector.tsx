@@ -784,7 +784,7 @@ const NodeInspector: FC<{
           {/* ── Input Variables ── */}
           {def.input && def.input.length > 0 && (
             <>
-              <Divider orientation="left">
+              <Divider titlePlacement="start" orientation="horizontal">
                 <h4>{t("node.inputVariable")}</h4>
               </Divider>
               {def.input.map((v, i) => {
@@ -927,7 +927,7 @@ const NodeInspector: FC<{
           {/* ── Const Args ── */}
           {def.args && def.args.length > 0 && (
             <>
-              <Divider orientation="left">
+              <Divider titlePlacement="start" orientation="horizontal">
                 <h4>{t("node.args")}</h4>
               </Divider>
               {def.args.map((arg) => {
@@ -1185,7 +1185,7 @@ const NodeInspector: FC<{
           {/* ── Output Variables ── */}
           {def.output && def.output.length > 0 && (
             <>
-              <Divider orientation="left">
+              <Divider titlePlacement="start" orientation="horizontal">
                 <h4>{t("node.outputVariable")}</h4>
               </Divider>
               {def.output.map((v, i) => {
@@ -1509,7 +1509,7 @@ const TreeInspector: FC<{
 
           {groupDefs.length > 0 && (
             <>
-              <Divider orientation="left">
+              <Divider titlePlacement="start" orientation="horizontal">
                 <h4>{t("tree.group")}</h4>
               </Divider>
               <Form.Item name="group">
@@ -1525,7 +1525,7 @@ const TreeInspector: FC<{
           )}
 
           {/* ── Define Variables ── */}
-          <Divider orientation="left">
+          <Divider titlePlacement="start" orientation="horizontal">
             <h4>{t("tree.vars")}</h4>
           </Divider>
           <Form.List name="vars">
@@ -1586,7 +1586,7 @@ const TreeInspector: FC<{
           {/* ── Subtree Variables (read-only) ── */}
           {(tree.subtree ?? []).length > 0 && (
             <>
-              <Divider orientation="left">
+              <Divider titlePlacement="start" orientation="horizontal">
                 <h4>{t("tree.vars.subtree")}</h4>
               </Divider>
               <Form.List name="subtree">
@@ -1674,7 +1674,7 @@ const TreeInspector: FC<{
           )}
 
           {/* ── Import Variables ── */}
-          <Divider orientation="left">
+          <Divider titlePlacement="start" orientation="horizontal">
             <h4>{t("tree.vars.imports")}</h4>
           </Divider>
           <Form.List name="import">

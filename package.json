@@ -124,7 +124,7 @@
           ],
           "description": "编辑器界面语言。默认跟随 VS Code，也可手动指定。"
         },
-        "behavior3.nodeLayout": {
+        "behavior3.layout": {
           "type": "string",
           "default": "normal",
           "enum": [
@@ -136,6 +136,11 @@
             "紧凑布局"
           ],
           "description": "Behavior Tree 节点布局样式。"
+        },
+        "behavior3.editSubtreeNodeProps": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否允许在 Inspector 中编辑子树节点的属性（输入/输出/参数等）。启用时可通过 $override 覆盖子树中的节点属性；禁用时子树内部节点为只读。"
         }
       }
     }
@@ -148,7 +153,8 @@
     "watch:webview": "vite build --watch --mode development",
     "dev": "npm run watch:webview",
     "package": "vsce package",
-    "postinstall": "git submodule update --init --recursive"
+    "postinstall": "git submodule update --init --recursive",
+    "check": "tsc --noEmit && tsc --project tsconfig.webview.json --noEmit"
   },
   "devDependencies": {
     "@types/node": "^20.19.37",

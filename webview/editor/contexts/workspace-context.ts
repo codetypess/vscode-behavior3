@@ -6,7 +6,7 @@
 import React from "react";
 import { create } from "zustand";
 import * as vscodeApi from "../vscodeApi";
-import { NodeDef } from "../../shared/misc/b3type";
+import { NodeDef, NodeLayout } from "../../shared/misc/b3type";
 import { FileVarDecl, ImportDecl, NodeData, TreeData, VarDecl } from "../../shared/misc/b3type";
 import * as b3util from "../../shared/misc/b3util";
 import { message } from "../../shared/misc/hooks";
@@ -115,6 +115,14 @@ export type EditTree = {
   root: NodeData;
 };
 
+export type Settings = {
+  checkExpr: boolean;
+  editSubtreeNodeProps: boolean;
+  lang: string;
+  theme: "dark" | "light";
+  layout: NodeLayout;
+};
+
 /** Fresh snapshot for TreeInspector props (clone vars/import/subtree so store !== live declare refs). */
 export function buildEditingTreeSnapshot(editor: EditorStore): EditTree {
   return {
@@ -143,8 +151,11 @@ export type WorkspaceStore = {
   nodeDefs: b3util.NodeDefs;
   groupDefs: string[];
   checkExpr: boolean;
+  editSubtreeNodeProps: boolean;
   theme: "dark" | "light";
   allFiles: string[];
+
+  settings: Settings;
 
   // single editor (no multi-tab in VSCode extension; each file has its own tab)
   editor?: EditorStore;
@@ -163,9 +174,8 @@ export type WorkspaceStore = {
     filePath: string;
     workdir: string;
     nodeDefs: NodeDef[];
-    checkExpr: boolean;
-    theme: "dark" | "light";
     allFiles: string[];
+    settings: Settings;
   }) => void;
 
   // update node defs (from setting file change)
@@ -213,6 +223,7 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
   nodeDefs: new b3util.NodeDefs(),
   groupDefs: [],
   checkExpr: true,
+  editSubtreeNodeProps: true,
   theme: detectInitialThemeMode(),
   allFiles: [],
   editor: undefined,
@@ -222,13 +233,21 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
   usingGroups: null,
   usingVars: null,
 
+  settings: {
+    checkExpr: true,
+    editSubtreeNodeProps: true,
+    theme: "dark",
+    lang: "en",
+    layout: "normal",
+  },
+
   onShowingSearch: (v) => set({ isShowingSearch: v }),
 
   requestHostSubtreeRefresh: () =>
     set((s) => ({ hostSubtreeRefreshSeq: s.hostSubtreeRefreshSeq + 1 })),
 
-  init: ({ content, filePath, workdir, nodeDefs: defs, checkExpr, theme, allFiles }) => {
-    b3util.initWithNodeDefs(defs, (msg) => message.error(msg), checkExpr);
+  init: ({ content, filePath, workdir, nodeDefs: defs, allFiles, settings }) => {
+    b3util.initWithNodeDefs(defs, (msg) => message.error(msg), settings.checkExpr);
 
     const editor = new EditorStore(filePath, content);
 
@@ -239,8 +258,7 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       workdir,
       nodeDefs: b3util.nodeDefs,
       groupDefs: b3util.groupDefs,
-      checkExpr,
-      theme,
+      settings,
       allFiles: allFiles ?? [],
       editor,
       hostSubtreeRefreshSeq: 0,

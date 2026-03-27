@@ -1,7 +1,7 @@
 import { ThemeConfig, theme } from "antd";
 
 export const darkThemeConfig: ThemeConfig = {
-  cssVar: true,
+  cssVar: {},
   algorithm: theme.darkAlgorithm,
   token: {
     colorBgBase: "#0d1117",
@@ -29,7 +29,7 @@ export const darkThemeConfig: ThemeConfig = {
 };
 
 export const lightThemeConfig: ThemeConfig = {
-  cssVar: true,
+  cssVar: {},
   algorithm: theme.defaultAlgorithm,
   components: {
     Dropdown: {

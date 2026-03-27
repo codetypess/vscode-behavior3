@@ -32,8 +32,9 @@ export type HostToEditorMessage =
       workdir: string;
       nodeDefs: NodeDef[];
       checkExpr: boolean;
+      editSubtreeNodeProps: boolean;
       language: "zh" | "en";
-      nodeLayout: NodeLayout;
+      layout: NodeLayout;
       theme: "dark" | "light";
       allFiles: string[];
     }

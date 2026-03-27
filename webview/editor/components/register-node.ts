@@ -22,7 +22,6 @@ import { NodeDef, getNodeType, isExprType, NodeData, NodeLayout } from "../../sh
 import * as b3util from "../../shared/misc/b3util";
 import i18n from "../../shared/misc/i18n";
 import { isMacos } from "../../shared/misc/keys";
-import { useSetting } from "../contexts/setting-context";
 import { useWorkspace } from "../contexts/workspace-context";
 import { Constructor } from "../../../behavior3/src/behavior3/context";
 
@@ -184,7 +183,7 @@ const hasErrorInArgExpr = (def: NodeDef, data: NodeData) => {
 };
 
 b3util.setSizeCalculator((data: NodeData) => {
-  const width = useSetting.getState().data.layout === "compact" ? 220 : 260;
+  const width = useWorkspace.getState().settings.layout === "compact" ? 220 : 260;
   let height = 50 + 2;
   const updateHeight = (obj: unknown) => {
     if ((Array.isArray(obj) && obj.length) || (obj && Object.keys(obj as object).length > 0)) {
@@ -752,12 +751,15 @@ class TreeNode extends Rect {
     const data = node.data as unknown as NodeData;
     const nodeDef = b3util.nodeDefs.get(data.name);
     let classify = getNodeType(nodeDef);
-    let color = (nodeDef as NodeDef & { color?: string }).color || NODE_COLORS[classify] || NODE_COLORS["Other"];
+    let color =
+      (nodeDef as NodeDef & { color?: string }).color ||
+      NODE_COLORS[classify] ||
+      NODE_COLORS["Other"];
 
     if (
       !b3util.nodeDefs.has(data.name) ||
-      (nodeDef as NodeDef & { group?: string[] }).group?.length &&
-        !(nodeDef as NodeDef & { group?: string[] }).group!.some((g) => b3util.usingGroups?.[g]) ||
+      ((nodeDef as NodeDef & { group?: string[] }).group?.length &&
+        !(nodeDef as NodeDef & { group?: string[] }).group!.some((g) => b3util.usingGroups?.[g])) ||
       !b3util.isValidNodeData(data) ||
       foundUndefined(data.input) ||
       foundUndefined(data.output) ||
@@ -778,7 +780,7 @@ class TreeNode extends Rect {
     this._nodeDef = nodeDef;
     this._data = data;
     this._classify = classify;
-    this._nodeLayout = useSetting.getState().data.layout;
+    this._nodeLayout = useWorkspace.getState().settings.layout;
     this._contentWidth = 220;
     this._contentX = this._nodeLayout === "compact" ? 6 : 46;
     this._contentY = 28;
@@ -820,7 +822,8 @@ class TreeNode extends Rect {
 
   private applyStyle(name: ShapeName, style: DisplayObject["attributes"] | false) {
     if (style) {
-      const shapeStyle = (this.attributes as Record<string, unknown>)[name] as Record<string, unknown> ?? {};
+      const shapeStyle =
+        ((this.attributes as Record<string, unknown>)[name] as Record<string, unknown>) ?? {};
       for (const key in shapeStyle) {
         (style as Record<string, unknown>)[key] = shapeStyle[key];
       }

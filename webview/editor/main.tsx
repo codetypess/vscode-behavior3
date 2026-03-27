@@ -6,7 +6,6 @@ import { setGlobalHooks } from "../shared/misc/hooks";
 import "../shared/misc/i18n";
 import i18n from "../shared/misc/i18n";
 import { getThemeConfig } from "../shared/misc/theme";
-import { useSetting } from "./contexts/setting-context";
 import { detectInitialThemeMode, useWorkspace } from "./contexts/workspace-context";
 import { writeTree } from "../shared/misc/util";
 import { Editor } from "./components/editor";
@@ -35,15 +34,19 @@ const EditorApp = () => {
     const off = vscodeApi.onMessage((msg) => {
       if (msg.type === "init") {
         void i18n.changeLanguage(msg.language);
-        useSetting.getState().setLayout(msg.nodeLayout);
         workspace.init({
           content: msg.content,
           filePath: msg.filePath,
           workdir: msg.workdir,
           nodeDefs: msg.nodeDefs,
-          checkExpr: msg.checkExpr,
-          theme: msg.theme,
           allFiles: msg.allFiles ?? [],
+          settings: {
+            editSubtreeNodeProps: msg.editSubtreeNodeProps ?? true,
+            theme: msg.theme,
+            checkExpr: msg.checkExpr,
+            lang: msg.language,
+            layout: msg.layout,
+          },
         });
         setReady(true);
       } else if (msg.type === "fileChanged") {

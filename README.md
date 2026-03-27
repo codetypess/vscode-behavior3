@@ -34,9 +34,7 @@ Create a `.b3-setting` file in workspace:
       "name": "MyAction",
       "type": "Action",
       "desc": "Does something useful",
-      "args": [
-        { "name": "duration", "type": "float", "desc": "Duration in seconds" }
-      ]
+      "args": [{ "name": "duration", "type": "float", "desc": "Duration in seconds" }]
     }
   ]
 }
@@ -92,12 +90,12 @@ For TypeScript authoring hints, see:
 
 ## Extension Settings
 
-| Setting                   | Type    | Default      | Description                                                                     |
-| ------------------------- | ------- | ------------ | ------------------------------------------------------------------------------- |
+| Setting                 | Type    | Default    | Description                                                                   |
+| ----------------------- | ------- | ---------- | ----------------------------------------------------------------------------- |
 | `behavior3.settingFile` | string  | `""`       | Path to `.b3-setting` relative to workspace root. Empty means auto-discovery. |
-| `behavior3.checkExpr`   | boolean | `true`     | Enable expression syntax validation for expression-type args.                   |
-| `behavior3.language`    | string  | `"auto"`   | Editor UI language. Options: `auto` (follow VS Code), `zh`, `en`.          |
-| `behavior3.nodeLayout`  | string  | `"normal"` | Node layout style. Options: `normal`, `compact`.                            |
+| `behavior3.checkExpr`   | boolean | `true`     | Enable expression syntax validation for expression-type args.                 |
+| `behavior3.language`    | string  | `"auto"`   | Editor UI language. Options:`auto` (follow VS Code), `zh`, `en`.              |
+| `behavior3.layout`      | string  | `"normal"` | Node layout style. Options:`normal`, `compact`.                               |
 
 ## Inspector
 
@@ -108,19 +106,19 @@ Inspector is embedded on the right side of the tree editor.
 
 ## Keyboard Shortcuts
 
-| Key                          | Action                         |
-| ---------------------------- | ------------------------------ |
-| `Ctrl/Cmd+Z`               | Undo                           |
+| Key                      | Action                         |
+| ------------------------ | ------------------------------ |
+| `Ctrl/Cmd+Z`             | Undo                           |
 | `Ctrl+Y` / `Cmd+Shift+Z` | Redo                           |
-| `Ctrl/Cmd+C`               | Copy node                      |
-| `Ctrl/Cmd+V`               | Paste node                     |
-| `Ctrl/Cmd+Shift+V`         | Replace node                   |
+| `Ctrl/Cmd+C`             | Copy node                      |
+| `Ctrl/Cmd+V`             | Paste node                     |
+| `Ctrl/Cmd+Shift+V`       | Replace node                   |
 | `Enter` / `Insert`       | Insert node                    |
 | `Delete` / `Backspace`   | Delete selected node           |
-| `Ctrl/Cmd+F`               | Search node content            |
-| `Ctrl/Cmd+G`               | Jump to node by id             |
-| `Ctrl/Cmd+B`               | Build                          |
-| `F4`                       | Toggle Text / Behavior3 editor |
+| `Ctrl/Cmd+F`             | Search node content            |
+| `Ctrl/Cmd+G`             | Jump to node by id             |
+| `Ctrl/Cmd+B`             | Build                          |
+| `F4`                     | Toggle Text / Behavior3 editor |
 
 ## Development
 

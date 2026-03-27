@@ -84,8 +84,9 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
     const settingDir = await getResolvedB3SettingDir(workspaceFolderUri, document.uri);
     const config = vscode.workspace.getConfiguration("behavior3");
     const checkExpr = config.get<boolean>("checkExpr", true);
+    const editSubtreeNodeProps = config.get<boolean>("editSubtreeNodeProps", true);
     const language = getEditorLanguage(config.get<string>("language", "auto"));
-    const nodeLayout = getNodeLayout(config.get<string>("nodeLayout", "normal"));
+    const nlayout = getNodeLayout(config.get<string>("layout", "normal"));
 
     const mapDefsForWebview = (defs: NodeDef[]) =>
       mapNodeDefsIconsForWebview(webviewPanel.webview, workspaceFolderUri, settingDir, defs);
@@ -220,8 +221,9 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
             workdir: projectRootUri.fsPath,
             nodeDefs: mapDefsForWebview(nodeDefs),
             checkExpr,
+            editSubtreeNodeProps,
             language,
-            nodeLayout,
+            layout: nlayout,
             theme,
             allFiles,
           };

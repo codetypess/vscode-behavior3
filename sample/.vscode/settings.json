@@ -1,3 +1,5 @@
 {
-    "behavior3.language": "zh"
+  "behavior3.language": "zh",
+  "behavior3.editSubtreeNodeProps": true,
+  "behavior3.layout": "normal"
 }
