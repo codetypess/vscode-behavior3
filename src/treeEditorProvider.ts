@@ -9,12 +9,8 @@ import {
   resolveNodeDefs,
   watchSettingFile,
 } from "./settingResolver";
-import type {
-  EditorToHostMessage,
-  HostToEditorMessage,
-  NodeDef,
-} from "./types";
-import type { NodeLayout } from "../webview/shared/misc/b3type";
+import type { EditorToHostMessage, HostToEditorMessage, NodeDef } from "./types";
+import { VERSION, type NodeLayout } from "../webview/shared/misc/b3type";
 
 /**
  * Read the Vite-generated HTML for the editor webview entry,
@@ -28,9 +24,7 @@ function buildWebviewHtml(
   const htmlPath = vscode.Uri.joinPath(extensionUri, "dist", "webview", "editor", "index.html");
   let html = fs.readFileSync(htmlPath.fsPath, "utf-8");
 
-  const webviewRootUri = webview.asWebviewUri(
-    vscode.Uri.joinPath(extensionUri, "dist", "webview")
-  );
+  const webviewRootUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "dist", "webview"));
 
   const assetsUri = `${webviewRootUri}/assets`;
   html = html.replace(/\.\.\/assets\//g, `${assetsUri}/`);
@@ -47,6 +41,18 @@ function buildWebviewHtml(
   html = html.replace("</head>", `  ${baseTag}\n  ${csp}\n</head>`);
 
   return html;
+}
+
+function isFileVersionNewer(fileVersion: string): boolean {
+  const fParts = fileVersion.split(".").map(Number);
+  const eParts = VERSION.split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    const f = fParts[i] ?? 0;
+    const e = eParts[i] ?? 0;
+    if (f > e) return true;
+    if (f < e) return false;
+  }
+  return false;
 }
 
 function getWorkdir(documentUri: vscode.Uri): vscode.Uri {
@@ -71,7 +77,9 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
     _token: vscode.CancellationToken
   ): Promise<void> {
     const workspaceFolderUri = getWorkdir(document.uri);
-    const projectRootUri = vscode.Uri.file(getBehaviorProjectRootFsPath(document.uri, workspaceFolderUri));
+    const projectRootUri = vscode.Uri.file(
+      getBehaviorProjectRootFsPath(document.uri, workspaceFolderUri)
+    );
     const nodeDefs = await resolveNodeDefs(workspaceFolderUri, document.uri);
     const settingDir = await getResolvedB3SettingDir(workspaceFolderUri, document.uri);
     const config = vscode.workspace.getConfiguration("behavior3");
@@ -93,13 +101,18 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
 
     webviewPanel.webview.html = this._getEditorHtml(webviewPanel.webview);
 
+    let fileVersionIsNewer = false;
+
     let cachedSubtreeRefs: Set<string> | null = null;
     const invalidateSubtreeRefs = () => {
       cachedSubtreeRefs = null;
     };
     const getSubtreeRefSet = (): Set<string> => {
       if (!cachedSubtreeRefs) {
-        cachedSubtreeRefs = getTransitiveSubtreeRelativePaths(projectRootUri.fsPath, document.getText());
+        cachedSubtreeRefs = getTransitiveSubtreeRelativePaths(
+          projectRootUri.fsPath,
+          document.getText()
+        );
       }
       return cachedSubtreeRefs;
     };
@@ -173,6 +186,22 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
           const theme = getVSCodeTheme();
           const content = document.getText();
 
+          // Check if file version is newer than the editor version
+          try {
+            const fileData = JSON.parse(content) as { version?: string };
+            const fv = fileData.version ?? "";
+            if (fv && isFileVersionNewer(fv)) {
+              fileVersionIsNewer = true;
+              const warnMsg =
+                language === "zh"
+                  ? `此文件由新版本 Behavior3(${fv}) 创建，请升级到最新版本。`
+                  : `This file is created by a newer version of Behavior3(${fv}), please upgrade to the latest version.`;
+              vscode.window.showWarningMessage(warnMsg);
+            }
+          } catch {
+            // ignore parse errors
+          }
+
           // Compute allFiles and initial usingVars
           const allFiles = await collectAllFiles(projectRootUri);
           let initUsingVars: VarDeclResult | undefined;
@@ -211,6 +240,14 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
         }
 
         case "update": {
+          if (fileVersionIsNewer) {
+            const errMsg =
+              language === "zh"
+                ? `此文件由新版本 Behavior3 创建，已拦截写入操作，请升级到最新版本后再编辑。`
+                : `This file is created by a newer version of Behavior3, write is blocked. Please upgrade to the latest version.`;
+            vscode.window.showErrorMessage(errMsg);
+            break;
+          }
           const edit = new vscode.WorkspaceEdit();
           edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), msg.content);
           await vscode.workspace.applyEdit(edit);
@@ -666,7 +703,6 @@ function resolvePathInWorkdir(
   return vscode.Uri.file(candidate);
 }
 
-
 interface VarDeclResult {
   usingVars: Record<string, { name: string; desc: string }>;
   importDecls: Array<{ path: string; vars: Array<{ name: string; desc: string }> }>;
@@ -738,12 +774,20 @@ async function buildUsingVars(
     readVarsFromFile(subtreePath, workdir.fsPath, visited, usingVars, readCache);
   }
 
-  const importDecls = collectOrderedTransitiveImportPaths(workdir.fsPath, importSeeds, readCache).map((p) => ({
+  const importDecls = collectOrderedTransitiveImportPaths(
+    workdir.fsPath,
+    importSeeds,
+    readCache
+  ).map((p) => ({
     path: p,
     vars: getLocalVarsFromTreeFile(workdir.fsPath, p, readCache),
   }));
 
-  const subtreeDecls = collectOrderedTransitiveSubtreePaths(workdir.fsPath, tree.root, readCache).map((p) => ({
+  const subtreeDecls = collectOrderedTransitiveSubtreePaths(
+    workdir.fsPath,
+    tree.root,
+    readCache
+  ).map((p) => ({
     path: p,
     vars: getLocalVarsFromTreeFile(workdir.fsPath, p, readCache),
   }));
@@ -753,8 +797,7 @@ async function buildUsingVars(
 
 function getVSCodeTheme(): "dark" | "light" {
   const kind = vscode.window.activeColorTheme.kind;
-  return kind === vscode.ColorThemeKind.Light ||
-    kind === vscode.ColorThemeKind.HighContrastLight
+  return kind === vscode.ColorThemeKind.Light || kind === vscode.ColorThemeKind.HighContrastLight
     ? "light"
     : "dark";
 }

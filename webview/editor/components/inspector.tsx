@@ -1595,7 +1595,7 @@ const TreeInspector: FC<{
                     {items.map((item) => (
                       <Space.Compact
                         key={item.key}
-                        direction="vertical"
+                        orientation="vertical"
                         style={{ marginBottom: 5 }}
                       >
                         <Flex gap={4} style={{ width: "100%" }}>
@@ -1681,7 +1681,7 @@ const TreeInspector: FC<{
             {(items, { add, remove }, { errors }) => (
               <div style={{ display: "flex", flexDirection: "column", rowGap: 4 }}>
                 {items.map((item) => (
-                  <Space.Compact key={item.key} direction="vertical" style={{ marginBottom: 5 }}>
+                  <Space.Compact key={item.key} orientation="vertical" style={{ marginBottom: 5 }}>
                     <Flex gap={4} style={{ width: "100%" }}>
                       <Form.Item
                         name={[item.name, "path"]}
