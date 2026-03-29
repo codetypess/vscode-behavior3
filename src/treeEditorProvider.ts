@@ -7,6 +7,7 @@ import {
   getBehaviorProjectRootFsPath,
   getResolvedB3SettingDir,
   resolveNodeDefs,
+  resolveWorkspaceNodeColors,
   watchSettingFile,
 } from "./settingResolver";
 import type { EditorToHostMessage, HostToEditorMessage, NodeDef } from "./types";
@@ -82,6 +83,7 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
     );
     const nodeDefs = await resolveNodeDefs(workspaceFolderUri, document.uri);
     const settingDir = await getResolvedB3SettingDir(workspaceFolderUri, document.uri);
+    const nodeColors = await resolveWorkspaceNodeColors(workspaceFolderUri, document.uri);
     const config = vscode.workspace.getConfiguration("behavior3");
     const checkExpr = config.get<boolean>("checkExpr", true);
     const editSubtreeNodeProps = config.get<boolean>("editSubtreeNodeProps", true);
@@ -226,6 +228,7 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
             layout: nlayout,
             theme,
             allFiles,
+            nodeColors,
           };
           webviewPanel.webview.postMessage(initMsg);
 

@@ -85,7 +85,10 @@ export function findB3WorkspacePath(
  * (same as build `process.chdir` / `b3util.workdir`). Subtree `path` and imports are relative to this.
  * Falls back to the VS Code workspace folder when no `.b3-workspace` is found walking up from the document.
  */
-export function getBehaviorProjectRootFsPath(documentUri: vscode.Uri, workspaceFolder: vscode.Uri): string {
+export function getBehaviorProjectRootFsPath(
+  documentUri: vscode.Uri,
+  workspaceFolder: vscode.Uri
+): string {
   const wfile = findB3WorkspacePath(documentUri, workspaceFolder);
   if (wfile) {
     return path.dirname(wfile);
@@ -172,6 +175,41 @@ export async function resolveNodeDefs(
   } catch (e) {
     logger.error("[behavior3] failed to load setting file:", filePath, e);
     return [];
+  }
+}
+
+/**
+ * Read `settings.nodeColors` from the resolved `.b3-workspace` file.
+ * Returns `undefined` when no workspace file is found or it has no `nodeColors`.
+ */
+export async function resolveWorkspaceNodeColors(
+  workspaceFolder: vscode.Uri,
+  documentUri?: vscode.Uri
+): Promise<Record<string, string> | undefined> {
+  let wfPath: string | undefined;
+
+  if (documentUri) {
+    const wf = vscode.workspace.getWorkspaceFolder(documentUri);
+    wfPath = findB3WorkspacePath(documentUri, wf?.uri ?? workspaceFolder);
+  }
+
+  if (!wfPath) {
+    const pattern = new vscode.RelativePattern(workspaceFolder.fsPath, "*.b3-workspace");
+    const found = await vscode.workspace.findFiles(pattern, null, 1);
+    if (found.length > 0) wfPath = found[0].fsPath;
+  }
+
+  if (!wfPath) return undefined;
+
+  try {
+    const raw = await vscode.workspace.fs.readFile(vscode.Uri.file(wfPath));
+    const data = JSON.parse(Buffer.from(raw).toString("utf-8")) as {
+      settings?: { nodeColors?: Record<string, string> };
+    };
+    const nc = data.settings?.nodeColors;
+    return nc && Object.keys(nc).length > 0 ? nc : undefined;
+  } catch {
+    return undefined;
   }
 }
 

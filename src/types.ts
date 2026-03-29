@@ -37,6 +37,7 @@ export type HostToEditorMessage =
       layout: NodeLayout;
       theme: "dark" | "light";
       allFiles: string[];
+      nodeColors?: Record<string, string>;
     }
   | { type: "fileChanged"; content: string }
   /** A referenced subtree file was saved or edited; parent canvas should reload subtree data. */

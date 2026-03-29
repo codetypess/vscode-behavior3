@@ -200,13 +200,22 @@ b3util.setSizeCalculator((data: NodeData) => {
   return [width, height];
 });
 
-const NODE_COLORS = {
+const DEFAULT_NODE_COLORS: Record<string, string> = {
   ["Composite"]: "#34d800",
-  ["Decorator"]: "#ff6700",
-  ["Condition"]: "#e4148b",
-  ["Action"]: "#1668dc",
+  ["Decorator"]: "#b2eb35",
+  ["Condition"]: "#f72585",
+  ["Action"]: "#1769dd",
   ["Other"]: "#707070",
   ["Error"]: "#ff0000",
+};
+
+const getNodeColor = (classify: string): string => {
+  const overrides = useWorkspace.getState().settings.nodeColors;
+  return (
+    (overrides && overrides[classify]) ??
+    DEFAULT_NODE_COLORS[classify] ??
+    DEFAULT_NODE_COLORS["Other"]
+  );
 };
 
 export type TreeNodeState =
@@ -241,6 +250,7 @@ type ShapeName =
   | "name-text"
   | "output-bg"
   | "output-text"
+  | "override-bar"
   | "path-text"
   | "status"
   | "subtree";
@@ -280,6 +290,7 @@ export const TreeNodeStyle: { [s in TreeNodeState]?: { [n in ShapeName]?: NodeSt
     "name-text": { fill: "#666" },
     "output-text": { fill: "#666" },
     "path-text": { fill: "#666" },
+    "override-bar": { fill: "#666" },
   },
 };
 
@@ -640,6 +651,27 @@ class TreeNode extends Rect {
     this._contentY += isSubtree ? 20 : 0;
   }
 
+  private drawOverrideBar(attributes: Required<RectStyleProps>, container: Group) {
+    const editor = useWorkspace.getState().editor;
+    const override = editor?.data.$override?.[this._data.$id];
+    const hasOverride = !!(override && Object.keys(override).length > 0);
+    this.upsert(
+      "override-bar",
+      GRect,
+      {
+        x: this._width - 16,
+        y: 0,
+        width: 16,
+        height: this._height,
+        fill: "#ff6700",
+        lineWidth: 2,
+        radius: [0, this._radius, this._radius, 0],
+        visibility: hasOverride ? "visible" : "hidden",
+      },
+      container
+    );
+  }
+
   private drawDragShape(attributes: Required<RectStyleProps>, container: Group) {
     this.upsert(
       "drag-src",
@@ -751,10 +783,7 @@ class TreeNode extends Rect {
     const data = node.data as unknown as NodeData;
     const nodeDef = b3util.nodeDefs.get(data.name);
     let classify = getNodeType(nodeDef);
-    let color =
-      (nodeDef as NodeDef & { color?: string }).color ||
-      NODE_COLORS[classify] ||
-      NODE_COLORS["Other"];
+    let color = (nodeDef as NodeDef & { color?: string }).color || getNodeColor(classify);
 
     if (
       !b3util.nodeDefs.has(data.name) ||
@@ -767,7 +796,7 @@ class TreeNode extends Rect {
       hasErrorInArgExpr(nodeDef, data)
     ) {
       classify = "Error";
-      color = NODE_COLORS[classify];
+      color = getNodeColor(classify);
     }
 
     assert(data.$size);
@@ -794,6 +823,7 @@ class TreeNode extends Rect {
 
     this.drawBackground(attributes, container);
     this.drawNameBackground(attributes, container);
+    this.drawOverrideBar(attributes, container);
     this.drawNameText(attributes, container);
     this.drawTypeIcon(attributes, container);
     this.drawStatusIcon(attributes, container);

@@ -121,6 +121,8 @@ export type Settings = {
   lang: string;
   theme: "dark" | "light";
   layout: NodeLayout;
+  /** Override default node-type colors. Keys: "Composite" | "Decorator" | "Condition" | "Action" | "Other" | "Error" */
+  nodeColors?: Record<string, string>;
 };
 
 /** Fresh snapshot for TreeInspector props (clone vars/import/subtree so store !== live declare refs). */

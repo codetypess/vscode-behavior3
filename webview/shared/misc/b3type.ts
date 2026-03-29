@@ -87,6 +87,8 @@ export interface WorkspaceModel {
   settings: {
     checkExpr?: boolean;
     buildScript?: string;
+    /** Override default node-type colors. Keys: "Composite" | "Decorator" | "Condition" | "Action" | "Other" | "Error" */
+    nodeColors?: Partial<Record<string, string>>;
   };
 }
 
