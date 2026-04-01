@@ -659,13 +659,13 @@ class TreeNode extends Rect {
       "override-bar",
       GRect,
       {
-        x: this._width - 16,
-        y: 0,
+        x: this._width - 17,
+        y: 1,
         width: 16,
-        height: this._height,
+        height: this._height - 2,
         fill: "#ff6700",
         lineWidth: 2,
-        radius: [0, this._radius, this._radius, 0],
+        radius: [0, this._radius - 1, this._radius - 1, 0],
         visibility: hasOverride ? "visible" : "hidden",
       },
       container

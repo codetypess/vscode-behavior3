@@ -1307,7 +1307,7 @@ const NodeInspector: FC<{
             </Form.Item>
           )}
         </Form>
-        {disabled && (
+        {(disabled || subtreeNode || !!node.path) && (
           <Flex style={{ paddingTop: 30 }}>
             <Button
               type="primary"

@@ -470,7 +470,7 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
   }
 
   private _getEditorHtml(webview: vscode.Webview): string {
-    return buildWebviewHtml(webview, this._extensionUri, "Behavior Tree Editor");
+    return buildWebviewHtml(webview, this._extensionUri, "Behavior3 Editor");
   }
 }
 
