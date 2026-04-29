@@ -9,9 +9,9 @@ const runtime = createEditorRuntime();
 applyDocumentTheme(detectInitialThemeMode());
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <RuntimeProvider runtime={runtime}>
-      <App />
-    </RuntimeProvider>
-  </React.StrictMode>
+    <React.StrictMode>
+        <RuntimeProvider runtime={runtime}>
+            <App />
+        </RuntimeProvider>
+    </React.StrictMode>
 );

@@ -19,9 +19,9 @@
 V2 内部只承认两类路径：
 
 - `AbsoluteFsPath`
-  - 仅用于宿主返回的绝对文件路径
+    - 仅用于宿主返回的绝对文件路径
 - `WorkdirRelativeJsonPath`
-  - V2 文档、subtree link、import、selection、override 一律使用的相对路径
+    - V2 文档、subtree link、import、selection、override 一律使用的相对路径
 
 规则：
 
@@ -35,31 +35,31 @@ V2 内部只承认两类路径：
 
 - `ready`
 - `update`
-  - payload: `{ content: string }`
+    - payload: `{ content: string }`
 - `treeSelected`
-  - payload: `{ tree: PersistedTreeModel }`
+    - payload: `{ tree: PersistedTreeModel }`
 - `requestSetting`
 - `build`
 - `readFile`
-  - payload: `{ path: WorkdirRelativeJsonPath, openIfSubtree?: boolean }`
+    - payload: `{ path: WorkdirRelativeJsonPath, openIfSubtree?: boolean }`
 - `saveSubtree`
-  - payload: `{ path: WorkdirRelativeJsonPath, content: string }`
+    - payload: `{ path: WorkdirRelativeJsonPath, content: string }`
 - `saveSubtreeAs`
-  - payload: `{ content: string, suggestedBaseName: string }`
+    - payload: `{ content: string, suggestedBaseName: string }`
 
 ### Host -> Webview
 
 - `init`
-  - payload: `HostInitPayload`
+    - payload: `HostInitPayload`
 - `fileChanged`
-  - payload: `{ content: string }`
+    - payload: `{ content: string }`
 - `subtreeFileChanged`
 - `settingLoaded`
-  - payload: `{ nodeDefs: NodeDef[] }`
+    - payload: `{ nodeDefs: NodeDef[] }`
 - `varDeclLoaded`
-  - payload: `HostVarsPayload`
+    - payload: `HostVarsPayload`
 - `buildResult`
-  - payload: `{ success: boolean, message: string }`
+    - payload: `{ success: boolean, message: string }`
 
 ## Normalized DTOs
 
@@ -68,30 +68,30 @@ V2 内部只承认两类路径：
 字段职责：
 
 - `filePath`
-  - 当前主文档绝对路径
+    - 当前主文档绝对路径
 - `workdir`
-  - 工作区根目录
+    - 工作区根目录
 - `content`
-  - 当前主文档文本
+    - 当前主文档文本
 - `nodeDefs`
-  - 节点定义
+    - 节点定义
 - `allFiles`
-  - 工作区内可见文件列表
+    - 工作区内可见文件列表
 - `settings`
-  - 当前 editor settings
+    - 当前 editor settings
 
 ### HostVarsPayload
 
 字段职责：
 
 - `usingVars`
-  - 宿主计算后的变量视图
+    - 宿主计算后的变量视图
 - `allFiles`
-  - 可选刷新后的文件列表
+    - 可选刷新后的文件列表
 - `importDecls`
-  - import 解析结果
+    - import 解析结果
 - `subtreeDecls`
-  - subtree 解析结果
+    - subtree 解析结果
 
 ### NodeInstanceRef
 
@@ -100,37 +100,37 @@ V2 内部只承认两类路径：
 字段语义：
 
 - `instanceKey`
-  - resolved graph 内的唯一实例 key
+    - resolved graph 内的唯一实例 key
 - `displayId`
-  - 用户可搜索的逻辑图节点 id
+    - 用户可搜索的逻辑图节点 id
 - `structuralStableId`
-  - 当前实例在主文档结构里的锚点 `$id`
+    - 当前实例在主文档结构里的锚点 `$id`
 - `sourceStableId`
-  - 来源 persisted node 的稳定 `$id`
+    - 来源 persisted node 的稳定 `$id`
 - `sourceTreePath`
-  - 来源树文件；主树为 `null`
+    - 来源树文件；主树为 `null`
 - `subtreeStack`
-  - 从主树走到当前实例时经过的 subtree 路径栈
+    - 从主树走到当前实例时经过的 subtree 路径栈
 
 ### DropIntent
 
 - `source`
-  - 被拖动节点的 `NodeInstanceRef`
+    - 被拖动节点的 `NodeInstanceRef`
 - `target`
-  - 目标节点的 `NodeInstanceRef`
+    - 目标节点的 `NodeInstanceRef`
 - `position`
-  - `"before" | "after" | "child"`
+    - `"before" | "after" | "child"`
 
 `DropIntent` 只表达用户意图，不代表该 drop 一定合法。
 
 ### Host Request Results
 
 - `ReadFileResponse`
-  - `{ content: string | null }`
+    - `{ content: string | null }`
 - `SaveSubtreeResponse`
-  - `{ success: boolean; error?: string }`
+    - `{ success: boolean; error?: string }`
 - `SaveSubtreeAsResponse`
-  - `{ savedPath: WorkdirRelativeJsonPath | null; error?: string }`
+    - `{ savedPath: WorkdirRelativeJsonPath | null; error?: string }`
 
 ## HostAdapter Contract
 

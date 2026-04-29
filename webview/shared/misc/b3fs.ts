@@ -7,16 +7,18 @@ import type * as NodeFs from "fs";
 let impl: typeof NodeFs | null = null;
 
 export function setFs(fs: typeof NodeFs): void {
-  impl = fs;
+    impl = fs;
 }
 
 export function hasFs(): boolean {
-  return impl !== null;
+    return impl !== null;
 }
 
 export function getFs(): typeof NodeFs {
-  if (!impl) {
-    throw new Error("[b3fs] Node fs not set. Extension build must call setFs(require('fs')) first.");
-  }
-  return impl;
+    if (!impl) {
+        throw new Error(
+            "[b3fs] Node fs not set. Extension build must call setFs(require('fs')) first."
+        );
+    }
+    return impl;
 }

@@ -17,102 +17,110 @@ document.documentElement.setAttribute("data-theme", bootTheme);
 document.body.setAttribute("data-theme", bootTheme);
 
 const GlobalHooksBridge = () => {
-  setGlobalHooks();
-  return null;
+    setGlobalHooks();
+    return null;
 };
 
 const EditorApp = () => {
-  const [ready, setReady] = useState(false);
-  const workspace = useWorkspace();
+    const [ready, setReady] = useState(false);
+    const workspace = useWorkspace();
 
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", workspace.theme);
-    document.body.setAttribute("data-theme", workspace.theme);
-  }, [workspace.theme]);
+    useEffect(() => {
+        document.documentElement.setAttribute("data-theme", workspace.theme);
+        document.body.setAttribute("data-theme", workspace.theme);
+    }, [workspace.theme]);
 
-  useEffect(() => {
-    const off = vscodeApi.onMessage((msg) => {
-      if (msg.type === "init") {
-        void i18n.changeLanguage(msg.language);
-        workspace.init({
-          content: msg.content,
-          filePath: msg.filePath,
-          workdir: msg.workdir,
-          nodeDefs: msg.nodeDefs,
-          allFiles: msg.allFiles ?? [],
-          settings: {
-            editSubtreeNodeProps: msg.editSubtreeNodeProps ?? true,
-            theme: msg.theme,
-            checkExpr: msg.checkExpr,
-            lang: msg.language,
-            layout: msg.layout,
-            nodeColors: msg.nodeColors,
-          },
-        });
-        setReady(true);
-      } else if (msg.type === "fileChanged") {
-        if (workspace.editor?.changed) {
-          if (workspace.editor) {
-            workspace.editor.alertReload = true;
-          }
-        } else {
-          workspace.reloadContent(msg.content);
-        }
-      } else if (msg.type === "settingLoaded") {
-        workspace.updateNodeDefs(msg.nodeDefs);
-      } else if (msg.type === "varDeclLoaded") {
-        workspace.applyHostVars(msg.usingVars, msg.allFiles, msg.importDecls, msg.subtreeDecls);
-      } else if (msg.type === "subtreeFileChanged") {
-        workspace.requestHostSubtreeRefresh();
-      }
-    });
-
-    // Tell the extension host we are ready
-    vscodeApi.postMessage({ type: "ready" });
-
-    return off;
-  }, []);
-
-  const theme = getThemeConfig(workspace.theme);
-
-  return (
-    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
-      <ConfigProvider theme={theme}>
-        <App style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <GlobalHooksBridge />
-          {ready && workspace.editor ? (
-            <Editor
-              data={workspace.editor}
-              onChange={() => {
-                if (workspace.editor) {
-                  const content = writeTree(workspace.editor.data, workspace.editor.data.name);
-                  vscodeApi.postMessage({ type: "update", content });
+    useEffect(() => {
+        const off = vscodeApi.onMessage((msg) => {
+            if (msg.type === "init") {
+                void i18n.changeLanguage(msg.language);
+                workspace.init({
+                    content: msg.content,
+                    filePath: msg.filePath,
+                    workdir: msg.workdir,
+                    nodeDefs: msg.nodeDefs,
+                    allFiles: msg.allFiles ?? [],
+                    settings: {
+                        editSubtreeNodeProps: msg.editSubtreeNodeProps ?? true,
+                        theme: msg.theme,
+                        checkExpr: msg.checkExpr,
+                        lang: msg.language,
+                        layout: msg.layout,
+                        nodeColors: msg.nodeColors,
+                    },
+                });
+                setReady(true);
+            } else if (msg.type === "fileChanged") {
+                if (workspace.editor?.changed) {
+                    if (workspace.editor) {
+                        workspace.editor.alertReload = true;
+                    }
+                } else {
+                    workspace.reloadContent(msg.content);
                 }
-              }}
-              style={{ flex: 1, minHeight: 0 }}
-            />
-          ) : (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flex: 1,
-                color: "var(--b3-text-muted)",
-                fontSize: 14,
-              }}
-            >
-              Loading...
-            </div>
-          )}
-        </App>
-      </ConfigProvider>
-    </div>
-  );
+            } else if (msg.type === "settingLoaded") {
+                workspace.updateNodeDefs(msg.nodeDefs);
+            } else if (msg.type === "varDeclLoaded") {
+                workspace.applyHostVars(
+                    msg.usingVars,
+                    msg.allFiles,
+                    msg.importDecls,
+                    msg.subtreeDecls
+                );
+            } else if (msg.type === "subtreeFileChanged") {
+                workspace.requestHostSubtreeRefresh();
+            }
+        });
+
+        // Tell the extension host we are ready
+        vscodeApi.postMessage({ type: "ready" });
+
+        return off;
+    }, []);
+
+    const theme = getThemeConfig(workspace.theme);
+
+    return (
+        <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
+            <ConfigProvider theme={theme}>
+                <App style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+                    <GlobalHooksBridge />
+                    {ready && workspace.editor ? (
+                        <Editor
+                            data={workspace.editor}
+                            onChange={() => {
+                                if (workspace.editor) {
+                                    const content = writeTree(
+                                        workspace.editor.data,
+                                        workspace.editor.data.name
+                                    );
+                                    vscodeApi.postMessage({ type: "update", content });
+                                }
+                            }}
+                            style={{ flex: 1, minHeight: 0 }}
+                        />
+                    ) : (
+                        <div
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flex: 1,
+                                color: "var(--b3-text-muted)",
+                                fontSize: 14,
+                            }}
+                        >
+                            Loading...
+                        </div>
+                    )}
+                </App>
+            </ConfigProvider>
+        </div>
+    );
 };
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <EditorApp />
-  </React.StrictMode>
+    <React.StrictMode>
+        <EditorApp />
+    </React.StrictMode>
 );

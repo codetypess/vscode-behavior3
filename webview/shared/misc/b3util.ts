@@ -3,22 +3,22 @@ import type * as Fs from "fs";
 import "./array";
 import { getFs, hasFs, setFs } from "./b3fs";
 import {
-  FileVarDecl,
-  hasArgOptions,
-  ImportDecl,
-  isBoolType,
-  isExprType,
-  isFloatType,
-  isIntType,
-  isJsonType,
-  isStringType,
-  keyWords,
-  NodeArg,
-  NodeData,
-  NodeDef,
-  TreeData,
-  VarDecl,
-  VERSION,
+    FileVarDecl,
+    hasArgOptions,
+    ImportDecl,
+    isBoolType,
+    isExprType,
+    isFloatType,
+    isIntType,
+    isJsonType,
+    isStringType,
+    keyWords,
+    NodeArg,
+    NodeData,
+    NodeDef,
+    TreeData,
+    VarDecl,
+    VERSION,
 } from "./b3type";
 import { logger } from "./logger";
 import b3path from "./b3path";
@@ -27,98 +27,106 @@ import { nanoid, readJson, readTreeFromFile, readWorkspace } from "./util";
 import { ExpressionEvaluator } from "../../../behavior3/src/behavior3/evaluator";
 
 export class NodeDefs extends Map<string, NodeDef> {
-  override get(key: string): NodeDef {
-    return super.get(key) ?? unknownNodeDef;
-  }
+    override get(key: string): NodeDef {
+        return super.get(key) ?? unknownNodeDef;
+    }
 }
 
 type Env = {
-  fs: typeof Fs;
-  path: typeof b3path;
-  workdir: string;
-  nodeDefs: NodeDefs;
-  logger: Pick<typeof logger, "debug" | "info" | "warn" | "error" | "log">;
+    fs: typeof Fs;
+    path: typeof b3path;
+    workdir: string;
+    nodeDefs: NodeDefs;
+    logger: Pick<typeof logger, "debug" | "info" | "warn" | "error" | "log">;
 };
 
 export interface BatchScript {
-  onProcessTree?(tree: TreeData, path: string, errors: string[]): TreeData | null;
-  onProcessNode?(node: NodeData, errors: string[]): NodeData | null;
-  onWriteFile?(path: string, tree: TreeData): void;
-  onComplete?(status: "success" | "failure"): void;
+    onProcessTree?(tree: TreeData, path: string, errors: string[]): TreeData | null;
+    onProcessNode?(node: NodeData, errors: string[]): NodeData | null;
+    onWriteFile?(path: string, tree: TreeData): void;
+    onComplete?(status: "success" | "failure"): void;
 }
 
 type HookCtor = new (env: Env) => BatchScript;
 
 const hasBatchHookMethod = (obj: unknown): obj is BatchScript => {
-  if (!obj || typeof obj !== "object") {
-    return false;
-  }
-  const candidate = obj as Partial<BatchScript>;
-  return (
-    typeof candidate.onProcessTree === "function" ||
-    typeof candidate.onProcessNode === "function" ||
-    typeof candidate.onWriteFile === "function" ||
-    typeof candidate.onComplete === "function"
-  );
+    if (!obj || typeof obj !== "object") {
+        return false;
+    }
+    const candidate = obj as Partial<BatchScript>;
+    return (
+        typeof candidate.onProcessTree === "function" ||
+        typeof candidate.onProcessNode === "function" ||
+        typeof candidate.onWriteFile === "function" ||
+        typeof candidate.onComplete === "function"
+    );
 };
 
 const createBatchHooks = (
-  moduleExports: unknown,
-  env: Env,
-  scriptPath: string
+    moduleExports: unknown,
+    env: Env,
+    scriptPath: string
 ): BatchScript | undefined => {
-  if (!moduleExports || typeof moduleExports !== "object") {
-    return undefined;
-  }
-  const m = moduleExports as Record<string, unknown>;
-  const ctor = (m.Hook ?? m.default) as HookCtor | undefined;
-  if (typeof ctor === "function") {
-    try {
-      const instance = new ctor(env);
-      if (hasBatchHookMethod(instance)) {
-        return instance;
-      }
-      logger.error("build hook class instance has no supported hook methods");
-    } catch (e) {
-      logger.error("failed to instantiate build hook class", e);
+    if (!moduleExports || typeof moduleExports !== "object") {
+        return undefined;
     }
-  }
+    const m = moduleExports as Record<string, unknown>;
+    const ctor = (m.Hook ?? m.default) as HookCtor | undefined;
+    if (typeof ctor === "function") {
+        try {
+            const instance = new ctor(env);
+            if (hasBatchHookMethod(instance)) {
+                return instance;
+            }
+            logger.error("build hook class instance has no supported hook methods");
+        } catch (e) {
+            logger.error("failed to instantiate build hook class", e);
+        }
+    }
 
-  const ext = b3path.extname(scriptPath).toLowerCase();
-  const isJsScript = ext === ".js" || ext === ".mjs" || ext === ".cjs";
-  if (isJsScript) {
-    const legacy = m as unknown as {
-      onProcessTree?: (env: Env, tree: TreeData, path: string, errors: string[]) => TreeData | null;
-      onProcessNode?: (env: Env, node: NodeData, errors: string[]) => NodeData | null;
-      onWriteFile?: (env: Env, path: string, tree: TreeData) => void;
-      onComplete?: (env: Env, status: "success" | "failure") => void;
-    };
-    if (
-      typeof legacy.onProcessTree === "function" ||
-      typeof legacy.onProcessNode === "function" ||
-      typeof legacy.onWriteFile === "function" ||
-      typeof legacy.onComplete === "function"
-    ) {
-      return {
-        onProcessTree: legacy.onProcessTree
-          ? (tree, path, errors) => legacy.onProcessTree?.(env, tree, path, errors) ?? tree
-          : undefined,
-        onProcessNode: legacy.onProcessNode
-          ? (node, errors) => legacy.onProcessNode?.(env, node, errors) ?? node
-          : undefined,
-        onWriteFile: legacy.onWriteFile
-          ? (path, tree) => legacy.onWriteFile?.(env, path, tree)
-          : undefined,
-        onComplete: legacy.onComplete ? (status) => legacy.onComplete?.(env, status) : undefined,
-      };
+    const ext = b3path.extname(scriptPath).toLowerCase();
+    const isJsScript = ext === ".js" || ext === ".mjs" || ext === ".cjs";
+    if (isJsScript) {
+        const legacy = m as unknown as {
+            onProcessTree?: (
+                env: Env,
+                tree: TreeData,
+                path: string,
+                errors: string[]
+            ) => TreeData | null;
+            onProcessNode?: (env: Env, node: NodeData, errors: string[]) => NodeData | null;
+            onWriteFile?: (env: Env, path: string, tree: TreeData) => void;
+            onComplete?: (env: Env, status: "success" | "failure") => void;
+        };
+        if (
+            typeof legacy.onProcessTree === "function" ||
+            typeof legacy.onProcessNode === "function" ||
+            typeof legacy.onWriteFile === "function" ||
+            typeof legacy.onComplete === "function"
+        ) {
+            return {
+                onProcessTree: legacy.onProcessTree
+                    ? (tree, path, errors) =>
+                          legacy.onProcessTree?.(env, tree, path, errors) ?? tree
+                    : undefined,
+                onProcessNode: legacy.onProcessNode
+                    ? (node, errors) => legacy.onProcessNode?.(env, node, errors) ?? node
+                    : undefined,
+                onWriteFile: legacy.onWriteFile
+                    ? (path, tree) => legacy.onWriteFile?.(env, path, tree)
+                    : undefined,
+                onComplete: legacy.onComplete
+                    ? (status) => legacy.onComplete?.(env, status)
+                    : undefined,
+            };
+        }
     }
-  }
-  logger.error(
-    isJsScript
-      ? "build script must export a Hook class (`Hook`/default) or legacy hook functions (JS only)"
-      : "build script must export a Hook class (named export `Hook` or default export)"
-  );
-  return undefined;
+    logger.error(
+        isJsScript
+            ? "build script must export a Hook class (`Hook`/default) or legacy hook functions (JS only)"
+            : "build script must export a Hook class (named export `Hook` or default export)"
+    );
+    return undefined;
 };
 
 export let calcSize: (d: NodeData) => number[] = () => [0, 0];
@@ -135,573 +143,576 @@ let workdir: string = "";
 let alertError: (msg: string, duration?: number) => void = () => {};
 
 const unknownNodeDef: NodeDef = {
-  name: "unknown",
-  desc: "",
-  type: "Action",
+    name: "unknown",
+    desc: "",
+    type: "Action",
 };
 
 export const initWorkdir = (path: string, handler: typeof alertError) => {
-  const posix = path.replace(/\\/g, "/");
-  initWorkdirFromSettingFile(posix, `${posix}/node-config.b3-setting`, handler);
+    const posix = path.replace(/\\/g, "/");
+    initWorkdirFromSettingFile(posix, `${posix}/node-config.b3-setting`, handler);
 };
 
 /** Load node defs from an explicit `.b3-setting` path (VS Code auto-discovered `*.b3-setting`). */
 export const initWorkdirFromSettingFile = (
-  workdirPath: string,
-  settingFilePath: string,
-  handler: typeof alertError
+    workdirPath: string,
+    settingFilePath: string,
+    handler: typeof alertError
 ) => {
-  workdir = workdirPath.replace(/\\/g, "/");
-  alertError = handler;
-  const nodeDefData = readJson(settingFilePath) as NodeDef[];
-  const groups: Set<string> = new Set();
-  nodeDefs = new NodeDefs();
-  for (const node of nodeDefData) {
-    node.args?.forEach((arg) => {
-      if (arg.options && !arg.options[0].source) {
-        arg.options = [
-          {
-            source: arg.options as unknown as Array<{ name: string; value: unknown }>,
-          },
-        ];
-      }
-      arg.options?.forEach((option) => {
-        Object.keys(option.match ?? {}).forEach((key) => {
-          if (!node.args?.find((v) => v.name === key)) {
-            logger.error(
-              `match key '${key}' in arg '${arg.name}' of ` +
-                `node '${node.name}' is not found in args`
-            );
-          }
+    workdir = workdirPath.replace(/\\/g, "/");
+    alertError = handler;
+    const nodeDefData = readJson(settingFilePath) as NodeDef[];
+    const groups: Set<string> = new Set();
+    nodeDefs = new NodeDefs();
+    for (const node of nodeDefData) {
+        node.args?.forEach((arg) => {
+            if (arg.options && !arg.options[0].source) {
+                arg.options = [
+                    {
+                        source: arg.options as unknown as Array<{ name: string; value: unknown }>,
+                    },
+                ];
+            }
+            arg.options?.forEach((option) => {
+                Object.keys(option.match ?? {}).forEach((key) => {
+                    if (!node.args?.find((v) => v.name === key)) {
+                        logger.error(
+                            `match key '${key}' in arg '${arg.name}' of ` +
+                                `node '${node.name}' is not found in args`
+                        );
+                    }
+                });
+            });
         });
-      });
-    });
-    nodeDefs.set(node.name, node);
-    node.group?.forEach((g) => groups.add(g));
-  }
-  groupDefs = Array.from(groups).sort();
+        nodeDefs.set(node.name, node);
+        node.group?.forEach((g) => groups.add(g));
+    }
+    groupDefs = Array.from(groups).sort();
 };
 
 /** Webview: receive pre-loaded defs from extension host (no disk). */
 export const initWithNodeDefs = (defs: NodeDef[], handler: typeof alertError, check: boolean) => {
-  alertError = handler;
-  checkExpr = check;
-  const groups: Set<string> = new Set();
-  nodeDefs = new NodeDefs();
-  for (const node of defs) {
-    node.args?.forEach((arg) => {
-      if (arg.options && !Array.isArray((arg.options as Array<{ source: unknown }>)[0]?.source)) {
-        arg.options = [
-          {
-            source: arg.options as unknown as Array<{ name: string; value: unknown }>,
-          },
-        ];
-      }
-    });
-    nodeDefs.set(node.name, node);
-    node.group?.forEach((g) => groups.add(g));
-  }
-  groupDefs = Array.from(groups).sort();
+    alertError = handler;
+    checkExpr = check;
+    const groups: Set<string> = new Set();
+    nodeDefs = new NodeDefs();
+    for (const node of defs) {
+        node.args?.forEach((arg) => {
+            if (
+                arg.options &&
+                !Array.isArray((arg.options as Array<{ source: unknown }>)[0]?.source)
+            ) {
+                arg.options = [
+                    {
+                        source: arg.options as unknown as Array<{ name: string; value: unknown }>,
+                    },
+                ];
+            }
+        });
+        nodeDefs.set(node.name, node);
+        node.group?.forEach((g) => groups.add(g));
+    }
+    groupDefs = Array.from(groups).sort();
 };
 
 export const setSizeCalculator = (calc: (d: NodeData) => number[]) => {
-  calcSize = calc;
+    calcSize = calc;
 };
 
 export const updateUsingGroups = (group: string[]) => {
-  usingGroups = null;
-  for (const g of group) {
-    usingGroups ??= {};
-    usingGroups[g] = true;
-  }
+    usingGroups = null;
+    for (const g of group) {
+        usingGroups ??= {};
+        usingGroups[g] = true;
+    }
 };
 
 export const updateUsingVars = (vars: VarDecl[]) => {
-  usingVars = null;
-  for (const v of vars) {
-    usingVars ??= {};
-    usingVars[v.name] = v;
-  }
+    usingVars = null;
+    for (const v of vars) {
+        usingVars ??= {};
+        usingVars[v.name] = v;
+    }
 };
 
 export const setCheckExpr = (check: boolean) => {
-  checkExpr = check;
+    checkExpr = check;
 };
 
 export const parseExpr = (expr: string) => {
-  if (parsedExprs[expr]) {
-    return parsedExprs[expr];
-  }
-  const result = expr
-    .split(/[^a-zA-Z0-9_.'"]/)
-    .map((v) => v.split(".")[0])
-    .filter((v) => isValidVariableName(v));
-  parsedExprs[expr] = result;
-  return result;
+    if (parsedExprs[expr]) {
+        return parsedExprs[expr];
+    }
+    const result = expr
+        .split(/[^a-zA-Z0-9_.'"]/)
+        .map((v) => v.split(".")[0])
+        .filter((v) => isValidVariableName(v));
+    parsedExprs[expr] = result;
+    return result;
 };
 
 export const dfs = <T extends { children?: T[] }>(
-  node: T,
-  visitor: (node: T, depth: number) => unknown,
-  depth: number = 0
+    node: T,
+    visitor: (node: T, depth: number) => unknown,
+    depth: number = 0
 ) => {
-  const traverse = (n: T, d: number) => {
-    if (visitor(n, d) === false) {
-      return false;
-    }
-    if (n.children) {
-      for (const child of n.children) {
-        if (traverse(child, d + 1) === false) {
-          return false;
+    const traverse = (n: T, d: number) => {
+        if (visitor(n, d) === false) {
+            return false;
         }
-      }
-    }
-  };
-  traverse(node, depth);
+        if (n.children) {
+            for (const child of n.children) {
+                if (traverse(child, d + 1) === false) {
+                    return false;
+                }
+            }
+        }
+    };
+    traverse(node, depth);
 };
 
 export const isNewVersion = (version: string) => {
-  const [major, minor, patch] = version.split(".").map(Number);
-  const [major2, minor2, patch2] = VERSION.split(".").map(Number);
-  return (
-    major > major2 ||
-    (major === major2 && minor > minor2) ||
-    (major === major2 && minor === minor2 && patch > patch2)
-  );
+    const [major, minor, patch] = version.split(".").map(Number);
+    const [major2, minor2, patch2] = VERSION.split(".").map(Number);
+    return (
+        major > major2 ||
+        (major === major2 && minor > minor2) ||
+        (major === major2 && minor === minor2 && patch > patch2)
+    );
 };
 
 export const isValidVariableName = (name: string) => {
-  return /^[a-zA-Z_$][a-zA-Z_$0-9]*$/.test(name) && !keyWords.includes(name);
+    return /^[a-zA-Z_$][a-zA-Z_$0-9]*$/.test(name) && !keyWords.includes(name);
 };
 
 export const isSubtreeRoot = (data: NodeData) => {
-  return data.path && data.id !== "1";
+    return data.path && data.id !== "1";
 };
 
 export const isNodeEqual = (node1: NodeData, node2: NodeData) => {
-  if (
-    node1.name === node2.name &&
-    node1.desc === node2.desc &&
-    node1.path === node2.path &&
-    node1.debug === node2.debug &&
-    node1.disabled === node2.disabled
-  ) {
-    const def = nodeDefs.get(node1.name);
+    if (
+        node1.name === node2.name &&
+        node1.desc === node2.desc &&
+        node1.path === node2.path &&
+        node1.debug === node2.debug &&
+        node1.disabled === node2.disabled
+    ) {
+        const def = nodeDefs.get(node1.name);
 
-    for (const arg of def.args ?? []) {
-      if (node1.args?.[arg.name] !== node2.args?.[arg.name]) {
-        return false;
-      }
-    }
-
-    if (def.input?.length) {
-      const len = Math.max(node1.input?.length ?? 0, node2.input?.length ?? 0);
-      for (let i = 0; i < len; i++) {
-        if (node1.input?.[i] !== node2.input?.[i]) {
-          return false;
+        for (const arg of def.args ?? []) {
+            if (node1.args?.[arg.name] !== node2.args?.[arg.name]) {
+                return false;
+            }
         }
-      }
-    }
 
-    if (def.output?.length) {
-      const len = Math.max(node1.output?.length ?? 0, node2.output?.length ?? 0);
-      for (let i = 0; i < len; i++) {
-        if (node1.output?.[i] !== node2.output?.[i]) {
-          return false;
+        if (def.input?.length) {
+            const len = Math.max(node1.input?.length ?? 0, node2.input?.length ?? 0);
+            for (let i = 0; i < len; i++) {
+                if (node1.input?.[i] !== node2.input?.[i]) {
+                    return false;
+                }
+            }
         }
-      }
-    }
 
-    return true;
-  }
-  return false;
+        if (def.output?.length) {
+            const len = Math.max(node1.output?.length ?? 0, node2.output?.length ?? 0);
+            for (let i = 0; i < len; i++) {
+                if (node1.output?.[i] !== node2.output?.[i]) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+    return false;
 };
 
 type ErrorPrinter = (msg: string) => void;
 
 const formatError = (data: NodeData, msg: string) => {
-  return `check ${data.id}|${data.name}: ${msg}`;
+    return `check ${data.id}|${data.name}: ${msg}`;
 };
 
 export const getNodeArgRawType = (arg: NodeArg) => {
-  return arg.type.match(/^\w+/)![0] as NodeArg["type"];
+    return arg.type.match(/^\w+/)![0] as NodeArg["type"];
 };
 
 export const isNodeArgArray = (arg: NodeArg) => {
-  return arg.type.includes("[]");
+    return arg.type.includes("[]");
 };
 
 export const isNodeArgOptional = (arg: NodeArg) => {
-  return arg.type.includes("?");
+    return arg.type.includes("?");
 };
 
 /** Normalized shape after init (see initWorkdir / initWithNodeDefs). */
 type ArgOptionBucket = {
-  match?: Record<string, string[]>;
-  source: Array<{ name: string; value: unknown }>;
+    match?: Record<string, string[]>;
+    source: Array<{ name: string; value: unknown }>;
 };
 
 function argOptionBuckets(arg: NodeArg): ArgOptionBucket[] | undefined {
-  const o = arg.options;
-  if (!Array.isArray(o)) {
-    return undefined;
-  }
-  return o as ArgOptionBucket[];
+    const o = arg.options;
+    if (!Array.isArray(o)) {
+        return undefined;
+    }
+    return o as ArgOptionBucket[];
 }
 
 export const getNodeArgOptions = (arg: NodeArg, args: Record<string, unknown>) => {
-  const opts = argOptionBuckets(arg);
-  if (!opts?.length) {
-    return;
-  }
-  const defaultMatch = opts.find((option) => !option.match);
-  if (defaultMatch) {
-    return defaultMatch.source;
-  }
-  return opts.find((entry) =>
-    Object.entries(entry.match!).every(([key, value]) => {
-      const arr = value as unknown[];
-      const a = args[key];
-      return Array.isArray(arr) && arr.includes(a);
-    })
-  )?.source;
+    const opts = argOptionBuckets(arg);
+    if (!opts?.length) {
+        return;
+    }
+    const defaultMatch = opts.find((option) => !option.match);
+    if (defaultMatch) {
+        return defaultMatch.source;
+    }
+    return opts.find((entry) =>
+        Object.entries(entry.match!).every(([key, value]) => {
+            const arr = value as unknown[];
+            const a = args[key];
+            return Array.isArray(arr) && arr.includes(a);
+        })
+    )?.source;
 };
 
 export const checkNodeArgValue = (
-  data: NodeData,
-  arg: NodeArg,
-  value: unknown,
-  printer?: ErrorPrinter
+    data: NodeData,
+    arg: NodeArg,
+    value: unknown,
+    printer?: ErrorPrinter
 ) => {
-  let hasError = false;
-  const type = getNodeArgRawType(arg);
-  const error = !printer ? () => {} : (msg: string) => printer(formatError(data, msg));
-  if (isFloatType(type)) {
-    const isNumber = typeof value === "number";
-    const isOptional = value === undefined && isNodeArgOptional(arg);
-    if (!(isNumber || isOptional)) {
-      error(`'${arg.name}=${JSON.stringify(value)}' is not a number`);
-      hasError = true;
+    let hasError = false;
+    const type = getNodeArgRawType(arg);
+    const error = !printer ? () => {} : (msg: string) => printer(formatError(data, msg));
+    if (isFloatType(type)) {
+        const isNumber = typeof value === "number";
+        const isOptional = value === undefined && isNodeArgOptional(arg);
+        if (!(isNumber || isOptional)) {
+            error(`'${arg.name}=${JSON.stringify(value)}' is not a number`);
+            hasError = true;
+        }
+    } else if (isIntType(type)) {
+        const isInt = typeof value === "number" && value === Math.floor(value);
+        const isOptional = value === undefined && isNodeArgOptional(arg);
+        if (!(isInt || isOptional)) {
+            error(`'${arg.name}=${JSON.stringify(value)}' is not a int`);
+            hasError = true;
+        }
+    } else if (isStringType(type)) {
+        const isString = typeof value === "string" && value;
+        const isOptional = (value === undefined || value === "") && isNodeArgOptional(arg);
+        if (!(isString || isOptional)) {
+            error(`'${arg.name}=${JSON.stringify(value)}' is not a string`);
+            hasError = true;
+        }
+    } else if (isExprType(type)) {
+        const isExpr = typeof value === "string" && value;
+        const isOptional = (value === undefined || value === "") && isNodeArgOptional(arg);
+        if (!(isExpr || isOptional)) {
+            error(`'${arg.name}=${JSON.stringify(value)}' is not an expr string`);
+            hasError = true;
+        }
+    } else if (isJsonType(type)) {
+        const isJson = value !== undefined && value !== "";
+        const isOptional = isNodeArgOptional(arg);
+        if (!(isJson || isOptional)) {
+            error(`'${arg.name}=${value}' is not an invalid object`);
+            hasError = true;
+        }
+    } else if (isBoolType(type)) {
+        const isBool = typeof value === "boolean";
+        const isOptional = value === undefined && isNodeArgOptional(arg);
+        if (!(isBool || isOptional)) {
+            error(`'${arg.name}=${JSON.stringify(value)}' is not a boolean`);
+            hasError = true;
+        }
+    } else {
+        hasError = true;
+        error(`unknown arg type '${arg.type}'`);
     }
-  } else if (isIntType(type)) {
-    const isInt = typeof value === "number" && value === Math.floor(value);
-    const isOptional = value === undefined && isNodeArgOptional(arg);
-    if (!(isInt || isOptional)) {
-      error(`'${arg.name}=${JSON.stringify(value)}' is not a int`);
-      hasError = true;
-    }
-  } else if (isStringType(type)) {
-    const isString = typeof value === "string" && value;
-    const isOptional = (value === undefined || value === "") && isNodeArgOptional(arg);
-    if (!(isString || isOptional)) {
-      error(`'${arg.name}=${JSON.stringify(value)}' is not a string`);
-      hasError = true;
-    }
-  } else if (isExprType(type)) {
-    const isExpr = typeof value === "string" && value;
-    const isOptional = (value === undefined || value === "") && isNodeArgOptional(arg);
-    if (!(isExpr || isOptional)) {
-      error(`'${arg.name}=${JSON.stringify(value)}' is not an expr string`);
-      hasError = true;
-    }
-  } else if (isJsonType(type)) {
-    const isJson = value !== undefined && value !== "";
-    const isOptional = isNodeArgOptional(arg);
-    if (!(isJson || isOptional)) {
-      error(`'${arg.name}=${value}' is not an invalid object`);
-      hasError = true;
-    }
-  } else if (isBoolType(type)) {
-    const isBool = typeof value === "boolean";
-    const isOptional = value === undefined && isNodeArgOptional(arg);
-    if (!(isBool || isOptional)) {
-      error(`'${arg.name}=${JSON.stringify(value)}' is not a boolean`);
-      hasError = true;
-    }
-  } else {
-    hasError = true;
-    error(`unknown arg type '${arg.type}'`);
-  }
 
-  if (hasArgOptions(arg)) {
-    const options = getNodeArgOptions(arg, data.args ?? {});
-    const found = !!options?.find(
-      (option: { name: string; value: unknown }) => option.value === value
-    );
-    const isOptional = value === undefined && isNodeArgOptional(arg);
-    if (!(found || isOptional)) {
-      error(`'${arg.name}=${JSON.stringify(value)}' is not a one of the option values`);
-      hasError = true;
+    if (hasArgOptions(arg)) {
+        const options = getNodeArgOptions(arg, data.args ?? {});
+        const found = !!options?.find(
+            (option: { name: string; value: unknown }) => option.value === value
+        );
+        const isOptional = value === undefined && isNodeArgOptional(arg);
+        if (!(found || isOptional)) {
+            error(`'${arg.name}=${JSON.stringify(value)}' is not a one of the option values`);
+            hasError = true;
+        }
     }
-  }
 
-  return !hasError;
+    return !hasError;
 };
 
 export const checkNodeArg = (data: NodeData, conf: NodeDef, i: number, printer?: ErrorPrinter) => {
-  let hasError = false;
-  const arg = conf.args![i] as NodeArg;
-  const value = data.args?.[arg.name];
-  const error = !printer ? () => {} : (msg: string) => printer(formatError(data, msg));
-  if (isNodeArgArray(arg)) {
-    if (!Array.isArray(value) || value.length === 0) {
-      if (!isNodeArgOptional(arg)) {
-        error(`'${arg.name}=${JSON.stringify(value)}' is not an array or empty array`);
-        hasError = true;
-      }
-    } else {
-      for (let j = 0; j < value.length; j++) {
-        if (!checkNodeArgValue(data, arg, value[j], printer)) {
-          hasError = true;
+    let hasError = false;
+    const arg = conf.args![i] as NodeArg;
+    const value = data.args?.[arg.name];
+    const error = !printer ? () => {} : (msg: string) => printer(formatError(data, msg));
+    if (isNodeArgArray(arg)) {
+        if (!Array.isArray(value) || value.length === 0) {
+            if (!isNodeArgOptional(arg)) {
+                error(`'${arg.name}=${JSON.stringify(value)}' is not an array or empty array`);
+                hasError = true;
+            }
+        } else {
+            for (let j = 0; j < value.length; j++) {
+                if (!checkNodeArgValue(data, arg, value[j], printer)) {
+                    hasError = true;
+                }
+            }
         }
-      }
+    } else if (!checkNodeArgValue(data, arg, value, printer)) {
+        hasError = true;
     }
-  } else if (!checkNodeArgValue(data, arg, value, printer)) {
-    hasError = true;
-  }
-  if (arg.oneof !== undefined) {
-    const idx = conf.input?.findIndex((v) => v.startsWith(arg.oneof!)) ?? -1;
-    if (!checkOneof(arg, data.args?.[arg.name], data.input?.[idx])) {
-      error(
-        `only one is allowed for between argument '${arg.name}' and input '${data.input?.[idx]}'`
-      );
+    if (arg.oneof !== undefined) {
+        const idx = conf.input?.findIndex((v) => v.startsWith(arg.oneof!)) ?? -1;
+        if (!checkOneof(arg, data.args?.[arg.name], data.input?.[idx])) {
+            error(
+                `only one is allowed for between argument '${arg.name}' and input '${data.input?.[idx]}'`
+            );
 
-      hasError = true;
+            hasError = true;
+        }
     }
-  }
 
-  return !hasError;
+    return !hasError;
 };
 
 export const checkOneof = (arg: NodeArg, argValue: unknown, inputValue: unknown) => {
-  if (isNodeArgArray(arg)) {
-    if (argValue instanceof Array && argValue.length === 0) {
-      argValue = undefined;
+    if (isNodeArgArray(arg)) {
+        if (argValue instanceof Array && argValue.length === 0) {
+            argValue = undefined;
+        }
     }
-  }
-  argValue = argValue === undefined ? "" : argValue;
-  inputValue = inputValue ?? "";
-  return (argValue !== "" && inputValue === "") || (argValue === "" && inputValue !== "");
+    argValue = argValue === undefined ? "" : argValue;
+    inputValue = inputValue ?? "";
+    return (argValue !== "" && inputValue === "") || (argValue === "" && inputValue !== "");
 };
 
 export const isValidNodeData = (data: NodeData) => {
-  const def = nodeDefs.get(data.name);
-  if (def.input) {
-    for (let i = 0; i < def.input.length; i++) {
-      if (!isValidInputOrOutput(def.input, data.input, i)) {
-        return false;
-      }
+    const def = nodeDefs.get(data.name);
+    if (def.input) {
+        for (let i = 0; i < def.input.length; i++) {
+            if (!isValidInputOrOutput(def.input, data.input, i)) {
+                return false;
+            }
+        }
     }
-  }
-  if (def.output) {
-    for (let i = 0; i < def.output.length; i++) {
-      if (!isValidInputOrOutput(def.output, data.output, i)) {
-        return false;
-      }
+    if (def.output) {
+        for (let i = 0; i < def.output.length; i++) {
+            if (!isValidInputOrOutput(def.output, data.output, i)) {
+                return false;
+            }
+        }
     }
-  }
-  if (!isValidChildren(data)) {
-    return false;
-  }
-  if (def.args) {
-    for (let i = 0; i < def.args.length; i++) {
-      if (!checkNodeArg(data, def, i)) {
+    if (!isValidChildren(data)) {
         return false;
-      }
     }
-  }
+    if (def.args) {
+        for (let i = 0; i < def.args.length; i++) {
+            if (!checkNodeArg(data, def, i)) {
+                return false;
+            }
+        }
+    }
 
-  return true;
+    return true;
 };
 
 export const checkNodeData = (data: NodeData | null | undefined, printer: ErrorPrinter) => {
-  if (!data) {
-    return false;
-  }
-  const error = !printer ? () => {} : (msg: string) => printer(formatError(data, msg));
-  const conf = nodeDefs.get(data.name);
-  if (conf.name === unknownNodeDef.name) {
-    error(`undefined node: ${data.name}`);
-    return false;
-  }
-
-  let hasError = false;
-
-  if (conf.group) {
-    const groups = Array.isArray(conf.group) ? conf.group : [conf.group];
-    if (!groups.some((g) => usingGroups?.[g])) {
-      error(`node group '${conf.group}' is not enabled`);
-      hasError = true;
+    if (!data) {
+        return false;
     }
-  }
-
-  if (usingVars) {
-    if (data.input) {
-      for (const v of data.input) {
-        if (v && !usingVars[v]) {
-          error(`input variable '${v}' is not defined`);
-          hasError = true;
-        }
-      }
+    const error = !printer ? () => {} : (msg: string) => printer(formatError(data, msg));
+    const conf = nodeDefs.get(data.name);
+    if (conf.name === unknownNodeDef.name) {
+        error(`undefined node: ${data.name}`);
+        return false;
     }
-    if (data.output) {
-      for (const v of data.output) {
-        if (v && !usingVars[v]) {
-          error(`output variable '${v}' is not defined`);
-          hasError = true;
-        }
-      }
-    }
-  }
 
-  if (data.args && conf.args) {
-    for (const arg of conf.args) {
-      const value = data.args?.[arg.name] as string | string[] | undefined;
-      if (isExprType(arg.type) && value) {
-        if (usingVars) {
-          const vars: string[] = [];
-          if (typeof value === "string") {
-            vars.push(...parseExpr(value));
-          } else if (Array.isArray(value)) {
-            for (const v of value) {
-              vars.push(...parseExpr(v));
-            }
-          }
-          for (const v of vars) {
-            if (v && !usingVars[v]) {
-              error(`expr variable '${arg.name}' is not defined`);
-              hasError = true;
-            }
-          }
+    let hasError = false;
+
+    if (conf.group) {
+        const groups = Array.isArray(conf.group) ? conf.group : [conf.group];
+        if (!groups.some((g) => usingGroups?.[g])) {
+            error(`node group '${conf.group}' is not enabled`);
+            hasError = true;
         }
-        if (checkExpr) {
-          const exprs: string[] = [];
-          if (typeof value === "string") {
-            exprs.push(value);
-          } else if (Array.isArray(value)) {
-            for (const v of value) {
-              exprs.push(v);
+    }
+
+    if (usingVars) {
+        if (data.input) {
+            for (const v of data.input) {
+                if (v && !usingVars[v]) {
+                    error(`input variable '${v}' is not defined`);
+                    hasError = true;
+                }
             }
-          }
-          for (const expr of exprs) {
-            try {
-              if (!new ExpressionEvaluator(expr).dryRun()) {
-                error(`expr '${expr}' is not valid`);
+        }
+        if (data.output) {
+            for (const v of data.output) {
+                if (v && !usingVars[v]) {
+                    error(`output variable '${v}' is not defined`);
+                    hasError = true;
+                }
+            }
+        }
+    }
+
+    if (data.args && conf.args) {
+        for (const arg of conf.args) {
+            const value = data.args?.[arg.name] as string | string[] | undefined;
+            if (isExprType(arg.type) && value) {
+                if (usingVars) {
+                    const vars: string[] = [];
+                    if (typeof value === "string") {
+                        vars.push(...parseExpr(value));
+                    } else if (Array.isArray(value)) {
+                        for (const v of value) {
+                            vars.push(...parseExpr(v));
+                        }
+                    }
+                    for (const v of vars) {
+                        if (v && !usingVars[v]) {
+                            error(`expr variable '${arg.name}' is not defined`);
+                            hasError = true;
+                        }
+                    }
+                }
+                if (checkExpr) {
+                    const exprs: string[] = [];
+                    if (typeof value === "string") {
+                        exprs.push(value);
+                    } else if (Array.isArray(value)) {
+                        for (const v of value) {
+                            exprs.push(v);
+                        }
+                    }
+                    for (const expr of exprs) {
+                        try {
+                            if (!new ExpressionEvaluator(expr).dryRun()) {
+                                error(`expr '${expr}' is not valid`);
+                                hasError = true;
+                            }
+                        } catch (e) {
+                            error(`expr '${expr}' is not valid`);
+                            hasError = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (!isValidChildren(data)) {
+        hasError = true;
+        const count = data.children?.filter((c) => !c.disabled).length || 0;
+        error(`expect ${conf.children} children, but got ${count}`);
+    }
+
+    let hasVaridicInput = false;
+    if (conf.input) {
+        for (let i = 0; i < conf.input.length; i++) {
+            if (!data.input) {
+                data.input = [];
+            }
+            if (!data.input[i]) {
+                data.input[i] = "";
+            }
+            if (data.input[i] && !isValidVariableName(data.input[i])) {
+                error(
+                    `input field '${data.input[i]}' is not a valid variable name,` +
+                        `should start with a letter or underscore`
+                );
                 hasError = true;
-              }
-            } catch (e) {
-              error(`expr '${expr}' is not valid`);
-              hasError = true;
             }
-          }
+            if (!isValidInputOrOutput(conf.input, data.input, i)) {
+                error(`intput field '${conf.input[i]}' is required`);
+                hasError = true;
+            }
+            if (i === conf.input.length - 1 && conf.input.at(-1)?.endsWith("...")) {
+                hasVaridicInput = true;
+            }
         }
-      }
     }
-  }
-
-  if (!isValidChildren(data)) {
-    hasError = true;
-    const count = data.children?.filter((c) => !c.disabled).length || 0;
-    error(`expect ${conf.children} children, but got ${count}`);
-  }
-
-  let hasVaridicInput = false;
-  if (conf.input) {
-    for (let i = 0; i < conf.input.length; i++) {
-      if (!data.input) {
-        data.input = [];
-      }
-      if (!data.input[i]) {
-        data.input[i] = "";
-      }
-      if (data.input[i] && !isValidVariableName(data.input[i])) {
-        error(
-          `input field '${data.input[i]}' is not a valid variable name,` +
-            `should start with a letter or underscore`
-        );
-        hasError = true;
-      }
-      if (!isValidInputOrOutput(conf.input, data.input, i)) {
-        error(`intput field '${conf.input[i]}' is required`);
-        hasError = true;
-      }
-      if (i === conf.input.length - 1 && conf.input.at(-1)?.endsWith("...")) {
-        hasVaridicInput = true;
-      }
+    if (data.input && !hasVaridicInput) {
+        data.input.length = conf.input?.length || 0;
     }
-  }
-  if (data.input && !hasVaridicInput) {
-    data.input.length = conf.input?.length || 0;
-  }
 
-  let hasVaridicOutput = false;
-  if (conf.output) {
-    for (let i = 0; i < conf.output.length; i++) {
-      if (!data.output) {
-        data.output = [];
-      }
-      if (!data.output[i]) {
-        data.output[i] = "";
-      }
-      if (data.output[i] && !isValidVariableName(data.output[i])) {
-        error(
-          `output field '${data.output[i]}' is not a valid variable name,` +
-            `should start with a letter or underscore`
-        );
-        hasError = true;
-      }
-      if (!isValidInputOrOutput(conf.output, data.output, i)) {
-        error(`output field '${conf.output[i]}' is required`);
-        hasError = true;
-      }
-      if (i === conf.output.length - 1 && conf.output.at(-1)?.endsWith("...")) {
-        hasVaridicOutput = true;
-      }
+    let hasVaridicOutput = false;
+    if (conf.output) {
+        for (let i = 0; i < conf.output.length; i++) {
+            if (!data.output) {
+                data.output = [];
+            }
+            if (!data.output[i]) {
+                data.output[i] = "";
+            }
+            if (data.output[i] && !isValidVariableName(data.output[i])) {
+                error(
+                    `output field '${data.output[i]}' is not a valid variable name,` +
+                        `should start with a letter or underscore`
+                );
+                hasError = true;
+            }
+            if (!isValidInputOrOutput(conf.output, data.output, i)) {
+                error(`output field '${conf.output[i]}' is required`);
+                hasError = true;
+            }
+            if (i === conf.output.length - 1 && conf.output.at(-1)?.endsWith("...")) {
+                hasVaridicOutput = true;
+            }
+        }
     }
-  }
-  if (data.output && !hasVaridicOutput) {
-    data.output.length = conf.output?.length || 0;
-  }
-  if (conf.args) {
-    const args: { [k: string]: unknown } = {};
-    data.args ||= {};
-    for (let i = 0; i < conf.args.length; i++) {
-      const key = conf.args[i].name;
-      if (data.args[key] === undefined && conf.args[i].default !== undefined) {
-        data.args[key] = conf.args[i].default;
-      }
-
-      const value = data.args[key];
-      if (value !== undefined) {
-        args[key] = value;
-      }
-
-      if (!checkNodeArg(data, conf, i, printer)) {
-        hasError = true;
-      }
+    if (data.output && !hasVaridicOutput) {
+        data.output.length = conf.output?.length || 0;
     }
-    data.args = args;
-  }
+    if (conf.args) {
+        const args: { [k: string]: unknown } = {};
+        data.args ||= {};
+        for (let i = 0; i < conf.args.length; i++) {
+            const key = conf.args[i].name;
+            if (data.args[key] === undefined && conf.args[i].default !== undefined) {
+                data.args[key] = conf.args[i].default;
+            }
 
-  if (data.children) {
-    for (const child of data.children) {
-      if (!checkNodeData(child, printer)) {
-        hasError = true;
-      }
+            const value = data.args[key];
+            if (value !== undefined) {
+                args[key] = value;
+            }
+
+            if (!checkNodeArg(data, conf, i, printer)) {
+                hasError = true;
+            }
+        }
+        data.args = args;
     }
-  } else {
-    data.children = [];
-  }
 
-  return !hasError;
+    if (data.children) {
+        for (const child of data.children) {
+            if (!checkNodeData(child, printer)) {
+                hasError = true;
+            }
+        }
+    } else {
+        data.children = [];
+    }
+
+    return !hasError;
 };
 
 /** Align with extension `treeEditorProvider.normalizePathKey` for subtree path lookup. */
 export const normalizeSubtreePathKey = (p: string) =>
-  p
-    .replace(/\\/g, "/")
-    .replace(/^[/\\]+/, "")
-    .replace(/^\.\//, "");
+    p
+        .replace(/\\/g, "/")
+        .replace(/^[/\\]+/, "")
+        .replace(/^\.\//, "");
 
 /**
  * Webview: snapshot of subtree files read from the extension host for the current graph refresh only
@@ -710,11 +721,11 @@ export const normalizeSubtreePathKey = (p: string) =>
 let webviewSubtreeReads: Map<string, TreeData> | null = null;
 
 export const setWebviewSubtreeReads = (map: Map<string, TreeData>) => {
-  webviewSubtreeReads = map;
+    webviewSubtreeReads = map;
 };
 
 export const clearWebviewSubtreeReads = () => {
-  webviewSubtreeReads = null;
+    webviewSubtreeReads = null;
 };
 
 /**
@@ -722,15 +733,15 @@ export const clearWebviewSubtreeReads = () => {
  * is missing a `$id`. Used to decide whether to write-back $id to the subtree file.
  */
 export const subtreeNeedsMissingIds = (root: unknown): boolean => {
-  if (!root || typeof root !== "object") return false;
-  const node = root as { $id?: string; children?: unknown[] };
-  if (!node.$id) return true;
-  if (node.children) {
-    for (const child of node.children) {
-      if (subtreeNeedsMissingIds(child)) return true;
+    if (!root || typeof root !== "object") return false;
+    const node = root as { $id?: string; children?: unknown[] };
+    if (!node.$id) return true;
+    if (node.children) {
+        for (const child of node.children) {
+            if (subtreeNeedsMissingIds(child)) return true;
+        }
     }
-  }
-  return false;
+    return false;
 };
 
 /**
@@ -739,63 +750,63 @@ export const subtreeNeedsMissingIds = (root: unknown): boolean => {
  * are treated as "no data" (same as undefined).
  */
 export const computeNodeOverride = (
-  original: NodeData,
-  edited: NodeData,
-  def: ReturnType<typeof nodeDefs.get>
+    original: NodeData,
+    edited: NodeData,
+    def: ReturnType<typeof nodeDefs.get>
 ): Pick<NodeData, "desc" | "input" | "output" | "args" | "debug" | "disabled"> | null => {
-  const diff: Pick<NodeData, "desc" | "input" | "output" | "args" | "debug" | "disabled"> = {};
-  let hasDiff = false;
+    const diff: Pick<NodeData, "desc" | "input" | "output" | "args" | "debug" | "disabled"> = {};
+    let hasDiff = false;
 
-  if ((edited.desc || undefined) !== (original.desc || undefined)) {
-    diff.desc = edited.desc || undefined;
-    hasDiff = true;
-  }
-
-  if ((edited.debug || undefined) !== (original.debug || undefined)) {
-    diff.debug = edited.debug || undefined;
-    hasDiff = true;
-  }
-
-  if ((edited.disabled || undefined) !== (original.disabled || undefined)) {
-    diff.disabled = edited.disabled || undefined;
-    hasDiff = true;
-  }
-
-  // args: k/v comparison; only track keys defined in the node def
-  if (def.args?.length) {
-    let argsDiff = false;
-    const diffArgs: { [key: string]: unknown } = {};
-    for (const arg of def.args) {
-      const origVal = original.args?.[arg.name];
-      const editVal = edited.args?.[arg.name];
-      if (JSON.stringify(origVal) !== JSON.stringify(editVal)) {
-        diffArgs[arg.name] = editVal;
-        argsDiff = true;
-      }
+    if ((edited.desc || undefined) !== (original.desc || undefined)) {
+        diff.desc = edited.desc || undefined;
+        hasDiff = true;
     }
-    if (argsDiff) {
-      diff.args = diffArgs;
-      hasDiff = true;
+
+    if ((edited.debug || undefined) !== (original.debug || undefined)) {
+        diff.debug = edited.debug || undefined;
+        hasDiff = true;
     }
-  }
 
-  // input: empty array [] treated as no data
-  const origInput = (original.input ?? []).filter((v) => v);
-  const editInput = (edited.input ?? []).filter((v) => v);
-  if (JSON.stringify(origInput) !== JSON.stringify(editInput)) {
-    diff.input = editInput.length ? edited.input : undefined;
-    hasDiff = true;
-  }
+    if ((edited.disabled || undefined) !== (original.disabled || undefined)) {
+        diff.disabled = edited.disabled || undefined;
+        hasDiff = true;
+    }
 
-  // output: same as input
-  const origOutput = (original.output ?? []).filter((v) => v);
-  const editOutput = (edited.output ?? []).filter((v) => v);
-  if (JSON.stringify(origOutput) !== JSON.stringify(editOutput)) {
-    diff.output = editOutput.length ? edited.output : undefined;
-    hasDiff = true;
-  }
+    // args: k/v comparison; only track keys defined in the node def
+    if (def.args?.length) {
+        let argsDiff = false;
+        const diffArgs: { [key: string]: unknown } = {};
+        for (const arg of def.args) {
+            const origVal = original.args?.[arg.name];
+            const editVal = edited.args?.[arg.name];
+            if (JSON.stringify(origVal) !== JSON.stringify(editVal)) {
+                diffArgs[arg.name] = editVal;
+                argsDiff = true;
+            }
+        }
+        if (argsDiff) {
+            diff.args = diffArgs;
+            hasDiff = true;
+        }
+    }
 
-  return hasDiff ? diff : null;
+    // input: empty array [] treated as no data
+    const origInput = (original.input ?? []).filter((v) => v);
+    const editInput = (edited.input ?? []).filter((v) => v);
+    if (JSON.stringify(origInput) !== JSON.stringify(editInput)) {
+        diff.input = editInput.length ? edited.input : undefined;
+        hasDiff = true;
+    }
+
+    // output: same as input
+    const origOutput = (original.output ?? []).filter((v) => v);
+    const editOutput = (edited.output ?? []).filter((v) => v);
+    if (JSON.stringify(origOutput) !== JSON.stringify(editOutput)) {
+        diff.output = editOutput.length ? edited.output : undefined;
+        hasDiff = true;
+    }
+
+    return hasDiff ? diff : null;
 };
 
 /**
@@ -803,326 +814,327 @@ export const computeNodeOverride = (
  * (recursive DFS). Must be called after applySubtreeRootToNode loads children.
  */
 export const applyOverridesToSubtree = (node: NodeData, overrides: TreeData["$override"]): void => {
-  if (!overrides) return;
-  const patch = overrides[node.$id];
-  if (patch) {
-    if (patch.desc !== undefined) node.desc = patch.desc;
-    if (patch.debug !== undefined) node.debug = patch.debug;
-    if (patch.disabled !== undefined) node.disabled = patch.disabled;
-    if (patch.args !== undefined) {
-      node.args = { ...(node.args ?? {}), ...patch.args };
+    if (!overrides) return;
+    const patch = overrides[node.$id];
+    if (patch) {
+        if (patch.desc !== undefined) node.desc = patch.desc;
+        if (patch.debug !== undefined) node.debug = patch.debug;
+        if (patch.disabled !== undefined) node.disabled = patch.disabled;
+        if (patch.args !== undefined) {
+            node.args = { ...(node.args ?? {}), ...patch.args };
+        }
+        if (patch.input !== undefined) node.input = patch.input;
+        if (patch.output !== undefined) node.output = patch.output;
     }
-    if (patch.input !== undefined) node.input = patch.input;
-    if (patch.output !== undefined) node.output = patch.output;
-  }
-  node.children?.forEach((child) => applyOverridesToSubtree(child, overrides));
+    node.children?.forEach((child) => applyOverridesToSubtree(child, overrides));
 };
 
 const cloneTreeData = (t: TreeData): TreeData => JSON.parse(JSON.stringify(t)) as TreeData;
 
 /** Merge external subtree root into the referencing node (subtree link). */
 const applySubtreeRootToNode = (node: NodeData, subtree: TreeData) => {
-  node.name = subtree.root.name;
-  node.desc = subtree.root.desc;
-  node.args = subtree.root.args;
-  node.input = subtree.root.input;
-  node.output = subtree.root.output;
-  node.children = subtree.root.children;
+    node.name = subtree.root.name;
+    node.desc = subtree.root.desc;
+    node.args = subtree.root.args;
+    node.input = subtree.root.input;
+    node.output = subtree.root.output;
+    node.children = subtree.root.children;
 };
 
 const parsingStack: string[] = [];
 
 export const createNode = (data: NodeData, includeChildren: boolean = true) => {
-  const node: NodeData = {
-    $id: data.$id,
-    id: data.id,
-    name: data.name,
-    desc: data.desc,
-    path: data.path,
-    debug: data.debug,
-    disabled: data.disabled,
-  };
-  if (data.input) {
-    node.input = [];
-    for (const v of data.input) {
-      node.input.push(v ?? "");
+    const node: NodeData = {
+        $id: data.$id,
+        id: data.id,
+        name: data.name,
+        desc: data.desc,
+        path: data.path,
+        debug: data.debug,
+        disabled: data.disabled,
+    };
+    if (data.input) {
+        node.input = [];
+        for (const v of data.input) {
+            node.input.push(v ?? "");
+        }
     }
-  }
-  if (data.output) {
-    node.output = [];
-    for (const v of data.output) {
-      node.output.push(v ?? "");
+    if (data.output) {
+        node.output = [];
+        for (const v of data.output) {
+            node.output.push(v ?? "");
+        }
     }
-  }
-  if (data.args) {
-    node.args = {};
-    for (const k in data.args) {
-      const v = data.args[k];
-      if (v !== undefined) {
-        node.args[k] = v;
-      }
+    if (data.args) {
+        node.args = {};
+        for (const k in data.args) {
+            const v = data.args[k];
+            if (v !== undefined) {
+                node.args[k] = v;
+            }
+        }
     }
-  }
-  if (data.children && !isSubtreeRoot(data) && includeChildren) {
-    node.children = [];
-    for (const child of data.children) {
-      node.children.push(createNode(child));
+    if (data.children && !isSubtreeRoot(data) && includeChildren) {
+        node.children = [];
+        for (const child of data.children) {
+            node.children.push(createNode(child));
+        }
     }
-  }
-  return node;
+    return node;
 };
 
 const enum StatusFlag {
-  SUCCESS = 2,
-  FAILURE = 1,
-  RUNNING = 0,
-  SUCCESS_ZERO = 5,
-  FAILURE_ZERO = 4,
+    SUCCESS = 2,
+    FAILURE = 1,
+    RUNNING = 0,
+    SUCCESS_ZERO = 5,
+    FAILURE_ZERO = 4,
 }
 
 const toStatusFlag = (data: NodeData) => {
-  let status = 0;
-  const def = nodeDefs.get(data.name);
-  def.status?.forEach((s) => {
-    switch (s) {
-      case "success":
-        status |= 1 << StatusFlag.SUCCESS;
-        break;
-      case "failure":
-        status |= 1 << StatusFlag.FAILURE;
-        break;
-      case "running":
-        status |= 1 << StatusFlag.RUNNING;
-        break;
-    }
-  });
-  return status;
+    let status = 0;
+    const def = nodeDefs.get(data.name);
+    def.status?.forEach((s) => {
+        switch (s) {
+            case "success":
+                status |= 1 << StatusFlag.SUCCESS;
+                break;
+            case "failure":
+                status |= 1 << StatusFlag.FAILURE;
+                break;
+            case "running":
+                status |= 1 << StatusFlag.RUNNING;
+                break;
+        }
+    });
+    return status;
 };
 
 const appendStatusFlag = (status: number, childStatus: number) => {
-  const childSuccess = (childStatus >> StatusFlag.SUCCESS) & 1;
-  const childFailure = (childStatus >> StatusFlag.FAILURE) & 1;
-  if (childSuccess === 0) {
-    status |= 1 << StatusFlag.SUCCESS_ZERO;
-  }
-  if (childFailure === 0) {
-    status |= 1 << StatusFlag.FAILURE_ZERO;
-  }
-  status |= childStatus;
-  return status;
+    const childSuccess = (childStatus >> StatusFlag.SUCCESS) & 1;
+    const childFailure = (childStatus >> StatusFlag.FAILURE) & 1;
+    if (childSuccess === 0) {
+        status |= 1 << StatusFlag.SUCCESS_ZERO;
+    }
+    if (childFailure === 0) {
+        status |= 1 << StatusFlag.FAILURE_ZERO;
+    }
+    status |= childStatus;
+    return status;
 };
 
 const buildStatusFlag = (data: NodeData, childStatus: number) => {
-  let status = data.$status!;
-  const def = nodeDefs.get(data.name);
-  if (def.status?.length) {
-    const childSuccess = (childStatus >> StatusFlag.SUCCESS) & 1;
-    const childFailure = (childStatus >> StatusFlag.FAILURE) & 1;
-    const childRunning = (childStatus >> StatusFlag.RUNNING) & 1;
-    const childHasZeroSuccess = (childStatus >> StatusFlag.SUCCESS_ZERO) & 1;
-    const childHasZeroFailure = (childStatus >> StatusFlag.FAILURE_ZERO) & 1;
-    def.status?.forEach((s) => {
-      switch (s) {
-        case "!success":
-          status |= childFailure << StatusFlag.SUCCESS;
-          break;
-        case "!failure":
-          status |= childSuccess << StatusFlag.FAILURE;
-          break;
-        case "|success":
-          status |= childSuccess << StatusFlag.SUCCESS;
-          break;
-        case "|failure":
-          status |= childFailure << StatusFlag.FAILURE;
-          break;
-        case "|running":
-          status |= childRunning << StatusFlag.RUNNING;
-          break;
-        case "&success":
-          if (childHasZeroSuccess) {
-            status &= ~(1 << StatusFlag.SUCCESS);
-          } else {
-            status |= childSuccess << StatusFlag.SUCCESS;
-          }
-          break;
-        case "&failure":
-          if (childHasZeroFailure) {
-            status &= ~(1 << StatusFlag.FAILURE);
-          } else {
-            status |= childFailure << StatusFlag.FAILURE;
-          }
-          break;
-      }
-    });
-    data.$status = status;
-  } else {
-    data.$status = status | childStatus;
-  }
+    let status = data.$status!;
+    const def = nodeDefs.get(data.name);
+    if (def.status?.length) {
+        const childSuccess = (childStatus >> StatusFlag.SUCCESS) & 1;
+        const childFailure = (childStatus >> StatusFlag.FAILURE) & 1;
+        const childRunning = (childStatus >> StatusFlag.RUNNING) & 1;
+        const childHasZeroSuccess = (childStatus >> StatusFlag.SUCCESS_ZERO) & 1;
+        const childHasZeroFailure = (childStatus >> StatusFlag.FAILURE_ZERO) & 1;
+        def.status?.forEach((s) => {
+            switch (s) {
+                case "!success":
+                    status |= childFailure << StatusFlag.SUCCESS;
+                    break;
+                case "!failure":
+                    status |= childSuccess << StatusFlag.FAILURE;
+                    break;
+                case "|success":
+                    status |= childSuccess << StatusFlag.SUCCESS;
+                    break;
+                case "|failure":
+                    status |= childFailure << StatusFlag.FAILURE;
+                    break;
+                case "|running":
+                    status |= childRunning << StatusFlag.RUNNING;
+                    break;
+                case "&success":
+                    if (childHasZeroSuccess) {
+                        status &= ~(1 << StatusFlag.SUCCESS);
+                    } else {
+                        status |= childSuccess << StatusFlag.SUCCESS;
+                    }
+                    break;
+                case "&failure":
+                    if (childHasZeroFailure) {
+                        status &= ~(1 << StatusFlag.FAILURE);
+                    } else {
+                        status |= childFailure << StatusFlag.FAILURE;
+                    }
+                    break;
+            }
+        });
+        data.$status = status;
+    } else {
+        data.$status = status | childStatus;
+    }
 };
 
 export const isValidChildren = (data: NodeData) => {
-  const def = nodeDefs.get(data.name);
-  if (def.children !== undefined && def.children !== -1) {
-    return (data.children?.filter((c) => !c.disabled).length || 0) === def.children;
-  }
-  return true;
+    const def = nodeDefs.get(data.name);
+    if (def.children !== undefined && def.children !== -1) {
+        return (data.children?.filter((c) => !c.disabled).length || 0) === def.children;
+    }
+    return true;
 };
 
 export const isVariadic = (def: string[], i: number) => {
-  if (i === -1) {
-    i = def.length - 1;
-  }
-  return def[i].endsWith("...") && i === def.length - 1;
+    if (i === -1) {
+        i = def.length - 1;
+    }
+    return def[i].endsWith("...") && i === def.length - 1;
 };
 
 const isValidInputOrOutput = (def: string[], data: string[] | undefined, index: number) => {
-  return def[index].includes("?") || data?.[index] || isVariadic(def, index);
+    return def[index].includes("?") || data?.[index] || isVariadic(def, index);
 };
 
 export const refreshNodeData = (
-  tree: TreeData,
-  node: NodeData,
-  id: number,
-  rootOverrides?: TreeData["$override"]
+    tree: TreeData,
+    node: NodeData,
+    id: number,
+    rootOverrides?: TreeData["$override"]
 ) => {
-  node.id = (id++).toString();
-  node.$size = calcSize(node);
+    node.id = (id++).toString();
+    node.$size = calcSize(node);
 
-  const def = nodeDefs.get(node.name);
+    const def = nodeDefs.get(node.name);
 
-  if (def.args) {
-    node.args ||= {};
-    def.args.forEach((arg) => {
-      if (hasFs()) {
-        assert(node.args);
-      }
-      if (node.args![arg.name] === undefined && arg.default !== undefined) {
-        node.args![arg.name] = arg.default;
-      }
-    });
-  }
-
-  if (node.path) {
-    const stackKey = normalizeSubtreePathKey(node.path);
-    if (parsingStack.indexOf(stackKey) >= 0) {
-      if (hasFs()) {
-        alertError(`循环引用节点：${node.path}`, 4);
-      } else {
-        alertError(`循环引用节点：${node.path}`);
-      }
-      return id;
+    if (def.args) {
+        node.args ||= {};
+        def.args.forEach((arg) => {
+            if (hasFs()) {
+                assert(node.args);
+            }
+            if (node.args![arg.name] === undefined && arg.default !== undefined) {
+                node.args![arg.name] = arg.default;
+            }
+        });
     }
-    delete node.$mtime;
-    parsingStack.push(stackKey);
-    try {
-      const subtreePath = workdir + "/" + stackKey;
-      let subtree: TreeData | null = null;
-      if (hasFs()) {
-        subtree = readTreeFromFile(subtreePath);
-      } else {
-        const raw = webviewSubtreeReads?.get(stackKey) ?? webviewSubtreeReads?.get(node.path);
-        if (raw) subtree = cloneTreeData(raw);
-      }
-      if (subtree) {
-        // Use root-level overrides (from the main tree) for all sub-subtree recursion
-        const overrides = rootOverrides ?? tree.$override;
-        id = refreshNodeData(subtree, subtree.root, --id, overrides);
-        applySubtreeRootToNode(node, subtree);
-        // Apply the intermediate subtree's own $override first (e.g. B overrides C's nodes).
-        // This ensures A can see B's layer of changes, not just C's raw values.
-        if (subtree.$override && Object.keys(subtree.$override).length > 0) {
-          applyOverridesToSubtree(node, subtree.$override);
-        }
-        // Apply the root tree's $override last so it always takes highest precedence.
-        if (overrides && Object.keys(overrides).length > 0) {
-          applyOverridesToSubtree(node, overrides);
-        }
-        if (hasFs()) {
-          node.$mtime = getFs().statSync(subtreePath).mtimeMs;
-        }
-        node.$size = calcSize(node);
-      }
-    } catch (e) {
-      alertError(`解析子树失败：${node.path}`);
-      logger.log("parse subtree:", e);
-    }
-    parsingStack.pop();
-  } else if (node.children?.length) {
-    for (let i = 0; i < node.children.length; i++) {
-      id = refreshNodeData(tree, node.children[i], id, rootOverrides);
-    }
-  }
 
-  node.$status = toStatusFlag(node);
-  if (node.children) {
-    let childStatus = 0;
-    node.children.forEach((child) => {
-      if (child.$status && !child.disabled) {
-        childStatus = appendStatusFlag(childStatus, child.$status);
-      }
-    });
-    buildStatusFlag(node, childStatus);
-  }
+    if (node.path) {
+        const stackKey = normalizeSubtreePathKey(node.path);
+        if (parsingStack.indexOf(stackKey) >= 0) {
+            if (hasFs()) {
+                alertError(`循环引用节点：${node.path}`, 4);
+            } else {
+                alertError(`循环引用节点：${node.path}`);
+            }
+            return id;
+        }
+        delete node.$mtime;
+        parsingStack.push(stackKey);
+        try {
+            const subtreePath = workdir + "/" + stackKey;
+            let subtree: TreeData | null = null;
+            if (hasFs()) {
+                subtree = readTreeFromFile(subtreePath);
+            } else {
+                const raw =
+                    webviewSubtreeReads?.get(stackKey) ?? webviewSubtreeReads?.get(node.path);
+                if (raw) subtree = cloneTreeData(raw);
+            }
+            if (subtree) {
+                // Use root-level overrides (from the main tree) for all sub-subtree recursion
+                const overrides = rootOverrides ?? tree.$override;
+                id = refreshNodeData(subtree, subtree.root, --id, overrides);
+                applySubtreeRootToNode(node, subtree);
+                // Apply the intermediate subtree's own $override first (e.g. B overrides C's nodes).
+                // This ensures A can see B's layer of changes, not just C's raw values.
+                if (subtree.$override && Object.keys(subtree.$override).length > 0) {
+                    applyOverridesToSubtree(node, subtree.$override);
+                }
+                // Apply the root tree's $override last so it always takes highest precedence.
+                if (overrides && Object.keys(overrides).length > 0) {
+                    applyOverridesToSubtree(node, overrides);
+                }
+                if (hasFs()) {
+                    node.$mtime = getFs().statSync(subtreePath).mtimeMs;
+                }
+                node.$size = calcSize(node);
+            }
+        } catch (e) {
+            alertError(`解析子树失败：${node.path}`);
+            logger.log("parse subtree:", e);
+        }
+        parsingStack.pop();
+    } else if (node.children?.length) {
+        for (let i = 0; i < node.children.length; i++) {
+            id = refreshNodeData(tree, node.children[i], id, rootOverrides);
+        }
+    }
 
-  return id;
+    node.$status = toStatusFlag(node);
+    if (node.children) {
+        let childStatus = 0;
+        node.children.forEach((child) => {
+            if (child.$status && !child.disabled) {
+                childStatus = appendStatusFlag(childStatus, child.$status);
+            }
+        });
+        buildStatusFlag(node, childStatus);
+    }
+
+    return id;
 };
 
 export const createBuildData = (path: string) => {
-  const clearUnnecessaryKey = (data: NodeData | TreeData) => {
-    for (const key in data) {
-      if (key.startsWith("$")) {
-        delete data[key as keyof (NodeData | TreeData)];
-      }
-    }
-  };
+    const clearUnnecessaryKey = (data: NodeData | TreeData) => {
+        for (const key in data) {
+            if (key.startsWith("$")) {
+                delete data[key as keyof (NodeData | TreeData)];
+            }
+        }
+    };
 
-  try {
-    const treeModel: TreeData = readTreeFromFile(path);
-    refreshNodeData(treeModel, treeModel.root, 1);
-    dfs(treeModel.root, (node) => (node.id = treeModel.prefix + node.id));
-    treeModel.name = b3path.basenameWithoutExt(path);
-    treeModel.root = createFileData(treeModel.root, true);
-    dfs(treeModel.root, (node) => clearUnnecessaryKey(node));
-    clearUnnecessaryKey(treeModel);
-    return treeModel;
-  } catch (e) {
-    logger.log("build error:", path, e);
-  }
-  return null;
+    try {
+        const treeModel: TreeData = readTreeFromFile(path);
+        refreshNodeData(treeModel, treeModel.root, 1);
+        dfs(treeModel.root, (node) => (node.id = treeModel.prefix + node.id));
+        treeModel.name = b3path.basenameWithoutExt(path);
+        treeModel.root = createFileData(treeModel.root, true);
+        dfs(treeModel.root, (node) => clearUnnecessaryKey(node));
+        clearUnnecessaryKey(treeModel);
+        return treeModel;
+    } catch (e) {
+        logger.log("build error:", path, e);
+    }
+    return null;
 };
 
 export const processBatch = (
-  tree: TreeData | null,
-  path: string,
-  batch: BatchScript,
-  errors: string[]
+    tree: TreeData | null,
+    path: string,
+    batch: BatchScript,
+    errors: string[]
 ) => {
-  if (!tree) {
-    return null;
-  }
-  if (batch.onProcessTree) {
-    tree = batch.onProcessTree(tree, path, errors);
-  }
-  if (!tree) {
-    return null;
-  }
-  if (batch.onProcessNode) {
-    const processNode = (node: NodeData) => {
-      if (node.children) {
-        const children: NodeData[] = [];
-        node.children?.forEach((child) => {
-          const newChild = processNode(child);
-          if (newChild) {
-            children.push(newChild);
-          }
-        });
-        node.children = children;
-      }
-      return batch.onProcessNode?.(node, errors);
-    };
-    tree.root = processNode(tree.root) ?? ({} as NodeData);
-  }
-  return tree;
+    if (!tree) {
+        return null;
+    }
+    if (batch.onProcessTree) {
+        tree = batch.onProcessTree(tree, path, errors);
+    }
+    if (!tree) {
+        return null;
+    }
+    if (batch.onProcessNode) {
+        const processNode = (node: NodeData) => {
+            if (node.children) {
+                const children: NodeData[] = [];
+                node.children?.forEach((child) => {
+                    const newChild = processNode(child);
+                    if (newChild) {
+                        children.push(newChild);
+                    }
+                });
+                node.children = children;
+            }
+            return batch.onProcessNode?.(node, errors);
+        };
+        tree.root = processNode(tree.root) ?? ({} as NodeData);
+    }
+    return tree;
 };
 
 /**
@@ -1131,394 +1143,397 @@ export const processBatch = (
  * or `loadVarDecl` sees empty `files` and warns "file not found" for imports.
  */
 export const syncFilesFromDisk = () => {
-  if (!hasFs()) {
-    return;
-  }
-  for (const k of Object.keys(files)) {
-    delete files[k];
-  }
-  for (const k of Object.keys(parsedVarDecl)) {
-    delete parsedVarDecl[k];
-  }
-  const fsApi = getFs();
-  const wd = workdir.replace(/[/\\]+$/, "");
-  if (!wd) {
-    return;
-  }
-  for (const absPath of b3path.lsdir(wd, true)) {
-    if (!absPath.endsWith(".json")) {
-      continue;
+    if (!hasFs()) {
+        return;
     }
-    const rel = b3path.posixPath(absPath.slice(wd.length + 1).replace(/^[\\/]+/, ""));
-    try {
-      files[rel] = fsApi.statSync(absPath).mtimeMs;
-    } catch {
-      /* ignore */
+    for (const k of Object.keys(files)) {
+        delete files[k];
     }
-  }
+    for (const k of Object.keys(parsedVarDecl)) {
+        delete parsedVarDecl[k];
+    }
+    const fsApi = getFs();
+    const wd = workdir.replace(/[/\\]+$/, "");
+    if (!wd) {
+        return;
+    }
+    for (const absPath of b3path.lsdir(wd, true)) {
+        if (!absPath.endsWith(".json")) {
+            continue;
+        }
+        const rel = b3path.posixPath(absPath.slice(wd.length + 1).replace(/^[\\/]+/, ""));
+        try {
+            files[rel] = fsApi.statSync(absPath).mtimeMs;
+        } catch {
+            /* ignore */
+        }
+    }
 };
 
 /** Non–behavior-tree JSON under the workspace (VS Code / tooling) must not be fed to `readTreeFromFile`. */
 const SKIP_JSON_BASENAMES = new Set([
-  "package.json",
-  "package-lock.json",
-  "jsconfig.json",
-  "components.json",
+    "package.json",
+    "package-lock.json",
+    "jsconfig.json",
+    "components.json",
 ]);
 
 const shouldSkipJsonForBuild = (absPath: string): boolean => {
-  const base = b3path.basename(absPath);
-  const lower = base.toLowerCase();
-  if (SKIP_JSON_BASENAMES.has(lower)) {
-    return true;
-  }
-  if (lower === "tsconfig.json" || /^tsconfig\..*\.json$/i.test(base)) {
-    return true;
-  }
-  const norm = b3path.posixPath(absPath).toLowerCase();
-  return ["/.vscode/", "/.git/", "/node_modules/", "/dist/", "/build/"].some((m) =>
-    norm.includes(m)
-  );
+    const base = b3path.basename(absPath);
+    const lower = base.toLowerCase();
+    if (SKIP_JSON_BASENAMES.has(lower)) {
+        return true;
+    }
+    if (lower === "tsconfig.json" || /^tsconfig\..*\.json$/i.test(base)) {
+        return true;
+    }
+    const norm = b3path.posixPath(absPath).toLowerCase();
+    return ["/.vscode/", "/.git/", "/node_modules/", "/dist/", "/build/"].some((m) =>
+        norm.includes(m)
+    );
 };
 
 export const buildProject = async (project: string, buildDir: string) => {
-  if (hasFs()) {
-    syncFilesFromDisk();
-  }
-  let hasError = false;
-  const settings = readWorkspace(project).settings;
-  const buildSetting = settings.buildScript;
-  let buildScriptModule: unknown;
-  let buildScript: BatchScript | undefined;
-  if (settings.checkExpr) {
-    setCheckExpr(true);
-  }
-  if (buildSetting) {
-    const scriptPath = workdir + "/" + buildSetting;
-    try {
-      buildScriptModule = await loadModule(scriptPath);
-    } catch (e) {
-      logger.error(`'${scriptPath}' is not a valid build script`);
+    if (hasFs()) {
+        syncFilesFromDisk();
     }
-  }
-  const scriptEnv: Env = {
-    fs: getFs(),
-    path: b3path,
-    workdir,
-    nodeDefs,
-    logger,
-  };
-  buildScript = createBatchHooks(buildScriptModule, scriptEnv, buildSetting ?? "");
+    let hasError = false;
+    const settings = readWorkspace(project).settings;
+    const buildSetting = settings.buildScript;
+    let buildScriptModule: unknown;
+    let buildScript: BatchScript | undefined;
+    if (settings.checkExpr) {
+        setCheckExpr(true);
+    }
+    if (buildSetting) {
+        const scriptPath = workdir + "/" + buildSetting;
+        try {
+            buildScriptModule = await loadModule(scriptPath);
+        } catch (e) {
+            logger.error(`'${scriptPath}' is not a valid build script`);
+        }
+    }
+    const scriptEnv: Env = {
+        fs: getFs(),
+        path: b3path,
+        workdir,
+        nodeDefs,
+        logger,
+    };
+    buildScript = createBatchHooks(buildScriptModule, scriptEnv, buildSetting ?? "");
 
-  const allErrors: string[] = [];
-  for (const path of b3path.lsdir(b3path.dirname(project), true)) {
-    if (path.endsWith(".json") && !shouldSkipJsonForBuild(path)) {
-      const buildpath = buildDir + "/" + path.substring(workdir.length + 1);
-      let tree = createBuildData(path);
-      const errors: string[] = [];
-      if (buildScript) {
-        tree = processBatch(tree, path, buildScript, errors);
-      }
-      if (!tree) {
-        continue;
-      }
-      if (tree.export === false) {
-        logger.log("skip:", buildpath);
-        continue;
-      }
-      logger.log("build:", buildpath);
-      if (errors.length) {
-        hasError = true;
-      }
-      const declare: FileVarDecl = {
-        import: tree.import.map((v) => ({ path: v, vars: [], depends: [] })),
-        vars: tree.vars.map((v) => ({ name: v.name, desc: v.desc })),
-        subtree: [],
-      };
-      refreshVarDecl(tree.root, tree.group, declare);
-      if (!checkNodeData(tree?.root, (msg) => errors.push(msg))) {
-        hasError = true;
-      }
-      if (errors.length) {
-        allErrors.push(`${path}:`);
-        errors.forEach((v) => allErrors.push(`  ${v}`));
-      }
-      buildScript?.onWriteFile?.(buildpath, tree);
-      getFs().mkdirSync(b3path.dirname(buildpath), { recursive: true });
-      getFs().writeFileSync(buildpath, stringifyJson(tree, { indent: 2 }));
+    const allErrors: string[] = [];
+    for (const path of b3path.lsdir(b3path.dirname(project), true)) {
+        if (path.endsWith(".json") && !shouldSkipJsonForBuild(path)) {
+            const buildpath = buildDir + "/" + path.substring(workdir.length + 1);
+            let tree = createBuildData(path);
+            const errors: string[] = [];
+            if (buildScript) {
+                tree = processBatch(tree, path, buildScript, errors);
+            }
+            if (!tree) {
+                continue;
+            }
+            if (tree.export === false) {
+                logger.log("skip:", buildpath);
+                continue;
+            }
+            logger.log("build:", buildpath);
+            if (errors.length) {
+                hasError = true;
+            }
+            const declare: FileVarDecl = {
+                import: tree.import.map((v) => ({ path: v, vars: [], depends: [] })),
+                vars: tree.vars.map((v) => ({ name: v.name, desc: v.desc })),
+                subtree: [],
+            };
+            refreshVarDecl(tree.root, tree.group, declare);
+            if (!checkNodeData(tree?.root, (msg) => errors.push(msg))) {
+                hasError = true;
+            }
+            if (errors.length) {
+                allErrors.push(`${path}:`);
+                errors.forEach((v) => allErrors.push(`  ${v}`));
+            }
+            buildScript?.onWriteFile?.(buildpath, tree);
+            getFs().mkdirSync(b3path.dirname(buildpath), { recursive: true });
+            getFs().writeFileSync(buildpath, stringifyJson(tree, { indent: 2 }));
+        }
     }
-  }
-  allErrors.forEach((v) => logger.error(v));
-  buildScript?.onComplete?.(hasError ? "failure" : "success");
-  return hasError;
+    allErrors.forEach((v) => logger.error(v));
+    buildScript?.onComplete?.(hasError ? "failure" : "success");
+    return hasError;
 };
 
 export const loadModule = async (path: string) => {
-  let tempModulePath: string | null = null;
-  try {
-    if (typeof require !== "undefined" && require.cache) {
-      try {
-        delete require.cache[require.resolve(path)];
-      } catch {
-        /* path may not be in require cache (e.g. first load); avoid ENOENT from resolve */
-      }
+    let tempModulePath: string | null = null;
+    try {
+        if (typeof require !== "undefined" && require.cache) {
+            try {
+                delete require.cache[require.resolve(path)];
+            } catch {
+                /* path may not be in require cache (e.g. first load); avoid ENOENT from resolve */
+            }
+        }
+        if (typeof process !== "undefined" && (process as { type?: string }).type === "renderer") {
+            return await import(/* @vite-ignore */ `${path}?t=${Date.now()}`);
+        } else {
+            const ext = b3path.extname(path).toLowerCase();
+            if (ext === ".ts" || ext === ".mts") {
+                const ts = await import("typescript");
+                const source = getFs().readFileSync(path, "utf8");
+                const transpiled = ts.transpileModule(source, {
+                    compilerOptions: {
+                        module: ts.ModuleKind.ESNext,
+                        target: ts.ScriptTarget.ES2020,
+                        sourceMap: false,
+                        inlineSourceMap: false,
+                        inlineSources: false,
+                        removeComments: false,
+                    },
+                    fileName: path,
+                });
+                const base = b3path.basenameWithoutExt(path);
+                tempModulePath = b3path.join(
+                    b3path.dirname(path),
+                    `${base}.runtime.${Date.now()}.mjs`
+                );
+                getFs().writeFileSync(tempModulePath, transpiled.outputText, "utf8");
+            } else if (ext === ".mjs") {
+                tempModulePath = path;
+            } else {
+                tempModulePath = path.replace(".js", `.runtime.${Date.now()}.mjs`);
+                getFs().copyFileSync(path, tempModulePath);
+            }
+            const modulePath = b3path.posixPath(tempModulePath);
+            const ret = await import(/* @vite-ignore */ `file:///${modulePath}?t=${Date.now()}`);
+            if (tempModulePath !== path) {
+                getFs().unlinkSync(tempModulePath);
+            }
+            return ret;
+        }
+    } catch (e) {
+        logger.error(`failed to load module: ${path}`, e);
+        if (tempModulePath && tempModulePath !== path) {
+            try {
+                getFs().unlinkSync(tempModulePath);
+            } catch {
+                /* ignore temp file cleanup failure */
+            }
+        }
+        return null;
     }
-    if (typeof process !== "undefined" && (process as { type?: string }).type === "renderer") {
-      return await import(/* @vite-ignore */ `${path}?t=${Date.now()}`);
-    } else {
-      const ext = b3path.extname(path).toLowerCase();
-      if (ext === ".ts" || ext === ".mts") {
-        const ts = await import("typescript");
-        const source = getFs().readFileSync(path, "utf8");
-        const transpiled = ts.transpileModule(source, {
-          compilerOptions: {
-            module: ts.ModuleKind.ESNext,
-            target: ts.ScriptTarget.ES2020,
-            sourceMap: false,
-            inlineSourceMap: false,
-            inlineSources: false,
-            removeComments: false,
-          },
-          fileName: path,
-        });
-        const base = b3path.basenameWithoutExt(path);
-        tempModulePath = b3path.join(b3path.dirname(path), `${base}.runtime.${Date.now()}.mjs`);
-        getFs().writeFileSync(tempModulePath, transpiled.outputText, "utf8");
-      } else if (ext === ".mjs") {
-        tempModulePath = path;
-      } else {
-        tempModulePath = path.replace(".js", `.runtime.${Date.now()}.mjs`);
-        getFs().copyFileSync(path, tempModulePath);
-      }
-      const modulePath = b3path.posixPath(tempModulePath);
-      const ret = await import(/* @vite-ignore */ `file:///${modulePath}?t=${Date.now()}`);
-      if (tempModulePath !== path) {
-        getFs().unlinkSync(tempModulePath);
-      }
-      return ret;
-    }
-  } catch (e) {
-    logger.error(`failed to load module: ${path}`, e);
-    if (tempModulePath && tempModulePath !== path) {
-      try {
-        getFs().unlinkSync(tempModulePath);
-      } catch {
-        /* ignore temp file cleanup failure */
-      }
-    }
-    return null;
-  }
 };
 
 export const createFileData = (data: NodeData, includeSubtree?: boolean) => {
-  const nodeData: NodeData = {
-    $id: data.$id,
-    id: data.id,
-    name: data.name,
-    desc: data.desc || undefined,
-    args: data.args || undefined,
-    input: data.input || undefined,
-    output: data.output || undefined,
-    debug: data.debug || undefined,
-    disabled: data.disabled || undefined,
-    path: data.path || undefined,
-  };
-  const conf = nodeDefs.get(data.name);
-  if (!conf.input?.length) {
-    nodeData.input = undefined;
-  }
-  if (!conf.output?.length) {
-    nodeData.output = undefined;
-  }
-  if (!conf.args?.length) {
-    nodeData.args = undefined;
-  }
+    const nodeData: NodeData = {
+        $id: data.$id,
+        id: data.id,
+        name: data.name,
+        desc: data.desc || undefined,
+        args: data.args || undefined,
+        input: data.input || undefined,
+        output: data.output || undefined,
+        debug: data.debug || undefined,
+        disabled: data.disabled || undefined,
+        path: data.path || undefined,
+    };
+    const conf = nodeDefs.get(data.name);
+    if (!conf.input?.length) {
+        nodeData.input = undefined;
+    }
+    if (!conf.output?.length) {
+        nodeData.output = undefined;
+    }
+    if (!conf.args?.length) {
+        nodeData.args = undefined;
+    }
 
-  if (data.children?.length && (includeSubtree || !isSubtreeRoot(data))) {
-    nodeData.children = [];
-    data.children.forEach((child) => {
-      nodeData.children!.push(createFileData(child, includeSubtree));
-    });
-  }
-  return nodeData;
+    if (data.children?.length && (includeSubtree || !isSubtreeRoot(data))) {
+        nodeData.children = [];
+        data.children.forEach((child) => {
+            nodeData.children!.push(createFileData(child, includeSubtree));
+        });
+    }
+    return nodeData;
 };
 
 export const createNewTree = (name: string) => {
-  const tree: TreeData = {
-    version: VERSION,
-    name,
-    prefix: "",
-    group: [],
-    import: [],
-    vars: [],
-    root: {
-      id: "1",
-      name: "Sequence",
-      $id: nanoid(),
-    },
-    custom: {},
-    $override: {},
-  };
-  return tree;
+    const tree: TreeData = {
+        version: VERSION,
+        name,
+        prefix: "",
+        group: [],
+        import: [],
+        vars: [],
+        root: {
+            id: "1",
+            name: "Sequence",
+            $id: nanoid(),
+        },
+        custom: {},
+        $override: {},
+    };
+    return tree;
 };
 
 export const isTreeFile = (path: string) => {
-  const lower = path.toLocaleLowerCase();
-  return lower.endsWith(".json");
+    const lower = path.toLocaleLowerCase();
+    return lower.endsWith(".json");
 };
 
 const loadVarDecl = (list: ImportDecl[], arr: Array<VarDecl>) => {
-  for (const entry of list) {
-    if (!files[entry.path]) {
-      logger.warn(`file not found: ${workdir}/${entry.path}`);
-      continue;
+    for (const entry of list) {
+        if (!files[entry.path]) {
+            logger.warn(`file not found: ${workdir}/${entry.path}`);
+            continue;
+        }
+
+        let changed = false;
+        if (!entry.modified || files[entry.path] > entry.modified) {
+            changed = true;
+        }
+
+        if (!changed) {
+            changed = entry.depends.some((v) => files[v.path] && files[v.path] > v.modified);
+        }
+
+        if (!changed) {
+            continue;
+        }
+
+        entry.vars = [];
+        entry.depends = [];
+        entry.modified = files[entry.path];
+
+        const vars: Set<VarDecl> = new Set();
+        const depends: Set<string> = new Set();
+        const load = (path: string) => {
+            if (parsingStack.includes(path)) {
+                return;
+            }
+
+            const parsedEntry: ImportDecl | undefined = parsedVarDecl[path];
+            if (parsedEntry && files[path] === parsedEntry.modified) {
+                parsedEntry.depends.forEach((v) => depends.add(v.path));
+                parsedEntry.vars.forEach((v) => vars.add(v));
+                return;
+            }
+
+            parsingStack.push(path);
+            try {
+                const model: TreeData = readTreeFromFile(`${workdir}/${path}`);
+                model.vars.forEach((v) => vars.add(v));
+                model.import.forEach((v) => {
+                    load(v);
+                    depends.add(v);
+                });
+                collectSubtree(model.root).forEach((subPath) => {
+                    load(subPath);
+                    depends.add(subPath);
+                });
+                logger.debug(`load var: ${path}`);
+            } catch (e) {
+                alertError(`parsing error: ${path}`);
+            }
+            parsingStack.pop();
+        };
+        load(entry.path);
+        entry.vars = Array.from(vars).sort((a, b) => a.name.localeCompare(b.name));
+        entry.depends = Array.from(depends).map((v) => ({ path: v, modified: files[v] }));
+        parsedVarDecl[entry.path] = {
+            path: entry.path,
+            vars: entry.vars.map((v) => ({ name: v.name, desc: v.desc })),
+            depends: entry.depends.slice(),
+            modified: entry.modified,
+        };
     }
-
-    let changed = false;
-    if (!entry.modified || files[entry.path] > entry.modified) {
-      changed = true;
-    }
-
-    if (!changed) {
-      changed = entry.depends.some((v) => files[v.path] && files[v.path] > v.modified);
-    }
-
-    if (!changed) {
-      continue;
-    }
-
-    entry.vars = [];
-    entry.depends = [];
-    entry.modified = files[entry.path];
-
-    const vars: Set<VarDecl> = new Set();
-    const depends: Set<string> = new Set();
-    const load = (path: string) => {
-      if (parsingStack.includes(path)) {
-        return;
-      }
-
-      const parsedEntry: ImportDecl | undefined = parsedVarDecl[path];
-      if (parsedEntry && files[path] === parsedEntry.modified) {
-        parsedEntry.depends.forEach((v) => depends.add(v.path));
-        parsedEntry.vars.forEach((v) => vars.add(v));
-        return;
-      }
-
-      parsingStack.push(path);
-      try {
-        const model: TreeData = readTreeFromFile(`${workdir}/${path}`);
-        model.vars.forEach((v) => vars.add(v));
-        model.import.forEach((v) => {
-          load(v);
-          depends.add(v);
-        });
-        collectSubtree(model.root).forEach((subPath) => {
-          load(subPath);
-          depends.add(subPath);
-        });
-        logger.debug(`load var: ${path}`);
-      } catch (e) {
-        alertError(`parsing error: ${path}`);
-      }
-      parsingStack.pop();
-    };
-    load(entry.path);
-    entry.vars = Array.from(vars).sort((a, b) => a.name.localeCompare(b.name));
-    entry.depends = Array.from(depends).map((v) => ({ path: v, modified: files[v] }));
-    parsedVarDecl[entry.path] = {
-      path: entry.path,
-      vars: entry.vars.map((v) => ({ name: v.name, desc: v.desc })),
-      depends: entry.depends.slice(),
-      modified: entry.modified,
-    };
-  }
-  list.forEach((entry) => arr.push(...entry.vars));
+    list.forEach((entry) => arr.push(...entry.vars));
 };
 
 const collectSubtree = (data: NodeData) => {
-  const list: string[] = [];
-  dfs(data, (node) => {
-    if (node.path) {
-      list.push(node.path);
-    }
-  });
-  return list;
+    const list: string[] = [];
+    dfs(data, (node) => {
+        if (node.path) {
+            list.push(node.path);
+        }
+    });
+    return list;
 };
 
 /** Webview: do not load vars from disk; preserve subtree entries from host. */
 const refreshVarDeclWebview = (root: NodeData, group: string[], declare: FileVarDecl) => {
-  const prevSubtreeByPath = new Map(
-    declare.subtree.map((s) => [normalizeSubtreePathKey(s.path), s])
-  );
-  declare.subtree = collectSubtree(root).map((path) => {
-    const prev = prevSubtreeByPath.get(normalizeSubtreePathKey(path));
-    return {
-      path,
-      vars: prev?.vars?.length ? prev.vars.map((v) => ({ ...v })) : [],
-      depends: prev?.depends ?? [],
-    };
-  });
+    const prevSubtreeByPath = new Map(
+        declare.subtree.map((s) => [normalizeSubtreePathKey(s.path), s])
+    );
+    declare.subtree = collectSubtree(root).map((path) => {
+        const prev = prevSubtreeByPath.get(normalizeSubtreePathKey(path));
+        return {
+            path,
+            vars: prev?.vars?.length ? prev.vars.map((v) => ({ ...v })) : [],
+            depends: prev?.depends ?? [],
+        };
+    });
 
-  let changed = false;
-  const lastGroup = Array.from(Object.keys(usingGroups ?? {})).sort();
-  const sortedGroup = [...group].sort();
-  if (lastGroup.length !== sortedGroup.length || lastGroup.some((v, i) => v !== sortedGroup[i])) {
-    changed = true;
-    updateUsingGroups(group);
-  }
+    let changed = false;
+    const lastGroup = Array.from(Object.keys(usingGroups ?? {})).sort();
+    const sortedGroup = [...group].sort();
+    if (lastGroup.length !== sortedGroup.length || lastGroup.some((v, i) => v !== sortedGroup[i])) {
+        changed = true;
+        updateUsingGroups(group);
+    }
 
-  return changed;
+    return changed;
 };
 
 const refreshVarDeclNode = (root: NodeData, group: string[], declare: FileVarDecl) => {
-  const filter: Record<string, boolean> = {};
-  const vars: Array<VarDecl> = new (class extends Array {
-    override push(...items: VarDecl[]): number {
-      for (const v of items) {
-        if (filter[v.name]) {
-          continue;
+    const filter: Record<string, boolean> = {};
+    const vars: Array<VarDecl> = new (class extends Array {
+        override push(...items: VarDecl[]): number {
+            for (const v of items) {
+                if (filter[v.name]) {
+                    continue;
+                }
+                filter[v.name] = true;
+                super.push(v);
+            }
+            return this.length;
         }
-        filter[v.name] = true;
-        super.push(v);
-      }
-      return this.length;
+    })();
+    vars.push(...declare.vars);
+    parsingStack.length = 0;
+    declare.subtree = collectSubtree(root).map((v) => ({
+        path: v,
+        vars: [],
+        depends: [],
+    }));
+    loadVarDecl(declare.import, vars);
+    loadVarDecl(declare.subtree, vars);
+
+    let changed = false;
+    const lastGroup = Array.from(Object.keys(usingGroups ?? {})).sort();
+    group.sort();
+    if (lastGroup.length !== group.length || lastGroup.some((v, i) => v !== group[i])) {
+        changed = true;
+        logger.debug("refresh group:", lastGroup, group);
+        updateUsingGroups(group);
     }
-  })();
-  vars.push(...declare.vars);
-  parsingStack.length = 0;
-  declare.subtree = collectSubtree(root).map((v) => ({
-    path: v,
-    vars: [],
-    depends: [],
-  }));
-  loadVarDecl(declare.import, vars);
-  loadVarDecl(declare.subtree, vars);
 
-  let changed = false;
-  const lastGroup = Array.from(Object.keys(usingGroups ?? {})).sort();
-  group.sort();
-  if (lastGroup.length !== group.length || lastGroup.some((v, i) => v !== group[i])) {
-    changed = true;
-    logger.debug("refresh group:", lastGroup, group);
-    updateUsingGroups(group);
-  }
-
-  const lastVars = Array.from(Object.keys(usingVars ?? {})).sort();
-  vars.sort((a, b) => a.name.localeCompare(b.name));
-  if (lastVars.length !== vars.length || lastVars.some((v, i) => v !== vars[i].name)) {
-    changed = true;
-    logger.debug("refresh vars:", lastVars, vars);
-    updateUsingVars(vars);
-  }
-  return changed;
+    const lastVars = Array.from(Object.keys(usingVars ?? {})).sort();
+    vars.sort((a, b) => a.name.localeCompare(b.name));
+    if (lastVars.length !== vars.length || lastVars.some((v, i) => v !== vars[i].name)) {
+        changed = true;
+        logger.debug("refresh vars:", lastVars, vars);
+        updateUsingVars(vars);
+    }
+    return changed;
 };
 
 export const refreshVarDecl = (root: NodeData, group: string[], declare: FileVarDecl) => {
-  if (hasFs()) {
-    return refreshVarDeclNode(root, group, declare);
-  }
-  return refreshVarDeclWebview(root, group, declare);
+    if (hasFs()) {
+        return refreshVarDeclNode(root, group, declare);
+    }
+    return refreshVarDeclWebview(root, group, declare);
 };
 
 export { getFs, setFs, hasFs } from "./b3fs";

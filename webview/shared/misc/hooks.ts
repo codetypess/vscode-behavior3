@@ -8,10 +8,10 @@ let notification: NotificationInstance;
 let modal: Omit<ModalStaticFunctions, "warn">;
 
 const setGlobalHooks = () => {
-  const staticFunction = App.useApp();
-  message = staticFunction.message;
-  modal = staticFunction.modal;
-  notification = staticFunction.notification;
+    const staticFunction = App.useApp();
+    message = staticFunction.message;
+    modal = staticFunction.modal;
+    notification = staticFunction.notification;
 };
 
 export { message, modal, notification, setGlobalHooks };

@@ -17,92 +17,92 @@ export const isJsonType = (type: string) => type.startsWith("json");
 export const hasArgOptions = (arg: NodeArg) => arg.options !== undefined;
 
 export interface NodeData {
-  id: string;
-  name: string;
-  desc?: string;
-  args?: { [key: string]: unknown };
-  input?: string[];
-  output?: string[];
-  children?: NodeData[];
-  debug?: boolean;
-  disabled?: boolean;
-  path?: string;
+    id: string;
+    name: string;
+    desc?: string;
+    args?: { [key: string]: unknown };
+    input?: string[];
+    output?: string[];
+    children?: NodeData[];
+    debug?: boolean;
+    disabled?: boolean;
+    path?: string;
 
-  // nanoid, for override
-  $id: string;
+    // nanoid, for override
+    $id: string;
 
-  // for runtime
-  $mtime?: number;
-  $size?: number[];
-  $status?: number;
+    // for runtime
+    $mtime?: number;
+    $size?: number[];
+    $status?: number;
 }
 
 export type NodeLayout = "compact" | "normal";
 
 export interface VarDecl {
-  name: string;
-  desc: string;
+    name: string;
+    desc: string;
 }
 
 export interface GroupDecl {
-  name: string;
-  value: boolean;
+    name: string;
+    value: boolean;
 }
 
 export interface ImportDecl {
-  path: string;
-  modified?: number;
-  vars: VarDecl[];
-  depends: {
     path: string;
-    modified: number;
-  }[];
+    modified?: number;
+    vars: VarDecl[];
+    depends: {
+        path: string;
+        modified: number;
+    }[];
 }
 
 export interface FileVarDecl {
-  import: ImportDecl[];
-  subtree: ImportDecl[];
-  vars: VarDecl[];
+    import: ImportDecl[];
+    subtree: ImportDecl[];
+    vars: VarDecl[];
 }
 
 export interface TreeData {
-  version: string;
-  name: string;
-  prefix: string;
-  desc?: string;
-  export?: boolean;
-  group: string[];
-  import: string[];
-  vars: VarDecl[];
-  custom: Record<string, string | number | boolean | object>;
-  root: NodeData;
+    version: string;
+    name: string;
+    prefix: string;
+    desc?: string;
+    export?: boolean;
+    group: string[];
+    import: string[];
+    vars: VarDecl[];
+    custom: Record<string, string | number | boolean | object>;
+    root: NodeData;
 
-  $override: {
-    [key: string]: Pick<NodeData, "desc" | "input" | "output" | "args" | "debug" | "disabled">;
-  };
+    $override: {
+        [key: string]: Pick<NodeData, "desc" | "input" | "output" | "args" | "debug" | "disabled">;
+    };
 }
 
 /** `.b3-workspace` file shape. Extension build only reads `settings`; `files` is optional (desktop may still use it). */
 export interface WorkspaceModel {
-  settings: {
-    checkExpr?: boolean;
-    buildScript?: string;
-    /** Override default node-type colors. Keys: "Composite" | "Decorator" | "Condition" | "Action" | "Other" | "Error" */
-    nodeColors?: Partial<Record<string, string>>;
-  };
+    settings: {
+        checkExpr?: boolean;
+        buildScript?: string;
+        /** Override default node-type colors. Keys: "Composite" | "Decorator" | "Condition" | "Action" | "Other" | "Error" */
+        nodeColors?: Partial<Record<string, string>>;
+    };
 }
 
 export const getNodeType = (def: NodeDef): NodeType => {
-  const type = def.type.toLocaleLowerCase().toString();
-  if (type.startsWith("action")) {
-    return "Action";
-  } else if (type.startsWith("composite")) {
-    return "Composite";
-  } else if (type.startsWith("decorator")) {
-    return "Decorator";
-  } else if (type.startsWith("condition")) {
-    return "Condition";
-  } else {
-    return "Other";
-  }
+    const type = def.type.toLocaleLowerCase().toString();
+    if (type.startsWith("action")) {
+        return "Action";
+    } else if (type.startsWith("composite")) {
+        return "Composite";
+    } else if (type.startsWith("decorator")) {
+        return "Decorator";
+    } else if (type.startsWith("condition")) {
+        return "Condition";
+    } else {
+        return "Other";
+    }
 };

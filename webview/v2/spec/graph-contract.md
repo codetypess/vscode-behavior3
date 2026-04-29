@@ -29,23 +29,23 @@ controller 调 graph adapter 只允许使用这些入口：
 
 ```ts
 export interface GraphViewport {
-  zoom: number;
-  x: number;
-  y: number;
+    zoom: number;
+    x: number;
+    y: number;
 }
 
 export interface GraphAdapter {
-  mount(container: HTMLElement, handlers: GraphEventHandlers): Promise<void>;
-  unmount(): void;
+    mount(container: HTMLElement, handlers: GraphEventHandlers): Promise<void>;
+    unmount(): void;
 
-  render(model: ResolvedGraphModel): Promise<void>;
-  applySelection(selection: GraphSelectionState): Promise<void>;
-  applyHighlights(highlights: GraphHighlightState): Promise<void>;
-  applySearch(search: GraphSearchState): Promise<void>;
+    render(model: ResolvedGraphModel): Promise<void>;
+    applySelection(selection: GraphSelectionState): Promise<void>;
+    applyHighlights(highlights: GraphHighlightState): Promise<void>;
+    applySearch(search: GraphSearchState): Promise<void>;
 
-  focusNode(instanceKey: string): Promise<void>;
-  restoreViewport(viewport: GraphViewport): Promise<void>;
-  getViewport(): GraphViewport;
+    focusNode(instanceKey: string): Promise<void>;
+    restoreViewport(viewport: GraphViewport): Promise<void>;
+    getViewport(): GraphViewport;
 }
 ```
 
@@ -109,11 +109,14 @@ graph adapter 只允许向 controller 发这些事件：
 
 ```ts
 export interface GraphEventHandlers {
-  onCanvasSelected(): void;
-  onNodeSelected(node: NodeInstanceRef, opts?: { force?: boolean; via?: "click" | "contextMenu" | "restore" }): void;
-  onNodeDoubleClicked(node: NodeInstanceRef): void;
-  onVariableHotspotClicked(node: NodeInstanceRef, payload: VariableHotspotClick): void;
-  onDropCommitted(intent: DropIntent): Promise<void>;
+    onCanvasSelected(): void;
+    onNodeSelected(
+        node: NodeInstanceRef,
+        opts?: { force?: boolean; via?: "click" | "contextMenu" | "restore" }
+    ): void;
+    onNodeDoubleClicked(node: NodeInstanceRef): void;
+    onVariableHotspotClicked(node: NodeInstanceRef, payload: VariableHotspotClick): void;
+    onDropCommitted(intent: DropIntent): Promise<void>;
 }
 ```
 
@@ -125,9 +128,9 @@ graph adapter 不应把 G6 原生 event、pointer 坐标、shape id 直接上抛
 
 ```ts
 export interface ResolvedGraphModel {
-  rootKey: string;
-  nodes: GraphNodeVM[];
-  edges: GraphEdgeVM[];
+    rootKey: string;
+    nodes: GraphNodeVM[];
+    edges: GraphEdgeVM[];
 }
 ```
 
@@ -135,23 +138,23 @@ export interface ResolvedGraphModel {
 
 ```ts
 export interface GraphNodeVM {
-  ref: NodeInstanceRef;
-  parentKey: string | null;
-  childKeys: string[];
-  depth: number;
-  renderedIdLabel: string;
-  title: string;
-  subtitle?: string;
-  typeLabel: string;
-  icon?: string;
-  nodeStyleKind: "Composite" | "Decorator" | "Condition" | "Action" | "Other" | "Error";
-  disabled: boolean;
-  subtreeNode: boolean;
-  subtreePath?: WorkdirRelativeJsonPath;
-  statusBits: number;
-  inputs: Array<{ label: string; variable?: string }>;
-  outputs: Array<{ label: string; variable?: string }>;
-  argsText?: string;
+    ref: NodeInstanceRef;
+    parentKey: string | null;
+    childKeys: string[];
+    depth: number;
+    renderedIdLabel: string;
+    title: string;
+    subtitle?: string;
+    typeLabel: string;
+    icon?: string;
+    nodeStyleKind: "Composite" | "Decorator" | "Condition" | "Action" | "Other" | "Error";
+    disabled: boolean;
+    subtreeNode: boolean;
+    subtreePath?: WorkdirRelativeJsonPath;
+    statusBits: number;
+    inputs: Array<{ label: string; variable?: string }>;
+    outputs: Array<{ label: string; variable?: string }>;
+    argsText?: string;
 }
 ```
 
@@ -177,9 +180,9 @@ export interface GraphNodeVM {
 
 ```ts
 export interface GraphEdgeVM {
-  key: string;
-  sourceKey: string;
-  targetKey: string;
+    key: string;
+    sourceKey: string;
+    targetKey: string;
 }
 ```
 
@@ -187,7 +190,7 @@ export interface GraphEdgeVM {
 
 ```ts
 export interface GraphSelectionState {
-  selectedNodeKey: string | null;
+    selectedNodeKey: string | null;
 }
 ```
 
@@ -201,12 +204,12 @@ export interface GraphSelectionState {
 
 ```ts
 export interface GraphSearchState {
-  query: string;
-  mode: "content" | "id";
-  caseSensitive: boolean;
-  focusOnly: boolean;
-  resultKeys: string[];
-  activeResultIndex: number;
+    query: string;
+    mode: "content" | "id";
+    caseSensitive: boolean;
+    focusOnly: boolean;
+    resultKeys: string[];
+    activeResultIndex: number;
 }
 ```
 
@@ -221,8 +224,8 @@ export interface GraphSearchState {
 
 ```ts
 export interface GraphHighlightState {
-  activeVariableNames: string[];
-  variableHits: Record<string, Array<"input" | "output" | "args">>;
+    activeVariableNames: string[];
+    variableHits: Record<string, Array<"input" | "output" | "args">>;
 }
 ```
 

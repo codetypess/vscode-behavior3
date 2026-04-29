@@ -8,74 +8,74 @@ import { createDocumentStore } from "../stores/document-store";
 import { createSelectionStore } from "../stores/selection-store";
 import { createWorkspaceStore } from "../stores/workspace-store";
 import type {
-  DocumentState,
-  EditorCommand,
-  GraphAdapter,
-  SelectionState,
-  WorkspaceState,
+    DocumentState,
+    EditorCommand,
+    GraphAdapter,
+    SelectionState,
+    WorkspaceState,
 } from "../shared/contracts";
 
 export interface EditorRuntime {
-  documentStore: StoreApi<DocumentState>;
-  workspaceStore: StoreApi<WorkspaceState>;
-  selectionStore: StoreApi<SelectionState>;
-  controller: EditorCommand;
-  graphAdapter: GraphAdapter;
-  hostAdapter: ReturnType<typeof createVsCodeHostAdapter>;
+    documentStore: StoreApi<DocumentState>;
+    workspaceStore: StoreApi<WorkspaceState>;
+    selectionStore: StoreApi<SelectionState>;
+    controller: EditorCommand;
+    graphAdapter: GraphAdapter;
+    hostAdapter: ReturnType<typeof createVsCodeHostAdapter>;
 }
 
 export const createEditorRuntime = (): EditorRuntime => {
-  const documentStore = createDocumentStore();
-  const workspaceStore = createWorkspaceStore();
-  const selectionStore = createSelectionStore();
-  const hostAdapter = createVsCodeHostAdapter();
-  const graphAdapter = createG6GraphAdapter();
-  const controller = createEditorController({
-    documentStore,
-    workspaceStore,
-    selectionStore,
-    hostAdapter,
-    graphAdapter,
-  });
+    const documentStore = createDocumentStore();
+    const workspaceStore = createWorkspaceStore();
+    const selectionStore = createSelectionStore();
+    const hostAdapter = createVsCodeHostAdapter();
+    const graphAdapter = createG6GraphAdapter();
+    const controller = createEditorController({
+        documentStore,
+        workspaceStore,
+        selectionStore,
+        hostAdapter,
+        graphAdapter,
+    });
 
-  return {
-    documentStore,
-    workspaceStore,
-    selectionStore,
-    controller,
-    graphAdapter,
-    hostAdapter,
-  };
+    return {
+        documentStore,
+        workspaceStore,
+        selectionStore,
+        controller,
+        graphAdapter,
+        hostAdapter,
+    };
 };
 
 const RuntimeContext = createContext<EditorRuntime | null>(null);
 
 export const RuntimeProvider: React.FC<React.PropsWithChildren<{ runtime: EditorRuntime }>> = ({
-  runtime,
-  children,
+    runtime,
+    children,
 }) => {
-  return <RuntimeContext.Provider value={runtime}>{children}</RuntimeContext.Provider>;
+    return <RuntimeContext.Provider value={runtime}>{children}</RuntimeContext.Provider>;
 };
 
 export const useRuntime = (): EditorRuntime => {
-  const runtime = useContext(RuntimeContext);
-  if (!runtime) {
-    throw new Error("V2 runtime is not available");
-  }
-  return runtime;
+    const runtime = useContext(RuntimeContext);
+    if (!runtime) {
+        throw new Error("V2 runtime is not available");
+    }
+    return runtime;
 };
 
 export const useDocumentStore = <T,>(selector: (state: DocumentState) => T): T => {
-  const runtime = useRuntime();
-  return useStore(runtime.documentStore, selector);
+    const runtime = useRuntime();
+    return useStore(runtime.documentStore, selector);
 };
 
 export const useWorkspaceStore = <T,>(selector: (state: WorkspaceState) => T): T => {
-  const runtime = useRuntime();
-  return useStore(runtime.workspaceStore, selector);
+    const runtime = useRuntime();
+    return useStore(runtime.workspaceStore, selector);
 };
 
 export const useSelectionStore = <T,>(selector: (state: SelectionState) => T): T => {
-  const runtime = useRuntime();
-  return useStore(runtime.selectionStore, selector);
+    const runtime = useRuntime();
+    return useStore(runtime.selectionStore, selector);
 };

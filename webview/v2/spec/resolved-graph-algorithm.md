@@ -102,15 +102,15 @@ resolved graph 内唯一实例 key。
 递归解析时，至少维护以下上下文：
 
 - `displayPath`
-  - 当前逻辑编号路径
+    - 当前逻辑编号路径
 - `parentKey`
-  - 父实例 key
+    - 父实例 key
 - `sourceTreePath`
-  - 当前内容来源树文件；主树为 `null`
+    - 当前内容来源树文件；主树为 `null`
 - `subtreeStack`
-  - 走到当前节点经历的 subtree path 栈
+    - 走到当前节点经历的 subtree path 栈
 - `structuralStableId`
-  - 当前结构锚点
+    - 当前结构锚点
 
 ## 节点数据来源规则
 
@@ -172,9 +172,9 @@ override 规则：
 
 - 仍产出一个 resolved node
 - `resolutionError` 标记为：
-  - `missing-subtree`
-  - `invalid-subtree`
-  - `cyclic-subtree`
+    - `missing-subtree`
+    - `invalid-subtree`
+    - `cyclic-subtree`
 - 该节点不继续展开 children
 
 ## Display Id 分配
@@ -277,13 +277,13 @@ override 规则：
 ## 降级显示规则
 
 - missing subtree
-  - 节点正常显示，但带错误态与路径信息
+    - 节点正常显示，但带错误态与路径信息
 - invalid subtree
-  - 节点正常显示，但提示文件不可解析
+    - 节点正常显示，但提示文件不可解析
 - cyclic subtree
-  - 节点正常显示，但提示循环引用并停止展开
+    - 节点正常显示，但提示循环引用并停止展开
 - unknown node def
-  - 节点类型标记为错误或未知，不阻断渲染
+    - 节点类型标记为错误或未知，不阻断渲染
 
 ## 验收清单
 

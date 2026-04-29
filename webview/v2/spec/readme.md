@@ -36,27 +36,27 @@
 ## 文档职责
 
 - `overview.md`
-  - 描述 V2 的目标、技术路线、非目标、完成标准
+    - 描述 V2 的目标、技术路线、非目标、完成标准
 - `behavior-parity.md`
-  - 文件名保留，但内容改为“行为基线”；用于定义当前版本必须具备的核心体验与验收案例
+    - 文件名保留，但内容改为“行为基线”；用于定义当前版本必须具备的核心体验与验收案例
 - `architecture.md`
-  - 定义分层、职责边界、G6 adapter 的角色
+    - 定义分层、职责边界、G6 adapter 的角色
 - `stores-and-commands.md`
-  - 定义 store 归属、command catalog、adapter 接口
+    - 定义 store 归属、command catalog、adapter 接口
 - `protocol-and-dtos.md`
-  - 定义 host/raw message 与 V2 内部 DTO 的规范
+    - 定义 host/raw message 与 V2 内部 DTO 的规范
 - `document-model.md`
-  - 定义 persisted tree、resolved graph、override、history/save 的模型
+    - 定义 persisted tree、resolved graph、override、history/save 的模型
 - `resolved-graph-algorithm.md`
-  - 定义从文档树到图节点实例的解析规则
+    - 定义从文档树到图节点实例的解析规则
 - `graph-contract.md`
-  - 定义 G6 图层的输入、输出、布局、视觉和交互契约
+    - 定义 G6 图层的输入、输出、布局、视觉和交互契约
 - `inspector-contract.md`
-  - 定义 Tree / Node Inspector 的结构、提交节奏与 override 交互
+    - 定义 Tree / Node Inspector 的结构、提交节奏与 override 交互
 - `editor-semantics.md`
-  - 定义 command 语义、图刷新、selection/search/highlight、宿主往返流程
+    - 定义 command 语义、图刷新、selection/search/highlight、宿主往返流程
 - `migration-plan.md`
-  - 定义本轮文档重置到实现落地的阶段顺序
+    - 定义本轮文档重置到实现落地的阶段顺序
 
 ## 本轮重构的固定方向
 

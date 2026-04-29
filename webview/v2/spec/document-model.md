@@ -29,9 +29,9 @@
 每个 persisted node 至少包含：
 
 - `$id`
-  - 稳定 identity，用于 override、selection restore、diff
+    - 稳定 identity，用于 override、selection restore、diff
 - `id`
-  - 原始存档里的节点 id，保留用于 round-trip
+    - 原始存档里的节点 id，保留用于 round-trip
 - `name`
 - `desc`
 - `args`
@@ -80,8 +80,8 @@
 
 1. key 为规范化后的 `WorkdirRelativeJsonPath`
 2. value 为：
-   - `PersistedTreeModel`
-   - `null`，表示读取失败、文件缺失或解析失败
+    - `PersistedTreeModel`
+    - `null`，表示读取失败、文件缺失或解析失败
 3. subtree cache 的刷新由 controller 驱动，不由图层驱动
 
 ## Identity Model
@@ -89,13 +89,13 @@
 V2 同时维护三类 identity：
 
 - `structuralStableId`
-  - 当前实例在主文档结构里的锚点
+    - 当前实例在主文档结构里的锚点
 - `sourceStableId`
-  - 来源 persisted node 的 `$id`
+    - 来源 persisted node 的 `$id`
 - `displayId`
-  - resolved graph 内面向用户的逻辑图节点编号
+    - resolved graph 内面向用户的逻辑图节点编号
 - `instanceKey`
-  - resolved graph 内唯一实例标识
+    - resolved graph 内唯一实例标识
 
 当前推荐规则：
 
@@ -191,9 +191,9 @@ history 存储主文档的序列化文本快照。
 declare 相关数据分为两层：
 
 - 持久化层
-  - `group`、`import`、`vars`
+    - `group`、`import`、`vars`
 - 宿主补充层
-  - `usingVars`、`importDecls`、`subtreeDecls`
+    - `usingVars`、`importDecls`、`subtreeDecls`
 
 Inspector 看到的是两层合成后的派生视图。
 

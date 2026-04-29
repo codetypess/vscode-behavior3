@@ -18,9 +18,9 @@
 ### Rule 2. 区分 full resolve 与 visual repaint
 
 - full resolve
-  - 重建 `ResolvedDocumentGraph` 与图数据
+    - 重建 `ResolvedDocumentGraph` 与图数据
 - visual repaint
-  - 只更新 selection/search/highlight/viewport 等可视状态
+    - 只更新 selection/search/highlight/viewport 等可视状态
 
 ### Rule 3. dirty 由快照比较决定
 
