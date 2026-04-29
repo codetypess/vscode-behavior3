@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       input: {
         editor: path.resolve(__dirname, "webview/editor/index.html"),
+        v2: path.resolve(__dirname, "webview/v2/index.html"),
       },
     },
     // dev mode: inline sourcemaps (CSP-safe, no separate .map files)

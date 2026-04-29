@@ -20,9 +20,10 @@ import { VERSION, type NodeLayout } from "../webview/shared/misc/b3type";
 function buildWebviewHtml(
   webview: vscode.Webview,
   extensionUri: vscode.Uri,
-  title?: string
+  title?: string,
+  entry: "editor" | "v2" = "editor"
 ): string {
-  const htmlPath = vscode.Uri.joinPath(extensionUri, "dist", "webview", "editor", "index.html");
+  const htmlPath = vscode.Uri.joinPath(extensionUri, "dist", "webview", entry, "index.html");
   let html = fs.readFileSync(htmlPath.fsPath, "utf-8");
 
   const webviewRootUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "dist", "webview"));
@@ -180,6 +181,14 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
         subtreeRefreshTimer = undefined;
       }
       flushParentSubtreeRefresh();
+    });
+
+    const themeChangeDisposable = vscode.window.onDidChangeActiveColorTheme(() => {
+      const msg: HostToEditorMessage = {
+        type: "themeChanged",
+        theme: getVSCodeTheme(),
+      };
+      webviewPanel.webview.postMessage(msg);
     });
 
     // Handle messages from the editor webview
@@ -466,11 +475,12 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
       settingWatcher.dispose();
       docChangeDisposable.dispose();
       subtreeSaveDisposable.dispose();
+      themeChangeDisposable.dispose();
     });
   }
 
   private _getEditorHtml(webview: vscode.Webview): string {
-    return buildWebviewHtml(webview, this._extensionUri, "Behavior3 Editor");
+    return buildWebviewHtml(webview, this._extensionUri, "Behavior3 Editor V2", "v2");
   }
 }
 

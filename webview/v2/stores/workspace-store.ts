@@ -1,0 +1,27 @@
+import { createStore, type StoreApi } from "zustand/vanilla";
+import type { WorkspaceState } from "../shared/contracts";
+import { detectInitialThemeMode } from "../shared/theme-mode";
+
+export const createWorkspaceStore = (): StoreApi<WorkspaceState> => {
+  return createStore<WorkspaceState>(() => ({
+    filePath: "",
+    workdir: "",
+    nodeDefs: [],
+    groupDefs: [],
+    allFiles: [],
+    settings: {
+      checkExpr: true,
+      editSubtreeNodeProps: true,
+      language: "zh",
+      theme: detectInitialThemeMode(),
+      layout: "normal",
+    },
+    usingVars: null,
+    usingGroups: null,
+    importDecls: [],
+    subtreeDecls: [],
+    subtreeSources: {},
+    subtreeSourceRevision: 0,
+    hostSubtreeRefreshSeq: 0,
+  }));
+};
