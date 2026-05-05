@@ -4,7 +4,6 @@ import {
     GraphEvent as G6GraphEvent,
     type IEvent as G6Event,
     type IPointerEvent as G6PointerEvent,
-    type Point as G6Point,
     NodeEvent as G6NodeEvent,
     treeToGraphData,
     type GraphData as G6GraphData,
@@ -35,25 +34,13 @@ import {
     measureVectorTreeNode,
     registerVectorTreeNode,
 } from "./g6-vector-tree-node";
+import { handleNativeWheelZoom } from "./g6-wheel-zoom";
 
 const DEFAULT_VIEWPORT: GraphViewport = { zoom: 1, x: 0, y: 0 };
 const DEFAULT_PORTS = [
     { key: "right", placement: "right" as const },
     { key: "left", placement: "left" as const },
 ];
-const WHEEL_ZOOM_SENSITIVITY = 1;
-
-const clampNumber = (value: number, min: number, max: number) =>
-    Math.min(max, Math.max(min, value));
-
-const getWheelZoomRatio = (event: WheelEvent): number | null => {
-    const delta = event.deltaY !== 0 ? event.deltaY : event.deltaX;
-    if (!Number.isFinite(delta) || delta === 0) {
-        return null;
-    }
-
-    return 1 + (clampNumber(-delta, -50, 50) * WHEEL_ZOOM_SENSITIVITY) / 100;
-};
 
 const createNodeOptions = () => ({
     type: G6_VECTOR_TREE_NODE_TYPE,
@@ -191,7 +178,7 @@ export class G6GraphAdapter implements GraphAdapter {
         this.syncViewportFromGraph();
     };
 
-    private getWheelViewportOrigin(event: WheelEvent): G6Point | undefined {
+    private getWheelViewportOrigin(event: WheelEvent): [number, number] | undefined {
         const container = this.container;
         if (!container) {
             return undefined;
@@ -201,27 +188,24 @@ export class G6GraphAdapter implements GraphAdapter {
         return [event.clientX - rect.left, event.clientY - rect.top];
     }
 
-    private readonly handleNativeWheel = (event: WheelEvent) => {
+    private readonly applyWheelZoom = async (
+        ratio: number,
+        origin: [number, number] | undefined
+    ) => {
         if (!this.graph || !this.isGraphRendered()) {
             return;
         }
 
-        const ratio = getWheelZoomRatio(event);
-        if (!ratio) {
-            return;
-        }
+        await this.graph.zoomTo(this.graph.getZoom() * ratio, false, origin);
+        this.syncViewportFromGraph();
+    };
 
-        event.preventDefault();
-        event.stopPropagation();
-
-        const origin = this.getWheelViewportOrigin(event);
-        void (async () => {
-            if (!this.graph || !this.isGraphRendered()) {
-                return;
-            }
-
-            await this.graph.zoomTo(this.graph.getZoom() * ratio, false, origin);
-            this.syncViewportFromGraph();
+    private readonly handleNativeWheel = (event: WheelEvent) => {
+        handleNativeWheelZoom({
+            event,
+            isEnabled: () => Boolean(this.graph && this.isGraphRendered()),
+            getOrigin: () => this.getWheelViewportOrigin(event),
+            zoomTo: (ratio, origin) => this.applyWheelZoom(ratio, origin),
         });
     };
 

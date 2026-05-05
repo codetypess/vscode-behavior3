@@ -8,6 +8,7 @@ import { createDocumentStore, showDocumentReloadConflict } from "../webview/stor
 import { createSelectionStore } from "../webview/stores/selection-store";
 import { createWorkspaceStore } from "../webview/stores/workspace-store";
 import { buildBehaviorProject, resolveBehaviorBuildPaths } from "../src/build/build-cli";
+import { handleNativeWheelZoom } from "../webview/adapters/graph/g6-wheel-zoom";
 import { buildResolvedGraphModel } from "../webview/domain/graph-selectors";
 import { collectResolvedNodeDiagnostics } from "../webview/domain/tree-validation";
 import {
@@ -127,6 +128,38 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             assert.equal(b3path.resolve("/work/trees", "./main.json"), "/work/trees/main.json");
             assert.equal(b3path.relative("/work/trees", "/work/scripts/build.ts"), "../scripts/build.ts");
             assert.equal(b3path.isAbsolute("C:\\work\\main.json"), true);
+        },
+    },
+    {
+        name: "dispatches native wheel zoom callbacks",
+        run() {
+            const zoomCalls: Array<{ ratio: number; origin: [number, number] | undefined }> = [];
+            let prevented = 0;
+            let stopped = 0;
+
+            handleNativeWheelZoom({
+                event: {
+                    deltaX: 0,
+                    deltaY: -20,
+                    preventDefault() {
+                        prevented += 1;
+                    },
+                    stopPropagation() {
+                        stopped += 1;
+                    },
+                },
+                isEnabled: () => true,
+                getOrigin: () => [12, 24],
+                async zoomTo(ratio, origin) {
+                    zoomCalls.push({ ratio, origin });
+                },
+            });
+
+            assert.equal(prevented, 1);
+            assert.equal(stopped, 1);
+            assert.equal(zoomCalls.length, 1);
+            assert.equal(zoomCalls[0]?.ratio, 1.2);
+            assert.deepEqual(zoomCalls[0]?.origin, [12, 24]);
         },
     },
     {
