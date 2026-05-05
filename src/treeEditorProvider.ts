@@ -56,6 +56,37 @@ function isFileVersionNewer(fileVersion: string): boolean {
   return false;
 }
 
+function getFileVersion(content: string): string | undefined {
+  try {
+    const fileData = JSON.parse(content) as { version?: unknown };
+    return typeof fileData.version === "string" ? fileData.version : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function getNewerVersionMessage(
+  language: "zh" | "en",
+  fileVersion: string | undefined,
+  requireUpgradeBeforeEdit = false
+): string {
+  const version = fileVersion ?? "";
+  if (language === "zh") {
+    return requireUpgradeBeforeEdit
+      ? `此文件由新版本 Behavior3(${version}) 创建，请升级到最新版本后再编辑。`
+      : `此文件由新版本 Behavior3(${version}) 创建，请升级到最新版本。`;
+  }
+  return requireUpgradeBeforeEdit
+    ? `This file is created by a newer version of Behavior3(${version}). Please upgrade to the latest version.`
+    : `This file is created by a newer version of Behavior3(${version}), please upgrade to the latest version.`;
+}
+
+function findOpenTextDocument(uri: vscode.Uri): vscode.TextDocument | undefined {
+  return vscode.workspace.textDocuments.find(
+    (d) => d.uri.fsPath === uri.fsPath || d.uri.toString() === uri.toString()
+  );
+}
+
 function getWorkdir(documentUri: vscode.Uri): vscode.Uri {
   const workspaceFolder = vscode.workspace.getWorkspaceFolder(documentUri);
   if (workspaceFolder) {
@@ -105,6 +136,23 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
     webviewPanel.webview.html = this._getEditorHtml(webviewPanel.webview);
 
     let fileVersionIsNewer = false;
+    let newerFileVersion: string | undefined;
+    let warnedNewerFileVersion: string | undefined;
+
+    const updateFileVersionState = (content: string, notify: boolean) => {
+      const fileVersion = getFileVersion(content);
+      const isNewer = !!fileVersion && isFileVersionNewer(fileVersion);
+      fileVersionIsNewer = isNewer;
+      newerFileVersion = isNewer ? fileVersion : undefined;
+      if (isNewer && notify && warnedNewerFileVersion !== fileVersion) {
+        warnedNewerFileVersion = fileVersion;
+        vscode.window.showWarningMessage(getNewerVersionMessage(language, fileVersion));
+      }
+      if (!isNewer) {
+        warnedNewerFileVersion = undefined;
+      }
+      return isNewer;
+    };
 
     let cachedSubtreeRefs: Set<string> | null = null;
     const invalidateSubtreeRefs = () => {
@@ -149,6 +197,7 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
     const docChangeDisposable = vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.document.uri.toString() === document.uri.toString()) {
         invalidateSubtreeRefs();
+        updateFileVersionState(document.getText(), true);
         if (e.contentChanges.length > 0) {
           const msg: HostToEditorMessage = {
             type: "fileChanged",
@@ -189,21 +238,8 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
           const theme = getVSCodeTheme();
           const content = document.getText();
 
-          // Check if file version is newer than the editor version
-          try {
-            const fileData = JSON.parse(content) as { version?: string };
-            const fv = fileData.version ?? "";
-            if (fv && isFileVersionNewer(fv)) {
-              fileVersionIsNewer = true;
-              const warnMsg =
-                language === "zh"
-                  ? `此文件由新版本 Behavior3(${fv}) 创建，请升级到最新版本。`
-                  : `This file is created by a newer version of Behavior3(${fv}), please upgrade to the latest version.`;
-              vscode.window.showWarningMessage(warnMsg);
-            }
-          } catch {
-            // ignore parse errors
-          }
+          // Check if file version is newer than the editor version.
+          updateFileVersionState(content, true);
 
           // Compute allFiles and initial usingVars
           const allFiles = await collectAllFiles(projectRootUri);
@@ -246,13 +282,12 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
 
         case "update": {
           if (fileVersionIsNewer) {
-            const fileData = JSON.parse(document.getText()) as { version?: string };
-            const errMsg =
-              language === "zh"
-                ? `此文件由新版本 Behavior3(${fileData.version}) 创建，请升级到最新版本后再编辑。`
-                : `This file is created by a newer version of Behavior3(${fileData.version}). Please upgrade to the latest version.`;
-            vscode.window.showErrorMessage(errMsg);
-            break;
+            if (updateFileVersionState(document.getText(), false)) {
+              vscode.window.showErrorMessage(
+                getNewerVersionMessage(language, newerFileVersion, true)
+              );
+              break;
+            }
           }
           const edit = new vscode.WorkspaceEdit();
           edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), msg.content);
@@ -331,9 +366,7 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
             break;
           }
           try {
-            const openDoc = vscode.workspace.textDocuments.find(
-              (d) => d.uri.fsPath === fileUri.fsPath || d.uri.toString() === fileUri.toString()
-            );
+            const openDoc = findOpenTextDocument(fileUri);
             const content = openDoc
               ? openDoc.getText()
               : Buffer.from(await vscode.workspace.fs.readFile(fileUri)).toString("utf-8");
@@ -382,6 +415,44 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
             break;
           }
           try {
+            if (fileVersionIsNewer && updateFileVersionState(document.getText(), false)) {
+              const err = getNewerVersionMessage(language, newerFileVersion, true);
+              reply({
+                type: "saveSubtreeResult",
+                requestId: msg.requestId,
+                success: false,
+                error: err,
+              });
+              getBehavior3OutputChannel().warn(
+                `saveSubtree blocked: active file was created by newer Behavior3(${newerFileVersion})`
+              );
+              break;
+            }
+            const openDoc = findOpenTextDocument(fileUri);
+            let currentContent: string | undefined = openDoc?.getText();
+            if (currentContent === undefined) {
+              try {
+                currentContent = Buffer.from(await vscode.workspace.fs.readFile(fileUri)).toString(
+                  "utf-8"
+                );
+              } catch {
+                currentContent = undefined;
+              }
+            }
+            const currentVersion = currentContent ? getFileVersion(currentContent) : undefined;
+            if (currentVersion && isFileVersionNewer(currentVersion)) {
+              const err = getNewerVersionMessage(language, currentVersion, true);
+              reply({
+                type: "saveSubtreeResult",
+                requestId: msg.requestId,
+                success: false,
+                error: err,
+              });
+              getBehavior3OutputChannel().warn(
+                `saveSubtree blocked: ${fileUri.fsPath} was created by newer Behavior3(${currentVersion})`
+              );
+              break;
+            }
             await vscode.workspace.fs.writeFile(fileUri, Buffer.from(msg.content, "utf-8"));
             reply({
               type: "saveSubtreeResult",
@@ -404,6 +475,17 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
           const workdirUri = projectRootUri;
           const reply = (r: HostToEditorMessage) => webviewPanel.webview.postMessage(r);
           try {
+            if (fileVersionIsNewer && updateFileVersionState(document.getText(), false)) {
+              const err = getNewerVersionMessage(language, newerFileVersion, true);
+              vscode.window.showErrorMessage(err);
+              reply({
+                type: "saveSubtreeAsResult",
+                requestId: msg.requestId,
+                savedPath: null,
+                error: err,
+              });
+              break;
+            }
             const defaultUri = vscode.Uri.joinPath(workdirUri, `${msg.suggestedBaseName}.json`);
             const picked = await vscode.window.showSaveDialog({
               defaultUri,
@@ -428,6 +510,26 @@ export class TreeEditorProvider implements vscode.CustomTextEditorProvider {
                 error: err,
               });
               break;
+            }
+            try {
+              const openDoc = findOpenTextDocument(picked);
+              const currentContent = openDoc
+                ? openDoc.getText()
+                : Buffer.from(await vscode.workspace.fs.readFile(picked)).toString("utf-8");
+              const currentVersion = getFileVersion(currentContent);
+              if (currentVersion && isFileVersionNewer(currentVersion)) {
+                const err = getNewerVersionMessage(language, currentVersion, true);
+                vscode.window.showErrorMessage(err);
+                reply({
+                  type: "saveSubtreeAsResult",
+                  requestId: msg.requestId,
+                  savedPath: null,
+                  error: err,
+                });
+                break;
+              }
+            } catch {
+              /* target does not exist yet */
             }
             let body = msg.content;
             try {
