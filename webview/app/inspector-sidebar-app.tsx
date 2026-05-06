@@ -273,7 +273,7 @@ const SidebarShell: React.FC = () => {
             <InspectorPane />
         </InspectorModeProvider>
     ) : (
-        <Flex className="b3-v2-inspector-empty" justify="center" align="center">
+        <Flex className="b3-inspector-empty" justify="center" align="center">
             <Typography.Text type="secondary">
                 {t("inspector.noActiveDocument")}
             </Typography.Text>

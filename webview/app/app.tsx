@@ -118,13 +118,13 @@ const AppShell: React.FC = () => {
     }, [language]);
 
     return (
-        <Layout className="b3-v2-shell">
-            <Layout className="b3-v2-body">
-                <Content className="b3-v2-content">
+        <Layout className="b3-shell">
+            <Layout className="b3-body">
+                <Content className="b3-content">
                     {hasDocument ? (
                         <GraphPane />
                     ) : (
-                        <Flex className="b3-v2-loading" justify="center" align="center">
+                        <Flex className="b3-loading" justify="center" align="center">
                             <Typography.Text type="secondary">
                                 {t("editor.loading")}
                             </Typography.Text>

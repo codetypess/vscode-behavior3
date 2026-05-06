@@ -491,7 +491,7 @@ const NodeMetaFields: React.FC<{
             </Form.Item>
 
             {nodeDef?.doc ? (
-                <ReactMarkdown className="b3-v2-markdown">{nodeDef.doc}</ReactMarkdown>
+                <ReactMarkdown className="b3-markdown">{nodeDef.doc}</ReactMarkdown>
             ) : null}
         </>
     );
@@ -553,7 +553,7 @@ const NodeVariableField: React.FC<{
                 <Form.Item {...createInspectorLabelProps(slotLabel, !slot.includes("?"))}>
                     <Form.List name={[fieldName, index]}>
                         {(fields, { add, remove }, { errors }) => (
-                            <div className="b3-v2-list-block">
+                            <div className="b3-list-block">
                                 {fields.map((field) => (
                                     <Flex key={field.key} gap={4} align="start">
                                         <Form.Item
@@ -570,7 +570,7 @@ const NodeVariableField: React.FC<{
                                             />
                                         </Form.Item>
                                         <MinusCircleOutlined
-                                            className="b3-v2-inline-remove"
+                                            className="b3-inline-remove"
                                             onClick={() => {
                                                 remove(field.name);
                                                 queueSubmit(form);
@@ -871,11 +871,11 @@ export const NodeInspectorForm: React.FC = () => {
     };
 
     return (
-        <div className="b3-v2-inspector-content">
+        <div className="b3-inspector-content">
             <Form
                 key={selectedNode.ref.instanceKey}
                 form={form}
-                className="b3-v2-inspector-form"
+                className="b3-inspector-form"
                 labelCol={{ flex: "110px", xs: { flex: "110px" } }}
                 wrapperCol={{ flex: "1 1 0%", xs: { flex: "1 1 0%" } }}
                 labelAlign="right"

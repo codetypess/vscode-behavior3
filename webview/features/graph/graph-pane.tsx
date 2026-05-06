@@ -64,7 +64,7 @@ export const GraphPane: React.FC = () => {
         );
         const renderCodicon = (name: string) => (
             <span
-                className={`codicon codicon-${name} b3-v2-context-menu-icon`}
+                className={`codicon codicon-${name} b3-context-menu-icon`}
                 aria-hidden="true"
             />
         );
@@ -261,7 +261,7 @@ export const GraphPane: React.FC = () => {
     }, [adapter, message, runtime.controller]);
 
     return (
-        <div ref={shellRef} className="b3-v2-graph-shell" tabIndex={-1}>
+        <div ref={shellRef} className="b3-graph-shell" tabIndex={-1}>
             {searchOpen ? (
                 <SearchBar
                     focusToken={searchFocusToken}
@@ -272,7 +272,7 @@ export const GraphPane: React.FC = () => {
                 menu={{ items: menuItems, onClick: ({ key }) => void runMenuCommand(String(key)) }}
                 trigger={["contextMenu"]}
             >
-                <div ref={mountRef} className="b3-v2-graph" tabIndex={-1} />
+                <div ref={mountRef} className="b3-graph" tabIndex={-1} />
             </Dropdown>
         </div>
     );

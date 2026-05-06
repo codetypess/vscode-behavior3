@@ -60,13 +60,13 @@ export const SearchBar: React.FC<SearchBarProps> = ({ focusToken, onClose }) => 
     };
 
     return (
-        <Flex className="b3-v2-search-overlay">
-            <Flex className="b3-v2-search-box">
+        <Flex className="b3-search-overlay">
+            <Flex className="b3-search-box">
                 <Input
                     key={search.mode}
                     ref={searchInputRef}
                     size="small"
-                    className="b3-v2-search-input"
+                    className="b3-search-input"
                     value={search.query}
                     placeholder={search.mode === "id" ? t("jumpNode") : t("searchNode")}
                     onChange={(event) => {
@@ -74,14 +74,14 @@ export const SearchBar: React.FC<SearchBarProps> = ({ focusToken, onClose }) => 
                     }}
                     onKeyDownCapture={handleInputKeyDown}
                     suffix={
-                        <Flex gap={2} className="b3-v2-search-suffix">
+                        <Flex gap={2} className="b3-search-suffix">
                             {search.mode !== "id" ? (
                                 <Button
                                     type="text"
                                     size="small"
                                     className={mergeClassNames(
-                                        "b3-v2-search-filter",
-                                        search.caseSensitive && "b3-v2-search-filter-selected"
+                                        "b3-search-filter",
+                                        search.caseSensitive && "b3-search-filter-selected"
                                     )}
                                     icon={
                                         <VscCaseSensitive
@@ -100,8 +100,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({ focusToken, onClose }) => 
                                 type="text"
                                 size="small"
                                 className={mergeClassNames(
-                                    "b3-v2-search-filter",
-                                    search.focusOnly && "b3-v2-search-filter-selected"
+                                    "b3-search-filter",
+                                    search.focusOnly && "b3-search-filter-selected"
                                 )}
                                 icon={<RiFocus3Line />}
                                 onClick={() => {
@@ -114,7 +114,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ focusToken, onClose }) => 
                         </Flex>
                     }
                 />
-                <div className="b3-v2-search-counter">
+                <div className="b3-search-counter">
                     {search.results.length > 0
                         ? `${search.index + 1}/${search.results.length}`
                         : ""}

@@ -87,7 +87,7 @@ const LocalVariablesSection: React.FC<{
             <SectionDivider>{t("tree.vars.local")}</SectionDivider>
             <Form.List name="vars">
                 {(fields, { add, remove }, { errors }) => (
-                    <div className="b3-v2-list-block">
+                    <div className="b3-list-block">
                         {fields.map((field) => (
                             <Form.Item
                                 key={field.key}
@@ -154,21 +154,21 @@ const SubtreeVariablesSection: React.FC<{
     return (
         <>
             <SectionDivider>{t("tree.vars.subtree")}</SectionDivider>
-            <div className="b3-v2-list-block">
+            <div className="b3-list-block">
                 {rows.map((entry) => (
-                    <div key={entry.path} className="b3-v2-decl-group">
-                        <Flex gap={4} align="center" className="b3-v2-subtree-path-row">
+                    <div key={entry.path} className="b3-decl-group">
+                        <Flex gap={4} align="center" className="b3-subtree-path-row">
                             <Form.Item style={{ flex: 1, marginBottom: 0 }}>
                                 <Input value={entry.path} disabled />
                             </Form.Item>
                             {readOnly ? null : (
                                 <FormOutlined
-                                    className="b3-v2-inline-action"
+                                    className="b3-inline-action"
                                     onClick={() => onOpenSubtree(entry.path)}
                                 />
                             )}
                         </Flex>
-                        <div className="b3-v2-decl-vars">
+                        <div className="b3-decl-vars">
                             {entry.vars.map((variable) => (
                                 <VariableDeclRow
                                     key={`${entry.path}:${variable.name}`}
@@ -203,7 +203,7 @@ const ImportRefsSection: React.FC<{
             <SectionDivider>{t("tree.vars.imports")}</SectionDivider>
             <Form.List name="importRefs">
                 {(fields, { add, remove }, { errors }) => (
-                    <div className="b3-v2-list-block">
+                    <div className="b3-list-block">
                         {fields.map((field) => {
                             const currentPath = currentImportRefs[field.name]?.path?.trim() ?? "";
                             const importVars = currentPath
@@ -211,8 +211,8 @@ const ImportRefsSection: React.FC<{
                                 : [];
 
                             return (
-                                <div key={field.key} className="b3-v2-decl-group">
-                                    <Flex gap={4} align="center" className="b3-v2-subtree-path-row">
+                                <div key={field.key} className="b3-decl-group">
+                                    <Flex gap={4} align="center" className="b3-subtree-path-row">
                                         <Form.Item
                                             name={[field.name, "path"]}
                                             style={{ flex: 1, marginBottom: 0 }}
@@ -230,7 +230,7 @@ const ImportRefsSection: React.FC<{
                                         </Form.Item>
                                         {readOnly ? null : (
                                             <MinusCircleOutlined
-                                                className="b3-v2-inline-remove-compact"
+                                                className="b3-inline-remove-compact"
                                                 onClick={() => {
                                                     remove(field.name);
                                                     queueSubmit(form);
@@ -238,7 +238,7 @@ const ImportRefsSection: React.FC<{
                                             />
                                         )}
                                     </Flex>
-                                    <div className="b3-v2-decl-vars">
+                                    <div className="b3-decl-vars">
                                         {importVars.map((variable) => (
                                             <VariableDeclRow
                                                 key={`${currentPath}:${variable.name}`}
@@ -309,10 +309,10 @@ export const TreeInspectorForm: React.FC = () => {
     };
 
     return (
-        <div className="b3-v2-inspector-content">
+        <div className="b3-inspector-content">
             <Form
                 form={form}
-                className="b3-v2-inspector-form"
+                className="b3-inspector-form"
                 labelCol={{ flex: "110px", xs: { flex: "110px" } }}
                 wrapperCol={{ flex: "1 1 0%", xs: { flex: "1 1 0%" } }}
                 labelAlign="right"

@@ -32,7 +32,7 @@ import { isMacos } from "../../shared/misc/keys";
 import type { GraphNodeVM } from "../../shared/contracts";
 import { stringifyCompactJson5 } from "../../shared/json5-display";
 
-export const G6_VECTOR_TREE_NODE_TYPE = "b3-v2-tree-node";
+export const G6_VECTOR_TREE_NODE_TYPE = "b3-tree-node";
 export const G6_VECTOR_NODE_WIDTH = 260;
 export const G6_VECTOR_NODE_MIN_HEIGHT = 52;
 export const G6_VECTOR_NODE_H_GAP = 30;
@@ -185,7 +185,7 @@ const textLineCache = new Map<string, string[]>();
 let didRegisterVectorTreeNode = false;
 
 const getMeasureHost = (): HTMLElement | null =>
-    document.querySelector<HTMLElement>(".b3-v2-shell") ?? document.body;
+    document.querySelector<HTMLElement>(".b3-shell") ?? document.body;
 
 const ensureMeasureStyle = (fontSize?: string) => {
     const host = getMeasureHost();

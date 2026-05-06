@@ -336,7 +336,7 @@ export const filterOptionByLabel = (input: string, option?: { label?: React.Reac
         .includes(input.toUpperCase());
 
 const getOverridePopupContainer = (trigger: HTMLElement) => {
-    return (trigger.closest(".b3-v2-inspector") as HTMLElement) ?? document.body;
+    return (trigger.closest(".b3-inspector") as HTMLElement) ?? document.body;
 };
 
 export const OverrideBar: React.FC<{
@@ -352,7 +352,7 @@ export const OverrideBar: React.FC<{
     }
 
     return (
-        <div className="b3-v2-override-bar">
+        <div className="b3-override-bar">
             <Popconfirm
                 title={t("override.resetTitle")}
                 okText={t("reset")}
@@ -361,7 +361,7 @@ export const OverrideBar: React.FC<{
                 onConfirm={onReset}
                 getPopupContainer={getOverridePopupContainer}
             >
-                <div className="b3-v2-override-rail" />
+                <div className="b3-override-rail" />
             </Popconfirm>
             {children}
         </div>
@@ -370,8 +370,8 @@ export const OverrideBar: React.FC<{
 
 export const SectionDivider: React.FC<React.PropsWithChildren> = ({ children }) => {
     return (
-        <Divider className="b3-v2-section-divider" titlePlacement="start" orientation="horizontal">
-            <h4 className="b3-v2-section-title">{children}</h4>
+        <Divider className="b3-section-divider" titlePlacement="start" orientation="horizontal">
+            <h4 className="b3-section-title">{children}</h4>
         </Divider>
     );
 };
@@ -381,12 +381,12 @@ export const InspectorLabel: React.FC<{ text: string; required?: boolean }> = ({
     required,
 }) => {
     return (
-        <span className="b3-v2-form-label">
-            <span className="b3-v2-form-label-text">
-                {required ? <span className="b3-v2-form-required-mark">*</span> : null}
+        <span className="b3-form-label">
+            <span className="b3-form-label-text">
+                {required ? <span className="b3-form-required-mark">*</span> : null}
                 {text}
             </span>
-            <span className="b3-v2-form-label-colon">:</span>
+            <span className="b3-form-label-colon">:</span>
         </span>
     );
 };
@@ -417,10 +417,10 @@ export const VariableDeclRow: React.FC<{
     };
 
     return (
-        <Flex gap={4} align="start" className="b3-v2-var-row">
-            <Space.Compact block className="b3-v2-var-row-compact">
+        <Flex gap={4} align="start" className="b3-var-row">
+            <Space.Compact block className="b3-var-row-compact">
                 <div
-                    className="b3-v2-var-counter"
+                    className="b3-var-counter"
                     onClick={() => {
                         if (localValue.name) {
                             onFocusVariable?.(localValue.name);
@@ -456,9 +456,9 @@ export const VariableDeclRow: React.FC<{
                 />
             </Space.Compact>
             {disabled ? (
-                <div className="b3-v2-row-spacer" />
+                <div className="b3-row-spacer" />
             ) : (
-                <MinusCircleOutlined className="b3-v2-inline-remove" onClick={onRemove} />
+                <MinusCircleOutlined className="b3-inline-remove" onClick={onRemove} />
             )}
         </Flex>
     );

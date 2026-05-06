@@ -7,13 +7,13 @@ import { TreeInspectorForm } from "./tree-inspector-form";
 
 const InspectorSkeletonRow: React.FC = () => {
     return (
-        <div className="b3-v2-inspector-skeleton-row">
-            <Skeleton.Input active size="small" className="b3-v2-inspector-skeleton-label" />
+        <div className="b3-inspector-skeleton-row">
+            <Skeleton.Input active size="small" className="b3-inspector-skeleton-label" />
             <Skeleton.Input
                 active
                 size="small"
                 block
-                className="b3-v2-inspector-skeleton-field"
+                className="b3-inspector-skeleton-field"
             />
         </div>
     );
@@ -21,18 +21,18 @@ const InspectorSkeletonRow: React.FC = () => {
 
 const InspectorSkeleton: React.FC = () => {
     return (
-        <div className="b3-v2-inspector b3-v2-inspector-skeleton">
-            <div className="b3-v2-inspector-header">
-                <Skeleton.Input active size="small" className="b3-v2-inspector-skeleton-title" />
+        <div className="b3-inspector b3-inspector-skeleton">
+            <div className="b3-inspector-header">
+                <Skeleton.Input active size="small" className="b3-inspector-skeleton-title" />
             </div>
-            <div className="b3-v2-inspector-content b3-v2-inspector-skeleton-content">
+            <div className="b3-inspector-content b3-inspector-skeleton-content">
                 <InspectorSkeletonRow />
                 <InspectorSkeletonRow />
                 <InspectorSkeletonRow />
                 <Skeleton.Input
                     active
                     size="small"
-                    className="b3-v2-inspector-skeleton-section"
+                    className="b3-inspector-skeleton-section"
                 />
                 <InspectorSkeletonRow />
                 <InspectorSkeletonRow />
@@ -53,7 +53,7 @@ const InspectorReloadBanner: React.FC<{
             type="warning"
             showIcon
             title={t("editor.externalChangeConflict")}
-            className="b3-v2-inspector-banner"
+            className="b3-inspector-banner"
             action={
                 <Flex gap={8}>
                     <Button
@@ -82,7 +82,7 @@ export const InspectorPane: React.FC = () => {
     }
 
     return (
-        <div className="b3-v2-inspector">
+        <div className="b3-inspector">
             {alertReload ? (
                 <InspectorReloadBanner
                     pendingExternalContent={pendingExternalContent}
