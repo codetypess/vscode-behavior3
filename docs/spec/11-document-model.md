@@ -145,6 +145,7 @@
 
 说明：
 
+- `selectedTree` / `selectedNodeRef` 是宿主共享 selection 在当前 webview 的本地 projection
 - `selectedNodeSnapshot` 是给 Inspector 使用的编辑投影
 - `selectedNodeDef` 是当前节点对应的 nodeDef 快照
 - 这些都不是主文档真源，只是当前 resolved graph 的投影视图
@@ -211,19 +212,19 @@
 1. webview 发送 `saveDocument` intent
 2. 宿主保存当前 `TreeEditorDocument.content`
 3. 成功后更新宿主 `sessionState.lastSavedSnapshot`
-4. 宿主广播 `documentSnapshotChanged(syncKind: "reload")`
+4. 宿主广播带当前 `selection` 的 `documentSnapshotChanged(syncKind: "reload")`
 
 ### Undo / Redo
 
 1. webview 发送 `undo` 或 `redo` intent
 2. 宿主在 `sessionState.history` 上推进 history 游标
 3. 宿主更新 `TreeEditorDocument.content` / `isDirty`
-4. 宿主广播 `documentSnapshotChanged(syncKind: "update")`
+4. 宿主广播带当前 `selection` 的 `documentSnapshotChanged(syncKind: "update")`
 
 ### Revert
 
 - 宿主重新读取磁盘内容
-- webview 通过 `documentSnapshotChanged(syncKind: "reload")` 强制应用宿主快照
+- webview 通过带当前 `selection` 的 `documentSnapshotChanged(syncKind: "reload")` 强制应用宿主快照
 - history 以磁盘快照重置
 
 ### External Reload Conflict

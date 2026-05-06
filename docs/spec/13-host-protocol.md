@@ -42,8 +42,9 @@
 
 - `mutateDocument`
   - payload: `{ requestId, mutation }`
-- `reportInspectorSelection`
-  - payload: `{ selectedNode }`
+- `selectTree`
+- `selectNode`
+  - payload: `{ target: NodeInstanceRef }`
 - `focusVariable`
   - payload: `{ names }`
 
@@ -78,11 +79,15 @@
 
 语义区别：
 
+- `init`
+  - 宿主返回当前 committed `content`、`HostDocumentSessionState`、`HostSelectionState`
+  - 用于 editor / sidebar 的统一启动快照
 - `documentSnapshotChanged`
   - 宿主把权威 committed document snapshot 广播给 editor 或 sidebar
   - payload 同时包含：
     - committed `content`
     - `HostDocumentSessionState`
+    - `HostSelectionState`
     - `syncKind` (`update` / `reload`)
     - 可选 `nextSelection`
   - 外部文件 dirty 冲突也通过这条消息提升 session 冲突态，而不是另发一条内容消息
@@ -101,7 +106,6 @@
 
 ### Inspector Sidebar 同步
 
-- `inspectorSelectionChanged`
 - `inspectorContextCleared`
 
 ### request/response 结果消息
@@ -129,6 +133,8 @@
 - `settings`
 - `documentSession`
   - 当前宿主 document session 元数据
+- `selection`
+  - 当前宿主共享选中快照
 
 ### HostDocumentSessionState
 
@@ -149,6 +155,29 @@
   - import 文件的有序变量声明视图
 - `subtreeDecls`
   - subtree 文件的有序变量声明视图
+
+### HostSelectionState
+
+- `{ kind: "tree" }`
+- `{ kind: "node", ref: NodeInstanceRef }`
+
+说明：
+
+- 它是 host 当前共享 tree/node 选中的权威 DTO
+- editor 与 sidebar 都只消费这个快照，再各自在本地 resolved graph 上做 projection
+
+### HostDocumentSnapshot
+
+- `content`
+- `documentSession`
+- `selection`
+- `syncKind`
+- `nextSelection?`
+
+说明：
+
+- `selection` 才是 committed fanout 时的共享选中权威结果
+- `nextSelection` 只是 mutation reducer 的补充过渡信息，不替代 `selection`
 
 ### NodeInstanceRef
 
@@ -185,8 +214,9 @@
 - `updateNode` 在“解绑 subtree 引用为本地节点”时可以携带 `detachedSubtreeRoot`
 - `detachedSubtreeRoot` 由当前 webview runtime 提供，供 host reducer 直接提交
 - `mutateDocumentResult` 当前可以携带 `nextSelection`
-- 该字段只表达“提交后的选中投影应该落到哪里”，不把 selection authority 从 webview 立刻迁成宿主真源
-- 同一个 committed `nextSelection` 也会出现在后续 `documentSnapshotChanged` 中，供非发起方视图同步 projection
+- 该字段只表达“本次提交后宿主会把共享 selection 推到哪里”
+- 真正的共享 selection authority 在 `init.selection` / `documentSnapshotChanged.selection`
+- 同一个 committed `nextSelection` 仍可出现在后续 `documentSnapshotChanged` 中，供发起方做对账或兼容过渡
 
 ## 会话规则
 

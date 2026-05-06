@@ -25,9 +25,9 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 2 份 work-item spec
-- 1 份登记中的 active work-item spec
-- 1 份登记中的 done work-item spec
+- 3 份 work-item spec
+- 0 份登记中的 active work-item spec
+- 3 份登记中的 done work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
 目录判断规则：
@@ -213,9 +213,7 @@ Scope: <short boundary>
 
 ## Active Work Items
 
-当前登记中的 active work-item spec：
-
-- `sidebar-host-single-source.md` - `Implementing` - 将主文档 authority 从 webview-local runtime 渐进迁移到 extension-host document session
+当前没有登记中的 active work-item spec。
 
 新增 work-item 时，请继续按以下格式补充：
 
@@ -224,3 +222,5 @@ Scope: <short boundary>
 ## Done Work Items
 
 - `baseline-spec-sync-current-code.md` - `Done` - 按当前实现回写编号基线 spec
+- `host-selection-authority.md` - `Done` - 将 tree/node selection authority 收口到 extension-host selection intent 与 host snapshot fanout
+- `sidebar-host-single-source.md` - `Done` - 将主文档 authority 收口到 extension-host document/session 与统一 snapshot fanout

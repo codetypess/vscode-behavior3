@@ -6,10 +6,11 @@ import type { NodeDef } from "./misc/b3type";
 import type {
     DocumentMutation,
     DocumentMutationSelection,
-    EditNode,
     HostDocumentSnapshot,
     HostDocumentSessionState,
+    HostSelectionState,
     NodeCheckValidationNode,
+    NodeInstanceRef,
 } from "./contracts";
 
 export type { NodeDef };
@@ -18,6 +19,8 @@ export type EditorToHostMessage =
     | { type: "ready" }
     | { type: "undo" }
     | { type: "redo" }
+    | { type: "selectTree" }
+    | { type: "selectNode"; target: NodeInstanceRef }
     /** Ask the active editor webview to highlight nodes that use these variables. */
     | { type: "focusVariable"; names: string[] }
     | { type: "mutateDocument"; requestId: string; mutation: DocumentMutation }
@@ -36,8 +39,6 @@ export type EditorToHostMessage =
     | { type: "saveSubtree"; requestId: string; path: string; content: string }
     /** Right-click -> Save as subtree: pick path under workdir and write JSON from webview. */
     | { type: "saveSubtreeAs"; requestId: string; content: string; suggestedBaseName: string }
-    /** Mirror the current editor inspector selection to extension-host side views. */
-    | { type: "reportInspectorSelection"; selectedNode: EditNode | null }
     /** Forward webview `console.*` to extension Output panel. */
     | { type: "webviewLog"; level: "log" | "info" | "warn" | "error" | "debug"; message: string };
 
@@ -55,14 +56,13 @@ export type HostToEditorMessage =
           allFiles: string[];
           nodeColors?: Record<string, string>;
           documentSession: HostDocumentSessionState;
+          selection: HostSelectionState;
       }
     | { type: "documentSnapshotChanged"; snapshot: HostDocumentSnapshot }
     /** Cross-webview variable focus sync from the sidebar inspector into the active editor. */
     | { type: "focusVariable"; names: string[] }
     /** A referenced subtree file was saved or edited; parent canvas should reload subtree data. */
     | { type: "subtreeFileChanged" }
-    /** Sidebar inspector selection sync for the active editor session. */
-    | { type: "inspectorSelectionChanged"; selectedNode: EditNode | null }
     /** No active Behavior3 editor is currently driving the sidebar inspector. */
     | { type: "inspectorContextCleared" }
     | {

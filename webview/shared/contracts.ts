@@ -60,13 +60,6 @@ export interface HostDocumentSessionState {
     pendingExternalContent: string | null;
 }
 
-export interface HostDocumentSnapshot {
-    content: string;
-    documentSession: HostDocumentSessionState;
-    syncKind: "update" | "reload";
-    nextSelection?: DocumentMutationSelection;
-}
-
 export interface HostInitPayload {
     filePath: string;
     workdir: string;
@@ -75,6 +68,7 @@ export interface HostInitPayload {
     allFiles: WorkdirRelativeJsonPath[];
     settings: Settings;
     documentSession: HostDocumentSessionState;
+    selection: HostSelectionState;
 }
 
 export interface HostVarsPayload {
@@ -91,6 +85,18 @@ export interface NodeInstanceRef {
     sourceStableId: string;
     sourceTreePath: WorkdirRelativeJsonPath | null;
     subtreeStack: WorkdirRelativeJsonPath[];
+}
+
+export type HostSelectionState =
+    | { kind: "tree" }
+    | { kind: "node"; ref: NodeInstanceRef };
+
+export interface HostDocumentSnapshot {
+    content: string;
+    documentSession: HostDocumentSessionState;
+    selection: HostSelectionState;
+    syncKind: "update" | "reload";
+    nextSelection?: DocumentMutationSelection;
 }
 
 export interface EditNode {
@@ -273,7 +279,6 @@ export type HostEvent =
     | { type: "focusVariable"; names: string[] }
     | { type: "themeChanged"; theme: Settings["theme"] }
     | { type: "subtreeFileChanged" }
-    | { type: "inspectorSelectionChanged"; selectedNode: EditNode | null }
     | { type: "inspectorContextCleared" }
     | { type: "settingLoaded"; nodeDefs: NodeDef[]; settings?: Partial<Settings> }
     | { type: "varDeclLoaded"; payload: HostVarsPayload }
@@ -402,8 +407,9 @@ export interface HostAdapter {
     undo(): void;
     redo(): void;
     mutateDocument(mutation: DocumentMutation): Promise<DocumentMutationResponse>;
+    selectTree(): void;
+    selectNode(target: NodeInstanceRef): void;
     requestFocusVariable(names: string[]): void;
-    sendInspectorSelection(selectedNode: EditNode | null): void;
     sendRequestSetting(): void;
     sendBuild(opts?: { buildScriptDebug?: boolean }): void;
     validateNodeChecks(

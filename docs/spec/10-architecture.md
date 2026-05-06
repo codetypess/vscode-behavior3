@@ -51,6 +51,7 @@ Shared Layer
 - 串行化主文档 save、revert、external reload、sidebar proxy mutation
 - 执行 save、undo、redo 这类主文档 intent，并把权威结果广播回 webview
 - 对 sidebar 的 `updateTreeMeta` / `updateNode` 运行 host-first shared reducer；`updateNode` 所需节点快照由 intent 显式携带，只在必要时回退到主编辑器兼容执行链
+- 维护当前共享 tree/node 选中，并把它折叠进 `init` / `documentSnapshotChanged`
 - 监听主文件、subtree 文件、setting 文件、workspace 文件、VS Code 配置与主题变化
 - 解析 nodeDefs、工作目录、变量声明、可见文件列表
 - 运行 build 与节点参数自定义检查脚本
@@ -66,7 +67,7 @@ Shared Layer
 - 执行当前仍留在 webview 的树级和节点级编辑命令
 - 把 save、undo、redo 作为用户 intent 发给宿主，再消费宿主回推的权威 session/content
 - sidebar 的 `updateTreeMeta` / `updateNode` 也只发送 intent，不再先在本地提交主文档状态
-- 管理 search、variable focus、selection restore，以及宿主回推快照的本地 projection 刷新逻辑
+- 管理 search、variable focus、selection restore，以及宿主回推 document/session/selection snapshot 的本地 projection 刷新逻辑
 
 ### Shared Layer
 
@@ -88,7 +89,7 @@ Shared Layer
 ### InspectorSidebarCoordinator
 
 - 维护当前激活文档的快照
-- 将主编辑器的 init/content/vars/selection 镜像到侧栏
+- 将主编辑器的 init/documentSnapshot/vars 镜像到侧栏
 - 将侧栏发起的保存、回滚、变更代理回当前激活编辑器
 
 ### TreeEditorSession
@@ -111,7 +112,7 @@ Shared Layer
 ### 启动
 
 1. webview 发送 `ready`
-2. extension-host 返回 `init`
+2. extension-host 返回带当前 `selection` 的 `init`
 3. extension-host 计算变量与文件列表后补发 `varDeclLoaded`
 4. webview 初始化 stores，构建 resolved graph，渲染 G6
 
@@ -133,14 +134,14 @@ Shared Layer
 
 1. editor 或 sidebar webview 发送 `saveDocument` / `undo` / `redo` intent
 2. extension-host session 在主文档操作队列内执行对应的 save 或 history 迁移
-3. 宿主以 `documentSnapshotChanged` 回推权威结果；若变量视图受影响，再单独补发 `varDeclLoaded`
+3. 宿主以带当前 `selection` 的 `documentSnapshotChanged` 回推权威结果；若变量视图受影响，再单独补发 `varDeclLoaded`
 
 ### Host-First Mutation Intent
 
 1. Inspector Sidebar 或主编辑器 canvas 发送 `mutateDocument`
 2. active editor session 先尝试在 host 侧直接 reduce 并提交权威 snapshot
 3. host 若无法提交，则直接返回权威错误，而不是转回主编辑器执行
-4. 对于结构命令，宿主可通过 mutation response 与 committed `documentSnapshotChanged` 共同公开 `nextSelection`，让 editor / sidebar 都更新 selection projection
+4. 普通 tree/node 选中通过 `selectTree` / `selectNode` 先进入 host；结构命令则通过 mutation response 的 `nextSelection` 与 committed `documentSnapshotChanged.selection` 共同更新 editor / sidebar projection
 
 ### 外部文件变化
 

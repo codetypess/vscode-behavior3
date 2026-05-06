@@ -44,10 +44,10 @@ export const createDocumentCommands = (
                 settings: payload.settings,
                 usingGroups: buildUsingGroups(persistedTree.group),
             }));
-            runtime.selectTreeState();
+            runtime.applyHostSelectionState(payload.selection);
 
             await runtime.applyDocumentTree(persistedTree, {
-                preserveSelection: false,
+                preserveSelection: true,
             });
             applyHostDocumentSession(deps.documentStore, payload.documentSession);
         },
@@ -56,30 +56,12 @@ export const createDocumentCommands = (
             applyHostDocumentSession(deps.documentStore, snapshot.documentSession);
 
             const matchesCurrent = runtime.matchesCurrentDocumentSnapshot(snapshot.content);
+            runtime.applyHostSelectionState(snapshot.selection);
             if (matchesCurrent) {
-                if (snapshot.nextSelection) {
-                    runtime.primeHostSelectionProjection(snapshot.nextSelection, {
-                        reportInspector: false,
-                    });
-                    if (snapshot.nextSelection.kind === "tree") {
-                        await deps.graphAdapter.applySelection({ selectedNodeKey: null });
-                    } else {
-                        const selectedKey =
-                            deps.selectionStore.getState().selectedNodeRef?.instanceKey ?? null;
-                        const resolvedGraph = runtime.getResolvedGraph();
-                        if (selectedKey && resolvedGraph?.nodesByInstanceKey[selectedKey]) {
-                            await deps.graphAdapter.applySelection({ selectedNodeKey: selectedKey });
-                        }
-                    }
-                }
+                await runtime.applyVisualState();
                 return;
             }
 
-            if (snapshot.nextSelection) {
-                runtime.primeHostSelectionProjection(snapshot.nextSelection, {
-                    reportInspector: false,
-                });
-            }
             const filePath = deps.workspaceStore.getState().filePath || undefined;
             const tree = parsePersistedTreeContent(snapshot.content, filePath);
             await runtime.applyDocumentTree(tree, {

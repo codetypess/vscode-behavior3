@@ -24,14 +24,22 @@ import type {
     HostToEditorMessage,
     NodeDef,
 } from "../../webview/shared/message-protocol";
-import type { DocumentMutationSelection, EditNode } from "../../webview/shared/contracts";
+import type {
+    DocumentMutationSelection,
+    HostSelectionState,
+    NodeInstanceRef,
+} from "../../webview/shared/contracts";
 import {
     formatDocumentMutationReducerError,
     isReducibleDocumentMutation,
     reduceDocumentMutation,
 } from "../../webview/shared/document-mutation-reducer";
 import { isDocumentVersionNewer } from "../../webview/shared/document-version";
-import { parseWorkdirRelativeJsonPath } from "../../webview/shared/protocol";
+import {
+    normalizeHostSelectionState,
+    normalizeNodeInstanceRef,
+    parseWorkdirRelativeJsonPath,
+} from "../../webview/shared/protocol";
 import { parseWorkspaceModelContent } from "../../webview/shared/schema";
 import {
     clonePersistedNode,
@@ -90,8 +98,8 @@ interface TreeEditorSessionState {
     subtreeRefreshTimer?: ReturnType<typeof setTimeout>;
     latestAllFiles: string[];
     latestVarDecls: VarDeclResult;
-    selectedInspectorNode: EditNode | null;
-    inspectorSelectionRevision: number;
+    sharedSelection: HostSelectionState;
+    selectionRevision: number;
     inspectorContentSyncKind: "update" | "reload";
 }
 
@@ -204,6 +212,18 @@ function clearRefreshTimer(timer: ReturnType<typeof setTimeout> | undefined): un
     }
     return undefined;
 }
+
+const isJsonEqual = (left: unknown, right: unknown): boolean =>
+    JSON.stringify(left) === JSON.stringify(right);
+
+const buildPendingSelectionRef = (structuralStableId: string): NodeInstanceRef => ({
+    instanceKey: structuralStableId,
+    displayId: "",
+    structuralStableId,
+    sourceStableId: structuralStableId,
+    sourceTreePath: null,
+    subtreeStack: [],
+});
 
 function disposeAll(disposables: vscode.Disposable[]): void {
     for (const disposable of disposables) {
@@ -324,8 +344,8 @@ export async function resolveTreeEditorSession({
             importDecls: [],
             subtreeDecls: [],
         },
-        selectedInspectorNode: null,
-        inspectorSelectionRevision: 0,
+        sharedSelection: { kind: "tree" },
+        selectionRevision: 0,
         inspectorContentSyncKind: "reload",
     };
     const documentSession = document.sessionState;
@@ -357,16 +377,38 @@ export async function resolveTreeEditorSession({
         content?: string;
         documentSession?: ReturnType<typeof buildDocumentSessionMessage>;
         syncKind?: "update" | "reload";
+        selection?: HostSelectionState;
         nextSelection?: DocumentMutationSelection;
     }): Extract<HostToEditorMessage, { type: "documentSnapshotChanged" }> => ({
         type: "documentSnapshotChanged",
         snapshot: {
             content: opts?.content ?? document.content,
             documentSession: opts?.documentSession ?? buildDocumentSessionMessage(),
+            selection: opts?.selection ?? state.sharedSelection,
             syncKind: opts?.syncKind ?? state.inspectorContentSyncKind,
             nextSelection: opts?.nextSelection,
         },
     });
+
+    const buildHostSelectionFromMutationSelection = (
+        selection: DocumentMutationSelection
+    ): HostSelectionState =>
+        selection.kind === "tree"
+            ? { kind: "tree" }
+            : {
+                  kind: "node",
+                  ref: buildPendingSelectionRef(selection.structuralStableId),
+              };
+
+    const updateSharedSelection = (selection: HostSelectionState): boolean => {
+        const normalized = normalizeHostSelectionState(selection);
+        if (isJsonEqual(state.sharedSelection, normalized)) {
+            return false;
+        }
+        state.sharedSelection = normalized;
+        state.selectionRevision += 1;
+        return true;
+    };
 
     const notifyInspectorSessionUpdate = () => {
         const documentSession = buildDocumentSessionMessage();
@@ -385,13 +427,13 @@ export async function resolveTreeEditorSession({
                 allFiles: state.latestAllFiles,
                 nodeColors: state.currentSettings.nodeColors,
                 documentSession,
+                selection: state.sharedSelection,
             },
             varsMessage: buildInspectorVarsMessage(),
             documentSnapshot: buildDocumentSnapshotMessage({
                 documentSession,
             }).snapshot,
-            selectedNode: state.selectedInspectorNode,
-            selectionRevision: state.inspectorSelectionRevision,
+            selectionRevision: state.selectionRevision,
         });
     };
 
@@ -699,6 +741,9 @@ export async function resolveTreeEditorSession({
         void refreshTrackedSubtreeRefs();
         updateFileVersionState(snapshot);
         onDidChangeDocument(document);
+        if (opts?.nextSelection) {
+            updateSharedSelection(buildHostSelectionFromMutationSelection(opts.nextSelection));
+        }
         await fanoutDocumentSnapshot({
             syncKind: "update",
             nextSelection: opts?.nextSelection,
@@ -768,6 +813,7 @@ export async function resolveTreeEditorSession({
             allFiles: state.latestAllFiles,
             nodeColors: state.currentSettings.nodeColors,
             documentSession: buildDocumentSessionMessage(),
+            selection: state.sharedSelection,
         });
 
         await postVarDeclLoaded(reply, state.latestVarDecls, state.latestAllFiles);
@@ -907,6 +953,7 @@ export async function resolveTreeEditorSession({
         };
         const changed = applyContentFromWebview(serializePersistedTree(nextTree));
         if (changed) {
+            updateSharedSelection(buildHostSelectionFromMutationSelection(nextSelection));
             await fanoutDocumentSnapshot({
                 syncKind: "update",
                 nextSelection,
@@ -964,7 +1011,6 @@ export async function resolveTreeEditorSession({
                 reduced = reduceDocumentMutation(msg.mutation, {
                     tree: currentTree,
                     nodeDefs: state.nodeDefs,
-                    selectedNode: state.selectedInspectorNode,
                 });
             } catch (error) {
                 await reply({
@@ -1000,6 +1046,11 @@ export async function resolveTreeEditorSession({
 
             const changed = applyContentFromWebview(serializePersistedTree(reduced.tree));
             if (changed) {
+                if (reduced.nextSelection) {
+                    updateSharedSelection(
+                        buildHostSelectionFromMutationSelection(reduced.nextSelection)
+                    );
+                }
                 await fanoutDocumentSnapshot({
                     syncKind: "update",
                     nextSelection: reduced.nextSelection,
@@ -1361,12 +1412,33 @@ export async function resolveTreeEditorSession({
         }
     };
 
-    const handleInspectorSelectionMessage = (
-        msg: Extract<EditorToHostMessage, { type: "reportInspectorSelection" }>
-    ): void => {
-        state.selectedInspectorNode = msg.selectedNode;
-        state.inspectorSelectionRevision += 1;
-        notifyInspectorSessionUpdate();
+    const handleSelectTreeMessage = async (): Promise<void> => {
+        await enqueueMainDocumentOperation(async () => {
+            if (!updateSharedSelection({ kind: "tree" })) {
+                return;
+            }
+            await fanoutDocumentSnapshot({
+                refreshVars: false,
+            });
+        });
+    };
+
+    const handleSelectNodeMessage = async (
+        msg: Extract<EditorToHostMessage, { type: "selectNode" }>
+    ): Promise<void> => {
+        await enqueueMainDocumentOperation(async () => {
+            if (
+                !updateSharedSelection({
+                    kind: "node",
+                    ref: normalizeNodeInstanceRef(msg.target),
+                })
+            ) {
+                return;
+            }
+            await fanoutDocumentSnapshot({
+                refreshVars: false,
+            });
+        });
     };
 
     const dispatchEditorMessage = async (
@@ -1387,6 +1459,14 @@ export async function resolveTreeEditorSession({
                 await handleHistoryNavigationMessage("redo");
                 return;
 
+            case "selectTree":
+                await handleSelectTreeMessage();
+                return;
+
+            case "selectNode":
+                await handleSelectNodeMessage(msg);
+                return;
+
             case "focusVariable":
                 if (source !== "editor") {
                     await postMessage({
@@ -1402,10 +1482,6 @@ export async function resolveTreeEditorSession({
 
             case "saveDocument":
                 await handleSaveDocumentMessage(msg, reply);
-                return;
-
-            case "reportInspectorSelection":
-                handleInspectorSelectionMessage(msg);
                 return;
 
             case "revertDocument":

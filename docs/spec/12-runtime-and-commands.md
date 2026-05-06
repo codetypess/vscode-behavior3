@@ -34,19 +34,18 @@
 | --- | --- |
 | `persistedTree` / host-projected `dirty` / reload conflict | `documentStore` |
 | `nodeDefs` / `allFiles` / `settings` / `usingVars` / `subtreeSources` / `nodeCheckDiagnostics` | `workspaceStore` |
-| tree/node 选中、Inspector snapshot、variable focus、search 状态 | `selectionStore` |
+| host-projected tree/node 选中、本地 Inspector snapshot、variable focus、search 状态 | `selectionStore` |
 | `ResolvedDocumentGraph` | controller runtime 私有缓存 |
 | 图节点尺寸、布局结果、视口、选中视觉态、drag intent | `graphAdapter` |
 | 主文档序列化文本、custom editor dirty、磁盘写入抑制 | extension-host `TreeEditorDocument` |
-| 文件监听、项目索引、build、check scripts、当前激活 inspector 会话 | extension-host session / coordinator |
+| 文件监听、项目索引、build、check scripts、当前激活 inspector 会话、共享 selection snapshot | extension-host session / coordinator |
 
 ## EditorCommand Catalog
 
 ### 启动与宿主同步
 
 - `initFromHost(payload)`
-- `syncDocumentFromHost(content)`
-- `reloadDocumentFromHost(content, opts?)`
+- `applyDocumentSnapshot(snapshot)`
 - `applyNodeDefs(defs)`
 - `applyHostVars(payload)`
 - `markSubtreeChanged()`
@@ -72,6 +71,7 @@
 职责：
 
 - 改写 selection/search 相关 store
+- 对用户选中手势发送 `HostAdapter.selectTree/selectNode` intent
 - 驱动 graph adapter 应用 selection/highlight/search 状态
 - 在必要时触发节点聚焦
 
@@ -148,8 +148,9 @@
 `HostAdapter` 当前负责：
 
 - 连接 webview 与 `window.postMessage`
-- 归一化 `init` / `varDeclLoaded` 等宿主消息
+- 归一化 `init` / `documentSnapshotChanged` / `varDeclLoaded` 等宿主消息
 - 管理带 `requestId` 的异步请求
+- 发送 `selectTree` / `selectNode` 这类轻量宿主 intent
 - 为 `readFile` / `saveSubtree` / `saveDocument` / `mutateDocument` / `validateNodeChecks` 提供 Promise 风格 API
 - 对 host request 设置超时保护
 
@@ -161,12 +162,13 @@
 2. 宿主优先尝试在 host 侧直接 reduce 并提交
 3. 当前 `updateTreeMeta` / `updateNode` / `performDrop` / `pasteNode` / `insertNode` / `replaceNode` / `deleteNode` / `saveSelectedAsSubtree` 已可直接在 host 提交
 4. `updateNode` 在发送 intent 前会补齐 `currentNodeSnapshot`，若发生 subtree 脱链再补 `detachedSubtreeRoot`
-5. 对于需要改选中的结构命令，宿主通过 mutation response 决定 `nextSelection`，并在 committed `documentSnapshotChanged` 中把同一投影 fanout 给 editor / sidebar
+5. 对于需要改选中的结构命令，宿主通过 mutation response 公开 `nextSelection`，并同步更新 committed `documentSnapshotChanged.selection`
 6. 若宿主无法提交 mutation，则直接返回错误，不再把执行权转回主编辑器
 
 这条规则意味着：
 
 - canvas / sidebar 都先表达 mutation intent，而不是直接拥有主文档权威提交权
+- tree/node 共享选中也先表达 host intent，再由 host snapshot fanout 回 editor / sidebar
 - 侧栏可以触发表单提交、保存、撤销、重做，但不拥有独立的 mutation runtime
 
 ## 验收标准

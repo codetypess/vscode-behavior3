@@ -5,6 +5,7 @@ import {
     readFileContentFromDisk,
     TreeEditorDocument,
 } from "./editor-session/document-sync";
+import type { HostSelectionState } from "../webview/shared/contracts";
 import type {
     EditorToHostMessage,
     HostToEditorMessage,
@@ -51,6 +52,7 @@ function getNewerFileWriteError(content: string): string | null {
 export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEditorDocument> {
     public static readonly viewType = "behavior3.treeEditor";
     private static readonly activeWebviews = new Set<ActiveTreeEditorWebview>();
+    private readonly documentSelections = new Map<string, HostSelectionState>();
     private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<
         vscode.CustomDocumentContentChangeEvent<TreeEditorDocument>
     >();
@@ -143,11 +145,14 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         document.rememberOwnWrite(normalizedContent);
 
         if (opts?.notifyReload !== false) {
+            const selection =
+                this.documentSelections.get(document.uri.toString()) ?? { kind: "tree" };
             TreeEditorProvider.postMessageToDocument(document.uri.toString(), {
                 type: "documentSnapshotChanged",
                 snapshot: {
                     content: normalizedContent,
                     documentSession: document.sessionState.getSnapshot(),
+                    selection,
                     syncKind: "reload",
                 },
             });
@@ -220,11 +225,14 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         document.clearOwnWrites();
         document.updateContent(content, { markSaved: true, markDirty: false });
         document.sessionState.replaceFromDisk(content);
+        const selection =
+            this.documentSelections.get(document.uri.toString()) ?? { kind: "tree" };
         TreeEditorProvider.postMessageToDocument(document.uri.toString(), {
             type: "documentSnapshotChanged",
             snapshot: {
                 content,
                 documentSession: document.sessionState.getSnapshot(),
+                selection,
                 syncKind: "reload",
             },
         });
@@ -283,9 +291,11 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
                 TreeEditorProvider.activeWebviews.delete(entry);
             },
             onInspectorSessionUpdate: (snapshot) => {
+                this.documentSelections.set(document.uri.toString(), snapshot.documentSnapshot.selection);
                 this.inspectorCoordinator.updateSession(snapshot);
             },
             onInspectorSessionDispose: (documentUri) => {
+                this.documentSelections.delete(documentUri);
                 this.inspectorCoordinator.removeSession(documentUri);
             },
         });

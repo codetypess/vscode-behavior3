@@ -17,6 +17,7 @@ import type {
     WorkdirRelativeJsonPath,
 } from "../../shared/contracts";
 import {
+    normalizeHostDocumentSnapshot,
     normalizeHostInitMessage,
     normalizeHostVarsMessage,
     parseWorkdirRelativeJsonPath,
@@ -258,7 +259,7 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
                     case "documentSnapshotChanged":
                         onMessage({
                             type: "documentSnapshotChanged",
-                            snapshot: message.snapshot,
+                            snapshot: normalizeHostDocumentSnapshot(message.snapshot),
                         });
                         return;
 
@@ -279,13 +280,6 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
 
                     case "subtreeFileChanged":
                         onMessage({ type: "subtreeFileChanged" });
-                        return;
-
-                    case "inspectorSelectionChanged":
-                        onMessage({
-                            type: "inspectorSelectionChanged",
-                            selectedNode: message.selectedNode,
-                        });
                         return;
 
                     case "inspectorContextCleared":
@@ -356,12 +350,16 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
             });
         },
 
-        requestFocusVariable(names) {
-            postMessage({ type: "focusVariable", names });
+        selectTree() {
+            postMessage({ type: "selectTree" });
         },
 
-        sendInspectorSelection(selectedNode) {
-            postMessage({ type: "reportInspectorSelection", selectedNode });
+        selectNode(target) {
+            postMessage({ type: "selectNode", target });
+        },
+
+        requestFocusVariable(names) {
+            postMessage({ type: "focusVariable", names });
         },
 
         sendRequestSetting() {

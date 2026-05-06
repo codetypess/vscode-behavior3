@@ -6,10 +6,10 @@ import type {
     DocumentState,
     EditNode,
     EditNodeDef,
-    DocumentMutationSelection,
     GraphHighlightState,
     GraphSearchState,
     HostAdapter,
+    HostSelectionState,
     NodeCheckDiagnostic,
     NodeCheckValidationNode,
     NodeDef,
@@ -77,13 +77,10 @@ export interface ControllerRuntime {
     notifyError(text: string): void;
     notifySuccess(text: string): void;
     getNodeDef(name: string): NodeDef | null;
-    selectTreeState(opts?: { clearVariableFocus?: boolean; reportInspector?: boolean }): boolean;
-    selectResolvedNodeState(
-        instanceKey: string,
-        opts?: { clearVariableFocus?: boolean; reportInspector?: boolean }
-    ): boolean;
-    selectPendingNodeState(stableId: string, opts?: { reportInspector?: boolean }): void;
+    selectTreeState(opts?: { clearVariableFocus?: boolean }): boolean;
+    selectResolvedNodeState(instanceKey: string, opts?: { clearVariableFocus?: boolean }): boolean;
     clearActiveVariableFocus(): boolean;
+    applyHostSelectionState(selection: HostSelectionState): void;
     getSelectedResolvedNode(): ResolvedNodeModel | null;
     isSubtreeStructureLocked(node: ResolvedNodeModel | null): boolean;
     readClipboardNode(): Promise<PersistedNodeModel | null>;
@@ -98,10 +95,6 @@ export interface ControllerRuntime {
     getSerializedCurrentTree(): string | null;
     matchesCurrentDocumentSnapshot(content: string): boolean;
     applyDocumentTree(tree: PersistedTreeModel, opts?: ControllerApplyTreeOptions): Promise<void>;
-    primeHostSelectionProjection(
-        selection: DocumentMutationSelection,
-        opts?: { reportInspector?: boolean }
-    ): void;
 }
 
 export const cloneVars = <T extends { name: string; desc: string }>(entries: T[]): T[] =>
@@ -137,32 +130,11 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         return deps.workspaceStore.getState().nodeDefs.find((def) => def.name === name) ?? null;
     };
 
-    const buildPendingSelectionRef = (stableId: string): NodeInstanceRef => ({
-        instanceKey: stableId,
-        displayId: "",
-        structuralStableId: stableId,
-        sourceStableId: stableId,
-        sourceTreePath: null,
-        subtreeStack: [],
-    });
-
     const updateSelectionState = (buildPatch: (state: SelectionState) => SelectionPatch) => {
         deps.selectionStore.setState((state) => ({
             ...state,
             ...buildPatch(state),
         }));
-    };
-
-    const isInspectorSidebar = () =>
-        typeof window !== "undefined" && window.__B3_WEBVIEW_KIND__ === "inspector-sidebar";
-
-    const reportInspectorSelection = () => {
-        if (isInspectorSidebar()) {
-            return;
-        }
-        deps.hostAdapter.sendInspectorSelection(
-            deps.selectionStore.getState().selectedNodeSnapshot ?? null
-        );
     };
 
     const buildTreeSelectionPatch = (): SelectionPatch => {
@@ -245,13 +217,49 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         };
     };
 
-    const buildPendingNodeSelectionPatch = (stableId: string): SelectionPatch => ({
+    const buildPendingNodeSelectionPatch = (ref: NodeInstanceRef): SelectionPatch => ({
         selectedTree: null,
-        selectedNodeKey: stableId,
-        selectedNodeRef: buildPendingSelectionRef(stableId),
+        selectedNodeKey: null,
+        selectedNodeRef: ref,
         selectedNodeSnapshot: null,
         selectedNodeDef: null,
     });
+
+    const resolveSelectionRef = (ref: NodeInstanceRef): ResolvedNodeModel | null => {
+        if (!resolvedGraph) {
+            return null;
+        }
+
+        const direct = resolvedGraph.nodesByInstanceKey[ref.instanceKey];
+        if (direct) {
+            return direct;
+        }
+
+        const nodes = Object.values(resolvedGraph.nodesByInstanceKey);
+        return (
+            nodes.find(
+                (node) =>
+                    node.ref.structuralStableId === ref.structuralStableId &&
+                    node.ref.sourceStableId === ref.sourceStableId &&
+                    node.ref.sourceTreePath === ref.sourceTreePath
+            ) ??
+            nodes.find(
+                (node) =>
+                    node.ref.sourceStableId === ref.sourceStableId &&
+                    node.ref.sourceTreePath === ref.sourceTreePath
+            ) ??
+            nodes.find((node) => node.ref.structuralStableId === ref.structuralStableId) ??
+            null
+        );
+    };
+
+    const projectSelectionRef = (ref: NodeInstanceRef): SelectionPatch => {
+        const resolvedNode = resolveSelectionRef(ref);
+        if (resolvedNode) {
+            return buildResolvedNodeSelectionPatch(resolvedNode.ref.instanceKey) ?? {};
+        }
+        return buildPendingNodeSelectionPatch(ref);
+    };
 
     const clearActiveVariableFocus = (): boolean => {
         if (deps.selectionStore.getState().activeVariableNames.length === 0) {
@@ -264,10 +272,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         return true;
     };
 
-    const selectTreeState = (opts?: {
-        clearVariableFocus?: boolean;
-        reportInspector?: boolean;
-    }): boolean => {
+    const selectTreeState = (opts?: { clearVariableFocus?: boolean }): boolean => {
         const shouldClearVariableFocus =
             Boolean(opts?.clearVariableFocus) &&
             deps.selectionStore.getState().activeVariableNames.length > 0;
@@ -275,15 +280,12 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             ...buildTreeSelectionPatch(),
             activeVariableNames: shouldClearVariableFocus ? [] : state.activeVariableNames,
         }));
-        if (opts?.reportInspector !== false) {
-            reportInspectorSelection();
-        }
         return shouldClearVariableFocus;
     };
 
     const selectResolvedNodeState = (
         instanceKey: string,
-        opts?: { clearVariableFocus?: boolean; reportInspector?: boolean }
+        opts?: { clearVariableFocus?: boolean }
     ): boolean => {
         const patch = buildResolvedNodeSelectionPatch(instanceKey);
         if (!patch) {
@@ -297,41 +299,19 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             ...patch,
             activeVariableNames: shouldClearVariableFocus ? [] : state.activeVariableNames,
         }));
-        if (opts?.reportInspector !== false) {
-            reportInspectorSelection();
-        }
         return shouldClearVariableFocus;
     };
 
-    const selectPendingNodeState = (stableId: string, opts?: { reportInspector?: boolean }) => {
-        updateSelectionState(() => buildPendingNodeSelectionPatch(stableId));
-        if (opts?.reportInspector) {
-            reportInspectorSelection();
-        }
-    };
-
-    const primeHostSelectionProjection = (
-        selection: DocumentMutationSelection,
-        opts?: { reportInspector?: boolean }
-    ) => {
+    const applyHostSelectionState = (selection: HostSelectionState) => {
         if (selection.kind === "tree") {
-            selectTreeState({ reportInspector: opts?.reportInspector });
+            selectTreeState();
             return;
         }
 
-        const nextNode = Object.values(resolvedGraph?.nodesByInstanceKey ?? {}).find(
-            (node) => node.ref.structuralStableId === selection.structuralStableId
-        );
-        if (nextNode) {
-            selectResolvedNodeState(nextNode.ref.instanceKey, {
-                reportInspector: opts?.reportInspector,
-            });
-            return;
-        }
-
-        selectPendingNodeState(selection.structuralStableId, {
-            reportInspector: opts?.reportInspector,
-        });
+        updateSelectionState((state) => ({
+            ...projectSelectionRef(selection.ref),
+            activeVariableNames: state.activeVariableNames,
+        }));
     };
 
     const getSelectedResolvedNode = (): ResolvedNodeModel | null => {
@@ -619,39 +599,19 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
     const restoreSelection = async () => {
         const selection = deps.selectionStore.getState();
         if (!resolvedGraph || !selection.selectedNodeRef) {
-            reportInspectorSelection();
             await deps.graphAdapter.applySelection({ selectedNodeKey: null });
             return;
         }
 
-        const direct = resolvedGraph.nodesByInstanceKey[selection.selectedNodeRef.instanceKey];
-        const fallback =
-            direct ??
-            Object.values(resolvedGraph.nodesByInstanceKey).find(
-                (node) =>
-                    node.ref.structuralStableId === selection.selectedNodeRef?.structuralStableId &&
-                    node.ref.sourceStableId === selection.selectedNodeRef?.sourceStableId &&
-                    node.ref.sourceTreePath === selection.selectedNodeRef?.sourceTreePath
-            ) ??
-            Object.values(resolvedGraph.nodesByInstanceKey).find(
-                (node) =>
-                    node.ref.sourceStableId === selection.selectedNodeRef?.sourceStableId &&
-                    node.ref.sourceTreePath === selection.selectedNodeRef?.sourceTreePath
-            ) ??
-            Object.values(resolvedGraph.nodesByInstanceKey).find(
-                (node) =>
-                    node.ref.structuralStableId === selection.selectedNodeRef?.structuralStableId
-            );
+        const fallback = resolveSelectionRef(selection.selectedNodeRef);
 
         if (!fallback) {
-            updateSelectionState(() => buildTreeSelectionPatch());
-            reportInspectorSelection();
+            updateSelectionState(() => projectSelectionRef(selection.selectedNodeRef!));
             await deps.graphAdapter.applySelection({ selectedNodeKey: null });
             return;
         }
 
         updateSelectionState(() => buildResolvedNodeSelectionPatch(fallback.ref.instanceKey) ?? {});
-        reportInspectorSelection();
         await deps.graphAdapter.applySelection({ selectedNodeKey: fallback.ref.instanceKey });
     };
 
@@ -776,8 +736,8 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         getNodeDef,
         selectTreeState,
         selectResolvedNodeState,
-        selectPendingNodeState,
         clearActiveVariableFocus,
+        applyHostSelectionState,
         getSelectedResolvedNode,
         isSubtreeStructureLocked,
         readClipboardNode,
@@ -789,6 +749,5 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         getSerializedCurrentTree,
         matchesCurrentDocumentSnapshot,
         applyDocumentTree,
-        primeHostSelectionProjection,
     };
 };

@@ -33,6 +33,7 @@ import type {
     DocumentMutation,
     HostAdapter,
     NodeDef,
+    NodeInstanceRef,
     PersistedTreeModel,
 } from "../webview/shared/contracts";
 
@@ -1234,8 +1235,9 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 async mutateDocument() {
                     return { success: true };
                 },
+                selectTree() {},
+                selectNode() {},
                 requestFocusVariable() {},
-                sendInspectorSelection() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 async validateNodeChecks() {
@@ -1292,6 +1294,124 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
         },
     },
     {
+        name: "routes selection gestures through host selection intents",
+        async run() {
+            const documentStore = createDocumentStore();
+            const workspaceStore = createWorkspaceStore();
+            const selectionStore = createSelectionStore();
+            const appHooks = createAppHooksStore();
+            let treeSelectionCount = 0;
+            const selectedNodeTargets: NodeInstanceRef[] = [];
+
+            appHooks.bind({
+                message: {
+                    success() {},
+                    error() {},
+                } as any,
+                notification: {} as any,
+                modal: {} as any,
+            });
+
+            const hostAdapter: HostAdapter = {
+                connect: () => () => {},
+                sendReady() {},
+                undo() {},
+                redo() {},
+                async mutateDocument() {
+                    return { success: true };
+                },
+                selectTree() {
+                    treeSelectionCount += 1;
+                },
+                selectNode(target) {
+                    selectedNodeTargets.push(target);
+                },
+                requestFocusVariable() {},
+                sendRequestSetting() {},
+                sendBuild() {},
+                async validateNodeChecks() {
+                    return { diagnostics: [] };
+                },
+                async saveDocument() {
+                    return { success: true };
+                },
+                async revertDocument() {
+                    return { success: true };
+                },
+                async readFile() {
+                    return { content: "{}" };
+                },
+                async saveSubtree() {
+                    return { success: true };
+                },
+                async saveSubtreeAs() {
+                    return { savedPath: null };
+                },
+                log() {},
+            };
+            const graphAdapter: GraphAdapter = {
+                async mount() {},
+                unmount() {},
+                async render() {},
+                async applySelection() {},
+                async applyHighlights() {},
+                async applySearch() {},
+                async focusNode() {},
+                async restoreViewport() {},
+                getViewport: () => ({ zoom: 1, x: 0, y: 0 }),
+            };
+            const controller = createEditorController({
+                documentStore,
+                workspaceStore,
+                selectionStore,
+                hostAdapter,
+                graphAdapter,
+                appHooks,
+            });
+
+            const content = serializePersistedTree(createTestTree());
+            await controller.initFromHost({
+                filePath: "/tmp/main.json",
+                workdir: "/tmp",
+                content,
+                nodeDefs: [
+                    {
+                        name: "Sequence",
+                        type: "Composite",
+                        desc: "",
+                        status: ["success"],
+                    },
+                ],
+                allFiles: [],
+                settings: {
+                    checkExpr: true,
+                    subtreeEditable: true,
+                    language: "en",
+                    theme: "light",
+                },
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: content,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: { kind: "tree" },
+            });
+
+            await controller.selectNode("1");
+            assert.equal(selectedNodeTargets.length, 1);
+            assert.equal(selectedNodeTargets[0]?.structuralStableId, "root");
+            assert.equal(selectionStore.getState().selectedNodeSnapshot?.data.uuid, "root");
+
+            await controller.selectTree();
+            assert.equal(treeSelectionCount, 1);
+            assert.equal(selectionStore.getState().selectedNodeRef, null);
+            assert.equal(selectionStore.getState().selectedTree?.filePath, "/tmp/main.json");
+        },
+    },
+    {
         name: "routes canvas structural commands through host mutation intents",
         async run() {
             const documentStore = createDocumentStore();
@@ -1317,8 +1437,9 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                     mutations.push(mutation);
                     return { success: true };
                 },
+                selectTree() {},
+                selectNode() {},
                 requestFocusVariable() {},
-                sendInspectorSelection() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 async validateNodeChecks() {
@@ -1412,6 +1533,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                     alertReload: false,
                     pendingExternalContent: null,
                 },
+                selection: { kind: "tree" },
             });
 
             const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
@@ -1515,8 +1637,9 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                     mutations.push(mutation);
                     return { success: true };
                 },
+                selectTree() {},
+                selectNode() {},
                 requestFocusVariable() {},
-                sendInspectorSelection() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 async validateNodeChecks() {
@@ -1588,6 +1711,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                     alertReload: false,
                     pendingExternalContent: null,
                 },
+                selection: { kind: "tree" },
             });
 
             await controller.updateTreeMeta({
@@ -1627,13 +1751,12 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
         },
     },
     {
-        name: "applies host document snapshots and nextSelection through controller projection",
+        name: "applies host document snapshots and host selection through controller projection",
         async run() {
             const documentStore = createDocumentStore();
             const workspaceStore = createWorkspaceStore();
             const selectionStore = createSelectionStore();
             const appHooks = createAppHooksStore();
-            const reportedSelections: Array<string | null> = [];
             let appliedSelectionKey: string | null = null;
 
             appHooks.bind({
@@ -1653,10 +1776,9 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 async mutateDocument() {
                     return { success: true };
                 },
+                selectTree() {},
+                selectNode() {},
                 requestFocusVariable() {},
-                sendInspectorSelection(selectedNode) {
-                    reportedSelections.push(selectedNode?.data.uuid ?? null);
-                },
                 sendRequestSetting() {},
                 sendBuild() {},
                 async validateNodeChecks() {
@@ -1758,6 +1880,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                     alertReload: false,
                     pendingExternalContent: null,
                 },
+                selection: { kind: "tree" },
             });
 
             const nextTree = createTestTree();
@@ -1790,6 +1913,17 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                     alertReload: false,
                     pendingExternalContent: null,
                 },
+                selection: {
+                    kind: "node",
+                    ref: {
+                        instanceKey: "child-c",
+                        displayId: "",
+                        structuralStableId: "child-c",
+                        sourceStableId: "child-c",
+                        sourceTreePath: null,
+                        subtreeStack: [],
+                    },
+                },
                 syncKind: "update",
                 nextSelection: {
                     kind: "node",
@@ -1808,7 +1942,6 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 appliedSelectionKey,
                 selectionStore.getState().selectedNodeRef?.instanceKey ?? null
             );
-            assert.equal(reportedSelections.at(-1), "child-c");
         },
     },
     {

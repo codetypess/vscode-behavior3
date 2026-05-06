@@ -3,19 +3,19 @@ import React, { useEffect, useLayoutEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { getAntdLocale } from "../shared/misc/antd-locale";
 import { deriveGroupDefs } from "../shared/protocol";
-import { parsePersistedTreeContent } from "../shared/tree";
 import { applyDocumentTheme } from "../shared/theme-mode";
 import { getThemeConfig } from "../shared/misc/theme";
 import { setI18nLanguage } from "../shared/misc/i18n";
 import { isMacos } from "../shared/misc/keys";
-import type { EditNode, HostEvent, HostInitPayload, HostVarsPayload } from "../shared/contracts";
-import {
-    applyHostDocumentSession,
-    createInitialDocumentState,
-} from "../stores/document-store";
+import type {
+    HostEvent,
+    HostInitPayload,
+    HostSelectionState,
+    HostVarsPayload,
+} from "../shared/contracts";
+import { createInitialDocumentState } from "../stores/document-store";
 import { createInitialSelectionState } from "../stores/selection-store";
 import { createInitialWorkspaceState } from "../stores/workspace-store";
-import { buildUsingGroups } from "../commands/controller-runtime";
 import { InspectorPane } from "../features/inspector/inspector-pane";
 import { InspectorModeProvider } from "../features/inspector/inspector-mode";
 import { flushPendingInspectorEdits } from "../features/inspector/inspector-shared";
@@ -51,29 +51,7 @@ const applySidebarInit = async (
     payload: HostInitPayload
 ) => {
     await setI18nLanguage(payload.settings.language);
-    const persistedTree = parsePersistedTreeContent(payload.content, payload.filePath);
-    runtime.documentStore.setState((state) => ({
-        ...state,
-        persistedTree,
-    }));
-    applyHostDocumentSession(runtime.documentStore, payload.documentSession);
-    runtime.workspaceStore.setState((state) => ({
-        ...state,
-        filePath: payload.filePath,
-        workdir: payload.workdir,
-        nodeDefs: payload.nodeDefs,
-        groupDefs: deriveGroupDefs(payload.nodeDefs),
-        allFiles: payload.allFiles,
-        settings: payload.settings,
-        usingGroups: buildUsingGroups(persistedTree.group),
-    }));
-    runtime.selectionStore.setState((state) => ({
-        ...state,
-        ...createInitialSelectionState(),
-        selectedTree: payload.filePath ? { filePath: payload.filePath } : null,
-    }));
-
-    await runtime.controller.refreshGraph({ preserveSelection: false });
+    await runtime.controller.initFromHost(payload);
 };
 
 const applySidebarVars = (
@@ -89,23 +67,19 @@ const applySidebarVars = (
     }));
 };
 
-const applySidebarSelection = (
-    runtime: ReturnType<typeof createEditorRuntime>,
-    selectedNode: EditNode | null
-) => {
-    blurActiveSidebarElement();
+const buildCurrentHostSelection = (
+    runtime: ReturnType<typeof createEditorRuntime>
+): HostSelectionState => {
+    const { selectedNodeRef } = runtime.selectionStore.getState();
+    return selectedNodeRef ? { kind: "node", ref: selectedNodeRef } : { kind: "tree" };
+};
 
-    const filePath = runtime.workspaceStore.getState().filePath;
+const queueSidebarSelectionBlur = (runtime: ReturnType<typeof createEditorRuntime>) => {
     runtime.selectionStore.setState((state) => ({
         ...state,
-        selectedTree: selectedNode ? null : filePath ? { filePath } : null,
-        selectedNodeKey: selectedNode?.ref.instanceKey ?? null,
-        selectedNodeRef: selectedNode?.ref ?? null,
-        selectedNodeSnapshot: selectedNode,
-        selectedNodeDef: null,
         activeVariableNames: [],
     }));
-
+    blurActiveSidebarElement();
     window.setTimeout(() => {
         blurActiveSidebarElement();
         window.setTimeout(() => {
@@ -113,6 +87,11 @@ const applySidebarSelection = (
         }, 0);
     }, 0);
 };
+
+const hasIncomingSelectionChange = (
+    runtime: ReturnType<typeof createEditorRuntime>,
+    selection: HostSelectionState
+) => JSON.stringify(buildCurrentHostSelection(runtime)) !== JSON.stringify(selection);
 
 const isEditableTarget = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) {
@@ -134,11 +113,29 @@ const SidebarHostBridge: React.FC = () => {
         const handleHostMessage = (hostEvent: HostEvent) => {
             switch (hostEvent.type) {
                 case "init":
-                    void applySidebarInit(runtime, hostEvent.payload);
+                    void (async () => {
+                        const selectionChanged = hasIncomingSelectionChange(
+                            runtime,
+                            hostEvent.payload.selection
+                        );
+                        await applySidebarInit(runtime, hostEvent.payload);
+                        if (selectionChanged) {
+                            queueSidebarSelectionBlur(runtime);
+                        }
+                    })();
                     return;
 
                 case "documentSnapshotChanged":
-                    void runtime.controller.applyDocumentSnapshot(hostEvent.snapshot);
+                    void (async () => {
+                        const selectionChanged = hasIncomingSelectionChange(
+                            runtime,
+                            hostEvent.snapshot.selection
+                        );
+                        await runtime.controller.applyDocumentSnapshot(hostEvent.snapshot);
+                        if (selectionChanged) {
+                            queueSidebarSelectionBlur(runtime);
+                        }
+                    })();
                     return;
 
                 case "varDeclLoaded":
@@ -171,10 +168,6 @@ const SidebarHostBridge: React.FC = () => {
                         },
                         themeVersion: state.themeVersion + 1,
                     }));
-                    return;
-
-                case "inspectorSelectionChanged":
-                    applySidebarSelection(runtime, hostEvent.selectedNode);
                     return;
 
                 case "inspectorContextCleared":

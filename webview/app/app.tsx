@@ -75,7 +75,6 @@ const AppShell: React.FC = () => {
                     void runtime.controller.markSubtreeChanged();
                     return;
 
-                case "inspectorSelectionChanged":
                 case "inspectorContextCleared":
                     return;
 

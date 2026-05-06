@@ -27,11 +27,12 @@ export const createSelectionCommands = (
                 selection.selectedNodeDef === null;
 
             if (alreadyTreeSelected && selection.activeVariableNames.length === 0) {
-                deps.hostAdapter.sendInspectorSelection(null);
+                deps.hostAdapter.selectTree();
                 return;
             }
 
             const shouldClearVariableFocus = runtime.selectTreeState({ clearVariableFocus: true });
+            deps.hostAdapter.selectTree();
             if (shouldClearVariableFocus) {
                 await runtime.applyVisualState();
             } else {
@@ -57,21 +58,18 @@ export const createSelectionCommands = (
                 deps.selectionStore.getState().activeVariableNames.length > 0;
             const previous = deps.selectionStore.getState().selectedNodeKey;
             if (previous === nodeKey && !opts?.force) {
-                if (!shouldClearVariableFocus) {
-                    deps.hostAdapter.sendInspectorSelection(
-                        deps.selectionStore.getState().selectedNodeSnapshot
-                    );
-                    return;
+                deps.hostAdapter.selectNode(node.ref);
+                if (shouldClearVariableFocus) {
+                    runtime.clearActiveVariableFocus();
+                    await runtime.applyVisualState();
                 }
-
-                runtime.clearActiveVariableFocus();
-                await runtime.applyVisualState();
                 return;
             }
 
             runtime.selectResolvedNodeState(node.ref.instanceKey, {
                 clearVariableFocus: shouldClearVariableFocus,
             });
+            deps.hostAdapter.selectNode(node.ref);
 
             if (shouldClearVariableFocus) {
                 await runtime.applyVisualState();

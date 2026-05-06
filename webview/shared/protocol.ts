@@ -1,8 +1,11 @@
 import type { HostToEditorMessage } from "./message-protocol";
 import type {
+    HostDocumentSnapshot,
     HostInitPayload,
+    HostSelectionState,
     HostVarsPayload,
     ImportDecl,
+    NodeInstanceRef,
     NodeDef,
     Settings,
     WorkdirRelativeJsonPath,
@@ -82,6 +85,32 @@ export const normalizeImportDecl = (decl: {
     };
 };
 
+export const normalizeNodeInstanceRef = (ref: NodeInstanceRef): NodeInstanceRef => ({
+    instanceKey: String(ref.instanceKey ?? ""),
+    displayId: String(ref.displayId ?? ""),
+    structuralStableId: String(ref.structuralStableId ?? ""),
+    sourceStableId: String(ref.sourceStableId ?? ""),
+    sourceTreePath:
+        ref.sourceTreePath === null || ref.sourceTreePath === undefined
+            ? null
+            : normalizeWorkdirRelativePath(String(ref.sourceTreePath)),
+    subtreeStack: Array.isArray(ref.subtreeStack)
+        ? ref.subtreeStack.map((entry) => normalizeWorkdirRelativePath(String(entry)))
+        : [],
+});
+
+export const normalizeHostSelectionState = (selection: HostSelectionState): HostSelectionState =>
+    selection.kind === "tree"
+        ? { kind: "tree" }
+        : { kind: "node", ref: normalizeNodeInstanceRef(selection.ref) };
+
+export const normalizeHostDocumentSnapshot = (
+    snapshot: HostDocumentSnapshot
+): HostDocumentSnapshot => ({
+    ...snapshot,
+    selection: normalizeHostSelectionState(snapshot.selection),
+});
+
 export const normalizeHostInitMessage = (
     message: Extract<HostToEditorMessage, { type: "init" }>
 ): HostInitPayload => {
@@ -101,6 +130,7 @@ export const normalizeHostInitMessage = (
         allFiles: (message.allFiles ?? []).map(normalizeWorkdirRelativePath),
         settings,
         documentSession: message.documentSession,
+        selection: normalizeHostSelectionState(message.selection),
     };
 };
 

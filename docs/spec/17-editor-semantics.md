@@ -72,13 +72,16 @@
 
 - 清空节点选中
 - 保留或清除 variable focus，取决于调用路径
-- 向侧栏同步 tree 级上下文
+- 向宿主发送 `selectTree` intent
+- 后续以宿主 `documentSnapshotChanged.selection` 作为共享选中权威结果
 
 ### `selectNode(nodeKey, opts?)`
 
 - 选中 resolved graph 中的实例节点
-- 若节点已选中且未强制刷新，可只重发侧栏选中
+- 向宿主发送 `selectNode(target)` intent
+- 若节点已选中且未强制刷新，可只重发宿主 intent
 - 若来自变量热点点击，可选择保留 variable focus
+- 后续以宿主 `documentSnapshotChanged.selection` 作为共享选中权威结果
 
 ### `focusVariable(names)`
 
@@ -111,21 +114,15 @@
 
 - 初始化 workspace state
 - 解析主文档文本为 `persistedTree`
-- 选择 tree
+- 应用宿主 `selection`
 - 构建首个 resolved graph
 - 应用宿主 document session projection
 
-### `syncDocumentFromHost(content)`
+### `applyDocumentSnapshot(snapshot)`
 
-- 用于吸收其他视图或宿主推送的最新主文档内容
-- 若内容与当前结构化快照等价，则只清理 conflict 状态
+- 用于吸收宿主推送的最新 committed document/session/selection snapshot
+- 若内容与当前结构化快照等价，则只重放宿主 selection projection 与 session 状态
 - 否则更新主树并保持 selection 尽量稳定，不在 webview 本地推进 history
-
-### `reloadDocumentFromHost(content, opts?)`
-
-- 用于磁盘 reload
-- 若 dirty 且未 `force`，进入 conflict 状态
-- 否则直接替换当前主树并清理 conflict projection
 
 ### `applyNodeDefs(defs)`
 
@@ -180,7 +177,7 @@
 ### `performDrop(intent)`
 
 - canvas 先发送 `mutateDocument(performDrop)` intent 给宿主
-- 宿主当前会优先直接提交，并在 response 与 committed `documentSnapshotChanged` 中公开 `nextSelection`
+- 宿主当前会优先直接提交，并在 response 中公开 `nextSelection`，同时在 committed `documentSnapshotChanged.selection` 中公开同一共享选中结果
 - 拒绝拖动 subtree 内部节点
 - 拒绝向 subtree link 直接添加 child
 - 拒绝移动根节点、围绕根节点 before/after、移动到自己的后代下
@@ -195,7 +192,7 @@
 ### `pasteNode()`
 
 - canvas 先发送 `mutateDocument(pasteNode)`，并携带剪贴板节点快照
-- 宿主直接提交后回传新节点的 `nextSelection`，并在 committed snapshot fanout 中附带同一投影
+- 宿主直接提交后回传新节点的 `nextSelection`，并在 committed snapshot fanout 中附带同一共享选中
 - 从剪贴板读取 persisted snapshot
 - 为整棵粘贴子树分配新的稳定 id
 - 追加到当前节点 children
@@ -203,7 +200,7 @@
 ### `insertNode()`
 
 - canvas 先发送 `mutateDocument(insertNode)`
-- 宿主直接提交后回传新节点的 `nextSelection`，并在 committed snapshot fanout 中附带同一投影
+- 宿主直接提交后回传新节点的 `nextSelection`，并在 committed snapshot fanout 中附带同一共享选中
 - 在当前节点下追加一个最小节点：
   - `uuid`
   - `id: ""`
@@ -219,7 +216,7 @@
 ### `deleteNode()`
 
 - canvas 先发送 `mutateDocument(deleteNode)`
-- 宿主直接提交后回传父节点的 `nextSelection`，并在 committed snapshot fanout 中附带同一投影
+- 宿主直接提交后回传父节点的 `nextSelection`，并在 committed snapshot fanout 中附带同一共享选中
 - 不能删除根节点
 - 删除后默认选中父节点
 

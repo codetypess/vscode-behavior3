@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { EditNode, HostDocumentSessionState, HostDocumentSnapshot } from "../webview/shared/contracts";
+import type { HostDocumentSessionState, HostDocumentSnapshot } from "../webview/shared/contracts";
 import type { EditorToHostMessage, HostToEditorMessage } from "../webview/shared/message-protocol";
 import { InspectorSidebarProvider } from "./inspector-sidebar-provider";
 
@@ -11,17 +11,11 @@ export interface InspectorSessionSnapshot {
     initMessage: InitMessage;
     varsMessage: VarsMessage;
     documentSnapshot: HostDocumentSnapshot;
-    selectedNode: EditNode | null;
     selectionRevision: number;
 }
 
 const isJsonEqual = (left: unknown, right: unknown) =>
     JSON.stringify(left) === JSON.stringify(right);
-
-const toSelectionMessage = (selectedNode: EditNode | null): HostToEditorMessage => ({
-    type: "inspectorSelectionChanged",
-    selectedNode,
-});
 
 export class InspectorSidebarCoordinator {
     private readonly sessionSnapshots = new Map<string, InspectorSessionSnapshot>();
@@ -112,9 +106,6 @@ export class InspectorSidebarCoordinator {
             void this.postMessage(snapshot.varsMessage);
         }
 
-        if (!isJsonEqual(previous.selectedNode, snapshot.selectedNode)) {
-            void this.postMessage(toSelectionMessage(snapshot.selectedNode));
-        }
     }
 
     removeSession(documentUri: string): void {
@@ -141,6 +132,7 @@ export class InspectorSidebarCoordinator {
                 documentSnapshot: {
                     content,
                     documentSession,
+                    selection: snapshot.documentSnapshot.selection,
                     syncKind: "reload",
                 },
             });
@@ -149,12 +141,16 @@ export class InspectorSidebarCoordinator {
         if (documentUri !== this.activeDocumentUri || !this.viewReady) {
             return;
         }
+        if (!snapshot) {
+            return;
+        }
 
         void this.postMessage({
             type: "documentSnapshotChanged",
             snapshot: {
                 content,
                 documentSession,
+                selection: snapshot.documentSnapshot.selection,
                 syncKind: "reload",
             },
         });
@@ -197,17 +193,21 @@ export class InspectorSidebarCoordinator {
         const {
             content: prevContent,
             documentSession: prevDocumentSession,
+            selection: prevSelection,
             ...prevInitWithoutContent
         } = previous.initMessage;
         const {
             content: nextContent,
             documentSession: nextDocumentSession,
+            selection: nextSelection,
             ...nextInitWithoutContent
         } = next.initMessage;
         void prevContent;
         void nextContent;
         void prevDocumentSession;
         void nextDocumentSession;
+        void prevSelection;
+        void nextSelection;
         return isJsonEqual(prevInitWithoutContent, nextInitWithoutContent);
     }
 
@@ -226,7 +226,6 @@ export class InspectorSidebarCoordinator {
     private async postFullSnapshot(snapshot: InspectorSessionSnapshot): Promise<void> {
         await this.postMessage(snapshot.initMessage);
         await this.postMessage(snapshot.varsMessage);
-        await this.postMessage(toSelectionMessage(snapshot.selectedNode));
     }
 
     private async postMessage(message: HostToEditorMessage): Promise<void> {
@@ -351,10 +350,11 @@ export class InspectorSidebarCoordinator {
             case "ready":
             case "undo":
             case "redo":
+            case "selectTree":
+            case "selectNode":
             case "focusVariable":
             case "requestSetting":
             case "build":
-            case "reportInspectorSelection":
             case "webviewLog":
                 return;
         }
