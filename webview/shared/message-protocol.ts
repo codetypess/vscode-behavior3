@@ -3,7 +3,7 @@
  */
 
 import type { NodeDef } from "./misc/b3type";
-import type { EditNode, NodeCheckValidationNode } from "./contracts";
+import type { DocumentMutation, EditNode, NodeCheckValidationNode } from "./contracts";
 
 export type { NodeDef };
 
@@ -14,6 +14,14 @@ export type EditorToHostMessage =
     | { type: "redo" }
     /** Ask the active editor webview to highlight nodes that use these variables. */
     | { type: "focusVariable"; names: string[] }
+    | { type: "mutateDocument"; requestId: string; mutation: DocumentMutation }
+    | {
+          type: "documentMutationResult";
+          requestId: string;
+          success: boolean;
+          error?: string;
+          content?: string;
+      }
     | { type: "saveDocument"; requestId: string; content: string }
     | { type: "revertDocument"; requestId: string }
     | { type: "treeSelected"; tree: unknown }
@@ -52,6 +60,7 @@ export type HostToEditorMessage =
     | { type: "documentUpdated"; content: string }
     | { type: "executeUndo" }
     | { type: "executeRedo" }
+    | { type: "executeDocumentMutation"; requestId: string; mutation: DocumentMutation }
     /** Cross-webview variable focus sync from the sidebar inspector into the active editor. */
     | { type: "focusVariable"; names: string[] }
     | { type: "fileChanged"; content: string }
@@ -99,6 +108,12 @@ export type HostToEditorMessage =
       }
     | {
           type: "saveDocumentResult";
+          requestId: string;
+          success: boolean;
+          error?: string;
+      }
+    | {
+          type: "mutateDocumentResult";
           requestId: string;
           success: boolean;
           error?: string;

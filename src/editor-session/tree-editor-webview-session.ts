@@ -329,7 +329,10 @@ export async function resolveTreeEditorSession({
             defs
         );
 
-    const buildInspectorVarsMessage = (): Extract<HostToEditorMessage, { type: "varDeclLoaded" }> => ({
+    const buildInspectorVarsMessage = (): Extract<
+        HostToEditorMessage,
+        { type: "varDeclLoaded" }
+    > => ({
         type: "varDeclLoaded",
         usingVars: Object.values(state.latestVarDecls.usingVars),
         allFiles: state.latestAllFiles,
@@ -370,6 +373,7 @@ export async function resolveTreeEditorSession({
     };
     addActiveWebview(activeWebviewEntry);
     let mainDocumentOperationQueue: Promise<unknown> = Promise.resolve();
+    const pendingDocumentMutationReplies = new Map<string, HostMessageSink>();
     const createNodeCheckRuntime = async () => {
         const workspaceFile = findB3WorkspacePath(document.uri, workspaceFolderUri);
         if (!workspaceFile) {
@@ -465,9 +469,7 @@ export async function resolveTreeEditorSession({
                 requestId: msg.requestId,
                 diagnostics: diagnostics
                     .filter(
-                        (
-                            diagnostic
-                        ): diagnostic is typeof diagnostic & { instanceKey: string } =>
+                        (diagnostic): diagnostic is typeof diagnostic & { instanceKey: string } =>
                             typeof diagnostic.instanceKey === "string"
                     )
                     .map((diagnostic) => ({
@@ -695,6 +697,71 @@ export async function resolveTreeEditorSession({
         notifyInspectorSessionUpdate();
     };
 
+    const handleMutateDocumentMessage = async (
+        msg: Extract<EditorToHostMessage, { type: "mutateDocument" }>,
+        reply: HostMessageSink = postMessage,
+        source: MessageSource = "editor"
+    ): Promise<void> => {
+        if (source === "editor") {
+            await reply({
+                type: "mutateDocumentResult",
+                requestId: msg.requestId,
+                success: false,
+                error: "Document mutation proxy is only available to external views.",
+            } satisfies HostToEditorMessage);
+            return;
+        }
+
+        pendingDocumentMutationReplies.set(msg.requestId, reply);
+        const delivered = await postMessage({
+            type: "executeDocumentMutation",
+            requestId: msg.requestId,
+            mutation: msg.mutation,
+        } satisfies HostToEditorMessage);
+
+        if (!delivered) {
+            pendingDocumentMutationReplies.delete(msg.requestId);
+            await reply({
+                type: "mutateDocumentResult",
+                requestId: msg.requestId,
+                success: false,
+                error: "Active Behavior3 editor is not available.",
+            } satisfies HostToEditorMessage);
+        }
+    };
+
+    const handleDocumentMutationResultMessage = async (
+        msg: Extract<EditorToHostMessage, { type: "documentMutationResult" }>
+    ): Promise<void> => {
+        const reply = pendingDocumentMutationReplies.get(msg.requestId);
+        if (!reply) {
+            return;
+        }
+        pendingDocumentMutationReplies.delete(msg.requestId);
+
+        await enqueueMainDocumentOperation(async () => {
+            let success = msg.success;
+            let error = msg.error;
+
+            if (success) {
+                const editBlockedMessage = blockEditingForNewerFile();
+                if (editBlockedMessage) {
+                    success = false;
+                    error = editBlockedMessage;
+                } else if (msg.content) {
+                    applyContentFromWebview(msg.content);
+                }
+            }
+
+            await reply({
+                type: "mutateDocumentResult",
+                requestId: msg.requestId,
+                success,
+                error,
+            } satisfies HostToEditorMessage);
+        });
+    };
+
     /**
      * Save requests reuse the serialized main-document queue so an external file
      * change cannot interleave between "apply webview content" and the VS Code
@@ -702,7 +769,8 @@ export async function resolveTreeEditorSession({
      */
     const handleSaveDocumentMessage = async (
         msg: Extract<EditorToHostMessage, { type: "saveDocument" }>,
-        reply: HostMessageSink = postMessage
+        reply: HostMessageSink = postMessage,
+        source: MessageSource = "editor"
     ): Promise<void> => {
         await enqueueMainDocumentOperation(async () => {
             const editBlockedMessage = blockEditingForNewerFile();
@@ -717,7 +785,7 @@ export async function resolveTreeEditorSession({
             }
 
             try {
-                const changed = applyContentFromWebview(msg.content);
+                const changed = source === "editor" ? applyContentFromWebview(msg.content) : false;
                 if (changed || document.isDirty) {
                     await vscode.workspace.save(document.uri);
                 }
@@ -1103,8 +1171,16 @@ export async function resolveTreeEditorSession({
                 }
                 return;
 
+            case "mutateDocument":
+                await handleMutateDocumentMessage(msg, reply, source);
+                return;
+
+            case "documentMutationResult":
+                await handleDocumentMutationResultMessage(msg);
+                return;
+
             case "saveDocument":
-                await handleSaveDocumentMessage(msg, reply);
+                await handleSaveDocumentMessage(msg, reply, source);
                 return;
 
             case "treeSelected":

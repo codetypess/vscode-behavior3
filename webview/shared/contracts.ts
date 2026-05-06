@@ -212,11 +212,21 @@ export interface ValidateNodeChecksResponse {
     error?: string;
 }
 
+export type DocumentMutation =
+    | { type: "updateTreeMeta"; payload: UpdateTreeMetaInput }
+    | { type: "updateNode"; payload: UpdateNodeInput };
+
+export interface DocumentMutationResponse {
+    success: boolean;
+    error?: string;
+}
+
 export type HostEvent =
     | { type: "init"; payload: HostInitPayload }
     | { type: "documentUpdated"; content: string }
     | { type: "executeUndo" }
     | { type: "executeRedo" }
+    | { type: "executeDocumentMutation"; requestId: string; mutation: DocumentMutation }
     | { type: "focusVariable"; names: string[] }
     | { type: "fileChanged"; content: string }
     | { type: "documentReloaded"; content: string }
@@ -351,6 +361,11 @@ export interface HostAdapter {
     sendUpdate(content: string): void;
     undo(): void;
     redo(): void;
+    mutateDocument(mutation: DocumentMutation): Promise<DocumentMutationResponse>;
+    sendDocumentMutationResult(
+        requestId: string,
+        response: DocumentMutationResponse & { content?: string }
+    ): void;
     requestFocusVariable(names: string[]): void;
     sendTreeSelected(tree: PersistedTreeModel): void;
     sendInspectorSelection(selectedNode: EditNode | null): void;

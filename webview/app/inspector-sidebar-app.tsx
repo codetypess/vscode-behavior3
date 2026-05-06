@@ -190,6 +190,7 @@ const SidebarHostBridge: React.FC = () => {
                     resetSidebarContext(runtime);
                     return;
 
+                case "executeDocumentMutation":
                 case "fileChanged":
                 case "subtreeFileChanged":
                 case "buildResult":
@@ -274,9 +275,7 @@ const SidebarShell: React.FC = () => {
         </InspectorModeProvider>
     ) : (
         <Flex className="b3-inspector-empty" justify="center" align="center">
-            <Typography.Text type="secondary">
-                {t("inspector.noActiveDocument")}
-            </Typography.Text>
+            <Typography.Text type="secondary">{t("inspector.noActiveDocument")}</Typography.Text>
         </Flex>
     );
 };

@@ -1,9 +1,6 @@
 import * as vscode from "vscode";
 import type { EditNode } from "../webview/shared/contracts";
-import type {
-    EditorToHostMessage,
-    HostToEditorMessage,
-} from "../webview/shared/message-protocol";
+import type { EditorToHostMessage, HostToEditorMessage } from "../webview/shared/message-protocol";
 import { InspectorSidebarProvider } from "./inspector-sidebar-provider";
 
 type InitMessage = Extract<HostToEditorMessage, { type: "init" }>;
@@ -18,7 +15,8 @@ export interface InspectorSessionSnapshot {
     contentSyncKind: "update" | "reload";
 }
 
-const isJsonEqual = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
+const isJsonEqual = (left: unknown, right: unknown) =>
+    JSON.stringify(left) === JSON.stringify(right);
 
 const toSelectionMessage = (selectedNode: EditNode | null): HostToEditorMessage => ({
     type: "inspectorSelectionChanged",
@@ -105,7 +103,8 @@ export class InspectorSidebarCoordinator {
 
         if (previous.initMessage.content !== snapshot.initMessage.content) {
             void this.postMessage({
-                type: snapshot.contentSyncKind === "reload" ? "documentReloaded" : "documentUpdated",
+                type:
+                    snapshot.contentSyncKind === "reload" ? "documentReloaded" : "documentUpdated",
                 content: snapshot.initMessage.content,
             });
         }
@@ -221,7 +220,9 @@ export class InspectorSidebarCoordinator {
         try {
             if (!this.view || !this.view.visible) {
                 try {
-                    await vscode.commands.executeCommand(`${InspectorSidebarProvider.viewId}.focus`);
+                    await vscode.commands.executeCommand(
+                        `${InspectorSidebarProvider.viewId}.focus`
+                    );
                 } catch {
                     if (!this.view) {
                         try {
@@ -235,9 +236,7 @@ export class InspectorSidebarCoordinator {
                 }
 
                 try {
-                    await vscode.commands.executeCommand(
-                        "workbench.action.focusActiveEditorGroup"
-                    );
+                    await vscode.commands.executeCommand("workbench.action.focusActiveEditorGroup");
                 } catch {
                     /* ignore focus restore failures */
                 }
@@ -274,6 +273,15 @@ export class InspectorSidebarCoordinator {
             case "revertDocument":
                 await reply({
                     type: "revertDocumentResult",
+                    requestId: message.requestId,
+                    success: false,
+                    error,
+                });
+                return;
+
+            case "mutateDocument":
+                await reply({
+                    type: "mutateDocumentResult",
                     requestId: message.requestId,
                     success: false,
                     error,

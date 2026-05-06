@@ -54,6 +54,23 @@ export const queueSubmit = (form: FormInstance) => {
     }, 0);
 };
 
+const pendingInspectorEdits = new Set<Promise<unknown>>();
+
+export const trackPendingInspectorEdit = (promise: Promise<unknown>): void => {
+    const tracked = promise
+        .catch(() => undefined)
+        .finally(() => {
+            pendingInspectorEdits.delete(tracked);
+        });
+    pendingInspectorEdits.add(tracked);
+};
+
+const waitForPendingInspectorEdits = async (): Promise<void> => {
+    while (pendingInspectorEdits.size > 0) {
+        await Promise.allSettled([...pendingInspectorEdits]);
+    }
+};
+
 export const flushPendingInspectorEdits = async (): Promise<void> => {
     const active = document.activeElement;
     if (active instanceof HTMLElement && active !== document.body) {
@@ -66,6 +83,7 @@ export const flushPendingInspectorEdits = async (): Promise<void> => {
     await new Promise<void>((resolve) => {
         window.setTimeout(resolve, 0);
     });
+    await waitForPendingInspectorEdits();
 };
 
 export const cleanSlotLabel = (value: string) => value.replace(/\?$/, "").replace(/\.\.\.$/, "");

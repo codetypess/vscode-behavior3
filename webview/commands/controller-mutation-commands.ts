@@ -5,6 +5,7 @@ import { stringifyJson } from "../shared/misc/stringify";
 import { generateUuid } from "../shared/stable-id";
 import type {
     DropIntent,
+    DocumentMutation,
     EditorCommand,
     NodeDef,
     PersistedNodeModel,
@@ -38,6 +39,16 @@ export const createMutationCommands = (
     runtime: ControllerRuntime
 ): Pick<EditorCommand, MutationCommandKeys> => {
     const { deps } = runtime;
+    const isInspectorSidebar = () => window.__B3_WEBVIEW_KIND__ === "inspector-sidebar";
+
+    const forwardDocumentMutation = async (mutation: DocumentMutation): Promise<boolean> => {
+        const response = await deps.hostAdapter.mutateDocument(mutation);
+        if (!response.success) {
+            runtime.notifyError(response.error ?? "Document mutation failed");
+            return false;
+        }
+        return true;
+    };
 
     const openSubtreePath = async (path: string) => {
         const subtreePath = parseWorkdirRelativeJsonPath(path);
@@ -54,6 +65,19 @@ export const createMutationCommands = (
 
     return {
         async updateTreeMeta(payload: UpdateTreeMetaInput) {
+            if (isInspectorSidebar()) {
+                for (const rawPath of payload.variables.imports) {
+                    if (!parseWorkdirRelativeJsonPath(rawPath)) {
+                        runtime.notifyError(
+                            i18n.t("validation.invalidJsonPath", { path: rawPath })
+                        );
+                        return;
+                    }
+                }
+                await forwardDocumentMutation({ type: "updateTreeMeta", payload });
+                return;
+            }
+
             const tree = deps.documentStore.getState().persistedTree;
             if (!tree) {
                 return;
@@ -105,6 +129,16 @@ export const createMutationCommands = (
         },
 
         async updateNode(payload: UpdateNodeInput) {
+            if (isInspectorSidebar()) {
+                const rawPath = payload.data.path?.trim();
+                if (rawPath && !parseWorkdirRelativeJsonPath(rawPath)) {
+                    runtime.notifyError(i18n.t("validation.invalidJsonPath", { path: rawPath }));
+                    return;
+                }
+                await forwardDocumentMutation({ type: "updateNode", payload });
+                return;
+            }
+
             const currentTree = deps.documentStore.getState().persistedTree;
             const selectedSnapshot = deps.selectionStore.getState().selectedNodeSnapshot;
             const resolvedNode =
@@ -124,7 +158,9 @@ export const createMutationCommands = (
             if (rawNextPath) {
                 const parsedPath = parseWorkdirRelativeJsonPath(rawNextPath);
                 if (!parsedPath) {
-                    runtime.notifyError(i18n.t("validation.invalidJsonPath", { path: rawNextPath }));
+                    runtime.notifyError(
+                        i18n.t("validation.invalidJsonPath", { path: rawNextPath })
+                    );
                     return;
                 }
                 nextPath = parsedPath;
@@ -586,7 +622,9 @@ export const createMutationCommands = (
 
             const savedPath = parseWorkdirRelativeJsonPath(result.savedPath);
             if (!savedPath) {
-                runtime.notifyError(i18n.t("validation.invalidJsonPath", { path: result.savedPath }));
+                runtime.notifyError(
+                    i18n.t("validation.invalidJsonPath", { path: result.savedPath })
+                );
                 return;
             }
 

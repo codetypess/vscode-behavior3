@@ -29,6 +29,7 @@ export const createDocumentCommands = (
     runtime: ControllerRuntime
 ): Pick<EditorCommand, DocumentCommandKeys> => {
     const { deps } = runtime;
+    const isInspectorSidebar = () => window.__B3_WEBVIEW_KIND__ === "inspector-sidebar";
     const syncHistoryToSnapshot = (snapshot: string) => {
         deps.documentStore.setState((state) => {
             const existingIndex = state.history.findIndex((entry) => entry === snapshot);
@@ -152,7 +153,12 @@ export const createDocumentCommands = (
             const importDeclsChanged = !isJsonEqual(current.importDecls, payload.importDecls);
             const subtreeDeclsChanged = !isJsonEqual(current.subtreeDecls, payload.subtreeDecls);
 
-            if (!usingVarsChanged && !allFilesChanged && !importDeclsChanged && !subtreeDeclsChanged) {
+            if (
+                !usingVarsChanged &&
+                !allFilesChanged &&
+                !importDeclsChanged &&
+                !subtreeDeclsChanged
+            ) {
                 return;
             }
 
@@ -211,7 +217,10 @@ export const createDocumentCommands = (
                 return;
             }
             if (compareDocumentVersion(tree.version, VERSION) > 0) {
-                deps.hostAdapter.log("warn", `[v2] refusing to save newer file version: ${tree.version}`);
+                deps.hostAdapter.log(
+                    "warn",
+                    `[v2] refusing to save newer file version: ${tree.version}`
+                );
                 return;
             }
             const snapshot = runtime.getSerializedCurrentTree();
@@ -221,6 +230,9 @@ export const createDocumentCommands = (
             const response = await deps.hostAdapter.saveDocument(snapshot);
             if (!response.success) {
                 runtime.notifyError(response.error ?? "Save failed");
+                return;
+            }
+            if (isInspectorSidebar()) {
                 return;
             }
             markDocumentSaved(deps.documentStore, snapshot);

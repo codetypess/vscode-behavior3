@@ -6,12 +6,32 @@ import i18n, { setI18nLanguage } from "../shared/misc/i18n";
 import { getThemeConfig } from "../shared/misc/theme";
 import { GraphPane } from "../features/graph/graph-pane";
 import { applyDocumentTheme } from "../shared/theme-mode";
-import type { HostEvent } from "../shared/contracts";
+import type { DocumentMutation, EditorCommand, HostEvent } from "../shared/contracts";
+import { serializePersistedTree } from "../shared/tree";
 import { applyWorkspaceTheme, mergeWorkspaceSettings } from "../stores/workspace-store";
 import { GlobalHooksBridge } from "./global-hooks-bridge";
 import { useAppShellState, useAppThemeState, useRuntime } from "./runtime";
 
 const { Content } = Layout;
+
+const formatRuntimeError = (error: unknown): string =>
+    error instanceof Error ? (error.stack ?? error.message) : String(error);
+
+const executeDocumentMutation = async (
+    controller: EditorCommand,
+    mutation: DocumentMutation
+): Promise<void> => {
+    switch (mutation.type) {
+        case "updateTreeMeta":
+            await controller.updateTreeMeta(mutation.payload);
+            return;
+
+        case "updateNode":
+            await controller.selectNode(mutation.payload.target.instanceKey, { force: true });
+            await controller.updateNode(mutation.payload);
+            return;
+    }
+};
 
 const AppShell: React.FC = () => {
     const runtime = useRuntime();
@@ -53,6 +73,29 @@ const AppShell: React.FC = () => {
 
                 case "executeRedo":
                     void runtime.controller.redo();
+                    return;
+
+                case "executeDocumentMutation":
+                    void (async () => {
+                        try {
+                            await executeDocumentMutation(runtime.controller, hostEvent.mutation);
+                            const tree = runtime.documentStore.getState().persistedTree;
+                            runtime.hostAdapter.sendDocumentMutationResult(hostEvent.requestId, {
+                                success: true,
+                                content: tree ? serializePersistedTree(tree) : undefined,
+                            });
+                        } catch (error) {
+                            const message = formatRuntimeError(error);
+                            runtime.hostAdapter.log(
+                                "warn",
+                                `[v2] document mutation failed: ${message}`
+                            );
+                            runtime.hostAdapter.sendDocumentMutationResult(hostEvent.requestId, {
+                                success: false,
+                                error: message,
+                            });
+                        }
+                    })();
                     return;
 
                 case "focusVariable":

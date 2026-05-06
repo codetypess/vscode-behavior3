@@ -127,7 +127,10 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             assert.equal(b3path.basenameWithoutExt("/work/trees/main.json"), "main");
             assert.equal(b3path.dirname("/work/trees/main.json"), "/work/trees");
             assert.equal(b3path.resolve("/work/trees", "./main.json"), "/work/trees/main.json");
-            assert.equal(b3path.relative("/work/trees", "/work/scripts/build.ts"), "../scripts/build.ts");
+            assert.equal(
+                b3path.relative("/work/trees", "/work/scripts/build.ts"),
+                "../scripts/build.ts"
+            );
             assert.equal(b3path.isAbsolute("C:\\work\\main.json"), true);
         },
     },
@@ -449,8 +452,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
 
             assert.equal(
                 diagnostics.some(
-                    (entry) =>
-                        entry.code === "undefined-variable" && entry.variable === "missing"
+                    (entry) => entry.code === "undefined-variable" && entry.variable === "missing"
                 ),
                 true
             );
@@ -803,6 +805,10 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 sendUpdate() {},
                 undo() {},
                 redo() {},
+                async mutateDocument() {
+                    return { success: true };
+                },
+                sendDocumentMutationResult() {},
                 requestFocusVariable() {},
                 sendTreeSelected() {},
                 sendInspectorSelection() {},
@@ -898,9 +904,8 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             const { getLogger, setLogger } = await import("../webview/shared/misc/logger");
             const previousLogger = getLogger();
             try {
-                const { createVsCodeHostAdapter } = await import(
-                    "../webview/adapters/host/vscode-host-adapter"
-                );
+                const { createVsCodeHostAdapter } =
+                    await import("../webview/adapters/host/vscode-host-adapter");
                 const adapter = createVsCodeHostAdapter();
                 const off = adapter.connect(() => {});
                 const resultPromise = adapter.readFile(parseWorkdirRelativeJsonPath("sub/a.json")!);

@@ -1,14 +1,5 @@
 import { MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
-import {
-    AutoComplete,
-    Button,
-    Flex,
-    Form,
-    Input,
-    InputNumber,
-    Select,
-    Switch,
-} from "antd";
+import { AutoComplete, Button, Flex, Form, Input, InputNumber, Select, Switch } from "antd";
 import type { FormInstance } from "antd/es/form";
 import React, { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -45,6 +36,7 @@ import {
     formatArgInitialValue,
     parseArgSubmitValue,
     queueSubmit,
+    trackPendingInspectorEdit,
     validateExpressionValues,
     validateVariableValue,
     type VariableOption,
@@ -417,7 +409,10 @@ const NodeMetaFields: React.FC<{
             </Form.Item>
 
             <OverrideBar
-                active={canShowOverride && (selectedNode.data.desc ?? "") !== (subtreeOriginal?.desc ?? "")}
+                active={
+                    canShowOverride &&
+                    (selectedNode.data.desc ?? "") !== (subtreeOriginal?.desc ?? "")
+                }
                 onReset={() => resetField("desc", subtreeOriginal?.desc ?? "")}
             >
                 <Form.Item {...createInspectorLabelProps(t("node.desc"))} name="desc">
@@ -797,7 +792,16 @@ export const NodeInspectorForm: React.FC = () => {
         }, 100);
 
         return () => window.clearTimeout(timer);
-    }, [checkExpr, form, nodeCheckDiagnostics, nodeDef, readOnly, selectedNode, usingGroups, usingVars]);
+    }, [
+        checkExpr,
+        form,
+        nodeCheckDiagnostics,
+        nodeDef,
+        readOnly,
+        selectedNode,
+        usingGroups,
+        usingVars,
+    ]);
 
     if (!selectedNode) {
         return null;
@@ -834,7 +838,10 @@ export const NodeInspectorForm: React.FC = () => {
         index: number,
         variadic = false
     ) => {
-        form.setFieldValue([fieldName, index], getNodeSlotFormValue(originalSlots, index, variadic));
+        form.setFieldValue(
+            [fieldName, index],
+            getNodeSlotFormValue(originalSlots, index, variadic)
+        );
         queueSubmit(form);
     };
 
@@ -903,32 +910,34 @@ export const NodeInspectorForm: React.FC = () => {
                               })()
                             : selectedNode.data.args;
 
-                        void runtime.controller.updateNode({
-                            target: selectedNode.ref,
-                            data: {
-                                name:
-                                    String(values.name ?? selectedNode.data.name).trim() ||
-                                    selectedNode.data.name,
-                                desc: values.desc?.trim() || undefined,
-                                path:
-                                    selectedNode.subtreeNode || fieldEditDisabled
-                                        ? selectedNode.data.path
-                                        : values.path?.trim() || undefined,
-                                debug: values.debug ? true : undefined,
-                                disabled: values.disabled ? true : undefined,
-                                input: buildNodeSlotArray(
-                                    currentNodeDef?.input,
-                                    values.inputSlots,
-                                    selectedNode.data.input
-                                ),
-                                output: buildNodeSlotArray(
-                                    currentNodeDef?.output,
-                                    values.outputSlots,
-                                    selectedNode.data.output
-                                ),
-                                args,
-                            },
-                        });
+                        trackPendingInspectorEdit(
+                            runtime.controller.updateNode({
+                                target: selectedNode.ref,
+                                data: {
+                                    name:
+                                        String(values.name ?? selectedNode.data.name).trim() ||
+                                        selectedNode.data.name,
+                                    desc: values.desc?.trim() || undefined,
+                                    path:
+                                        selectedNode.subtreeNode || fieldEditDisabled
+                                            ? selectedNode.data.path
+                                            : values.path?.trim() || undefined,
+                                    debug: values.debug ? true : undefined,
+                                    disabled: values.disabled ? true : undefined,
+                                    input: buildNodeSlotArray(
+                                        currentNodeDef?.input,
+                                        values.inputSlots,
+                                        selectedNode.data.input
+                                    ),
+                                    output: buildNodeSlotArray(
+                                        currentNodeDef?.output,
+                                        values.outputSlots,
+                                        selectedNode.data.output
+                                    ),
+                                    args,
+                                },
+                            })
+                        );
                     } catch (error) {
                         runtime.hostAdapter.log(
                             "warn",
@@ -937,65 +946,65 @@ export const NodeInspectorForm: React.FC = () => {
                     }
                 }}
             >
-                    <NodeMetaFields
+                <NodeMetaFields
+                    form={form}
+                    selectedNode={selectedNode}
+                    nodeDefs={nodeDefs}
+                    nodeDef={nodeDef}
+                    nodeDefMap={nodeDefMap}
+                    usingGroups={usingGroups}
+                    allFiles={allFiles}
+                    fieldEditDisabled={fieldEditDisabled}
+                    readOnly={readOnly}
+                    canShowOverride={canShowOverride}
+                    subtreeOriginal={subtreeOriginal}
+                    onCommit={submitNodeForm}
+                />
+
+                <NodeVariableSection
+                    form={form}
+                    title={t("node.inputVariable")}
+                    fieldName="inputSlots"
+                    slotDefs={nodeDef?.input}
+                    usingVars={usingVars}
+                    variableOptions={variableOptions}
+                    fieldEditDisabled={readOnly || fieldEditDisabled}
+                    isOverridden={isInputOverridden}
+                    onReset={resetInputField}
+                    onCommit={submitNodeForm}
+                    getRelatedArg={relatedArgForInput}
+                />
+
+                {hasStructuredArgs && nodeDef ? (
+                    <NodeStructuredArgsSection
                         form={form}
-                        selectedNode={selectedNode}
-                        nodeDefs={nodeDefs}
                         nodeDef={nodeDef}
-                        nodeDefMap={nodeDefMap}
-                        usingGroups={usingGroups}
-                        allFiles={allFiles}
-                        fieldEditDisabled={fieldEditDisabled}
-                        readOnly={readOnly}
-                        canShowOverride={canShowOverride}
-                        subtreeOriginal={subtreeOriginal}
-                        onCommit={submitNodeForm}
-                    />
-
-                    <NodeVariableSection
-                        form={form}
-                        title={t("node.inputVariable")}
-                        fieldName="inputSlots"
-                        slotDefs={nodeDef?.input}
+                        args={structuredArgs}
+                        committedArgs={selectedNode.data.args}
                         usingVars={usingVars}
-                        variableOptions={variableOptions}
+                        checkExpr={checkExpr}
+                        nodeCheckDiagnostics={nodeCheckDiagnostics}
                         fieldEditDisabled={readOnly || fieldEditDisabled}
-                        isOverridden={isInputOverridden}
-                        onReset={resetInputField}
-                        onCommit={submitNodeForm}
-                        getRelatedArg={relatedArgForInput}
-                    />
-
-                    {hasStructuredArgs && nodeDef ? (
-                        <NodeStructuredArgsSection
-                            form={form}
-                            nodeDef={nodeDef}
-                            args={structuredArgs}
-                            committedArgs={selectedNode.data.args}
-                            usingVars={usingVars}
-                            checkExpr={checkExpr}
-                            nodeCheckDiagnostics={nodeCheckDiagnostics}
-                            fieldEditDisabled={readOnly || fieldEditDisabled}
-                            isOverridden={isArgOverridden}
-                            onReset={resetArgField}
-                            onCommit={submitNodeForm}
-                        />
-                    ) : (
-                        <NodeRawJsonSection visible={shouldShowRawNodeJson} />
-                    )}
-
-                    <NodeVariableSection
-                        form={form}
-                        title={t("node.outputVariable")}
-                        fieldName="outputSlots"
-                        slotDefs={nodeDef?.output}
-                        usingVars={usingVars}
-                        variableOptions={variableOptions}
-                        fieldEditDisabled={readOnly || fieldEditDisabled}
-                        isOverridden={isOutputOverridden}
-                        onReset={resetOutputField}
+                        isOverridden={isArgOverridden}
+                        onReset={resetArgField}
                         onCommit={submitNodeForm}
                     />
+                ) : (
+                    <NodeRawJsonSection visible={shouldShowRawNodeJson} />
+                )}
+
+                <NodeVariableSection
+                    form={form}
+                    title={t("node.outputVariable")}
+                    fieldName="outputSlots"
+                    slotDefs={nodeDef?.output}
+                    usingVars={usingVars}
+                    variableOptions={variableOptions}
+                    fieldEditDisabled={readOnly || fieldEditDisabled}
+                    isOverridden={isOutputOverridden}
+                    onReset={resetOutputField}
+                    onCommit={submitNodeForm}
+                />
             </Form>
         </div>
     );

@@ -7,6 +7,7 @@ import {
 } from "../../shared/misc/logger";
 import type {
     HostAdapter,
+    DocumentMutationResponse,
     PersistedTreeModel,
     ReadFileResponse,
     RevertDocumentResponse,
@@ -36,6 +37,7 @@ interface PendingRequestMap {
     saveSubtreeAs: SaveSubtreeAsResponse;
     saveDocument: SaveDocumentResponse;
     revertDocument: RevertDocumentResponse;
+    mutateDocument: DocumentMutationResponse;
     validateNodeChecks: ValidateNodeChecksResponse;
 }
 
@@ -102,8 +104,11 @@ const createTimeoutResponse = <K extends PendingRequestType>(type: K): PendingRe
             return { success: false, error } as PendingRequestMap[K];
         case "saveSubtreeAs":
             return { savedPath: null, error } as PendingRequestMap[K];
+        case "mutateDocument":
         case "validateNodeChecks":
-            return { diagnostics: [], error } as unknown as PendingRequestMap[K];
+            return (
+                type === "mutateDocument" ? { success: false, error } : { diagnostics: [], error }
+            ) as PendingRequestMap[K];
     }
 };
 
@@ -119,9 +124,7 @@ const registerPendingRequest = <K extends PendingRequestType>(
             return;
         }
         pendingRequests.delete(requestId);
-        (pending.resolve as (resolved: PendingRequestMap[K]) => void)(
-            createTimeoutResponse(type)
-        );
+        (pending.resolve as (resolved: PendingRequestMap[K]) => void)(createTimeoutResponse(type));
     }, timeoutMs);
 
     pendingRequests.set(requestId, {
@@ -234,6 +237,13 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
                         });
                         return;
 
+                    case "mutateDocumentResult":
+                        resolvePendingRequest(message.requestId, "mutateDocument", {
+                            success: message.success,
+                            error: message.error,
+                        });
+                        return;
+
                     case "validateNodeChecksResult":
                         resolvePendingRequest(message.requestId, "validateNodeChecks", {
                             diagnostics: message.diagnostics,
@@ -255,6 +265,14 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
 
                     case "executeRedo":
                         onMessage({ type: "executeRedo" });
+                        return;
+
+                    case "executeDocumentMutation":
+                        onMessage({
+                            type: "executeDocumentMutation",
+                            requestId: message.requestId,
+                            mutation: message.mutation,
+                        });
                         return;
 
                     case "focusVariable":
@@ -354,6 +372,23 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
 
         redo() {
             postMessage({ type: "redo" });
+        },
+
+        mutateDocument(mutation) {
+            return new Promise<DocumentMutationResponse>((resolve) => {
+                const requestId = registerPendingRequest("mutateDocument", resolve);
+                postMessage({ type: "mutateDocument", requestId, mutation });
+            });
+        },
+
+        sendDocumentMutationResult(requestId, response) {
+            postMessage({
+                type: "documentMutationResult",
+                requestId,
+                success: response.success,
+                error: response.error,
+                content: response.content,
+            });
         },
 
         requestFocusVariable(names) {

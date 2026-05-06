@@ -12,6 +12,7 @@ import {
     createInspectorLabelProps,
     filterOptionByLabel,
     queueSubmit,
+    trackPendingInspectorEdit,
 } from "./inspector-shared";
 import {
     createTreeInspectorFormValues,
@@ -244,7 +245,9 @@ const ImportRefsSection: React.FC<{
                                                 key={`${currentPath}:${variable.name}`}
                                                 value={variable}
                                                 disabled
-                                                onFocusVariable={readOnly ? undefined : onFocusVariable}
+                                                onFocusVariable={
+                                                    readOnly ? undefined : onFocusVariable
+                                                }
                                             />
                                         ))}
                                     </div>
@@ -321,7 +324,9 @@ export const TreeInspectorForm: React.FC = () => {
                     if (readOnly) {
                         return;
                     }
-                    void runtime.controller.updateTreeMeta(createTreeMetaPayload(values));
+                    trackPendingInspectorEdit(
+                        runtime.controller.updateTreeMeta(createTreeMetaPayload(values))
+                    );
                 }}
             >
                 <TreeMetaFields form={form} groupDefs={groupDefs} readOnly={readOnly} />
