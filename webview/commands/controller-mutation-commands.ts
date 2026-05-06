@@ -107,18 +107,26 @@ const buildUpdateNodePayload = (
     payload: UpdateNodeInput
 ): UpdateNodeInput => {
     const selectedSnapshot = runtime.deps.selectionStore.getState().selectedNodeSnapshot;
-    const shouldDetachSubtree = Boolean(selectedSnapshot?.data.path) && !payload.data.path;
-    if (!shouldDetachSubtree) {
-        return payload;
-    }
-
-    const detachedSubtreeRoot = runtime.buildPersistedNodeFromResolved(payload.target.instanceKey, {
-        clearPathOnRoot: true,
-    });
+    const currentNodeSnapshot = selectedSnapshot
+        ? {
+              data: clonePersistedNode(selectedSnapshot.data),
+              subtreeNode: selectedSnapshot.subtreeNode,
+              subtreeOriginal: selectedSnapshot.subtreeOriginal
+                  ? clonePersistedNode(selectedSnapshot.subtreeOriginal)
+                  : undefined,
+          }
+        : payload.currentNodeSnapshot;
+    const shouldDetachSubtree = Boolean(currentNodeSnapshot?.data.path) && !payload.data.path;
+    const detachedSubtreeRoot = shouldDetachSubtree
+        ? runtime.buildPersistedNodeFromResolved(payload.target.instanceKey, {
+              clearPathOnRoot: true,
+          }) ?? undefined
+        : payload.detachedSubtreeRoot;
 
     return {
         ...payload,
-        detachedSubtreeRoot: detachedSubtreeRoot ?? undefined,
+        currentNodeSnapshot,
+        detachedSubtreeRoot,
     };
 };
 
@@ -675,13 +683,7 @@ export const createMutationCommands = (
             });
 
             if (result.status === "error") {
-                if (
-                    result.error.code === "missing-selected-node" ||
-                        result.error.code === "selected-node-mismatch" ||
-                        result.error.code === "missing-target-node" ||
-                        result.error.code === "missing-subtree-original" ||
-                        result.error.code === "missing-detached-subtree-root"
-                ) {
+                if (result.error.code === "missing-target-node") {
                     await forwardDocumentMutation(runtime, mutation);
                     return;
                 }

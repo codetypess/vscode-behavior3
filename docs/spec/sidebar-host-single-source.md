@@ -3,7 +3,7 @@
 Status: Implementing
 Date: 2026-05-06
 Scope: Migrate main-document authority from webview-local controller state to an extension-host document session, using staged intent-based save, undo/redo, mutation, and snapshot fanout flows
-Progress: Phase 1 host session shell landed; Phase 2 host intent routing is complete for save, undo, and redo; Phase 3 is complete for sidebar `updateTreeMeta` / `updateNode`; Phase 4 is in progress, and canvas structural commands now commit directly in host, with compatibility fallback remaining only for context gaps
+Progress: Phase 1 host session shell landed; Phase 2 host intent routing is complete for save, undo, and redo; Phase 3 is complete for sidebar `updateTreeMeta` / `updateNode`; Phase 4 is in progress, canvas structural commands now commit directly in host, and `updateNode` now carries explicit reducer context so compatibility fallback is shrinking toward structural lookup gaps only
 
 ## 1. Context
 
@@ -58,10 +58,10 @@ As a result, a narrow Ctrl+S or pending-dot fix would treat symptoms but would n
 - Sidebar `mutateDocument` currently covers `updateTreeMeta` and `updateNode`, and those intents now enter the host first.
 - `saveDocument`, `undo`, and `redo` now enter the host first from both the editor and the sidebar.
 - The host applies save/history transitions against its own document session state and rebroadcasts the committed result back to both webviews.
-- For sidebar `updateTreeMeta` and `updateNode`, the host now runs a shared reducer directly when it has enough context, and only falls back to the active editor compatibility executor when required context is temporarily missing.
+- For sidebar `updateTreeMeta` and `updateNode`, the host now runs a shared reducer directly; `updateNode` carries explicit node snapshot context, so fallback is no longer needed for selected-node drift or subtree-original reconstruction.
 - Canvas structural commands now enter the host first as `mutateDocument` intents instead of mutating locally before sending `update`.
 - `performDrop`, `pasteNode`, `insertNode`, `replaceNode`, `deleteNode`, and `saveSelectedAsSubtree` now commit directly in host, with `nextSelection` returned to the webview so selection projection can follow the committed snapshot.
-- `executeDocumentMutation` still remains as a compatibility executor only for context gaps such as stale selection state or reducer inputs the host cannot yet reconstruct.
+- `executeDocumentMutation` still remains as a compatibility executor only for remaining context gaps such as structural node lookups the host cannot yet reconstruct from persisted-tree state alone.
 - Cross-view content sync still primarily uses content-bearing messages such as `documentUpdated` and `documentReloaded`, rather than a normalized host session snapshot feed.
 
 ## 5. Proposed Behavior

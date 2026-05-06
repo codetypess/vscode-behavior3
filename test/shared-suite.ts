@@ -248,38 +248,26 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                             name: "Wait",
                             args: { time: 2 },
                         },
+                        currentNodeSnapshot: {
+                            data: {
+                                uuid: "sub-node",
+                                id: "2",
+                                name: "Wait",
+                                args: { time: 1 },
+                            },
+                            subtreeNode: true,
+                            subtreeOriginal: {
+                                uuid: "sub-node",
+                                id: "2",
+                                name: "Wait",
+                                args: { time: 1 },
+                            },
+                        },
                     },
                 },
                 {
                     tree,
                     nodeDefs,
-                    selectedNode: {
-                        ref: {
-                            instanceKey: "node-1",
-                            displayId: "2",
-                            structuralStableId: "sub-node",
-                            sourceStableId: "sub-node",
-                            sourceTreePath: "subtree/child.json" as any,
-                            subtreeStack: [],
-                        },
-                        data: {
-                            uuid: "sub-node",
-                            id: "2",
-                            name: "Wait",
-                            args: { time: 1 },
-                        },
-                        prefix: "",
-                        activeChildCount: 0,
-                        disabled: false,
-                        subtreeNode: true,
-                        subtreeEditable: true,
-                        subtreeOriginal: {
-                            uuid: "sub-node",
-                            id: "2",
-                            name: "Wait",
-                            args: { time: 1 },
-                        },
-                    },
                 }
             );
 
@@ -321,6 +309,15 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                         data: {
                             name: "Sequence",
                         },
+                        currentNodeSnapshot: {
+                            data: {
+                                uuid: "sub-root",
+                                id: "2",
+                                name: "SubtreeRef",
+                                path: "subtree/child.json" as any,
+                            },
+                            subtreeNode: false,
+                        },
                         detachedSubtreeRoot: {
                             uuid: "sub-root",
                             id: "2",
@@ -338,27 +335,6 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 {
                     tree,
                     nodeDefs: [],
-                    selectedNode: {
-                        ref: {
-                            instanceKey: "node-1",
-                            displayId: "2",
-                            structuralStableId: "sub-root",
-                            sourceStableId: "sub-root",
-                            sourceTreePath: null,
-                            subtreeStack: [],
-                        },
-                        data: {
-                            uuid: "sub-root",
-                            id: "2",
-                            name: "SubtreeRef",
-                            path: "subtree/child.json" as any,
-                        },
-                        prefix: "",
-                        activeChildCount: 1,
-                        disabled: false,
-                        subtreeNode: false,
-                        subtreeEditable: true,
-                    },
                 }
             );
 
@@ -1642,6 +1618,13 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 ["updateTreeMeta", "updateNode"]
             );
             assert.equal(documentStore.getState().history.length, 1);
+            const updateNodeMutation = mutations[1];
+            assert.equal(updateNodeMutation?.type, "updateNode");
+            if (updateNodeMutation?.type !== "updateNode") {
+                return;
+            }
+            assert.equal(updateNodeMutation.payload.currentNodeSnapshot?.data.uuid, "root");
+            assert.equal(updateNodeMutation.payload.currentNodeSnapshot?.subtreeNode, false);
         },
     },
     {

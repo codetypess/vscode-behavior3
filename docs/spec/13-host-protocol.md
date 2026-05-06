@@ -188,8 +188,10 @@
 
 补充：
 
+- `updateNode` intent 会携带 `currentNodeSnapshot`
+- 该快照来自当前发起 webview 的选中节点投影，包含 host reducer 需要的当前节点数据、subtree 标记和 `subtreeOriginal`
 - `updateNode` 在“解绑 subtree 引用为本地节点”时可以携带 `detachedSubtreeRoot`
-- 该快照由 sidebar 当前 runtime 提供，供 host reducer 直接提交
+- `detachedSubtreeRoot` 由当前 webview runtime 提供，供 host reducer 直接提交
 - `mutateDocumentResult` / `documentMutationResult` 当前可以携带 `nextSelection`
 - 该字段只表达“提交后的选中投影应该落到哪里”，不把 selection authority 从 webview 立刻迁成宿主真源
 

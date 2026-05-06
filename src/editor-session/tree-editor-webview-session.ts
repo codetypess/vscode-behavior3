@@ -929,12 +929,8 @@ export async function resolveTreeEditorSession({
 
             if (reduced.status === "error") {
                 const shouldFallbackToEditor =
-                    reduced.error.code === "missing-selected-node" ||
-                    reduced.error.code === "selected-node-mismatch" ||
                     reduced.error.code === "missing-source-node" ||
-                    reduced.error.code === "missing-target-node" ||
-                    reduced.error.code === "missing-subtree-original" ||
-                    reduced.error.code === "missing-detached-subtree-root";
+                    reduced.error.code === "missing-target-node";
 
                 if (shouldFallbackToEditor) {
                     await forwardDocumentMutationToEditor(msg, reply);

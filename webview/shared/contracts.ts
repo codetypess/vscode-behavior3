@@ -174,6 +174,11 @@ export interface UpdateNodeInput {
         disabled?: boolean;
         path?: string;
     };
+    currentNodeSnapshot?: {
+        data: PersistedNodeModel;
+        subtreeNode: boolean;
+        subtreeOriginal?: PersistedNodeModel;
+    };
     detachedSubtreeRoot?: PersistedNodeModel;
 }
 

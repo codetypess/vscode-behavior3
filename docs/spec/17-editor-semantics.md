@@ -157,6 +157,9 @@
 
 当前分三条路径：
 
+- payload 会先补齐 `currentNodeSnapshot`
+- 若本次是把 subtree link 改回本地节点，还会补齐 `detachedSubtreeRoot`
+
 #### A. 主树普通节点
 
 - 直接在主文档结构上修改该节点
@@ -165,7 +168,7 @@
 #### B. subtree 内部节点
 
 - 不改 subtree 源文件
-- 以 `subtreeOriginal` 对比出 diff
+- 以 payload 自带的 `subtreeOriginal` 对比出 diff
 - 写入或清理主文档 `overrides`
 
 #### C. 从 subtree link 脱链

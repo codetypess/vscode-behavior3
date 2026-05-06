@@ -144,6 +144,40 @@ const matchesSelectedNodeTarget = (selectedNode: EditNode, payload: UpdateNodeIn
     );
 };
 
+const resolveUpdateNodeSnapshot = (
+    payload: UpdateNodeInput,
+    context: DocumentMutationReducerContext
+):
+    | {
+          data: PersistedNodeModel;
+          subtreeNode: boolean;
+          subtreeOriginal?: PersistedNodeModel;
+      }
+    | { error: DocumentMutationReducerError } => {
+    if (payload.currentNodeSnapshot) {
+        return payload.currentNodeSnapshot;
+    }
+
+    const selectedNode = context.selectedNode;
+    if (!selectedNode) {
+        return {
+            error: { code: "missing-selected-node" },
+        };
+    }
+
+    if (!matchesSelectedNodeTarget(selectedNode, payload)) {
+        return {
+            error: { code: "selected-node-mismatch" },
+        };
+    }
+
+    return {
+        data: selectedNode.data,
+        subtreeNode: selectedNode.subtreeNode,
+        subtreeOriginal: selectedNode.subtreeOriginal,
+    };
+};
+
 const reduceUpdateTreeMeta = (
     mutation: Extract<ReducibleDocumentMutation, { type: "updateTreeMeta" }>,
     tree: PersistedTreeModel
@@ -201,18 +235,11 @@ const reduceUpdateNode = (
     mutation: Extract<ReducibleDocumentMutation, { type: "updateNode" }>,
     context: DocumentMutationReducerContext
 ): DocumentMutationReducerResult => {
-    const selectedNode = context.selectedNode;
-    if (!selectedNode) {
+    const selectedNode = resolveUpdateNodeSnapshot(mutation.payload, context);
+    if ("error" in selectedNode) {
         return {
             status: "error",
-            error: { code: "missing-selected-node" },
-        };
-    }
-
-    if (!matchesSelectedNodeTarget(selectedNode, mutation.payload)) {
-        return {
-            status: "error",
-            error: { code: "selected-node-mismatch" },
+            error: selectedNode.error,
         };
     }
 
@@ -267,8 +294,8 @@ const reduceUpdateNode = (
         }
 
         const editedNode: PersistedNodeModel = {
-            uuid: selectedNode.ref.sourceStableId,
-            id: selectedNode.ref.displayId,
+            uuid: payload.target.sourceStableId,
+            id: payload.target.displayId,
             name: nextName,
             desc: nextDesc,
             args: nextArgs,

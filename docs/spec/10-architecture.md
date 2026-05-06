@@ -50,7 +50,7 @@ Shared Layer
 - 维护主文档 `sessionState` 的 dirty、history、save/reload conflict 元数据
 - 串行化主文档 save、revert、external reload、sidebar proxy mutation
 - 执行 save、undo、redo 这类主文档 intent，并把权威结果广播回 webview
-- 对 sidebar 的 `updateTreeMeta` / `updateNode` 运行 host-first shared reducer，并只在必要时回退到主编辑器兼容执行链
+- 对 sidebar 的 `updateTreeMeta` / `updateNode` 运行 host-first shared reducer；`updateNode` 所需节点快照由 intent 显式携带，只在必要时回退到主编辑器兼容执行链
 - 监听主文件、subtree 文件、setting 文件、workspace 文件、VS Code 配置与主题变化
 - 解析 nodeDefs、工作目录、变量声明、可见文件列表
 - 运行 build 与节点参数自定义检查脚本
@@ -139,7 +139,7 @@ Shared Layer
 
 1. Inspector Sidebar 或主编辑器 canvas 发送 `mutateDocument`
 2. active editor session 先尝试在 host 侧直接 reduce 并提交权威 snapshot
-3. 若 host 当前缺少 reducer、selection、clipboard 或 subtree-save 所需上下文，才回退为 `executeDocumentMutation`
+3. 若 host 当前仍缺少结构节点定位等上下文，才回退为 `executeDocumentMutation`
 4. 对于结构命令，宿主可通过 mutation response 回传 `nextSelection`，让 webview 更新 selection projection
 5. 若走兼容回退，主编辑器执行 mutation 后把结果回给宿主，再由宿主回复发起方并同步最新内容/selection
 
