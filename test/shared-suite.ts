@@ -374,6 +374,192 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
         },
     },
     {
+        name: "reduces canvas insert and delete mutations in shared host reducer",
+        run() {
+            const tree = createTestTree();
+            tree.root.children = [
+                {
+                    uuid: "child-a",
+                    id: "2",
+                    name: "ActionA",
+                },
+            ];
+
+            const insertResult = reduceDocumentMutation(
+                {
+                    type: "insertNode",
+                    payload: {
+                        target: {
+                            instanceKey: "1",
+                            displayId: "1",
+                            structuralStableId: "root",
+                            sourceStableId: "root",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                    },
+                },
+                {
+                    tree,
+                    nodeDefs: [],
+                }
+            );
+
+            assert.equal(insertResult.status, "changed");
+            if (insertResult.status !== "changed") {
+                return;
+            }
+
+            const inserted = insertResult.tree.root.children?.[1];
+            assert.equal(inserted?.name, "unknown");
+            assert.deepEqual(insertResult.nextSelection, {
+                kind: "node",
+                structuralStableId: inserted?.uuid,
+            });
+
+            const deleteResult = reduceDocumentMutation(
+                {
+                    type: "deleteNode",
+                    payload: {
+                        target: {
+                            instanceKey: "2",
+                            displayId: "2",
+                            structuralStableId: "child-a",
+                            sourceStableId: "child-a",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                    },
+                },
+                {
+                    tree: insertResult.tree,
+                    nodeDefs: [],
+                }
+            );
+
+            assert.equal(deleteResult.status, "changed");
+            if (deleteResult.status !== "changed") {
+                return;
+            }
+
+            assert.equal(
+                deleteResult.tree.root.children?.some((node) => node.uuid === "child-a"),
+                false
+            );
+            assert.deepEqual(deleteResult.nextSelection, {
+                kind: "node",
+                structuralStableId: "root",
+            });
+        },
+    },
+    {
+        name: "reduces canvas drop and paste mutations in shared host reducer",
+        run() {
+            const tree = createTestTree();
+            tree.root.children = [
+                {
+                    uuid: "child-a",
+                    id: "2",
+                    name: "ActionA",
+                },
+                {
+                    uuid: "child-b",
+                    id: "3",
+                    name: "ActionB",
+                },
+            ];
+
+            const dropResult = reduceDocumentMutation(
+                {
+                    type: "performDrop",
+                    payload: {
+                        source: {
+                            instanceKey: "2",
+                            displayId: "2",
+                            structuralStableId: "child-a",
+                            sourceStableId: "child-a",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                        target: {
+                            instanceKey: "3",
+                            displayId: "3",
+                            structuralStableId: "child-b",
+                            sourceStableId: "child-b",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                        position: "after",
+                    },
+                },
+                {
+                    tree,
+                    nodeDefs: [],
+                }
+            );
+
+            assert.equal(dropResult.status, "changed");
+            if (dropResult.status !== "changed") {
+                return;
+            }
+
+            assert.deepEqual(
+                dropResult.tree.root.children?.map((node) => node.uuid),
+                ["child-b", "child-a"]
+            );
+            assert.deepEqual(dropResult.nextSelection, {
+                kind: "node",
+                structuralStableId: "child-a",
+            });
+
+            const pasteResult = reduceDocumentMutation(
+                {
+                    type: "pasteNode",
+                    payload: {
+                        target: {
+                            instanceKey: "1",
+                            displayId: "1",
+                            structuralStableId: "root",
+                            sourceStableId: "root",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                        snapshot: {
+                            uuid: "clip-root",
+                            id: "9",
+                            name: "ClipboardAction",
+                            children: [
+                                {
+                                    uuid: "clip-leaf",
+                                    id: "10",
+                                    name: "ClipboardLeaf",
+                                },
+                            ],
+                        },
+                    },
+                },
+                {
+                    tree: dropResult.tree,
+                    nodeDefs: [],
+                }
+            );
+
+            assert.equal(pasteResult.status, "changed");
+            if (pasteResult.status !== "changed") {
+                return;
+            }
+
+            const pasted = pasteResult.tree.root.children?.[2];
+            assert.equal(pasted?.name, "ClipboardAction");
+            assert.notEqual(pasted?.uuid, "clip-root");
+            assert.notEqual(pasted?.children?.[0]?.uuid, "clip-leaf");
+            assert.deepEqual(pasteResult.nextSelection, {
+                kind: "node",
+                structuralStableId: pasted?.uuid,
+            });
+        },
+    },
+    {
         name: "parses only strict workdir-relative json paths",
         run() {
             assert.equal(parseWorkdirRelativeJsonPath("vars\\test.json"), "vars/test.json");
@@ -1327,6 +1513,142 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                     "performDrop",
                     "saveSelectedAsSubtree",
                 ]
+            );
+            assert.equal(updateCount, 0);
+        },
+    },
+    {
+        name: "routes editor metadata and node updates through host mutation intents",
+        async run() {
+            const documentStore = createDocumentStore();
+            const workspaceStore = createWorkspaceStore();
+            const selectionStore = createSelectionStore();
+            const appHooks = createAppHooksStore();
+            appHooks.bind({
+                message: {
+                    success() {},
+                    error() {},
+                } as any,
+                notification: {} as any,
+                modal: {} as any,
+            });
+
+            const mutations: DocumentMutation[] = [];
+            let updateCount = 0;
+            const hostAdapter: HostAdapter = {
+                connect: () => () => {},
+                sendReady() {},
+                sendUpdate() {
+                    updateCount += 1;
+                },
+                undo() {},
+                redo() {},
+                async mutateDocument(mutation) {
+                    mutations.push(mutation);
+                    return { success: true };
+                },
+                sendDocumentMutationResult() {},
+                requestFocusVariable() {},
+                sendTreeSelected() {},
+                sendInspectorSelection() {},
+                sendRequestSetting() {},
+                sendBuild() {},
+                async validateNodeChecks() {
+                    return { diagnostics: [] };
+                },
+                async saveDocument() {
+                    return { success: true };
+                },
+                async revertDocument() {
+                    return { success: true };
+                },
+                async readFile() {
+                    return { content: "{}" };
+                },
+                async saveSubtree() {
+                    return { success: true };
+                },
+                async saveSubtreeAs() {
+                    return { savedPath: null };
+                },
+                log() {},
+            };
+            const graphAdapter: GraphAdapter = {
+                async mount() {},
+                unmount() {},
+                async render() {},
+                async applySelection() {},
+                async applyHighlights() {},
+                async applySearch() {},
+                async focusNode() {},
+                async restoreViewport() {},
+                getViewport: () => ({ zoom: 1, x: 0, y: 0 }),
+            };
+            const controller = createEditorController({
+                documentStore,
+                workspaceStore,
+                selectionStore,
+                hostAdapter,
+                graphAdapter,
+                appHooks,
+            });
+
+            const tree = createTestTree();
+            const content = serializePersistedTree(tree);
+            await controller.initFromHost({
+                filePath: "/tmp/main.json",
+                workdir: "/tmp",
+                content,
+                nodeDefs: [
+                    {
+                        name: "Sequence",
+                        type: "Composite",
+                        desc: "",
+                        status: ["success"],
+                    },
+                ],
+                allFiles: [],
+                settings: {
+                    checkExpr: true,
+                    subtreeEditable: true,
+                    language: "en",
+                    theme: "light",
+                },
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: content,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+            });
+
+            await controller.updateTreeMeta({
+                desc: "updated",
+                prefix: "",
+                export: true,
+                group: [],
+                variables: {
+                    imports: [],
+                    locals: [],
+                },
+            });
+
+            await controller.selectNode("1");
+            const target = selectionStore.getState().selectedNodeRef;
+            assert.ok(target);
+            await controller.updateNode({
+                target,
+                data: {
+                    name: "Sequence",
+                    desc: "changed",
+                },
+            });
+
+            assert.deepEqual(
+                mutations.map((mutation) => mutation.type),
+                ["updateTreeMeta", "updateNode"]
             );
             assert.equal(updateCount, 0);
         },

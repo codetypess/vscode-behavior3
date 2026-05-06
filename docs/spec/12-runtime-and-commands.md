@@ -159,8 +159,9 @@
 
 1. webview 发送 `mutateDocument`
 2. 宿主优先尝试在 host 侧直接 reduce 并提交
-3. 只有当 host 还缺少 reducer、selection、clipboard 或 subtree-save 上下文时，才回退为 `executeDocumentMutation`
-4. 若走兼容回退，主编辑器执行真正的本地 mutation，再把结果回给宿主
+3. 当前 `updateTreeMeta` / `updateNode` / `performDrop` / `pasteNode` / `insertNode` / `replaceNode` / `deleteNode` / `saveSelectedAsSubtree` 已可直接在 host 提交
+4. 对于需要改选中的结构命令，宿主通过 mutation response 回传 `nextSelection`，让 webview 只更新 selection projection
+5. 若走兼容回退，主编辑器执行真正的本地 mutation，再把结果回给宿主
 
 这条规则意味着：
 

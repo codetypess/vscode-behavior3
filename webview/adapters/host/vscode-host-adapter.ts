@@ -241,6 +241,7 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
                         resolvePendingRequest(message.requestId, "mutateDocument", {
                             success: message.success,
                             error: message.error,
+                            nextSelection: message.nextSelection,
                         });
                         return;
 
@@ -387,6 +388,7 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
                 success: response.success,
                 error: response.error,
                 content: response.content,
+                nextSelection: response.nextSelection,
             });
         },
 

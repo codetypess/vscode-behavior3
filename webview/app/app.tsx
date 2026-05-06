@@ -57,12 +57,14 @@ const AppShell: React.FC = () => {
                 case "executeDocumentMutation":
                     void (async () => {
                         try {
-                            const content = await runtime.controller.executeDocumentMutationCompat(
+                            const response = await runtime.controller.executeDocumentMutationCompat(
                                 hostEvent.mutation
                             );
                             runtime.hostAdapter.sendDocumentMutationResult(hostEvent.requestId, {
-                                success: true,
-                                content,
+                                success: response?.success ?? true,
+                                error: response?.error,
+                                content: response?.content,
+                                nextSelection: response?.nextSelection,
                             });
                         } catch (error) {
                             const message = formatRuntimeError(error);

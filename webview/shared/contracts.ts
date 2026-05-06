@@ -198,6 +198,10 @@ export interface SaveSelectedAsSubtreeInput {
     suggestedBaseName: string;
 }
 
+export type DocumentMutationSelection =
+    | { kind: "tree" }
+    | { kind: "node"; structuralStableId: string };
+
 export interface ReadFileResponse {
     content: string | null;
 }
@@ -253,6 +257,7 @@ export type DocumentMutation =
 export interface DocumentMutationResponse {
     success: boolean;
     error?: string;
+    nextSelection?: DocumentMutationSelection;
 }
 
 export type HostEvent =
@@ -436,7 +441,9 @@ export interface EditorCommand {
     ): Promise<void>;
     focusVariable(names: string[]): Promise<void>;
     /** Compatibility-only executor for host-triggered mutation fallback. */
-    executeDocumentMutationCompat(mutation: DocumentMutation): Promise<string | undefined>;
+    executeDocumentMutationCompat(
+        mutation: DocumentMutation
+    ): Promise<(DocumentMutationResponse & { content?: string }) | undefined>;
     updateTreeMeta(payload: UpdateTreeMetaInput): Promise<void>;
     updateNode(payload: UpdateNodeInput): Promise<void>;
     performDrop(intent: DropIntent): Promise<void>;

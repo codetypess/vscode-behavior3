@@ -34,7 +34,13 @@ import { isDocumentVersionNewer } from "../../webview/shared/document-version";
 import { parseWorkdirRelativeJsonPath } from "../../webview/shared/protocol";
 import { stringifyJson } from "../../webview/shared/misc/stringify";
 import { parseWorkspaceModelContent } from "../../webview/shared/schema";
-import { parsePersistedTreeContent, serializePersistedTree } from "../../webview/shared/tree";
+import {
+    clonePersistedNode,
+    clonePersistedTree,
+    findPersistedNodeByStableId,
+    parsePersistedTreeContent,
+    serializePersistedTree,
+} from "../../webview/shared/tree";
 import b3path from "../../webview/shared/misc/b3path";
 import { setFs } from "../../webview/shared/misc/b3fs";
 import {
@@ -45,7 +51,7 @@ import {
     resolveCheckScriptPaths,
 } from "../../webview/shared/misc/b3build";
 import type { BuildEnv, CheckScriptModule } from "../../webview/shared/misc/b3build";
-import type { NodeData, TreeData } from "../../webview/shared/misc/b3type";
+import { VERSION, type NodeData, type TreeData } from "../../webview/shared/misc/b3type";
 import type { InspectorSessionSnapshot } from "../inspector-sidebar-coordinator";
 
 setFs(fs);
@@ -759,6 +765,121 @@ export async function resolveTreeEditorSession({
         }
     };
 
+    const handleSaveSelectedAsSubtreeMutation = async (
+        msg: Extract<EditorToHostMessage, { type: "mutateDocument" }>
+    ): Promise<
+        | {
+              kind: "handled";
+              reply: Extract<HostToEditorMessage, { type: "mutateDocumentResult" }>;
+          }
+        | { kind: "fallback" }
+    > => {
+        if (msg.mutation.type !== "saveSelectedAsSubtree") {
+            return { kind: "fallback" };
+        }
+
+        const currentTree = parsePersistedTreeContent(document.content, document.uri.fsPath);
+        if (currentTree.root.uuid === msg.mutation.payload.target.structuralStableId) {
+            return { kind: "fallback" };
+        }
+
+        const targetNode = findPersistedNodeByStableId(
+            currentTree.root,
+            msg.mutation.payload.target.structuralStableId
+        );
+        if (!targetNode || targetNode.path) {
+            return { kind: "fallback" };
+        }
+
+        const subtreeModel = {
+            version: VERSION,
+            name: "subtree",
+            prefix: "",
+            desc: msg.mutation.payload.subtreeRoot.desc,
+            export: true,
+            group: [],
+            variables: {
+                imports: [],
+                locals: [],
+            },
+            custom: {},
+            overrides: {},
+            root: clonePersistedNode(msg.mutation.payload.subtreeRoot),
+        };
+
+        const saveResult = await saveSubtreeContentAs(
+            serializePersistedTree(subtreeModel),
+            msg.mutation.payload.suggestedBaseName
+        );
+        if (saveResult.error) {
+            return {
+                kind: "handled",
+                reply: {
+                    type: "mutateDocumentResult",
+                    requestId: msg.requestId,
+                    success: false,
+                    error: saveResult.error,
+                },
+            };
+        }
+
+        if (!saveResult.savedPath) {
+            return {
+                kind: "handled",
+                reply: {
+                    type: "mutateDocumentResult",
+                    requestId: msg.requestId,
+                    success: true,
+                },
+            };
+        }
+
+        const savedPath = parseWorkdirRelativeJsonPath(saveResult.savedPath);
+        if (!savedPath) {
+            return {
+                kind: "handled",
+                reply: {
+                    type: "mutateDocumentResult",
+                    requestId: msg.requestId,
+                    success: false,
+                    error: "Host returned an invalid saved subtree path.",
+                },
+            };
+        }
+
+        const nextTree = clonePersistedTree(currentTree);
+        const nextTargetNode = findPersistedNodeByStableId(
+            nextTree.root,
+            msg.mutation.payload.target.structuralStableId
+        );
+        if (!nextTargetNode) {
+            return { kind: "fallback" };
+        }
+
+        nextTargetNode.path = savedPath;
+        nextTargetNode.children = undefined;
+        const changed = applyContentFromWebview(serializePersistedTree(nextTree));
+        if (changed) {
+            await postMessage({
+                type: "documentUpdated",
+                content: document.content,
+            } satisfies HostToEditorMessage);
+        }
+
+        return {
+            kind: "handled",
+            reply: {
+                type: "mutateDocumentResult",
+                requestId: msg.requestId,
+                success: true,
+                nextSelection: {
+                    kind: "node",
+                    structuralStableId: nextTargetNode.uuid,
+                },
+            },
+        };
+    };
+
     const handleMutateDocumentMessage = async (
         msg: Extract<EditorToHostMessage, { type: "mutateDocument" }>,
         reply: HostMessageSink = postMessage,
@@ -773,6 +894,13 @@ export async function resolveTreeEditorSession({
                     success: false,
                     error: editBlockedMessage,
                 } satisfies HostToEditorMessage);
+                return;
+            }
+
+            const saveSelectedAsSubtreeResult =
+                await handleSaveSelectedAsSubtreeMutation(msg);
+            if (saveSelectedAsSubtreeResult.kind === "handled") {
+                await reply(saveSelectedAsSubtreeResult.reply);
                 return;
             }
 
@@ -803,6 +931,7 @@ export async function resolveTreeEditorSession({
                 const shouldFallbackToEditor =
                     reduced.error.code === "missing-selected-node" ||
                     reduced.error.code === "selected-node-mismatch" ||
+                    reduced.error.code === "missing-source-node" ||
                     reduced.error.code === "missing-target-node" ||
                     reduced.error.code === "missing-subtree-original" ||
                     reduced.error.code === "missing-detached-subtree-root";
@@ -845,6 +974,7 @@ export async function resolveTreeEditorSession({
                 type: "mutateDocumentResult",
                 requestId: msg.requestId,
                 success: true,
+                nextSelection: reduced.nextSelection,
             } satisfies HostToEditorMessage);
         });
     };
@@ -877,6 +1007,7 @@ export async function resolveTreeEditorSession({
                 requestId: msg.requestId,
                 success,
                 error,
+                nextSelection: msg.nextSelection,
             } satisfies HostToEditorMessage);
         });
     };
@@ -1167,73 +1298,70 @@ export async function resolveTreeEditorSession({
         msg: Extract<EditorToHostMessage, { type: "saveSubtreeAs" }>,
         reply: HostMessageSink = postMessage
     ): Promise<void> => {
+        const result = await saveSubtreeContentAs(msg.content, msg.suggestedBaseName);
+        await reply({
+            type: "saveSubtreeAsResult",
+            requestId: msg.requestId,
+            savedPath: result.savedPath,
+            error: result.error,
+        });
+    };
+
+    const saveSubtreeContentAs = async (
+        content: string,
+        suggestedBaseName: string
+    ): Promise<{ savedPath: string | null; error?: string }> => {
         try {
             const activeFileBlockMessage = getActiveNewerFileEditMessage();
             if (activeFileBlockMessage) {
                 vscode.window.showErrorMessage(activeFileBlockMessage);
-                await reply({
-                    type: "saveSubtreeAsResult",
-                    requestId: msg.requestId,
+                return {
                     savedPath: null,
                     error: activeFileBlockMessage,
-                });
-                return;
+                };
             }
 
-            const defaultUri = vscode.Uri.joinPath(projectRootUri, `${msg.suggestedBaseName}.json`);
+            const defaultUri = vscode.Uri.joinPath(projectRootUri, `${suggestedBaseName}.json`);
             const picked = await vscode.window.showSaveDialog({
                 defaultUri,
                 filters: { JSON: ["json"] },
             });
             if (!picked) {
-                await reply({
-                    type: "saveSubtreeAsResult",
-                    requestId: msg.requestId,
+                return {
                     savedPath: null,
-                });
-                return;
+                };
             }
 
             const rel = uriToWorkdirRelative(picked, projectRootUri);
             if (!rel) {
                 const error = "Save location must be inside the behavior tree work directory.";
                 vscode.window.showErrorMessage(error);
-                await reply({
-                    type: "saveSubtreeAsResult",
-                    requestId: msg.requestId,
+                return {
                     savedPath: null,
                     error,
-                });
-                return;
+                };
             }
 
             const targetFileBlockMessage = await getExistingNewerFileEditMessage(picked);
             if (targetFileBlockMessage) {
                 vscode.window.showErrorMessage(targetFileBlockMessage);
-                await reply({
-                    type: "saveSubtreeAsResult",
-                    requestId: msg.requestId,
+                return {
                     savedPath: null,
                     error: targetFileBlockMessage,
-                });
-                return;
+                };
             }
 
-            await writeDocumentContentToDisk(picked, msg.content);
-            await reply({
-                type: "saveSubtreeAsResult",
-                requestId: msg.requestId,
+            await writeDocumentContentToDisk(picked, content);
+            return {
                 savedPath: rel,
-            });
+            };
         } catch (error) {
             const message = String(error);
             vscode.window.showErrorMessage(`Failed to save subtree: ${message}`);
-            await reply({
-                type: "saveSubtreeAsResult",
-                requestId: msg.requestId,
+            return {
                 savedPath: null,
                 error: message,
-            });
+            };
         }
     };
 

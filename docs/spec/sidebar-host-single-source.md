@@ -3,7 +3,7 @@
 Status: Implementing
 Date: 2026-05-06
 Scope: Migrate main-document authority from webview-local controller state to an extension-host document session, using staged intent-based save, undo/redo, mutation, and snapshot fanout flows
-Progress: Phase 1 host session shell landed; Phase 2 host intent routing is complete for save, undo, and redo; Phase 3 is complete for sidebar `updateTreeMeta` / `updateNode`; Phase 4 is now in progress, with canvas structural commands entering host intent first while compatibility execution still remains behind host fallback
+Progress: Phase 1 host session shell landed; Phase 2 host intent routing is complete for save, undo, and redo; Phase 3 is complete for sidebar `updateTreeMeta` / `updateNode`; Phase 4 is in progress, and canvas structural commands now commit directly in host, with compatibility fallback remaining only for context gaps
 
 ## 1. Context
 
@@ -60,7 +60,8 @@ As a result, a narrow Ctrl+S or pending-dot fix would treat symptoms but would n
 - The host applies save/history transitions against its own document session state and rebroadcasts the committed result back to both webviews.
 - For sidebar `updateTreeMeta` and `updateNode`, the host now runs a shared reducer directly when it has enough context, and only falls back to the active editor compatibility executor when required context is temporarily missing.
 - Canvas structural commands now enter the host first as `mutateDocument` intents instead of mutating locally before sending `update`.
-- Those canvas structural commands still rely on `executeDocumentMutation` as a compatibility executor because selection restore, clipboard-derived payloads, and subtree-save side effects are not yet fully host-owned.
+- `performDrop`, `pasteNode`, `insertNode`, `replaceNode`, `deleteNode`, and `saveSelectedAsSubtree` now commit directly in host, with `nextSelection` returned to the webview so selection projection can follow the committed snapshot.
+- `executeDocumentMutation` still remains as a compatibility executor only for context gaps such as stale selection state or reducer inputs the host cannot yet reconstruct.
 - Cross-view content sync still primarily uses content-bearing messages such as `update`, `documentUpdated`, and `documentReloaded`, rather than a normalized host session snapshot feed.
 
 ## 5. Proposed Behavior

@@ -1,6 +1,8 @@
 import { computeNodeOverride } from "./misc/b3util";
+import { generateUuid } from "./stable-id";
 import type {
     DocumentMutation,
+    DocumentMutationSelection,
     EditNode,
     NodeDef,
     PersistedNodeModel,
@@ -15,17 +17,35 @@ export type DocumentMutationReducerError =
     | { code: "missing-selected-node" }
     | { code: "selected-node-mismatch" }
     | { code: "missing-target-node" }
+    | { code: "missing-source-node" }
     | { code: "missing-subtree-original" }
-    | { code: "missing-detached-subtree-root" };
+    | { code: "missing-detached-subtree-root" }
+    | { code: "move-root-denied" }
+    | { code: "drop-around-root-denied" }
+    | { code: "add-child-to-subtree-ref-denied" }
+    | { code: "move-into-descendant-denied" }
+    | { code: "delete-root-node-denied" }
+    | { code: "edit-subtree-denied" };
 
 export type DocumentMutationReducerResult =
     | { status: "noop" }
-    | { status: "changed"; tree: PersistedTreeModel; rebuildGraph: boolean }
+    | {
+          status: "changed";
+          tree: PersistedTreeModel;
+          rebuildGraph: boolean;
+          nextSelection?: DocumentMutationSelection;
+      }
     | { status: "error"; error: DocumentMutationReducerError };
 
 export type ReducibleDocumentMutation = Extract<
     DocumentMutation,
-    { type: "updateTreeMeta" | "updateNode" }
+    | { type: "updateTreeMeta" }
+    | { type: "updateNode" }
+    | { type: "performDrop" }
+    | { type: "pasteNode" }
+    | { type: "insertNode" }
+    | { type: "replaceNode" }
+    | { type: "deleteNode" }
 >;
 
 interface DocumentMutationReducerContext {
@@ -45,6 +65,71 @@ const overwritePersistedNode = (target: PersistedNodeModel, source: PersistedNod
         delete target[key];
     }
     Object.assign(target, source);
+};
+
+const findPersistedNodeLocationByStableId = (
+    root: PersistedNodeModel,
+    stableId: string
+): { node: PersistedNodeModel; parent: PersistedNodeModel | null } | null => {
+    let found: { node: PersistedNodeModel; parent: PersistedNodeModel | null } | null = null;
+
+    const walk = (node: PersistedNodeModel, parent: PersistedNodeModel | null): void => {
+        if (found) {
+            return;
+        }
+
+        if (node.uuid === stableId) {
+            found = { node, parent };
+            return;
+        }
+
+        for (const child of node.children ?? []) {
+            walk(child, node);
+        }
+    };
+
+    walk(root, null);
+    return found;
+};
+
+const isDescendantStableId = (
+    root: PersistedNodeModel,
+    ancestorStableId: string,
+    targetStableId: string
+): boolean => {
+    const ancestor = findPersistedNodeByStableId(root, ancestorStableId);
+    if (!ancestor) {
+        return false;
+    }
+
+    let found = false;
+    const walk = (node: PersistedNodeModel): void => {
+        if (found) {
+            return;
+        }
+
+        if (node.uuid === targetStableId) {
+            found = true;
+            return;
+        }
+
+        for (const child of node.children ?? []) {
+            walk(child);
+        }
+    };
+
+    for (const child of ancestor.children ?? []) {
+        walk(child);
+    }
+
+    return found;
+};
+
+const assignFreshStableIds = (node: PersistedNodeModel): void => {
+    node.uuid = generateUuid();
+    for (const child of node.children ?? []) {
+        assignFreshStableIds(child);
+    }
 };
 
 const getNodeDef = (nodeDefs: NodeDef[], name: string): NodeDef | null => {
@@ -262,10 +347,225 @@ const reduceUpdateNode = (
     };
 };
 
+const reducePerformDrop = (
+    mutation: Extract<ReducibleDocumentMutation, { type: "performDrop" }>,
+    tree: PersistedTreeModel
+): DocumentMutationReducerResult => {
+    if (mutation.payload.source.structuralStableId === mutation.payload.target.structuralStableId) {
+        return { status: "noop" };
+    }
+
+    const nextTree = clonePersistedTree(tree);
+    const sourceLocation = findPersistedNodeLocationByStableId(
+        nextTree.root,
+        mutation.payload.source.structuralStableId
+    );
+    if (!sourceLocation) {
+        return { status: "error", error: { code: "missing-source-node" } };
+    }
+
+    const targetLocation = findPersistedNodeLocationByStableId(
+        nextTree.root,
+        mutation.payload.target.structuralStableId
+    );
+    if (!targetLocation) {
+        return { status: "error", error: { code: "missing-target-node" } };
+    }
+
+    if (sourceLocation.parent === null) {
+        return { status: "error", error: { code: "move-root-denied" } };
+    }
+
+    if (
+        (mutation.payload.position === "before" || mutation.payload.position === "after") &&
+        targetLocation.parent === null
+    ) {
+        return { status: "error", error: { code: "drop-around-root-denied" } };
+    }
+
+    if (mutation.payload.position === "child" && targetLocation.node.path) {
+        return { status: "error", error: { code: "add-child-to-subtree-ref-denied" } };
+    }
+
+    if (isDescendantStableId(nextTree.root, sourceLocation.node.uuid, targetLocation.node.uuid)) {
+        return { status: "error", error: { code: "move-into-descendant-denied" } };
+    }
+
+    const sourceSiblings = sourceLocation.parent.children ?? [];
+    const sourceIndex = sourceSiblings.findIndex((entry) => entry.uuid === sourceLocation.node.uuid);
+    if (sourceIndex < 0) {
+        return { status: "error", error: { code: "missing-source-node" } };
+    }
+
+    const [movedNode] = sourceSiblings.splice(sourceIndex, 1);
+    if (!movedNode) {
+        return { status: "error", error: { code: "missing-source-node" } };
+    }
+
+    if (mutation.payload.position === "child") {
+        targetLocation.node.children ||= [];
+        targetLocation.node.children.push(movedNode);
+    } else {
+        const targetParent = targetLocation.parent;
+        if (!targetParent?.children) {
+            return { status: "error", error: { code: "missing-target-node" } };
+        }
+
+        const targetIndex = targetParent.children.findIndex(
+            (entry) => entry.uuid === targetLocation.node.uuid
+        );
+        if (targetIndex < 0) {
+            return { status: "error", error: { code: "missing-target-node" } };
+        }
+
+        targetParent.children.splice(
+            mutation.payload.position === "before" ? targetIndex : targetIndex + 1,
+            0,
+            movedNode
+        );
+    }
+
+    return {
+        status: "changed",
+        tree: nextTree,
+        rebuildGraph: true,
+        nextSelection: { kind: "node", structuralStableId: movedNode.uuid },
+    };
+};
+
+const reducePasteNode = (
+    mutation: Extract<ReducibleDocumentMutation, { type: "pasteNode" }>,
+    tree: PersistedTreeModel
+): DocumentMutationReducerResult => {
+    const nextTree = clonePersistedTree(tree);
+    const targetNode = findPersistedNodeByStableId(
+        nextTree.root,
+        mutation.payload.target.structuralStableId
+    );
+    if (!targetNode) {
+        return { status: "error", error: { code: "missing-target-node" } };
+    }
+    if (targetNode.path) {
+        return { status: "error", error: { code: "edit-subtree-denied" } };
+    }
+
+    const nextNode = clonePersistedNode(mutation.payload.snapshot);
+    assignFreshStableIds(nextNode);
+    targetNode.children ||= [];
+    targetNode.children.push(nextNode);
+
+    return {
+        status: "changed",
+        tree: nextTree,
+        rebuildGraph: true,
+        nextSelection: { kind: "node", structuralStableId: nextNode.uuid },
+    };
+};
+
+const reduceInsertNode = (
+    mutation: Extract<ReducibleDocumentMutation, { type: "insertNode" }>,
+    tree: PersistedTreeModel
+): DocumentMutationReducerResult => {
+    const nextTree = clonePersistedTree(tree);
+    const targetNode = findPersistedNodeByStableId(
+        nextTree.root,
+        mutation.payload.target.structuralStableId
+    );
+    if (!targetNode) {
+        return { status: "error", error: { code: "missing-target-node" } };
+    }
+    if (targetNode.path) {
+        return { status: "error", error: { code: "edit-subtree-denied" } };
+    }
+
+    const nextNode: PersistedNodeModel = {
+        uuid: generateUuid(),
+        id: "",
+        name: "unknown",
+    };
+    targetNode.children ||= [];
+    targetNode.children.push(nextNode);
+
+    return {
+        status: "changed",
+        tree: nextTree,
+        rebuildGraph: true,
+        nextSelection: { kind: "node", structuralStableId: nextNode.uuid },
+    };
+};
+
+const reduceReplaceNode = (
+    mutation: Extract<ReducibleDocumentMutation, { type: "replaceNode" }>,
+    tree: PersistedTreeModel
+): DocumentMutationReducerResult => {
+    const nextTree = clonePersistedTree(tree);
+    const targetNode = findPersistedNodeByStableId(
+        nextTree.root,
+        mutation.payload.target.structuralStableId
+    );
+    if (!targetNode) {
+        return { status: "error", error: { code: "missing-target-node" } };
+    }
+    if (targetNode.path) {
+        return { status: "error", error: { code: "edit-subtree-denied" } };
+    }
+
+    const replacement = clonePersistedNode(mutation.payload.snapshot);
+    replacement.uuid = targetNode.uuid;
+    for (const child of replacement.children ?? []) {
+        assignFreshStableIds(child);
+    }
+    if (replacement.path) {
+        replacement.children = undefined;
+    }
+    overwritePersistedNode(targetNode, replacement);
+
+    return {
+        status: "changed",
+        tree: nextTree,
+        rebuildGraph: true,
+        nextSelection: { kind: "node", structuralStableId: replacement.uuid },
+    };
+};
+
+const reduceDeleteNode = (
+    mutation: Extract<ReducibleDocumentMutation, { type: "deleteNode" }>,
+    tree: PersistedTreeModel
+): DocumentMutationReducerResult => {
+    const nextTree = clonePersistedTree(tree);
+    const location = findPersistedNodeLocationByStableId(
+        nextTree.root,
+        mutation.payload.target.structuralStableId
+    );
+    if (!location) {
+        return { status: "error", error: { code: "missing-target-node" } };
+    }
+    if (location.parent === null) {
+        return { status: "error", error: { code: "delete-root-node-denied" } };
+    }
+
+    location.parent.children = (location.parent.children ?? []).filter(
+        (entry) => entry.uuid !== location.node.uuid
+    );
+
+    return {
+        status: "changed",
+        tree: nextTree,
+        rebuildGraph: true,
+        nextSelection: { kind: "node", structuralStableId: location.parent.uuid },
+    };
+};
+
 export const isReducibleDocumentMutation = (
     mutation: DocumentMutation
 ): mutation is ReducibleDocumentMutation =>
-    mutation.type === "updateTreeMeta" || mutation.type === "updateNode";
+    mutation.type === "updateTreeMeta" ||
+    mutation.type === "updateNode" ||
+    mutation.type === "performDrop" ||
+    mutation.type === "pasteNode" ||
+    mutation.type === "insertNode" ||
+    mutation.type === "replaceNode" ||
+    mutation.type === "deleteNode";
 
 export const reduceDocumentMutation = (
     mutation: ReducibleDocumentMutation,
@@ -277,6 +577,21 @@ export const reduceDocumentMutation = (
 
         case "updateNode":
             return reduceUpdateNode(mutation, context);
+
+        case "performDrop":
+            return reducePerformDrop(mutation, context.tree);
+
+        case "pasteNode":
+            return reducePasteNode(mutation, context.tree);
+
+        case "insertNode":
+            return reduceInsertNode(mutation, context.tree);
+
+        case "replaceNode":
+            return reduceReplaceNode(mutation, context.tree);
+
+        case "deleteNode":
+            return reduceDeleteNode(mutation, context.tree);
     }
 };
 
@@ -305,6 +620,11 @@ export const formatDocumentMutationReducerError = (
                 ? "未找到目标节点，请重试。"
                 : "The target node could not be found.";
 
+        case "missing-source-node":
+            return language === "zh"
+                ? "未找到源节点，请重试。"
+                : "The source node could not be found.";
+
         case "missing-subtree-original":
             return language === "zh"
                 ? "缺少 subtree 原始节点快照，请重试。"
@@ -314,5 +634,31 @@ export const formatDocumentMutationReducerError = (
             return language === "zh"
                 ? "缺少用于解绑 subtree 引用的快照，请重试。"
                 : "Missing detached subtree snapshot for this mutation.";
+
+        case "move-root-denied":
+            return language === "zh" ? "不能移动根节点。" : "Cannot move the root node.";
+
+        case "drop-around-root-denied":
+            return language === "zh"
+                ? "不能围绕根节点插入。"
+                : "Cannot drop before or after the root node.";
+
+        case "add-child-to-subtree-ref-denied":
+            return language === "zh"
+                ? "不能直接向 subtree 引用添加子节点。"
+                : "Cannot add a child directly to a subtree reference.";
+
+        case "move-into-descendant-denied":
+            return language === "zh"
+                ? "不能移动到自己的后代下。"
+                : "Cannot move a node into its own descendant.";
+
+        case "delete-root-node-denied":
+            return language === "zh" ? "不能删除根节点。" : "Cannot delete the root node.";
+
+        case "edit-subtree-denied":
+            return language === "zh"
+                ? "不能在 subtree 引用上直接修改结构。"
+                : "Cannot edit structure on a subtree reference.";
     }
 };

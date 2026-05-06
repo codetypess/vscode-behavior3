@@ -99,7 +99,7 @@
 - `sessionState` 维护当前主文档的 `dirty`、`lastSavedSnapshot`、`historyIndex/historyLength`、reload conflict 元数据
 - webview 发来的 `update` 会先规范化，再更新到该文本镜像和宿主 session history
 - webview 发来的 `saveDocument` / `undo` / `redo` 只表达 intent，由宿主 session 自己执行并回推结果
-- `mutateDocument` 发来的主文档 mutation 先由宿主尝试提交；其中 `updateTreeMeta/updateNode` 优先走 shared reducer，canvas 结构命令当前先进入 host intent，再在必要时回退到编辑器兼容执行链
+- `mutateDocument` 发来的主文档 mutation 先由宿主尝试提交；其中 `updateTreeMeta/updateNode/performDrop/pasteNode/insertNode/replaceNode/deleteNode` 优先走 shared reducer，`saveSelectedAsSubtree` 也已由宿主直接处理保存副作用与主树 link 回写
 - 宿主监听到文件变化时，会用 `_ownFileWrites` 区分“自己刚写出的变更”和“真正的外部变化”
 
 这意味着：

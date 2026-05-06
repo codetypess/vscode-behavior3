@@ -11,8 +11,11 @@ export const createEditorController = (deps: ControllerDeps): EditorCommand => {
     const runtime = createControllerRuntime(deps);
     return {
         async executeDocumentMutationCompat(mutation) {
-            await runDocumentMutationCompat(runtime, mutation);
-            return runtime.getSerializedCurrentTree() ?? undefined;
+            const response = await runDocumentMutationCompat(runtime, mutation);
+            return {
+                ...response,
+                content: runtime.getSerializedCurrentTree() ?? undefined,
+            };
         },
         ...createDocumentCommands(runtime),
         ...createSelectionCommands(runtime),

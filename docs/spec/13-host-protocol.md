@@ -178,7 +178,7 @@
 1. shared reducer 已直接支持的 mutation：
    - `updateTreeMeta`
    - `updateNode`
-2. 已先迁入 host intent，但仍可能走兼容执行链的结构命令：
+2. 已迁入 host intent，并默认由宿主直接提交的结构命令：
    - `performDrop`
    - `pasteNode`
    - `insertNode`
@@ -192,6 +192,8 @@
 
 - `updateNode` 在“解绑 subtree 引用为本地节点”时可以携带 `detachedSubtreeRoot`
 - 该快照由 sidebar 当前 runtime 提供，供 host reducer 直接提交
+- `mutateDocumentResult` / `documentMutationResult` 当前可以携带 `nextSelection`
+- 该字段只表达“提交后的选中投影应该落到哪里”，不把 selection authority 从 webview 立刻迁成宿主真源
 
 ## 会话规则
 

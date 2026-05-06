@@ -6,6 +6,8 @@ import type {
     ClipboardNodeMutationInput,
     DropIntent,
     DocumentMutation,
+    DocumentMutationResponse,
+    DocumentMutationSelection,
     EditorCommand,
     PersistedNodeModel,
     PersistedTreeModel,
@@ -48,16 +50,44 @@ const isInspectorSidebar = () => window.__B3_WEBVIEW_KIND__ === "inspector-sideb
 const getLanguage = (runtime: ControllerRuntime) =>
     runtime.deps.workspaceStore.getState().settings.language;
 
+const applyMutationSelection = async (
+    runtime: ControllerRuntime,
+    nextSelection: DocumentMutationSelection | undefined
+): Promise<void> => {
+    if (!nextSelection || isInspectorSidebar()) {
+        return;
+    }
+
+    if (nextSelection.kind === "tree") {
+        runtime.selectTreeState();
+        await runtime.deps.graphAdapter.applySelection({ selectedNodeKey: null });
+        return;
+    }
+
+    const resolvedGraph = runtime.getResolvedGraph();
+    const nextNode = Object.values(resolvedGraph?.nodesByInstanceKey ?? {}).find(
+        (node) => node.ref.structuralStableId === nextSelection.structuralStableId
+    );
+    if (!nextNode) {
+        runtime.selectPendingNodeState(nextSelection.structuralStableId);
+        return;
+    }
+
+    runtime.selectResolvedNodeState(nextNode.ref.instanceKey);
+    await runtime.deps.graphAdapter.applySelection({ selectedNodeKey: nextNode.ref.instanceKey });
+};
+
 const forwardDocumentMutation = async (
     runtime: ControllerRuntime,
     mutation: DocumentMutation
-): Promise<boolean> => {
+): Promise<DocumentMutationResponse> => {
     const response = await runtime.deps.hostAdapter.mutateDocument(mutation);
     if (!response.success) {
         runtime.notifyError(response.error ?? "Document mutation failed");
-        return false;
+        return response;
     }
-    return true;
+    await applyMutationSelection(runtime, response.nextSelection);
+    return response;
 };
 
 const notifyDocumentMutationError = (
@@ -100,7 +130,7 @@ const getResolvedNodeByInstanceKey = (
 const executeUpdateTreeMetaCompat = async (
     runtime: ControllerRuntime,
     payload: UpdateTreeMetaInput
-): Promise<void> => {
+): Promise<DocumentMutationSelection | undefined> => {
     const tree = runtime.deps.documentStore.getState().persistedTree;
     if (!tree) {
         return;
@@ -114,11 +144,11 @@ const executeUpdateTreeMetaCompat = async (
 
     if (result.status === "error") {
         notifyDocumentMutationError(runtime, result.error);
-        return;
+        return undefined;
     }
 
     if (result.status === "noop") {
-        return;
+        return undefined;
     }
 
     await runtime.commitTreeMutation(result.tree, {
@@ -127,18 +157,19 @@ const executeUpdateTreeMetaCompat = async (
         preserveSelection: true,
         applyVisualState: true,
     });
+    return result.nextSelection;
 };
 
 const executeUpdateNodeCompat = async (
     runtime: ControllerRuntime,
     payload: UpdateNodeInput
-): Promise<void> => {
+): Promise<DocumentMutationSelection | undefined> => {
     runtime.selectResolvedNodeState(payload.target.instanceKey);
 
     const currentTree = runtime.deps.documentStore.getState().persistedTree;
     const selectedSnapshot = runtime.deps.selectionStore.getState().selectedNodeSnapshot;
     if (!currentTree) {
-        return;
+        return undefined;
     }
 
     const mutation: ReducibleDocumentMutation = {
@@ -153,14 +184,15 @@ const executeUpdateNodeCompat = async (
 
     if (result.status === "error") {
         notifyDocumentMutationError(runtime, result.error);
-        return;
+        return undefined;
     }
 
     if (result.status === "noop") {
-        return;
+        return undefined;
     }
 
     await runtime.commitTreeMutation(result.tree);
+    return result.nextSelection;
 };
 
 const resolveDropContext = (
@@ -231,10 +263,10 @@ const resolveDropContext = (
 const executePerformDropCompat = async (
     runtime: ControllerRuntime,
     intent: DropIntent
-): Promise<void> => {
+): Promise<DocumentMutationSelection | undefined> => {
     const dropContext = resolveDropContext(runtime, intent);
     if (!dropContext) {
-        return;
+        return undefined;
     }
 
     const { currentTree, sourceResolved, targetResolved } = dropContext;
@@ -291,26 +323,30 @@ const executePerformDropCompat = async (
             runtime.selectResolvedNodeState(sourceResolved.ref.instanceKey);
         },
     });
+    return {
+        kind: "node",
+        structuralStableId: sourceResolved.ref.structuralStableId,
+    };
 };
 
 const executePasteNodeCompat = async (
     runtime: ControllerRuntime,
     payload: ClipboardNodeMutationInput
-): Promise<void> => {
+): Promise<DocumentMutationSelection | undefined> => {
     const currentTree = runtime.deps.documentStore.getState().persistedTree;
     const targetResolved = getResolvedNodeByInstanceKey(runtime, payload.target.instanceKey);
     if (!currentTree || !targetResolved) {
-        return;
+        return undefined;
     }
     if (runtime.isSubtreeStructureLocked(targetResolved)) {
         runtime.notifyError(i18n.t("node.editSubtreeDenied"));
-        return;
+        return undefined;
     }
 
     const tree = clonePersistedTree(currentTree);
     const targetNode = findPersistedNodeByStableId(tree.root, payload.target.structuralStableId);
     if (!targetNode) {
-        return;
+        return undefined;
     }
 
     const nextNode = clonePersistedNode(payload.snapshot);
@@ -323,26 +359,30 @@ const executePasteNodeCompat = async (
             runtime.selectPendingNodeState(nextNode.uuid);
         },
     });
+    return {
+        kind: "node",
+        structuralStableId: nextNode.uuid,
+    };
 };
 
 const executeInsertNodeCompat = async (
     runtime: ControllerRuntime,
     payload: TargetNodeMutationInput
-): Promise<void> => {
+): Promise<DocumentMutationSelection | undefined> => {
     const currentTree = runtime.deps.documentStore.getState().persistedTree;
     const targetResolved = getResolvedNodeByInstanceKey(runtime, payload.target.instanceKey);
     if (!currentTree || !targetResolved) {
-        return;
+        return undefined;
     }
     if (runtime.isSubtreeStructureLocked(targetResolved)) {
         runtime.notifyError(i18n.t("node.editSubtreeDenied"));
-        return;
+        return undefined;
     }
 
     const tree = clonePersistedTree(currentTree);
     const targetNode = findPersistedNodeByStableId(tree.root, payload.target.structuralStableId);
     if (!targetNode) {
-        return;
+        return undefined;
     }
 
     const nextNode: PersistedNodeModel = {
@@ -358,26 +398,30 @@ const executeInsertNodeCompat = async (
             runtime.selectPendingNodeState(nextNode.uuid);
         },
     });
+    return {
+        kind: "node",
+        structuralStableId: nextNode.uuid,
+    };
 };
 
 const executeReplaceNodeCompat = async (
     runtime: ControllerRuntime,
     payload: ClipboardNodeMutationInput
-): Promise<void> => {
+): Promise<DocumentMutationSelection | undefined> => {
     const currentTree = runtime.deps.documentStore.getState().persistedTree;
     const targetResolved = getResolvedNodeByInstanceKey(runtime, payload.target.instanceKey);
     if (!currentTree || !targetResolved) {
-        return;
+        return undefined;
     }
     if (runtime.isSubtreeStructureLocked(targetResolved)) {
         runtime.notifyError(i18n.t("node.editSubtreeDenied"));
-        return;
+        return undefined;
     }
 
     const tree = clonePersistedTree(currentTree);
     const targetNode = findPersistedNodeByStableId(tree.root, payload.target.structuralStableId);
     if (!targetNode) {
-        return;
+        return undefined;
     }
 
     const replacement = clonePersistedNode(payload.snapshot);
@@ -395,24 +439,28 @@ const executeReplaceNodeCompat = async (
             runtime.selectPendingNodeState(replacement.uuid);
         },
     });
+    return {
+        kind: "node",
+        structuralStableId: replacement.uuid,
+    };
 };
 
 const executeDeleteNodeCompat = async (
     runtime: ControllerRuntime,
     payload: TargetNodeMutationInput
-): Promise<void> => {
+): Promise<DocumentMutationSelection | undefined> => {
     const currentTree = runtime.deps.documentStore.getState().persistedTree;
     const targetResolved = getResolvedNodeByInstanceKey(runtime, payload.target.instanceKey);
     if (!currentTree || !targetResolved) {
-        return;
+        return undefined;
     }
     if (targetResolved.parentKey === null) {
         runtime.notifyError(i18n.t("node.deleteRootNodeDenied"));
-        return;
+        return undefined;
     }
     if (targetResolved.subtreeNode) {
         runtime.notifyError(i18n.t("node.editSubtreeDenied"));
-        return;
+        return undefined;
     }
 
     const tree = clonePersistedTree(currentTree);
@@ -421,7 +469,7 @@ const executeDeleteNodeCompat = async (
         payload.target.structuralStableId
     );
     if (!location?.parent?.children) {
-        return;
+        return undefined;
     }
 
     location.parent.children = location.parent.children.filter(
@@ -434,24 +482,28 @@ const executeDeleteNodeCompat = async (
             runtime.selectPendingNodeState(nextSelection);
         },
     });
+    return {
+        kind: "node",
+        structuralStableId: nextSelection,
+    };
 };
 
 const executeSaveSelectedAsSubtreeCompat = async (
     runtime: ControllerRuntime,
     payload: SaveSelectedAsSubtreeInput
-): Promise<void> => {
+): Promise<DocumentMutationSelection | undefined> => {
     const currentTree = runtime.deps.documentStore.getState().persistedTree;
     const targetResolved = getResolvedNodeByInstanceKey(runtime, payload.target.instanceKey);
     if (!currentTree || !targetResolved) {
-        return;
+        return undefined;
     }
     if (targetResolved.parentKey === null) {
         runtime.notifyError(i18n.t("node.subtreeSaveRootError"));
-        return;
+        return undefined;
     }
     if (runtime.isSubtreeStructureLocked(targetResolved)) {
         runtime.notifyError(i18n.t("node.editSubtreeDenied"));
-        return;
+        return undefined;
     }
 
     const subtreeModel: PersistedTreeModel = {
@@ -475,13 +527,13 @@ const executeSaveSelectedAsSubtreeCompat = async (
         payload.suggestedBaseName
     );
     if (!result.savedPath) {
-        return;
+        return undefined;
     }
 
     const tree = clonePersistedTree(currentTree);
     const targetNode = findPersistedNodeByStableId(tree.root, payload.target.structuralStableId);
     if (!targetNode) {
-        return;
+        return undefined;
     }
 
     targetNode.path = result.savedPath;
@@ -493,44 +545,64 @@ const executeSaveSelectedAsSubtreeCompat = async (
         },
     });
     runtime.notifySuccess(i18n.t("node.subtreeSaveSuccess", { path: targetNode.path }));
+    return {
+        kind: "node",
+        structuralStableId: targetNode.uuid,
+    };
 };
 
 export const runDocumentMutationCompat = async (
     runtime: ControllerRuntime,
     mutation: DocumentMutation
-): Promise<void> => {
+): Promise<DocumentMutationResponse> => {
     switch (mutation.type) {
         case "updateTreeMeta":
-            await executeUpdateTreeMetaCompat(runtime, mutation.payload);
-            return;
+            return {
+                success: true,
+                nextSelection: await executeUpdateTreeMetaCompat(runtime, mutation.payload),
+            };
 
         case "updateNode":
-            await executeUpdateNodeCompat(runtime, mutation.payload);
-            return;
+            return {
+                success: true,
+                nextSelection: await executeUpdateNodeCompat(runtime, mutation.payload),
+            };
 
         case "performDrop":
-            await executePerformDropCompat(runtime, mutation.payload);
-            return;
+            return {
+                success: true,
+                nextSelection: await executePerformDropCompat(runtime, mutation.payload),
+            };
 
         case "pasteNode":
-            await executePasteNodeCompat(runtime, mutation.payload);
-            return;
+            return {
+                success: true,
+                nextSelection: await executePasteNodeCompat(runtime, mutation.payload),
+            };
 
         case "insertNode":
-            await executeInsertNodeCompat(runtime, mutation.payload);
-            return;
+            return {
+                success: true,
+                nextSelection: await executeInsertNodeCompat(runtime, mutation.payload),
+            };
 
         case "replaceNode":
-            await executeReplaceNodeCompat(runtime, mutation.payload);
-            return;
+            return {
+                success: true,
+                nextSelection: await executeReplaceNodeCompat(runtime, mutation.payload),
+            };
 
         case "deleteNode":
-            await executeDeleteNodeCompat(runtime, mutation.payload);
-            return;
+            return {
+                success: true,
+                nextSelection: await executeDeleteNodeCompat(runtime, mutation.payload),
+            };
 
         case "saveSelectedAsSubtree":
-            await executeSaveSelectedAsSubtreeCompat(runtime, mutation.payload);
-            return;
+            return {
+                success: true,
+                nextSelection: await executeSaveSelectedAsSubtreeCompat(runtime, mutation.payload),
+            };
     }
 };
 
@@ -569,21 +641,11 @@ export const createMutationCommands = (
                 return;
             }
 
-            if (isInspectorSidebar()) {
-                await forwardDocumentMutation(runtime, mutation);
-                return;
-            }
-
             if (result.status === "noop") {
                 return;
             }
 
-            await runtime.commitTreeMutation(result.tree, {
-                syncSubtreeSources: false,
-                rebuildGraph: result.rebuildGraph,
-                preserveSelection: true,
-                applyVisualState: true,
-            });
+            await forwardDocumentMutation(runtime, mutation);
         },
 
         async updateNode(payload: UpdateNodeInput) {
@@ -605,12 +667,11 @@ export const createMutationCommands = (
 
             if (result.status === "error") {
                 if (
-                    isInspectorSidebar() &&
-                    (result.error.code === "missing-selected-node" ||
+                    result.error.code === "missing-selected-node" ||
                         result.error.code === "selected-node-mismatch" ||
                         result.error.code === "missing-target-node" ||
                         result.error.code === "missing-subtree-original" ||
-                        result.error.code === "missing-detached-subtree-root")
+                        result.error.code === "missing-detached-subtree-root"
                 ) {
                     await forwardDocumentMutation(runtime, mutation);
                     return;
@@ -620,16 +681,11 @@ export const createMutationCommands = (
                 return;
             }
 
-            if (isInspectorSidebar()) {
-                await forwardDocumentMutation(runtime, mutation);
-                return;
-            }
-
             if (result.status === "noop") {
                 return;
             }
 
-            await runtime.commitTreeMutation(result.tree);
+            await forwardDocumentMutation(runtime, mutation);
         },
 
         async performDrop(intent: DropIntent) {

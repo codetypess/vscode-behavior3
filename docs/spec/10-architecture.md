@@ -140,7 +140,8 @@ Shared Layer
 1. Inspector Sidebar 或主编辑器 canvas 发送 `mutateDocument`
 2. active editor session 先尝试在 host 侧直接 reduce 并提交权威 snapshot
 3. 若 host 当前缺少 reducer、selection、clipboard 或 subtree-save 所需上下文，才回退为 `executeDocumentMutation`
-4. 若走兼容回退，主编辑器执行 mutation 后把结果回给宿主，再由宿主回复发起方并同步最新内容/selection
+4. 对于结构命令，宿主可通过 mutation response 回传 `nextSelection`，让 webview 更新 selection projection
+5. 若走兼容回退，主编辑器执行 mutation 后把结果回给宿主，再由宿主回复发起方并同步最新内容/selection
 
 ### 外部文件变化
 
