@@ -2,7 +2,7 @@ import { VERSION } from "../shared/misc/b3type";
 import { compareDocumentVersion } from "../shared/document-version";
 import type { EditorCommand, HostInitPayload, HostVarsPayload, NodeDef } from "../shared/contracts";
 import { deriveGroupDefs } from "../shared/protocol";
-import { parsePersistedTreeContent, serializePersistedTree } from "../shared/tree";
+import { parsePersistedTreeContent } from "../shared/tree";
 import {
     applyHostDocumentSession,
     clearDocumentReloadConflict,
@@ -31,39 +31,6 @@ export const createDocumentCommands = (
 ): Pick<EditorCommand, DocumentCommandKeys> => {
     const { deps } = runtime;
     const isInspectorSidebar = () => window.__B3_WEBVIEW_KIND__ === "inspector-sidebar";
-    const syncHistoryToSnapshot = (snapshot: string) => {
-        deps.documentStore.setState((state) => {
-            const existingIndex = state.history.findIndex((entry) => entry === snapshot);
-
-            if (existingIndex >= 0) {
-                return {
-                    ...state,
-                    historyIndex: existingIndex,
-                    alertReload: false,
-                    pendingExternalContent: null,
-                };
-            }
-
-            if (state.historyIndex < 0 || state.history.length === 0) {
-                return {
-                    ...state,
-                    history: [snapshot],
-                    historyIndex: 0,
-                    alertReload: false,
-                    pendingExternalContent: null,
-                };
-            }
-
-            const nextHistory = [...state.history.slice(0, state.historyIndex + 1), snapshot];
-            return {
-                ...state,
-                history: nextHistory,
-                historyIndex: nextHistory.length - 1,
-                alertReload: false,
-                pendingExternalContent: null,
-            };
-        });
-    };
 
     return {
         async initFromHost(payload: HostInitPayload) {
@@ -83,7 +50,6 @@ export const createDocumentCommands = (
             await runtime.applyDocumentTree(persistedTree, {
                 preserveSelection: false,
             });
-            runtime.resetDocumentHistory();
             applyHostDocumentSession(deps.documentStore, payload.documentSession);
         },
 
@@ -103,9 +69,6 @@ export const createDocumentCommands = (
             await runtime.applyDocumentTree(tree, {
                 preserveSelection: true,
             });
-
-            const snapshot = serializePersistedTree(tree);
-            syncHistoryToSnapshot(snapshot);
             if (!isInspectorSidebar()) {
                 runtime.scheduleTreeSelected();
             }
@@ -128,7 +91,6 @@ export const createDocumentCommands = (
             await runtime.applyDocumentTree(tree, {
                 preserveSelection: true,
             });
-            runtime.resetDocumentHistory();
             runtime.scheduleTreeSelected(true);
         },
 

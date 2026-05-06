@@ -29,9 +29,6 @@ export const applyHostDocumentSession = (
         dirty: session.dirty,
         alertReload: session.alertReload,
         pendingExternalContent: session.pendingExternalContent,
-        lastSavedSnapshot: session.lastSavedSnapshot,
-        hostHistoryIndex: session.historyIndex,
-        hostHistoryLength: session.historyLength,
     }));
 };
 
@@ -40,11 +37,6 @@ export const createInitialDocumentState = (): DocumentState => ({
     dirty: false,
     alertReload: false,
     pendingExternalContent: null,
-    history: [],
-    historyIndex: -1,
-    lastSavedSnapshot: null,
-    hostHistoryIndex: -1,
-    hostHistoryLength: 0,
 });
 
 export const createDocumentStore = (): StoreApi<DocumentState> => {

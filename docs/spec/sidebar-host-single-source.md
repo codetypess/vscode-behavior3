@@ -21,7 +21,7 @@ Today, the main editor webview still owns the authoritative structured document 
 - watcher coordination
 - sidebar message routing
 
-The sidebar is no longer an independent mutation executor, but it still spins up a local runtime with its own mirrored `persistedTree`, `history`, `historyIndex`, `dirty`, and `lastSavedSnapshot` state.
+The sidebar is no longer an independent mutation executor, but it still spins up a local runtime with its own mirrored `persistedTree` plus host-projected dirty/reload state.
 
 This means "save entry unified into host/session" was only a partial repair direction. It improves save routing, but it does not change the deeper ownership split that causes save, pending, and dirty semantics to fan out across:
 
@@ -51,10 +51,10 @@ As a result, a narrow Ctrl+S or pending-dot fix would treat symptoms but would n
 
 ## 4. Current Behavior
 
-- `documentStore` in the webview still holds `persistedTree` plus compatibility projection caches for `dirty`, reload conflict state, `history`, `historyIndex`, and `lastSavedSnapshot`.
+- `documentStore` in the webview now holds `persistedTree` plus host-projected dirty/reload conflict state, without a local history or saved-snapshot mirror.
 - `TreeEditorDocument` in the extension host owns only serialized text content, custom-editor dirty state, and own-write suppression.
 - The main editor no longer uses `update` as a primary write path, and it no longer acts as a compatibility mutation executor for the host.
-- The sidebar receives mirrored init/content/selection data from the host, but still bootstraps a local document runtime and local history/save state.
+- The sidebar receives mirrored init/content/selection data from the host, but still bootstraps a local document runtime for projection, graph rebuilds, and selection state.
 - Sidebar `mutateDocument` currently covers `updateTreeMeta` and `updateNode`, and those intents now enter the host first.
 - `saveDocument`, `undo`, and `redo` now enter the host first from both the editor and the sidebar.
 - The host applies save/history transitions against its own document session state and rebroadcasts the committed result back to both webviews.

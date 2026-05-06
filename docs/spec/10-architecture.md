@@ -66,7 +66,7 @@ Shared Layer
 - 执行当前仍留在 webview 的树级和节点级编辑命令
 - 把 save、undo、redo 作为用户 intent 发给宿主，再消费宿主回推的权威 session/content
 - sidebar 的 `updateTreeMeta` / `updateNode` 也只发送 intent，不再先在本地提交主文档状态
-- 管理 search、variable focus、selection restore，以及当前兼容期内的本地 history 镜像逻辑
+- 管理 search、variable focus、selection restore，以及宿主回推快照的本地 projection 刷新逻辑
 
 ### Shared Layer
 
@@ -99,7 +99,7 @@ Shared Layer
 ### EditorCommand + Controller Runtime
 
 - 是 webview 内唯一的业务命令入口
-- 统一负责应用文档树、同步 subtree 缓存、重建图、维护 history 与通知宿主
+- 统一负责应用文档树、同步 subtree 缓存、重建图与通知宿主；history/save/dirty 语义由 host session 推进
 
 ### G6GraphAdapter
 

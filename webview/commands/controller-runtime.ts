@@ -95,7 +95,6 @@ export interface ControllerRuntime {
     syncReachableSubtreeSources(): Promise<void>;
     getSerializedCurrentTree(): string | null;
     matchesCurrentDocumentSnapshot(content: string): boolean;
-    resetDocumentHistory(): void;
     applyDocumentTree(tree: PersistedTreeModel, opts?: ControllerApplyTreeOptions): Promise<void>;
 }
 
@@ -724,25 +723,10 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         }));
     };
 
-    const resetDocumentHistory = () => {
-        const snapshot = getSerializedCurrentTree();
-        if (!snapshot) {
-            return;
-        }
-
-        deps.documentStore.setState((state) => ({
-            ...state,
-            history: [snapshot],
-            historyIndex: 0,
-            alertReload: false,
-            pendingExternalContent: null,
-        }));
-    };
-
     /**
-     * Canonical "apply tree into editor state" path shared by open/reload,
-     * history replay, and local mutations so graph rebuild + subtree syncing
-     * stay consistent across every entry point.
+     * Canonical "apply tree into editor state" path shared by open/reload and
+     * host-driven snapshot refreshes so graph rebuild + subtree syncing stay
+     * consistent across every entry point.
      */
     const applyDocumentTree = async (
         tree: PersistedTreeModel,
@@ -785,7 +769,6 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         syncReachableSubtreeSources,
         getSerializedCurrentTree,
         matchesCurrentDocumentSnapshot,
-        resetDocumentHistory,
         applyDocumentTree,
     };
 };

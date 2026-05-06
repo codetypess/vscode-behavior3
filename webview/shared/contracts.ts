@@ -108,11 +108,6 @@ export interface DocumentState {
     dirty: boolean;
     alertReload: boolean;
     pendingExternalContent: string | null;
-    history: string[];
-    historyIndex: number;
-    lastSavedSnapshot: string | null;
-    hostHistoryIndex: number;
-    hostHistoryLength: number;
 }
 
 export interface WorkspaceState {

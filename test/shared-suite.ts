@@ -1483,7 +1483,12 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                     "saveSelectedAsSubtree",
                 ]
             );
-            assert.equal(documentStore.getState().history.length, 1);
+            assert.deepEqual(
+                documentStore
+                    .getState()
+                    .persistedTree?.root.children?.map((child) => child.uuid),
+                ["child-a", "child-b"]
+            );
         },
     },
     {
@@ -1614,7 +1619,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 mutations.map((mutation) => mutation.type),
                 ["updateTreeMeta", "updateNode"]
             );
-            assert.equal(documentStore.getState().history.length, 1);
+            assert.equal(documentStore.getState().persistedTree?.desc, undefined);
             const updateNodeMutation = mutations[1];
             assert.equal(updateNodeMutation?.type, "updateNode");
             if (updateNodeMutation?.type !== "updateNode") {

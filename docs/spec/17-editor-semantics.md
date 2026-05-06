@@ -19,7 +19,7 @@
 
 ### Rule 2. “改树”和“改视觉状态”要分开
 
-- 结构变更后走 `applyDocumentTree` / `commitTreeMutation`
+- 结构化主树更新统一走 `applyDocumentTree`
 - 纯选中、高亮、搜索变化走 `applyVisualState`
 
 ### Rule 3. reload conflict 不是自动合并
@@ -56,13 +56,13 @@
 - 计算 search result keys 与 active index
 - 分别下发到 graph adapter
 
-### `commitTreeMutation(tree, opts?)`
+### `applyDocumentTree(tree, opts?)`
 
 - 可预先写入“待恢复 selection”
 - 应用新树
 - 同步 subtree cache
 - rebuild graph
-- 在兼容回退里可选择更新本地 projection history
+- 不维护 webview-local history projection
 - 不直接把主文档内容写回宿主
 - 调度 `treeSelected`
 
@@ -113,19 +113,19 @@
 - 解析主文档文本为 `persistedTree`
 - 选择 tree
 - 构建首个 resolved graph
-- 重置 history 为当前快照
+- 应用宿主 document session projection
 
 ### `syncDocumentFromHost(content)`
 
 - 用于吸收其他视图或宿主推送的最新主文档内容
 - 若内容与当前结构化快照等价，则只清理 conflict 状态
-- 否则更新主树并保持 selection 尽量稳定
+- 否则更新主树并保持 selection 尽量稳定，不在 webview 本地推进 history
 
 ### `reloadDocumentFromHost(content, opts?)`
 
 - 用于磁盘 reload
 - 若 dirty 且未 `force`，进入 conflict 状态
-- 否则直接替换当前主树并重置 history
+- 否则直接替换当前主树并清理 conflict projection
 
 ### `applyNodeDefs(defs)`
 
@@ -227,13 +227,13 @@
 
 ### `undo()` / `redo()`
 
-- 通过恢复序列化快照实现
-- 恢复后重新应用主树、subtree cache、图和选中
+- 通过 host session 恢复序列化快照实现
+- webview 接收宿主回推的 committed content 后重新应用主树、subtree cache、图和选中
 
 ### history push 规则
 
 - host-first 正常路径下，权威 history 只由 host session 推进
-- `commitTreeMutation` 只在兼容回退仍需要时保留局部 projection history
+- webview 不再维护局部 projection history
 
 ## Save / Revert / Build
 

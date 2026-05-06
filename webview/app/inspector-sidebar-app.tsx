@@ -3,7 +3,7 @@ import React, { useEffect, useLayoutEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { getAntdLocale } from "../shared/misc/antd-locale";
 import { deriveGroupDefs } from "../shared/protocol";
-import { parsePersistedTreeContent, serializePersistedTree } from "../shared/tree";
+import { parsePersistedTreeContent } from "../shared/tree";
 import { applyDocumentTheme } from "../shared/theme-mode";
 import { getThemeConfig } from "../shared/misc/theme";
 import { setI18nLanguage } from "../shared/misc/i18n";
@@ -52,12 +52,9 @@ const applySidebarInit = async (
 ) => {
     await setI18nLanguage(payload.settings.language);
     const persistedTree = parsePersistedTreeContent(payload.content, payload.filePath);
-    const snapshot = serializePersistedTree(persistedTree);
     runtime.documentStore.setState((state) => ({
         ...state,
         persistedTree,
-        history: [snapshot],
-        historyIndex: 0,
     }));
     applyHostDocumentSession(runtime.documentStore, payload.documentSession);
     runtime.workspaceStore.setState((state) => ({

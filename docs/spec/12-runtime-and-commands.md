@@ -32,7 +32,7 @@
 
 | 状态 | 当前归属 |
 | --- | --- |
-| `persistedTree` / `dirty` / `history` / `lastSavedSnapshot` / reload conflict | `documentStore` |
+| `persistedTree` / host-projected `dirty` / reload conflict | `documentStore` |
 | `nodeDefs` / `allFiles` / `settings` / `usingVars` / `subtreeSources` / `nodeCheckDiagnostics` | `workspaceStore` |
 | tree/node 选中、Inspector snapshot、variable focus、search 状态 | `selectionStore` |
 | `ResolvedDocumentGraph` | controller runtime 私有缓存 |
@@ -91,7 +91,7 @@
 职责：
 
 - 是唯一允许修改主树结构或 `overrides` 的入口
-- 必要时同步 subtree cache、重建图、推进 history、通知宿主
+- 必要时同步 subtree cache、重建图、通知宿主；history 推进由 host session 在提交后完成
 
 ### 文件与构建
 
@@ -117,12 +117,12 @@
 - 视情况同步 reachable subtree sources
 - 视情况 rebuild graph 或仅重放 visual state
 
-### `commitTreeMutation(tree, opts?)`
+### `applyDocumentTree(tree, opts?)`
 
 - 可在提交前准备下一次选中状态
 - 应用新树
-- 推进 history
-- 触发 `treeSelected`
+- 视情况同步 subtree cache、重建 graph 或仅重放 visual state
+- 不维护 webview-local history 镜像
 
 ### `rebuildGraph(opts?)`
 

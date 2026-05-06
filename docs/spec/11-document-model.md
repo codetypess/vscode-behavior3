@@ -63,24 +63,17 @@
 - `dirty`
 - `alertReload`
 - `pendingExternalContent`
-- `history`
-- `historyIndex`
-- `lastSavedSnapshot`
-- `hostHistoryIndex`
-- `hostHistoryLength`
 
 语义：
 
+- `dirty`
+  - 宿主权威 document session 回推的脏状态 projection，不在 webview 本地独立计算
 - `alertReload`
   - 表示检测到了外部文件变化，但当前文档仍有未保存修改
 - `pendingExternalContent`
   - 保存冲突时宿主带回的磁盘内容快照
-- `history`
-  - 保存的是当前 webview 兼容层使用的序列化主文档文本快照，而不是 diff
-- `lastSavedSnapshot`
-  - 当前 webview 镜像看到的 saved baseline
-- `hostHistoryIndex` / `hostHistoryLength`
-  - 宿主权威 document session 当前广播出来的 history 游标
+- webview 不再镜像 `history`、`historyIndex`、`lastSavedSnapshot` 或 host history 游标
+  - 这些 save/history 元数据只保留在宿主 `sessionState` 与 host protocol payload 中
 
 ## Extension-host 文档态
 
