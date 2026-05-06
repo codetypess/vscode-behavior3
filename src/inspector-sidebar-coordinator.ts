@@ -199,17 +199,34 @@ export class InspectorSidebarCoordinator {
 
         this.revealInFlight = true;
         try {
-            try {
-                await vscode.commands.executeCommand(`${InspectorSidebarProvider.viewId}.focus`);
+            if (!this.view || !this.view.visible) {
+                try {
+                    await vscode.commands.executeCommand(`${InspectorSidebarProvider.viewId}.focus`);
+                } catch {
+                    if (!this.view) {
+                        try {
+                            await vscode.commands.executeCommand(
+                                `workbench.view.extension.${InspectorSidebarProvider.containerId}`
+                            );
+                        } catch {
+                            return;
+                        }
+                    }
+                }
+
+                try {
+                    await vscode.commands.executeCommand(
+                        "workbench.action.focusActiveEditorGroup"
+                    );
+                } catch {
+                    /* ignore focus restore failures */
+                }
                 return;
-            } catch {
-                /* fall back to opening the container */
             }
 
             try {
-                await vscode.commands.executeCommand(
-                    `workbench.view.extension.${InspectorSidebarProvider.containerId}`
-                );
+                this.view.show(true);
+                return;
             } catch {
                 /* ignore reveal failures; selection syncing still works */
             }
