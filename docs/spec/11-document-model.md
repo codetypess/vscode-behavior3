@@ -100,7 +100,6 @@
 - webview 发来的 `saveDocument` / `undo` / `redo` 只表达 intent，由宿主 session 自己执行并回推结果
 - `mutateDocument` 发来的主文档 mutation 先由宿主尝试提交；其中 `updateTreeMeta/updateNode/performDrop/pasteNode/insertNode/replaceNode/deleteNode` 优先走 shared reducer，`saveSelectedAsSubtree` 也已由宿主直接处理保存副作用与主树 link 回写
 - `updateNode` intent 现在显式携带 `currentNodeSnapshot`，必要时再携带 `detachedSubtreeRoot`，让 host reducer 不再依赖宿主侧“当前选中节点”瞬时状态
-- 若仍需 `executeDocumentMutation` 兼容回退，主编辑器只返回 mutation 结果和序列化内容，由宿主统一 commit
 - 宿主监听到文件变化时，会用 `_ownFileWrites` 区分“自己刚写出的变更”和“真正的外部变化”
 
 这意味着：

@@ -162,12 +162,11 @@
 3. 当前 `updateTreeMeta` / `updateNode` / `performDrop` / `pasteNode` / `insertNode` / `replaceNode` / `deleteNode` / `saveSelectedAsSubtree` 已可直接在 host 提交
 4. `updateNode` 在发送 intent 前会补齐 `currentNodeSnapshot`，若发生 subtree 脱链再补 `detachedSubtreeRoot`
 5. 对于需要改选中的结构命令，宿主通过 mutation response 回传 `nextSelection`，让 webview 只更新 selection projection
-6. 若走兼容回退，主编辑器执行真正的本地 mutation，再把结果回给宿主
+6. 若宿主无法提交 mutation，则直接返回错误，不再把执行权转回主编辑器
 
 这条规则意味着：
 
 - canvas / sidebar 都先表达 mutation intent，而不是直接拥有主文档权威提交权
-- `executeDocumentMutation` 是兼容执行链，不再是正常入口
 - 侧栏可以触发表单提交、保存、撤销、重做，但不拥有独立的 mutation runtime
 
 ## 验收标准

@@ -71,12 +71,6 @@ export interface ControllerApplyTreeOptions {
     applyVisualState?: boolean;
 }
 
-export interface ControllerCommitTreeOptions extends ControllerApplyTreeOptions {
-    prepareSelection?: () => void;
-    pushHistory?: boolean;
-    treeSelectedMode?: TreeSelectedMode;
-}
-
 export interface ControllerRuntime {
     readonly deps: ControllerDeps;
     getResolvedGraph(): ResolvedDocumentGraph | null;
@@ -91,17 +85,11 @@ export interface ControllerRuntime {
     getSelectedResolvedNode(): ResolvedNodeModel | null;
     isSubtreeStructureLocked(node: ResolvedNodeModel | null): boolean;
     readClipboardNode(): Promise<PersistedNodeModel | null>;
-    assignFreshStableIds(node: PersistedNodeModel): void;
-    findPersistedNodeLocationByStableId(
-        root: PersistedNodeModel,
-        stableId: string
-    ): { node: PersistedNodeModel; parent: PersistedNodeModel | null } | null;
     isDescendantInstance(ancestorKey: string, targetKey: string): boolean;
     buildPersistedNodeFromResolved(
         instanceKey: string,
         opts?: { clearPathOnRoot?: boolean }
     ): PersistedNodeModel | null;
-    overwritePersistedNode(target: PersistedNodeModel, source: PersistedNodeModel): void;
     applyVisualState(): Promise<void>;
     rebuildGraph(opts?: { preserveSelection?: boolean }): Promise<void>;
     syncReachableSubtreeSources(): Promise<void>;
@@ -109,7 +97,6 @@ export interface ControllerRuntime {
     matchesCurrentDocumentSnapshot(content: string): boolean;
     resetDocumentHistory(): void;
     applyDocumentTree(tree: PersistedTreeModel, opts?: ControllerApplyTreeOptions): Promise<void>;
-    commitTreeMutation(tree: PersistedTreeModel, opts?: ControllerCommitTreeOptions): Promise<void>;
 }
 
 export const cloneVars = <T extends { name: string; desc: string }>(entries: T[]): T[] =>
@@ -409,28 +396,6 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         }
     };
 
-    const assignFreshStableIds = (node: PersistedNodeModel) => {
-        node.uuid = generateUuid();
-        for (const child of node.children ?? []) {
-            assignFreshStableIds(child);
-        }
-    };
-
-    const findPersistedNodeLocationByStableId = (
-        root: PersistedNodeModel,
-        stableId: string
-    ): { node: PersistedNodeModel; parent: PersistedNodeModel | null } | null => {
-        let found: { node: PersistedNodeModel; parent: PersistedNodeModel | null } | null = null;
-
-        walkPersistedNodes(root, (node, parent) => {
-            if (!found && node.uuid === stableId) {
-                found = { node, parent };
-            }
-        });
-
-        return found;
-    };
-
     const isDescendantInstance = (ancestorKey: string, targetKey: string): boolean => {
         if (!resolvedGraph) {
             return false;
@@ -492,27 +457,6 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         };
 
         return buildNode(instanceKey, true);
-    };
-
-    const overwritePersistedNode = (target: PersistedNodeModel, source: PersistedNodeModel) => {
-        for (const key of Object.keys(target) as Array<keyof PersistedNodeModel>) {
-            delete target[key];
-        }
-        Object.assign(target, source);
-    };
-
-    const pushHistorySnapshot = (snapshot: string) => {
-        deps.documentStore.setState((state) => {
-            if (state.history[state.historyIndex] === snapshot) {
-                return state;
-            }
-            const nextHistory = [...state.history.slice(0, state.historyIndex + 1), snapshot];
-            return {
-                ...state,
-                history: nextHistory,
-                historyIndex: nextHistory.length - 1,
-            };
-        });
     };
 
     const getSerializedCurrentTree = (): string | null => {
@@ -780,13 +724,6 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         }));
     };
 
-    const pushCurrentHistorySnapshot = () => {
-        const snapshot = getSerializedCurrentTree();
-        if (snapshot) {
-            pushHistorySnapshot(snapshot);
-        }
-    };
-
     const resetDocumentHistory = () => {
         const snapshot = getSerializedCurrentTree();
         if (!snapshot) {
@@ -827,33 +764,6 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         }
     };
 
-    /**
-     * Wrap a structural mutation in the full editor commit pipeline:
-     * optional selection prep, document projection update, graph rebuild,
-     * optional projection-history sync, and treeSelected fanout.
-     */
-    const commitTreeMutation = async (
-        tree: PersistedTreeModel,
-        opts?: ControllerCommitTreeOptions
-    ) => {
-        opts?.prepareSelection?.();
-        await applyDocumentTree(tree, {
-            syncSubtreeSources: opts?.syncSubtreeSources,
-            rebuildGraph: opts?.rebuildGraph,
-            preserveSelection: opts?.preserveSelection,
-            applyVisualState: opts?.applyVisualState,
-        });
-
-        if (opts?.pushHistory !== false) {
-            pushCurrentHistorySnapshot();
-        }
-
-        const treeSelectedMode = opts?.treeSelectedMode ?? "debounced";
-        if (treeSelectedMode !== "skip") {
-            scheduleTreeSelected(treeSelectedMode === "immediate");
-        }
-    };
-
     return {
         deps,
         getResolvedGraph: () => resolvedGraph,
@@ -868,11 +778,8 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         getSelectedResolvedNode,
         isSubtreeStructureLocked,
         readClipboardNode,
-        assignFreshStableIds,
-        findPersistedNodeLocationByStableId,
         isDescendantInstance,
         buildPersistedNodeFromResolved,
-        overwritePersistedNode,
         applyVisualState,
         rebuildGraph,
         syncReachableSubtreeSources,
@@ -880,6 +787,5 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         matchesCurrentDocumentSnapshot,
         resetDocumentHistory,
         applyDocumentTree,
-        commitTreeMutation,
     };
 };

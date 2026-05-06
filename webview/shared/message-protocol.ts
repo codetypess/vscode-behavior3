@@ -20,14 +20,6 @@ export type EditorToHostMessage =
     /** Ask the active editor webview to highlight nodes that use these variables. */
     | { type: "focusVariable"; names: string[] }
     | { type: "mutateDocument"; requestId: string; mutation: DocumentMutation }
-    | {
-          type: "documentMutationResult";
-          requestId: string;
-          success: boolean;
-          error?: string;
-          content?: string;
-          nextSelection?: DocumentMutationSelection;
-      }
     | { type: "saveDocument"; requestId: string }
     | { type: "revertDocument"; requestId: string }
     | { type: "treeSelected"; tree: unknown }
@@ -66,7 +58,6 @@ export type HostToEditorMessage =
       }
     | { type: "documentSessionChanged"; documentSession: HostDocumentSessionState }
     | { type: "documentUpdated"; content: string }
-    | { type: "executeDocumentMutation"; requestId: string; mutation: DocumentMutation }
     /** Cross-webview variable focus sync from the sidebar inspector into the active editor. */
     | { type: "focusVariable"; names: string[] }
     | { type: "fileChanged"; content: string }

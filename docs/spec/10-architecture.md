@@ -121,12 +121,12 @@ Shared Layer
 2. controller 修改 `persistedTree` 或 `overrides`
 3. runtime 同步 reachable subtree cache
 4. runtime 重建 resolved graph 与 graph view model
-5. runtime 在兼容回退里只更新本地 projection，并把结果交还宿主统一 commit
+5. runtime 仅维护当前渲染与表单所需 projection，不再承担主文档 mutation 提交职责
 6. runtime 以 `treeSelected` 触发变量声明视图刷新
 
 说明：
 
-- 这条路径只剩 `executeDocumentMutation` 的兼容执行链
+- 主文档 mutation 已全部走 host-first intent 提交
 - save、undo、redo 已不再由该路径直接落地执行
 
 ### Save / Undo / Redo
@@ -139,9 +139,8 @@ Shared Layer
 
 1. Inspector Sidebar 或主编辑器 canvas 发送 `mutateDocument`
 2. active editor session 先尝试在 host 侧直接 reduce 并提交权威 snapshot
-3. 若 host 当前仍缺少结构节点定位等上下文，才回退为 `executeDocumentMutation`
+3. host 若无法提交，则直接返回权威错误，而不是转回主编辑器执行
 4. 对于结构命令，宿主可通过 mutation response 回传 `nextSelection`，让 webview 更新 selection projection
-5. 若走兼容回退，主编辑器执行 mutation 后把结果回给宿主，再由宿主回复发起方并同步最新内容/selection
 
 ### 外部文件变化
 

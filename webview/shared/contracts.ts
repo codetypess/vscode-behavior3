@@ -269,7 +269,6 @@ export type HostEvent =
     | { type: "init"; payload: HostInitPayload }
     | { type: "documentSessionChanged"; documentSession: HostDocumentSessionState }
     | { type: "documentUpdated"; content: string }
-    | { type: "executeDocumentMutation"; requestId: string; mutation: DocumentMutation }
     | { type: "focusVariable"; names: string[] }
     | { type: "fileChanged"; content: string }
     | { type: "documentReloaded"; content: string }
@@ -404,10 +403,6 @@ export interface HostAdapter {
     undo(): void;
     redo(): void;
     mutateDocument(mutation: DocumentMutation): Promise<DocumentMutationResponse>;
-    sendDocumentMutationResult(
-        requestId: string,
-        response: DocumentMutationResponse & { content?: string }
-    ): void;
     requestFocusVariable(names: string[]): void;
     sendTreeSelected(tree: PersistedTreeModel): void;
     sendInspectorSelection(selectedNode: EditNode | null): void;
@@ -444,10 +439,6 @@ export interface EditorCommand {
         opts?: { force?: boolean; clearVariableFocus?: boolean }
     ): Promise<void>;
     focusVariable(names: string[]): Promise<void>;
-    /** Compatibility-only executor for host-triggered mutation fallback. */
-    executeDocumentMutationCompat(
-        mutation: DocumentMutation
-    ): Promise<(DocumentMutationResponse & { content?: string }) | undefined>;
     updateTreeMeta(payload: UpdateTreeMetaInput): Promise<void>;
     updateNode(payload: UpdateNodeInput): Promise<void>;
     performDrop(intent: DropIntent): Promise<void>;

@@ -194,7 +194,6 @@ const SidebarHostBridge: React.FC = () => {
                     resetSidebarContext(runtime);
                     return;
 
-                case "executeDocumentMutation":
                 case "fileChanged":
                 case "subtreeFileChanged":
                 case "buildResult":

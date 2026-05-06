@@ -267,14 +267,6 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
                         onMessage({ type: "documentUpdated", content: message.content });
                         return;
 
-                    case "executeDocumentMutation":
-                        onMessage({
-                            type: "executeDocumentMutation",
-                            requestId: message.requestId,
-                            mutation: message.mutation,
-                        });
-                        return;
-
                     case "focusVariable":
                         onMessage({ type: "focusVariable", names: message.names });
                         return;
@@ -374,17 +366,6 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
             return new Promise<DocumentMutationResponse>((resolve) => {
                 const requestId = registerPendingRequest("mutateDocument", resolve);
                 postMessage({ type: "mutateDocument", requestId, mutation });
-            });
-        },
-
-        sendDocumentMutationResult(requestId, response) {
-            postMessage({
-                type: "documentMutationResult",
-                requestId,
-                success: response.success,
-                error: response.error,
-                content: response.content,
-                nextSelection: response.nextSelection,
             });
         },
 

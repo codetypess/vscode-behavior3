@@ -3,7 +3,7 @@
 Status: Implementing
 Date: 2026-05-06
 Scope: Migrate main-document authority from webview-local controller state to an extension-host document session, using staged intent-based save, undo/redo, mutation, and snapshot fanout flows
-Progress: Phase 1 host session shell landed; Phase 2 host intent routing is complete for save, undo, and redo; Phase 3 is complete for sidebar `updateTreeMeta` / `updateNode`; Phase 4 is in progress, canvas structural commands now commit directly in host, and `updateNode` now carries explicit reducer context so compatibility fallback is shrinking toward structural lookup gaps only
+Progress: Phase 1 host session shell landed; Phase 2 host intent routing is complete for save, undo, and redo; Phase 3 is complete for sidebar `updateTreeMeta` / `updateNode`; Phase 4 is complete, all current main-document mutations now commit directly in host, and Phase 5 cleanup has begun
 
 ## 1. Context
 
@@ -53,7 +53,7 @@ As a result, a narrow Ctrl+S or pending-dot fix would treat symptoms but would n
 
 - `documentStore` in the webview still holds `persistedTree` plus compatibility projection caches for `dirty`, reload conflict state, `history`, `historyIndex`, and `lastSavedSnapshot`.
 - `TreeEditorDocument` in the extension host owns only serialized text content, custom-editor dirty state, and own-write suppression.
-- The main editor no longer uses `update` as a primary write path; normal structural mutations enter the host first, while `executeDocumentMutation` fallback only returns a proposed result for host commit.
+- The main editor no longer uses `update` as a primary write path, and it no longer acts as a compatibility mutation executor for the host.
 - The sidebar receives mirrored init/content/selection data from the host, but still bootstraps a local document runtime and local history/save state.
 - Sidebar `mutateDocument` currently covers `updateTreeMeta` and `updateNode`, and those intents now enter the host first.
 - `saveDocument`, `undo`, and `redo` now enter the host first from both the editor and the sidebar.
@@ -61,7 +61,6 @@ As a result, a narrow Ctrl+S or pending-dot fix would treat symptoms but would n
 - For sidebar `updateTreeMeta` and `updateNode`, the host now runs a shared reducer directly; `updateNode` carries explicit node snapshot context, so fallback is no longer needed for selected-node drift or subtree-original reconstruction.
 - Canvas structural commands now enter the host first as `mutateDocument` intents instead of mutating locally before sending `update`.
 - `performDrop`, `pasteNode`, `insertNode`, `replaceNode`, `deleteNode`, and `saveSelectedAsSubtree` now commit directly in host, with `nextSelection` returned to the webview so selection projection can follow the committed snapshot.
-- `executeDocumentMutation` still remains as a compatibility executor only for remaining context gaps such as structural node lookups the host cannot yet reconstruct from persisted-tree state alone.
 - Cross-view content sync still primarily uses content-bearing messages such as `documentUpdated` and `documentReloaded`, rather than a normalized host session snapshot feed.
 
 ## 5. Proposed Behavior
@@ -97,8 +96,7 @@ During the transition, compatibility shims are allowed, but only if the host ses
 For Phase 4 specifically, the first migration cut is allowed to:
 
 - let canvas commands enter the host first as `mutateDocument` intents
-- keep `executeDocumentMutation` as a compatibility executor for commands whose reducer, selection restore, clipboard data, or subtree-save side effects are not yet host-owned
-- separate "public command sends intent" from "local compat executor applies the mutation" so the fallback path does not recurse back into host intent dispatch
+- complete the migration by removing the host-triggered webview compat executor once all main-document mutations are host-owned
 
 ## 6. Design
 
@@ -182,8 +180,6 @@ However, selection can migrate in two steps:
 Legacy protocol pieces such as:
 
 - `documentUpdated`
-- `executeDocumentMutation`
-- `documentMutationResult`
 
 may remain temporarily, but each one must be classified in implementation as either:
 
@@ -237,13 +233,12 @@ Exit criteria:
 
 - Route canvas-originated structural commands through the same host intent path.
 - Allow `mutateDocument` from the active editor webview, not only from external/sidebar views.
-- Keep the active editor compat executor only behind host-owned fallback, and make it return content to the host instead of directly writing host state.
 - Retire "local mutation first, then push host content" as the normal edit model.
 
 Exit criteria:
 
 - Every persisted-tree mutation first appears as a host-session intent before it becomes committed state.
-- Canvas `performDrop`, `pasteNode`, `insertNode`, `replaceNode`, `deleteNode`, and `saveSelectedAsSubtree` satisfy this rule even if some of them still temporarily execute through host-triggered compatibility fallback.
+- Canvas `performDrop`, `pasteNode`, `insertNode`, `replaceNode`, `deleteNode`, and `saveSelectedAsSubtree` now satisfy this rule through host-side reducer execution.
 
 ### Phase 5. Reducer Port and Cleanup
 
@@ -290,4 +285,4 @@ Exit criteria:
 - Mitigation: require each phase to nominate one commit point in the host session and treat all other paths as projections or helpers only.
 - Risk: selection, subtree refresh, and validation flows regress because they currently piggyback on webview-local mutation timing.
 - Mitigation: include those flows in phase exit criteria and regression checks, not only save-state checks.
-- Rollback: keep the current webview-local execution path available behind compatibility handling until each phase is stable; if a phase regresses, fall back to the last host-session boundary that still preserves a single committed snapshot path.
+- Rollback: revert the latest host-session migration slice at the host/session boundary if a phase regresses, instead of restoring a second live executor path.

@@ -13,9 +13,6 @@ import { useAppShellState, useAppThemeState, useRuntime } from "./runtime";
 
 const { Content } = Layout;
 
-const formatRuntimeError = (error: unknown): string =>
-    error instanceof Error ? (error.stack ?? error.message) : String(error);
-
 const AppShell: React.FC = () => {
     const runtime = useRuntime();
     const { message: messageApi } = AntdApp.useApp();
@@ -52,32 +49,6 @@ const AppShell: React.FC = () => {
 
                 case "documentSessionChanged":
                     void runtime.controller.applyDocumentSession(hostEvent.documentSession);
-                    return;
-
-                case "executeDocumentMutation":
-                    void (async () => {
-                        try {
-                            const response = await runtime.controller.executeDocumentMutationCompat(
-                                hostEvent.mutation
-                            );
-                            runtime.hostAdapter.sendDocumentMutationResult(hostEvent.requestId, {
-                                success: response?.success ?? true,
-                                error: response?.error,
-                                content: response?.content,
-                                nextSelection: response?.nextSelection,
-                            });
-                        } catch (error) {
-                            const message = formatRuntimeError(error);
-                            runtime.hostAdapter.log(
-                                "warn",
-                                `[v2] document mutation failed: ${message}`
-                            );
-                            runtime.hostAdapter.sendDocumentMutationResult(hostEvent.requestId, {
-                                success: false,
-                                error: message,
-                            });
-                        }
-                    })();
                     return;
 
                 case "focusVariable":

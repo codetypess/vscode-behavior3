@@ -389,7 +389,6 @@ export async function resolveTreeEditorSession({
     };
     addActiveWebview(activeWebviewEntry);
     let mainDocumentOperationQueue: Promise<unknown> = Promise.resolve();
-    const pendingDocumentMutationReplies = new Map<string, HostMessageSink>();
     const createNodeCheckRuntime = async () => {
         const workspaceFile = findB3WorkspacePath(document.uri, workspaceFolderUri);
         if (!workspaceFile) {
@@ -743,28 +742,6 @@ export async function resolveTreeEditorSession({
         notifyInspectorSessionUpdate();
     };
 
-    const forwardDocumentMutationToEditor = async (
-        msg: Extract<EditorToHostMessage, { type: "mutateDocument" }>,
-        reply: HostMessageSink = postMessage
-    ): Promise<void> => {
-        pendingDocumentMutationReplies.set(msg.requestId, reply);
-        const delivered = await postMessage({
-            type: "executeDocumentMutation",
-            requestId: msg.requestId,
-            mutation: msg.mutation,
-        } satisfies HostToEditorMessage);
-
-        if (!delivered) {
-            pendingDocumentMutationReplies.delete(msg.requestId);
-            await reply({
-                type: "mutateDocumentResult",
-                requestId: msg.requestId,
-                success: false,
-                error: "Active Behavior3 editor is not available.",
-            } satisfies HostToEditorMessage);
-        }
-    };
-
     const handleSaveSelectedAsSubtreeMutation = async (
         msg: Extract<EditorToHostMessage, { type: "mutateDocument" }>
     ): Promise<
@@ -772,15 +749,26 @@ export async function resolveTreeEditorSession({
               kind: "handled";
               reply: Extract<HostToEditorMessage, { type: "mutateDocumentResult" }>;
           }
-        | { kind: "fallback" }
+        | { kind: "skip" }
     > => {
         if (msg.mutation.type !== "saveSelectedAsSubtree") {
-            return { kind: "fallback" };
+            return { kind: "skip" };
         }
 
         const currentTree = parsePersistedTreeContent(document.content, document.uri.fsPath);
         if (currentTree.root.uuid === msg.mutation.payload.target.structuralStableId) {
-            return { kind: "fallback" };
+            return {
+                kind: "handled",
+                reply: {
+                    type: "mutateDocumentResult",
+                    requestId: msg.requestId,
+                    success: false,
+                    error:
+                        state.currentSettings.language === "zh"
+                            ? "根节点不能另存为 subtree。"
+                            : "The root node cannot be saved as a subtree.",
+                },
+            };
         }
 
         const targetNode = findPersistedNodeByStableId(
@@ -788,7 +776,18 @@ export async function resolveTreeEditorSession({
             msg.mutation.payload.target.structuralStableId
         );
         if (!targetNode || targetNode.path) {
-            return { kind: "fallback" };
+            return {
+                kind: "handled",
+                reply: {
+                    type: "mutateDocumentResult",
+                    requestId: msg.requestId,
+                    success: false,
+                    error:
+                        state.currentSettings.language === "zh"
+                            ? "未找到可另存为 subtree 的目标节点。"
+                            : "The target node could not be saved as a subtree.",
+                },
+            };
         }
 
         const subtreeModel = {
@@ -853,7 +852,18 @@ export async function resolveTreeEditorSession({
             msg.mutation.payload.target.structuralStableId
         );
         if (!nextTargetNode) {
-            return { kind: "fallback" };
+            return {
+                kind: "handled",
+                reply: {
+                    type: "mutateDocumentResult",
+                    requestId: msg.requestId,
+                    success: false,
+                    error:
+                        state.currentSettings.language === "zh"
+                            ? "提交 subtree 保存结果时未找到目标节点。"
+                            : "The target node could not be found after saving the subtree.",
+                },
+            };
         }
 
         nextTargetNode.path = savedPath;
@@ -905,7 +915,12 @@ export async function resolveTreeEditorSession({
             }
 
             if (!isReducibleDocumentMutation(msg.mutation)) {
-                await forwardDocumentMutationToEditor(msg, reply);
+                await reply({
+                    type: "mutateDocumentResult",
+                    requestId: msg.requestId,
+                    success: false,
+                    error: "Unsupported document mutation.",
+                } satisfies HostToEditorMessage);
                 return;
             }
 
@@ -928,15 +943,6 @@ export async function resolveTreeEditorSession({
             }
 
             if (reduced.status === "error") {
-                const shouldFallbackToEditor =
-                    reduced.error.code === "missing-source-node" ||
-                    reduced.error.code === "missing-target-node";
-
-                if (shouldFallbackToEditor) {
-                    await forwardDocumentMutationToEditor(msg, reply);
-                    return;
-                }
-
                 await reply({
                     type: "mutateDocumentResult",
                     requestId: msg.requestId,
@@ -971,39 +977,6 @@ export async function resolveTreeEditorSession({
                 requestId: msg.requestId,
                 success: true,
                 nextSelection: reduced.nextSelection,
-            } satisfies HostToEditorMessage);
-        });
-    };
-
-    const handleDocumentMutationResultMessage = async (
-        msg: Extract<EditorToHostMessage, { type: "documentMutationResult" }>
-    ): Promise<void> => {
-        const reply = pendingDocumentMutationReplies.get(msg.requestId);
-        if (!reply) {
-            return;
-        }
-        pendingDocumentMutationReplies.delete(msg.requestId);
-
-        await enqueueMainDocumentOperation(async () => {
-            let success = msg.success;
-            let error = msg.error;
-
-            if (success) {
-                const editBlockedMessage = blockEditingForNewerFile();
-                if (editBlockedMessage) {
-                    success = false;
-                    error = editBlockedMessage;
-                } else if (msg.content) {
-                    applyContentFromWebview(msg.content);
-                }
-            }
-
-            await reply({
-                type: "mutateDocumentResult",
-                requestId: msg.requestId,
-                success,
-                error,
-                nextSelection: msg.nextSelection,
             } satisfies HostToEditorMessage);
         });
     };
@@ -1420,10 +1393,6 @@ export async function resolveTreeEditorSession({
 
             case "mutateDocument":
                 await handleMutateDocumentMessage(msg, reply, source);
-                return;
-
-            case "documentMutationResult":
-                await handleDocumentMutationResultMessage(msg);
                 return;
 
             case "saveDocument":

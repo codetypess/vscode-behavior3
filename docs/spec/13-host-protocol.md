@@ -42,8 +42,6 @@
 
 - `mutateDocument`
   - payload: `{ requestId, mutation }`
-- `documentMutationResult`
-  - payload: `{ requestId, success, error?, content? }`
 - `treeSelected`
   - payload: `{ tree }`
 - `reportInspectorSelection`
@@ -96,7 +94,6 @@
 
 ### 编辑命令代理
 
-- `executeDocumentMutation`
 - `focusVariable`
 
 ### 环境与依赖变化
@@ -192,7 +189,7 @@
 - 该快照来自当前发起 webview 的选中节点投影，包含 host reducer 需要的当前节点数据、subtree 标记和 `subtreeOriginal`
 - `updateNode` 在“解绑 subtree 引用为本地节点”时可以携带 `detachedSubtreeRoot`
 - `detachedSubtreeRoot` 由当前 webview runtime 提供，供 host reducer 直接提交
-- `mutateDocumentResult` / `documentMutationResult` 当前可以携带 `nextSelection`
+- `mutateDocumentResult` 当前可以携带 `nextSelection`
 - 该字段只表达“提交后的选中投影应该落到哪里”，不把 selection authority 从 webview 立刻迁成宿主真源
 
 ## 会话规则
@@ -214,7 +211,6 @@
 - `revertDocument`
 - 外部主文件 reload
 - host-first mutation 回写
-- `executeDocumentMutation` 兼容回退结果回写
 
 目的是避免 watcher 与多来源消息交错，把文档推进到不一致状态。
 
@@ -222,8 +218,7 @@
 
 - Sidebar 和 canvas 都不能绕过宿主直接提交主文档 mutation
 - 宿主收到 `mutateDocument` 后优先尝试在 host 侧直接 reduce 并提交
-- 只有在 host 当前缺少 reducer、selection、clipboard 或 subtree-save 所需上下文时，才回退为 `executeDocumentMutation`
-- 若走兼容回退，主编辑器执行后再把结果回给宿主，再由宿主回复发起方
+- 若宿主无法提交 mutation，则直接返回错误给发起方
 
 ### 4. 请求超时
 
