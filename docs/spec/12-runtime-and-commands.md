@@ -70,9 +70,10 @@
 
 职责：
 
-- 改写 selection/search 相关 store
+- 维护本地 search / variable-focus store
 - 对用户选中手势发送 `HostAdapter.selectTree/selectNode` intent
-- 驱动 graph adapter 应用 selection/highlight/search 状态
+- 仅通过宿主 `selection` snapshot 投影共享 tree/node selection 到 `selectionStore`
+- 驱动 graph adapter 应用 selection/highlight/search 状态；必要时可保留 graph-only 本地选中 hint
 - 在必要时触发节点聚焦
 
 ### 文档修改

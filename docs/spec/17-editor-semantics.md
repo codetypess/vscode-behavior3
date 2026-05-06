@@ -70,17 +70,20 @@
 
 ### `selectTree()`
 
-- 清空节点选中
+- 不直接改写 `selectionStore` 中的共享 tree/node authority 字段
 - 保留或清除 variable focus，取决于调用路径
 - 向宿主发送 `selectTree` intent
+- 如有需要，可立即更新 graph-only 本地视觉 hint
 - 后续以宿主 `documentSnapshotChanged.selection` 作为共享选中权威结果
 
 ### `selectNode(nodeKey, opts?)`
 
 - 选中 resolved graph 中的实例节点
+- 不直接改写 `selectionStore` 中的共享 tree/node authority 字段
 - 向宿主发送 `selectNode(target)` intent
 - 若节点已选中且未强制刷新，可只重发宿主 intent
 - 若来自变量热点点击，可选择保留 variable focus
+- 如有需要，可立即更新 graph-only 本地视觉 hint
 - 后续以宿主 `documentSnapshotChanged.selection` 作为共享选中权威结果
 
 ### `focusVariable(names)`

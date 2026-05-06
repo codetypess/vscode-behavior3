@@ -8,6 +8,7 @@ import type {
     EditNodeDef,
     GraphHighlightState,
     GraphSearchState,
+    GraphSelectionState,
     HostAdapter,
     HostSelectionState,
     NodeCheckDiagnostic,
@@ -77,9 +78,9 @@ export interface ControllerRuntime {
     notifyError(text: string): void;
     notifySuccess(text: string): void;
     getNodeDef(name: string): NodeDef | null;
-    selectTreeState(opts?: { clearVariableFocus?: boolean }): boolean;
-    selectResolvedNodeState(instanceKey: string, opts?: { clearVariableFocus?: boolean }): boolean;
     clearActiveVariableFocus(): boolean;
+    getCurrentGraphSelectionKey(): string | null;
+    showSelectionVisualHint(selectedNodeKey: string | null): Promise<void>;
     applyHostSelectionState(selection: HostSelectionState): void;
     getSelectedResolvedNode(): ResolvedNodeModel | null;
     isSubtreeStructureLocked(node: ResolvedNodeModel | null): boolean;
@@ -117,6 +118,7 @@ export const buildUsingGroups = (groupNames: string[]): Record<string, boolean> 
 export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime => {
     let resolvedGraph: ResolvedDocumentGraph | null = null;
     let nodeCheckRequestSeq = 0;
+    let selectionVisualHint: GraphSelectionState | null = null;
 
     const notifyError = (text: string) => {
         deps.appHooks.getMessage().error(text);
@@ -272,39 +274,27 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         return true;
     };
 
-    const selectTreeState = (opts?: { clearVariableFocus?: boolean }): boolean => {
-        const shouldClearVariableFocus =
-            Boolean(opts?.clearVariableFocus) &&
-            deps.selectionStore.getState().activeVariableNames.length > 0;
+    const applyTreeSelectionProjection = () => {
         updateSelectionState((state) => ({
             ...buildTreeSelectionPatch(),
-            activeVariableNames: shouldClearVariableFocus ? [] : state.activeVariableNames,
+            activeVariableNames: state.activeVariableNames,
         }));
-        return shouldClearVariableFocus;
     };
 
-    const selectResolvedNodeState = (
-        instanceKey: string,
-        opts?: { clearVariableFocus?: boolean }
-    ): boolean => {
-        const patch = buildResolvedNodeSelectionPatch(instanceKey);
-        if (!patch) {
-            return false;
-        }
+    const getCurrentGraphSelectionState = (): GraphSelectionState =>
+        selectionVisualHint ?? {
+            selectedNodeKey: deps.selectionStore.getState().selectedNodeKey,
+        };
 
-        const shouldClearVariableFocus =
-            Boolean(opts?.clearVariableFocus) &&
-            deps.selectionStore.getState().activeVariableNames.length > 0;
-        updateSelectionState((state) => ({
-            ...patch,
-            activeVariableNames: shouldClearVariableFocus ? [] : state.activeVariableNames,
-        }));
-        return shouldClearVariableFocus;
+    const showSelectionVisualHint = async (selectedNodeKey: string | null) => {
+        selectionVisualHint = { selectedNodeKey };
+        await deps.graphAdapter.applySelection(selectionVisualHint);
     };
 
     const applyHostSelectionState = (selection: HostSelectionState) => {
+        selectionVisualHint = null;
         if (selection.kind === "tree") {
-            selectTreeState();
+            applyTreeSelectionProjection();
             return;
         }
 
@@ -562,9 +552,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         const selection = deps.selectionStore.getState();
         const workspace = deps.workspaceStore.getState();
 
-        await deps.graphAdapter.applySelection({
-            selectedNodeKey: selection.selectedNodeKey,
-        });
+        await deps.graphAdapter.applySelection(getCurrentGraphSelectionState());
 
         const highlights: GraphHighlightState = computeVariableHighlights(
             resolvedGraph,
@@ -734,9 +722,9 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         notifyError,
         notifySuccess,
         getNodeDef,
-        selectTreeState,
-        selectResolvedNodeState,
         clearActiveVariableFocus,
+        getCurrentGraphSelectionKey: () => getCurrentGraphSelectionState().selectedNodeKey,
+        showSelectionVisualHint,
         applyHostSelectionState,
         getSelectedResolvedNode,
         isSubtreeStructureLocked,

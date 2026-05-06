@@ -162,6 +162,7 @@
 
 - `focusOnly = true` 且 query 非空时，非结果节点灰化
 - `focusNode` 只负责图上聚焦，不改 selection store
+- graph 允许保留 editor-local 视觉选中 hint，但该 hint 不能被当作 Inspector 或共享 selection authority
 
 ## Drag-and-Drop Contract
 

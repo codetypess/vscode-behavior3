@@ -1300,6 +1300,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             const workspaceStore = createWorkspaceStore();
             const selectionStore = createSelectionStore();
             const appHooks = createAppHooksStore();
+            let appliedSelectionKey: string | null = null;
             let treeSelectionCount = 0;
             const selectedNodeTargets: NodeInstanceRef[] = [];
 
@@ -1353,7 +1354,9 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 async mount() {},
                 unmount() {},
                 async render() {},
-                async applySelection() {},
+                async applySelection(payload) {
+                    appliedSelectionKey = payload.selectedNodeKey;
+                },
                 async applyHighlights() {},
                 async applySearch() {},
                 async focusNode() {},
@@ -1403,12 +1406,481 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             await controller.selectNode("1");
             assert.equal(selectedNodeTargets.length, 1);
             assert.equal(selectedNodeTargets[0]?.structuralStableId, "root");
-            assert.equal(selectionStore.getState().selectedNodeSnapshot?.data.uuid, "root");
-
-            await controller.selectTree();
-            assert.equal(treeSelectionCount, 1);
             assert.equal(selectionStore.getState().selectedNodeRef, null);
             assert.equal(selectionStore.getState().selectedTree?.filePath, "/tmp/main.json");
+            assert.equal(appliedSelectionKey, "1");
+
+            await controller.applyDocumentSnapshot({
+                content,
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: content,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: {
+                    kind: "node",
+                    ref: selectedNodeTargets[0]!,
+                },
+                syncKind: "update",
+            });
+            assert.equal(selectionStore.getState().selectedNodeSnapshot?.data.uuid, "root");
+
+            await controller.focusVariable(["hp"]);
+            await controller.selectTree();
+            assert.equal(treeSelectionCount, 1);
+            assert.deepEqual(selectionStore.getState().activeVariableNames, []);
+            assert.equal(selectionStore.getState().selectedNodeSnapshot?.data.uuid, "root");
+            assert.equal(appliedSelectionKey, null);
+
+            await controller.applyDocumentSnapshot({
+                content,
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: content,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: { kind: "tree" },
+                syncKind: "update",
+            });
+            assert.equal(selectionStore.getState().selectedNodeRef, null);
+            assert.equal(selectionStore.getState().selectedTree?.filePath, "/tmp/main.json");
+        },
+    },
+    {
+        name: "search jumps keep graph feedback local until host selection snapshot converges",
+        async run() {
+            const documentStore = createDocumentStore();
+            const workspaceStore = createWorkspaceStore();
+            const selectionStore = createSelectionStore();
+            const appHooks = createAppHooksStore();
+            let appliedSelectionKey: string | null = null;
+            let focusedNodeKey: string | null = null;
+            const selectedNodeTargets: NodeInstanceRef[] = [];
+
+            appHooks.bind({
+                message: {
+                    success() {},
+                    error() {},
+                } as any,
+                notification: {} as any,
+                modal: {} as any,
+            });
+
+            const hostAdapter: HostAdapter = {
+                connect: () => () => {},
+                sendReady() {},
+                undo() {},
+                redo() {},
+                async mutateDocument() {
+                    return { success: true };
+                },
+                selectTree() {},
+                selectNode(target) {
+                    selectedNodeTargets.push(target);
+                },
+                requestFocusVariable() {},
+                sendRequestSetting() {},
+                sendBuild() {},
+                async validateNodeChecks() {
+                    return { diagnostics: [] };
+                },
+                async saveDocument() {
+                    return { success: true };
+                },
+                async revertDocument() {
+                    return { success: true };
+                },
+                async readFile() {
+                    return { content: "{}" };
+                },
+                async saveSubtree() {
+                    return { success: true };
+                },
+                async saveSubtreeAs() {
+                    return { savedPath: null };
+                },
+                log() {},
+            };
+            const graphAdapter: GraphAdapter = {
+                async mount() {},
+                unmount() {},
+                async render() {},
+                async applySelection(payload) {
+                    appliedSelectionKey = payload.selectedNodeKey;
+                },
+                async applyHighlights() {},
+                async applySearch() {},
+                async focusNode(nodeKey) {
+                    focusedNodeKey = nodeKey;
+                },
+                async restoreViewport() {},
+                getViewport: () => ({ zoom: 1, x: 0, y: 0 }),
+            };
+            const controller = createEditorController({
+                documentStore,
+                workspaceStore,
+                selectionStore,
+                hostAdapter,
+                graphAdapter,
+                appHooks,
+            });
+
+            const tree = createTestTree();
+            tree.root.children = [
+                {
+                    uuid: "child-a",
+                    id: "2",
+                    name: "ActionA",
+                },
+                {
+                    uuid: "child-b",
+                    id: "3",
+                    name: "ActionB",
+                },
+            ];
+            const content = serializePersistedTree(tree);
+            await controller.initFromHost({
+                filePath: "/tmp/main.json",
+                workdir: "/tmp",
+                content,
+                nodeDefs: [
+                    {
+                        name: "Sequence",
+                        type: "Composite",
+                        desc: "",
+                        status: ["success"],
+                    },
+                    {
+                        name: "ActionA",
+                        type: "Action",
+                        desc: "",
+                    },
+                    {
+                        name: "ActionB",
+                        type: "Action",
+                        desc: "",
+                    },
+                ],
+                allFiles: [],
+                settings: {
+                    checkExpr: true,
+                    subtreeEditable: true,
+                    language: "en",
+                    theme: "light",
+                },
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: content,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: { kind: "tree" },
+            });
+
+            await controller.openSearch("id");
+            await controller.updateSearch("3");
+
+            assert.equal(selectedNodeTargets.length, 1);
+            assert.equal(selectedNodeTargets[0]?.structuralStableId, "child-b");
+            assert.equal(selectionStore.getState().selectedNodeRef, null);
+            assert.equal(selectionStore.getState().search.results[0], "3");
+            assert.equal(appliedSelectionKey, "3");
+            assert.equal(focusedNodeKey, "3");
+
+            await controller.applyDocumentSnapshot({
+                content,
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: content,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: {
+                    kind: "node",
+                    ref: selectedNodeTargets[0]!,
+                },
+                syncKind: "update",
+            });
+
+            assert.equal(selectionStore.getState().selectedNodeRef?.structuralStableId, "child-b");
+            assert.equal(selectionStore.getState().selectedNodeSnapshot?.data.uuid, "child-b");
+        },
+    },
+    {
+        name: "variable-hotspot-style selection preserves local variable focus until host snapshot converges",
+        async run() {
+            const documentStore = createDocumentStore();
+            const workspaceStore = createWorkspaceStore();
+            const selectionStore = createSelectionStore();
+            const appHooks = createAppHooksStore();
+            let appliedSelectionKey: string | null = null;
+            const selectedNodeTargets: NodeInstanceRef[] = [];
+
+            appHooks.bind({
+                message: {
+                    success() {},
+                    error() {},
+                } as any,
+                notification: {} as any,
+                modal: {} as any,
+            });
+
+            const hostAdapter: HostAdapter = {
+                connect: () => () => {},
+                sendReady() {},
+                undo() {},
+                redo() {},
+                async mutateDocument() {
+                    return { success: true };
+                },
+                selectTree() {},
+                selectNode(target) {
+                    selectedNodeTargets.push(target);
+                },
+                requestFocusVariable() {},
+                sendRequestSetting() {},
+                sendBuild() {},
+                async validateNodeChecks() {
+                    return { diagnostics: [] };
+                },
+                async saveDocument() {
+                    return { success: true };
+                },
+                async revertDocument() {
+                    return { success: true };
+                },
+                async readFile() {
+                    return { content: "{}" };
+                },
+                async saveSubtree() {
+                    return { success: true };
+                },
+                async saveSubtreeAs() {
+                    return { savedPath: null };
+                },
+                log() {},
+            };
+            const graphAdapter: GraphAdapter = {
+                async mount() {},
+                unmount() {},
+                async render() {},
+                async applySelection(payload) {
+                    appliedSelectionKey = payload.selectedNodeKey;
+                },
+                async applyHighlights() {},
+                async applySearch() {},
+                async focusNode() {},
+                async restoreViewport() {},
+                getViewport: () => ({ zoom: 1, x: 0, y: 0 }),
+            };
+            const controller = createEditorController({
+                documentStore,
+                workspaceStore,
+                selectionStore,
+                hostAdapter,
+                graphAdapter,
+                appHooks,
+            });
+
+            const content = serializePersistedTree(createTestTree());
+            await controller.initFromHost({
+                filePath: "/tmp/main.json",
+                workdir: "/tmp",
+                content,
+                nodeDefs: [
+                    {
+                        name: "Sequence",
+                        type: "Composite",
+                        desc: "",
+                        status: ["success"],
+                    },
+                ],
+                allFiles: [],
+                settings: {
+                    checkExpr: true,
+                    subtreeEditable: true,
+                    language: "en",
+                    theme: "light",
+                },
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: content,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: { kind: "tree" },
+            });
+
+            await controller.focusVariable(["hp"]);
+            await controller.selectNode("1", { clearVariableFocus: false });
+
+            assert.deepEqual(selectionStore.getState().activeVariableNames, ["hp"]);
+            assert.equal(selectionStore.getState().selectedNodeRef, null);
+            assert.equal(appliedSelectionKey, "1");
+            assert.equal(selectedNodeTargets.length, 1);
+
+            await controller.applyDocumentSnapshot({
+                content,
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: content,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: {
+                    kind: "node",
+                    ref: selectedNodeTargets[0]!,
+                },
+                syncKind: "update",
+            });
+
+            assert.deepEqual(selectionStore.getState().activeVariableNames, ["hp"]);
+            assert.equal(selectionStore.getState().selectedNodeSnapshot?.data.uuid, "root");
+        },
+    },
+    {
+        name: "reload snapshots clear stale local selection hints and remain authoritative",
+        async run() {
+            const documentStore = createDocumentStore();
+            const workspaceStore = createWorkspaceStore();
+            const selectionStore = createSelectionStore();
+            const appHooks = createAppHooksStore();
+            let appliedSelectionKey: string | null = null;
+            const selectedNodeTargets: NodeInstanceRef[] = [];
+
+            appHooks.bind({
+                message: {
+                    success() {},
+                    error() {},
+                } as any,
+                notification: {} as any,
+                modal: {} as any,
+            });
+
+            const hostAdapter: HostAdapter = {
+                connect: () => () => {},
+                sendReady() {},
+                undo() {},
+                redo() {},
+                async mutateDocument() {
+                    return { success: true };
+                },
+                selectTree() {},
+                selectNode(target) {
+                    selectedNodeTargets.push(target);
+                },
+                requestFocusVariable() {},
+                sendRequestSetting() {},
+                sendBuild() {},
+                async validateNodeChecks() {
+                    return { diagnostics: [] };
+                },
+                async saveDocument() {
+                    return { success: true };
+                },
+                async revertDocument() {
+                    return { success: true };
+                },
+                async readFile() {
+                    return { content: "{}" };
+                },
+                async saveSubtree() {
+                    return { success: true };
+                },
+                async saveSubtreeAs() {
+                    return { savedPath: null };
+                },
+                log() {},
+            };
+            const graphAdapter: GraphAdapter = {
+                async mount() {},
+                unmount() {},
+                async render() {},
+                async applySelection(payload) {
+                    appliedSelectionKey = payload.selectedNodeKey;
+                },
+                async applyHighlights() {},
+                async applySearch() {},
+                async focusNode() {},
+                async restoreViewport() {},
+                getViewport: () => ({ zoom: 1, x: 0, y: 0 }),
+            };
+            const controller = createEditorController({
+                documentStore,
+                workspaceStore,
+                selectionStore,
+                hostAdapter,
+                graphAdapter,
+                appHooks,
+            });
+
+            const content = serializePersistedTree(createTestTree());
+            await controller.initFromHost({
+                filePath: "/tmp/main.json",
+                workdir: "/tmp",
+                content,
+                nodeDefs: [
+                    {
+                        name: "Sequence",
+                        type: "Composite",
+                        desc: "",
+                        status: ["success"],
+                    },
+                ],
+                allFiles: [],
+                settings: {
+                    checkExpr: true,
+                    subtreeEditable: true,
+                    language: "en",
+                    theme: "light",
+                },
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: content,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: { kind: "tree" },
+            });
+
+            await controller.selectNode("1");
+            assert.equal(selectedNodeTargets.length, 1);
+            assert.equal(selectionStore.getState().selectedNodeRef, null);
+            assert.equal(appliedSelectionKey, "1");
+
+            await controller.applyDocumentSnapshot({
+                content,
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: content,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: { kind: "tree" },
+                syncKind: "reload",
+            });
+
+            assert.equal(selectionStore.getState().selectedNodeRef, null);
+            assert.equal(selectionStore.getState().selectedTree?.filePath, "/tmp/main.json");
+            assert.equal(appliedSelectionKey, null);
         },
     },
     {
@@ -1428,6 +1900,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             });
 
             const mutations: DocumentMutation[] = [];
+            let selectedNodeTarget: NodeInstanceRef | null = null;
             const hostAdapter: HostAdapter = {
                 connect: () => () => {},
                 sendReady() {},
@@ -1438,7 +1911,9 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                     return { success: true };
                 },
                 selectTree() {},
-                selectNode() {},
+                selectNode(target) {
+                    selectedNodeTarget = target;
+                },
                 requestFocusVariable() {},
                 sendRequestSetting() {},
                 sendBuild() {},
@@ -1555,10 +2030,44 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
 
             try {
                 await controller.selectNode("1");
+                assert.ok(selectedNodeTarget);
+                await controller.applyDocumentSnapshot({
+                    content,
+                    documentSession: {
+                        dirty: false,
+                        historyIndex: 0,
+                        historyLength: 1,
+                        lastSavedSnapshot: content,
+                        alertReload: false,
+                        pendingExternalContent: null,
+                    },
+                    selection: {
+                        kind: "node",
+                        ref: selectedNodeTarget,
+                    },
+                    syncKind: "update",
+                });
                 await controller.insertNode();
                 await controller.pasteNode();
 
                 await controller.selectNode("2");
+                assert.ok(selectedNodeTarget);
+                await controller.applyDocumentSnapshot({
+                    content,
+                    documentSession: {
+                        dirty: false,
+                        historyIndex: 0,
+                        historyLength: 1,
+                        lastSavedSnapshot: content,
+                        alertReload: false,
+                        pendingExternalContent: null,
+                    },
+                    selection: {
+                        kind: "node",
+                        ref: selectedNodeTarget,
+                    },
+                    syncKind: "update",
+                });
                 await controller.replaceNode();
                 await controller.deleteNode();
 
@@ -1583,6 +2092,23 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 });
 
                 await controller.selectNode("3");
+                assert.ok(selectedNodeTarget);
+                await controller.applyDocumentSnapshot({
+                    content,
+                    documentSession: {
+                        dirty: false,
+                        historyIndex: 0,
+                        historyLength: 1,
+                        lastSavedSnapshot: content,
+                        alertReload: false,
+                        pendingExternalContent: null,
+                    },
+                    selection: {
+                        kind: "node",
+                        ref: selectedNodeTarget,
+                    },
+                    syncKind: "update",
+                });
                 await controller.saveSelectedAsSubtree();
             } finally {
                 if (previousNavigator) {
@@ -1628,6 +2154,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             });
 
             const mutations: DocumentMutation[] = [];
+            let selectedNodeTarget: NodeInstanceRef | null = null;
             const hostAdapter: HostAdapter = {
                 connect: () => () => {},
                 sendReady() {},
@@ -1638,7 +2165,9 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                     return { success: true };
                 },
                 selectTree() {},
-                selectNode() {},
+                selectNode(target) {
+                    selectedNodeTarget = target;
+                },
                 requestFocusVariable() {},
                 sendRequestSetting() {},
                 sendBuild() {},
@@ -1726,6 +2255,23 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             });
 
             await controller.selectNode("1");
+            assert.ok(selectedNodeTarget);
+            await controller.applyDocumentSnapshot({
+                content,
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: content,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: {
+                    kind: "node",
+                    ref: selectedNodeTarget,
+                },
+                syncKind: "update",
+            });
             const target = selectionStore.getState().selectedNodeRef;
             assert.ok(target);
             await controller.updateNode({

@@ -141,7 +141,8 @@ Shared Layer
 1. Inspector Sidebar 或主编辑器 canvas 发送 `mutateDocument`
 2. active editor session 先尝试在 host 侧直接 reduce 并提交权威 snapshot
 3. host 若无法提交，则直接返回权威错误，而不是转回主编辑器执行
-4. 普通 tree/node 选中通过 `selectTree` / `selectNode` 先进入 host；结构命令在 host 内部可先产出 reducer `nextSelection`，但对外只通过 committed `documentSnapshotChanged.selection` 更新 editor / sidebar projection
+4. 普通 tree/node 选中通过 `selectTree` / `selectNode` 先进入 host；editor 可保留 graph-only 本地视觉 hint，但 `selectionStore` 的共享选中 projection 只由 committed `documentSnapshotChanged.selection` 更新
+5. 结构命令在 host 内部可先产出 reducer `nextSelection`，但对外只通过 committed `documentSnapshotChanged.selection` 更新 editor / sidebar projection
 
 ### 外部文件变化
 

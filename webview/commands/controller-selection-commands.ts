@@ -18,25 +18,20 @@ export const createSelectionCommands = (
 
     const commands: Pick<EditorCommand, SelectionCommandKeys> = {
         async selectTree() {
-            const selection = deps.selectionStore.getState();
-            const alreadyTreeSelected =
-                selection.selectedTree?.filePath === deps.workspaceStore.getState().filePath &&
-                selection.selectedNodeKey === null &&
-                selection.selectedNodeRef === null &&
-                selection.selectedNodeSnapshot === null &&
-                selection.selectedNodeDef === null;
+            const shouldClearVariableFocus = runtime.clearActiveVariableFocus();
+            const needsVisualHint = runtime.getCurrentGraphSelectionKey() !== null;
+            deps.hostAdapter.selectTree();
 
-            if (alreadyTreeSelected && selection.activeVariableNames.length === 0) {
-                deps.hostAdapter.selectTree();
+            if (!shouldClearVariableFocus && !needsVisualHint) {
                 return;
             }
 
-            const shouldClearVariableFocus = runtime.selectTreeState({ clearVariableFocus: true });
-            deps.hostAdapter.selectTree();
+            if (needsVisualHint) {
+                await runtime.showSelectionVisualHint(null);
+            }
+
             if (shouldClearVariableFocus) {
                 await runtime.applyVisualState();
-            } else {
-                await deps.graphAdapter.applySelection({ selectedNodeKey: null });
             }
         },
 
@@ -54,27 +49,16 @@ export const createSelectionCommands = (
             }
 
             const shouldClearVariableFocus =
-                Boolean(opts?.clearVariableFocus) &&
-                deps.selectionStore.getState().activeVariableNames.length > 0;
-            const previous = deps.selectionStore.getState().selectedNodeKey;
-            if (previous === nodeKey && !opts?.force) {
-                deps.hostAdapter.selectNode(node.ref);
-                if (shouldClearVariableFocus) {
-                    runtime.clearActiveVariableFocus();
-                    await runtime.applyVisualState();
-                }
-                return;
-            }
-
-            runtime.selectResolvedNodeState(node.ref.instanceKey, {
-                clearVariableFocus: shouldClearVariableFocus,
-            });
+                Boolean(opts?.clearVariableFocus) && runtime.clearActiveVariableFocus();
+            const needsVisualHint = runtime.getCurrentGraphSelectionKey() !== node.ref.instanceKey;
             deps.hostAdapter.selectNode(node.ref);
+
+            if (needsVisualHint) {
+                await runtime.showSelectionVisualHint(node.ref.instanceKey);
+            }
 
             if (shouldClearVariableFocus) {
                 await runtime.applyVisualState();
-            } else {
-                await deps.graphAdapter.applySelection({ selectedNodeKey: node.ref.instanceKey });
             }
         },
 
