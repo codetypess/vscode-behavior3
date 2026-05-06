@@ -3,7 +3,7 @@
 Status: Implementing
 Date: 2026-05-06
 Scope: Migrate main-document authority from webview-local controller state to an extension-host document session, using staged intent-based save, undo/redo, mutation, and snapshot fanout flows
-Progress: Phase 1 host session shell landed; Phase 2 host intent routing is complete for save, undo, and redo; Phase 3 is complete for sidebar `updateTreeMeta` / `updateNode`; broader structural mutation intents are still in migration
+Progress: Phase 1 host session shell landed; Phase 2 host intent routing is complete for save, undo, and redo; Phase 3 is complete for sidebar `updateTreeMeta` / `updateNode`; Phase 4 is now in progress, with canvas structural commands entering host intent first while compatibility execution still remains behind host fallback
 
 ## 1. Context
 
@@ -59,7 +59,8 @@ As a result, a narrow Ctrl+S or pending-dot fix would treat symptoms but would n
 - `saveDocument`, `undo`, and `redo` now enter the host first from both the editor and the sidebar.
 - The host applies save/history transitions against its own document session state and rebroadcasts the committed result back to both webviews.
 - For sidebar `updateTreeMeta` and `updateNode`, the host now runs a shared reducer directly when it has enough context, and only falls back to the active editor compatibility executor when required context is temporarily missing.
-- Structural mutations are still mostly executed in the active editor runtime for canvas-side commands and unported reducer paths, then reflected back through content snapshots.
+- Canvas structural commands now enter the host first as `mutateDocument` intents instead of mutating locally before sending `update`.
+- Those canvas structural commands still rely on `executeDocumentMutation` as a compatibility executor because selection restore, clipboard-derived payloads, and subtree-save side effects are not yet fully host-owned.
 - Cross-view content sync still primarily uses content-bearing messages such as `update`, `documentUpdated`, and `documentReloaded`, rather than a normalized host session snapshot feed.
 
 ## 5. Proposed Behavior
@@ -91,6 +92,12 @@ Instead, the migration should proceed by introducing a host-side authoritative s
 4. final reducer ownership and protocol cleanup
 
 During the transition, compatibility shims are allowed, but only if the host session remains the place that decides what snapshot is committed and rebroadcast.
+
+For Phase 4 specifically, the first migration cut is allowed to:
+
+- let canvas commands enter the host first as `mutateDocument` intents
+- keep `executeDocumentMutation` as a compatibility executor for commands whose reducer, selection restore, clipboard data, or subtree-save side effects are not yet host-owned
+- separate "public command sends intent" from "local compat executor applies the mutation" so the fallback path does not recurse back into host intent dispatch
 
 ## 6. Design
 
@@ -229,11 +236,14 @@ Exit criteria:
 ### Phase 4. Canvas Mutation Intents
 
 - Route canvas-originated structural commands through the same host intent path.
+- Allow `mutateDocument` from the active editor webview, not only from external/sidebar views.
+- Keep the active editor compat executor only behind host-owned fallback, instead of letting canvas commands mutate locally first and then send `update`.
 - Retire "local mutation first, then send `update`" as the normal edit model.
 
 Exit criteria:
 
 - Every persisted-tree mutation first appears as a host-session intent before it becomes committed state.
+- Canvas `performDrop`, `pasteNode`, `insertNode`, `replaceNode`, `deleteNode`, and `saveSelectedAsSubtree` satisfy this rule even if some of them still temporarily execute through host-triggered compatibility fallback.
 
 ### Phase 5. Reducer Port and Cleanup
 

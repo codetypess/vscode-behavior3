@@ -29,7 +29,12 @@ import { parseWorkdirRelativeJsonPath } from "../webview/shared/protocol";
 import b3path from "../webview/shared/misc/b3path";
 import { loadRuntimeModule } from "../webview/shared/misc/b3build";
 import type { GraphAdapter } from "../webview/shared/graph-contracts";
-import type { HostAdapter, NodeDef, PersistedTreeModel } from "../webview/shared/contracts";
+import type {
+    DocumentMutation,
+    HostAdapter,
+    NodeDef,
+    PersistedTreeModel,
+} from "../webview/shared/contracts";
 
 const createTestTree = (): PersistedTreeModel => ({
     version: "2.0.0",
@@ -1125,6 +1130,205 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
 
             await controller.openSubtreePath("sub\\tree.json");
             assert.equal(readPath, "sub/tree.json");
+        },
+    },
+    {
+        name: "routes canvas structural commands through host mutation intents",
+        async run() {
+            const documentStore = createDocumentStore();
+            const workspaceStore = createWorkspaceStore();
+            const selectionStore = createSelectionStore();
+            const appHooks = createAppHooksStore();
+            appHooks.bind({
+                message: {
+                    success() {},
+                    error() {},
+                } as any,
+                notification: {} as any,
+                modal: {} as any,
+            });
+
+            const mutations: DocumentMutation[] = [];
+            let updateCount = 0;
+            const hostAdapter: HostAdapter = {
+                connect: () => () => {},
+                sendReady() {},
+                sendUpdate() {
+                    updateCount += 1;
+                },
+                undo() {},
+                redo() {},
+                async mutateDocument(mutation) {
+                    mutations.push(mutation);
+                    return { success: true };
+                },
+                sendDocumentMutationResult() {},
+                requestFocusVariable() {},
+                sendTreeSelected() {},
+                sendInspectorSelection() {},
+                sendRequestSetting() {},
+                sendBuild() {},
+                async validateNodeChecks() {
+                    return { diagnostics: [] };
+                },
+                async saveDocument() {
+                    return { success: true };
+                },
+                async revertDocument() {
+                    return { success: true };
+                },
+                async readFile() {
+                    return { content: "{}" };
+                },
+                async saveSubtree() {
+                    return { success: true };
+                },
+                async saveSubtreeAs() {
+                    return { savedPath: null };
+                },
+                log() {},
+            };
+            const graphAdapter: GraphAdapter = {
+                async mount() {},
+                unmount() {},
+                async render() {},
+                async applySelection() {},
+                async applyHighlights() {},
+                async applySearch() {},
+                async focusNode() {},
+                async restoreViewport() {},
+                getViewport: () => ({ zoom: 1, x: 0, y: 0 }),
+            };
+            const controller = createEditorController({
+                documentStore,
+                workspaceStore,
+                selectionStore,
+                hostAdapter,
+                graphAdapter,
+                appHooks,
+            });
+
+            const tree = createTestTree();
+            tree.root.children = [
+                {
+                    uuid: "child-a",
+                    id: "2",
+                    name: "ActionA",
+                },
+                {
+                    uuid: "child-b",
+                    id: "3",
+                    name: "ActionB",
+                },
+            ];
+            const content = serializePersistedTree(tree);
+            await controller.initFromHost({
+                filePath: "/tmp/main.json",
+                workdir: "/tmp",
+                content,
+                nodeDefs: [
+                    {
+                        name: "Sequence",
+                        type: "Composite",
+                        desc: "",
+                        status: ["success"],
+                    },
+                    {
+                        name: "ActionA",
+                        type: "Action",
+                        desc: "",
+                    },
+                    {
+                        name: "ActionB",
+                        type: "Action",
+                        desc: "",
+                    },
+                ],
+                allFiles: [],
+                settings: {
+                    checkExpr: true,
+                    subtreeEditable: true,
+                    language: "en",
+                    theme: "light",
+                },
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: content,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+            });
+
+            const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+            Object.defineProperty(globalThis, "navigator", {
+                configurable: true,
+                value: {
+                    clipboard: {
+                        async readText() {
+                            return JSON.stringify({
+                                uuid: "clip-root",
+                                id: "9",
+                                name: "ClipboardAction",
+                            });
+                        },
+                        async writeText() {},
+                    },
+                },
+            });
+
+            try {
+                await controller.selectNode("1");
+                await controller.insertNode();
+                await controller.pasteNode();
+
+                await controller.selectNode("2");
+                await controller.replaceNode();
+                await controller.deleteNode();
+
+                await controller.performDrop({
+                    source: {
+                        instanceKey: "2",
+                        displayId: "2",
+                        structuralStableId: "child-a",
+                        sourceStableId: "child-a",
+                        sourceTreePath: null,
+                        subtreeStack: [],
+                    },
+                    target: {
+                        instanceKey: "3",
+                        displayId: "3",
+                        structuralStableId: "child-b",
+                        sourceStableId: "child-b",
+                        sourceTreePath: null,
+                        subtreeStack: [],
+                    },
+                    position: "after",
+                });
+
+                await controller.selectNode("3");
+                await controller.saveSelectedAsSubtree();
+            } finally {
+                if (previousNavigator) {
+                    Object.defineProperty(globalThis, "navigator", previousNavigator);
+                } else {
+                    Reflect.deleteProperty(globalThis, "navigator");
+                }
+            }
+
+            assert.deepEqual(
+                mutations.map((mutation) => mutation.type),
+                [
+                    "insertNode",
+                    "pasteNode",
+                    "replaceNode",
+                    "deleteNode",
+                    "performDrop",
+                    "saveSelectedAsSubtree",
+                ]
+            );
+            assert.equal(updateCount, 0);
         },
     },
     {

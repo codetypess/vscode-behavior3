@@ -153,18 +153,19 @@
 - 为 `readFile` / `saveSubtree` / `saveDocument` / `mutateDocument` / `validateNodeChecks` 提供 Promise 风格 API
 - 对 host request 设置超时保护
 
-## Sidebar 代理规则
+## Host-First Mutation 规则
 
-Inspector Sidebar 当前不是直接改主树，而是：
+当前 `mutateDocument` 已经同时服务于 Inspector Sidebar 和主编辑器 canvas：
 
-1. 发送 `mutateDocument`
-2. 由宿主转发到当前激活主编辑器
-3. 主编辑器执行真正的 `EditorCommand`
-4. 宿主把结果和更新后的文档内容回传给侧栏
+1. webview 发送 `mutateDocument`
+2. 宿主优先尝试在 host 侧直接 reduce 并提交
+3. 只有当 host 还缺少 reducer、selection、clipboard 或 subtree-save 上下文时，才回退为 `executeDocumentMutation`
+4. 若走兼容回退，主编辑器执行真正的本地 mutation，再把结果回给宿主
 
 这条规则意味着：
 
-- 只有主编辑器 webview 会真正执行树结构修改
+- canvas / sidebar 都先表达 mutation intent，而不是直接拥有主文档权威提交权
+- `executeDocumentMutation` 是兼容执行链，不再是正常入口
 - 侧栏可以触发表单提交、保存、撤销、重做，但不拥有独立的 mutation runtime
 
 ## 验收标准

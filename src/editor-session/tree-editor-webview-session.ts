@@ -27,6 +27,7 @@ import type {
 import type { EditNode } from "../../webview/shared/contracts";
 import {
     formatDocumentMutationReducerError,
+    isReducibleDocumentMutation,
     reduceDocumentMutation,
 } from "../../webview/shared/document-mutation-reducer";
 import { isDocumentVersionNewer } from "../../webview/shared/document-version";
@@ -761,18 +762,8 @@ export async function resolveTreeEditorSession({
     const handleMutateDocumentMessage = async (
         msg: Extract<EditorToHostMessage, { type: "mutateDocument" }>,
         reply: HostMessageSink = postMessage,
-        source: MessageSource = "editor"
+        _source: MessageSource = "editor"
     ): Promise<void> => {
-        if (source === "editor") {
-            await reply({
-                type: "mutateDocumentResult",
-                requestId: msg.requestId,
-                success: false,
-                error: "Document mutation proxy is only available to external views.",
-            } satisfies HostToEditorMessage);
-            return;
-        }
-
         await enqueueMainDocumentOperation(async () => {
             const editBlockedMessage = blockEditingForNewerFile();
             if (editBlockedMessage) {
@@ -782,6 +773,11 @@ export async function resolveTreeEditorSession({
                     success: false,
                     error: editBlockedMessage,
                 } satisfies HostToEditorMessage);
+                return;
+            }
+
+            if (!isReducibleDocumentMutation(msg.mutation)) {
+                await forwardDocumentMutationToEditor(msg, reply);
                 return;
             }
 

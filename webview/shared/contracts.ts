@@ -183,6 +183,21 @@ export interface DropIntent {
     position: "before" | "after" | "child";
 }
 
+export interface TargetNodeMutationInput {
+    target: NodeInstanceRef;
+}
+
+export interface ClipboardNodeMutationInput {
+    target: NodeInstanceRef;
+    snapshot: PersistedNodeModel;
+}
+
+export interface SaveSelectedAsSubtreeInput {
+    target: NodeInstanceRef;
+    subtreeRoot: PersistedNodeModel;
+    suggestedBaseName: string;
+}
+
 export interface ReadFileResponse {
     content: string | null;
 }
@@ -227,7 +242,13 @@ export interface ValidateNodeChecksResponse {
 
 export type DocumentMutation =
     | { type: "updateTreeMeta"; payload: UpdateTreeMetaInput }
-    | { type: "updateNode"; payload: UpdateNodeInput };
+    | { type: "updateNode"; payload: UpdateNodeInput }
+    | { type: "performDrop"; payload: DropIntent }
+    | { type: "pasteNode"; payload: ClipboardNodeMutationInput }
+    | { type: "insertNode"; payload: TargetNodeMutationInput }
+    | { type: "replaceNode"; payload: ClipboardNodeMutationInput }
+    | { type: "deleteNode"; payload: TargetNodeMutationInput }
+    | { type: "saveSelectedAsSubtree"; payload: SaveSelectedAsSubtreeInput };
 
 export interface DocumentMutationResponse {
     success: boolean;
@@ -414,6 +435,8 @@ export interface EditorCommand {
         opts?: { force?: boolean; clearVariableFocus?: boolean }
     ): Promise<void>;
     focusVariable(names: string[]): Promise<void>;
+    /** Compatibility-only executor for host-triggered mutation fallback. */
+    executeDocumentMutationCompat(mutation: DocumentMutation): Promise<string | undefined>;
     updateTreeMeta(payload: UpdateTreeMetaInput): Promise<void>;
     updateNode(payload: UpdateNodeInput): Promise<void>;
     performDrop(intent: DropIntent): Promise<void>;

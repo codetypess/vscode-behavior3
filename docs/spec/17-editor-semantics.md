@@ -176,6 +176,8 @@
 
 ### `performDrop(intent)`
 
+- canvas 先发送 `mutateDocument(performDrop)` intent 给宿主
+- 宿主当前会优先把它视为 host-first mutation；若缺少直接提交所需上下文，再回退为 `executeDocumentMutation`
 - 拒绝拖动 subtree 内部节点
 - 拒绝向 subtree link 直接添加 child
 - 拒绝移动根节点、围绕根节点 before/after、移动到自己的后代下
@@ -189,12 +191,14 @@
 
 ### `pasteNode()`
 
+- canvas 先发送 `mutateDocument(pasteNode)`，并携带剪贴板节点快照
 - 从剪贴板读取 persisted snapshot
 - 为整棵粘贴子树分配新的稳定 id
 - 追加到当前节点 children
 
 ### `insertNode()`
 
+- canvas 先发送 `mutateDocument(insertNode)`
 - 在当前节点下追加一个最小节点：
   - `uuid`
   - `id: ""`
@@ -202,12 +206,14 @@
 
 ### `replaceNode()`
 
+- canvas 先发送 `mutateDocument(replaceNode)`，并携带剪贴板节点快照
 - 用剪贴板节点替换当前主树节点
 - 保留当前节点根部的 `uuid`
 - 子节点重新分配稳定 id
 
 ### `deleteNode()`
 
+- canvas 先发送 `mutateDocument(deleteNode)`
 - 不能删除根节点
 - 删除后默认选中父节点
 
@@ -255,6 +261,7 @@
 
 ### `saveSelectedAsSubtree()`
 
+- canvas 先发送 `mutateDocument(saveSelectedAsSubtree)`，并携带当前子树快照与建议文件名
 - 将当前选中子树序列化为新的 `PersistedTreeModel`
 - 通过宿主 `saveSubtreeAs` 选择路径并写盘
 - 成功后将主树中的当前节点替换成 subtree link

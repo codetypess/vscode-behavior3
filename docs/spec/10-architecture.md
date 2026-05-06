@@ -135,12 +135,12 @@ Shared Layer
 2. extension-host session 在主文档操作队列内执行对应的 save 或 history 迁移
 3. 宿主以 `documentUpdated` 或 `documentReloaded` 加 `documentSessionChanged` 回推权威结果
 
-### 侧栏代理编辑
+### Host-First Mutation Intent
 
-1. Inspector Sidebar 发送 `mutateDocument`
+1. Inspector Sidebar 或主编辑器 canvas 发送 `mutateDocument`
 2. active editor session 先尝试在 host 侧直接 reduce 并提交权威 snapshot
-3. 若 host 当前缺少足够上下文，才回退为 `executeDocumentMutation`
-4. 宿主把提交结果返回侧栏，并同步最新内容/selection
+3. 若 host 当前缺少 reducer、selection、clipboard 或 subtree-save 所需上下文，才回退为 `executeDocumentMutation`
+4. 若走兼容回退，主编辑器执行 mutation 后把结果回给宿主，再由宿主回复发起方并同步最新内容/selection
 
 ### 外部文件变化
 
@@ -162,7 +162,7 @@ Shared Layer
 3. 宿主消息兼容、路径归一化和 IO 细节只停留在 host/session/adapter 层。
 4. 任何 persisted tree 写入都必须能定位到一个明确的 command。
 5. save、undo、redo 必须先进入 extension-host session，再广播回 webview。
-6. sidebar 的主文档 mutation intent 必须先进入 extension-host session。
+6. canvas / sidebar 的主文档 mutation intent 必须先进入 extension-host session。
 7. 与项目根目录、build、nodeDefs、check scripts 相关的能力只在 extension-host 侧实现。
 
 ## 当前目录落点

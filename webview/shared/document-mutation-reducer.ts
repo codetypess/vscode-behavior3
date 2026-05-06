@@ -23,6 +23,11 @@ export type DocumentMutationReducerResult =
     | { status: "changed"; tree: PersistedTreeModel; rebuildGraph: boolean }
     | { status: "error"; error: DocumentMutationReducerError };
 
+export type ReducibleDocumentMutation = Extract<
+    DocumentMutation,
+    { type: "updateTreeMeta" | "updateNode" }
+>;
+
 interface DocumentMutationReducerContext {
     tree: PersistedTreeModel;
     nodeDefs: NodeDef[];
@@ -55,7 +60,7 @@ const matchesSelectedNodeTarget = (selectedNode: EditNode, payload: UpdateNodeIn
 };
 
 const reduceUpdateTreeMeta = (
-    mutation: Extract<DocumentMutation, { type: "updateTreeMeta" }>,
+    mutation: Extract<ReducibleDocumentMutation, { type: "updateTreeMeta" }>,
     tree: PersistedTreeModel
 ): DocumentMutationReducerResult => {
     const { payload } = mutation;
@@ -108,7 +113,7 @@ const reduceUpdateTreeMeta = (
 };
 
 const reduceUpdateNode = (
-    mutation: Extract<DocumentMutation, { type: "updateNode" }>,
+    mutation: Extract<ReducibleDocumentMutation, { type: "updateNode" }>,
     context: DocumentMutationReducerContext
 ): DocumentMutationReducerResult => {
     const selectedNode = context.selectedNode;
@@ -257,8 +262,13 @@ const reduceUpdateNode = (
     };
 };
 
+export const isReducibleDocumentMutation = (
+    mutation: DocumentMutation
+): mutation is ReducibleDocumentMutation =>
+    mutation.type === "updateTreeMeta" || mutation.type === "updateNode";
+
 export const reduceDocumentMutation = (
-    mutation: DocumentMutation,
+    mutation: ReducibleDocumentMutation,
     context: DocumentMutationReducerContext
 ): DocumentMutationReducerResult => {
     switch (mutation.type) {

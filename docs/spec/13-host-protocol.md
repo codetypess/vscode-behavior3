@@ -173,12 +173,20 @@
 
 ### DocumentMutation
 
-当前仅有两种代理 mutation：
+当前 `mutation` intent 包含两组：
 
-- `updateTreeMeta`
-- `updateNode`
+1. shared reducer 已直接支持的 mutation：
+   - `updateTreeMeta`
+   - `updateNode`
+2. 已先迁入 host intent，但仍可能走兼容执行链的结构命令：
+   - `performDrop`
+   - `pasteNode`
+   - `insertNode`
+   - `replaceNode`
+   - `deleteNode`
+   - `saveSelectedAsSubtree`
 
-它们用于 Inspector Sidebar 代理主编辑器修改。
+这些 intent 既可以来自 Inspector Sidebar，也可以来自主编辑器 canvas。
 
 补充：
 
@@ -204,16 +212,16 @@
 - `saveDocument`
 - `revertDocument`
 - 外部主文件 reload
-- 侧栏代理 mutation 回写
+- host-first mutation 回写
 
 目的是避免 watcher 与多来源消息交错，把文档推进到不一致状态。
 
-### 3. Sidebar 代理
+### 3. Host-First Mutation Intent
 
-- Sidebar 不能直接执行主文档 mutation
+- Sidebar 和 canvas 都不能绕过宿主直接提交主文档 mutation
 - 宿主收到 `mutateDocument` 后优先尝试在 host 侧直接 reduce 并提交
-- 只有在 host 当前缺少必要上下文时，才回退为 `executeDocumentMutation`
-- 若走兼容回退，主编辑器执行后再把结果回给宿主，再由宿主回复 sidebar
+- 只有在 host 当前缺少 reducer、selection、clipboard 或 subtree-save 所需上下文时，才回退为 `executeDocumentMutation`
+- 若走兼容回退，主编辑器执行后再把结果回给宿主，再由宿主回复发起方
 
 ### 4. 请求超时
 
