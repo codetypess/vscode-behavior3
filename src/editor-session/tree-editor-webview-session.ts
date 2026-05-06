@@ -25,10 +25,15 @@ import type {
     NodeDef,
 } from "../../webview/shared/message-protocol";
 import type { EditNode } from "../../webview/shared/contracts";
+import {
+    formatDocumentMutationReducerError,
+    reduceDocumentMutation,
+} from "../../webview/shared/document-mutation-reducer";
 import { isDocumentVersionNewer } from "../../webview/shared/document-version";
 import { parseWorkdirRelativeJsonPath } from "../../webview/shared/protocol";
 import { stringifyJson } from "../../webview/shared/misc/stringify";
 import { parseWorkspaceModelContent } from "../../webview/shared/schema";
+import { parsePersistedTreeContent, serializePersistedTree } from "../../webview/shared/tree";
 import b3path from "../../webview/shared/misc/b3path";
 import { setFs } from "../../webview/shared/misc/b3fs";
 import {
@@ -731,21 +736,10 @@ export async function resolveTreeEditorSession({
         notifyInspectorSessionUpdate();
     };
 
-    const handleMutateDocumentMessage = async (
+    const forwardDocumentMutationToEditor = async (
         msg: Extract<EditorToHostMessage, { type: "mutateDocument" }>,
-        reply: HostMessageSink = postMessage,
-        source: MessageSource = "editor"
+        reply: HostMessageSink = postMessage
     ): Promise<void> => {
-        if (source === "editor") {
-            await reply({
-                type: "mutateDocumentResult",
-                requestId: msg.requestId,
-                success: false,
-                error: "Document mutation proxy is only available to external views.",
-            } satisfies HostToEditorMessage);
-            return;
-        }
-
         pendingDocumentMutationReplies.set(msg.requestId, reply);
         const delivered = await postMessage({
             type: "executeDocumentMutation",
@@ -762,6 +756,101 @@ export async function resolveTreeEditorSession({
                 error: "Active Behavior3 editor is not available.",
             } satisfies HostToEditorMessage);
         }
+    };
+
+    const handleMutateDocumentMessage = async (
+        msg: Extract<EditorToHostMessage, { type: "mutateDocument" }>,
+        reply: HostMessageSink = postMessage,
+        source: MessageSource = "editor"
+    ): Promise<void> => {
+        if (source === "editor") {
+            await reply({
+                type: "mutateDocumentResult",
+                requestId: msg.requestId,
+                success: false,
+                error: "Document mutation proxy is only available to external views.",
+            } satisfies HostToEditorMessage);
+            return;
+        }
+
+        await enqueueMainDocumentOperation(async () => {
+            const editBlockedMessage = blockEditingForNewerFile();
+            if (editBlockedMessage) {
+                await reply({
+                    type: "mutateDocumentResult",
+                    requestId: msg.requestId,
+                    success: false,
+                    error: editBlockedMessage,
+                } satisfies HostToEditorMessage);
+                return;
+            }
+
+            let reduced: ReturnType<typeof reduceDocumentMutation>;
+            try {
+                const currentTree = parsePersistedTreeContent(document.content, document.uri.fsPath);
+                reduced = reduceDocumentMutation(msg.mutation, {
+                    tree: currentTree,
+                    nodeDefs: state.nodeDefs,
+                    selectedNode: state.selectedInspectorNode,
+                });
+            } catch (error) {
+                await reply({
+                    type: "mutateDocumentResult",
+                    requestId: msg.requestId,
+                    success: false,
+                    error: String(error),
+                } satisfies HostToEditorMessage);
+                return;
+            }
+
+            if (reduced.status === "error") {
+                const shouldFallbackToEditor =
+                    reduced.error.code === "missing-selected-node" ||
+                    reduced.error.code === "selected-node-mismatch" ||
+                    reduced.error.code === "missing-target-node" ||
+                    reduced.error.code === "missing-subtree-original" ||
+                    reduced.error.code === "missing-detached-subtree-root";
+
+                if (shouldFallbackToEditor) {
+                    await forwardDocumentMutationToEditor(msg, reply);
+                    return;
+                }
+
+                await reply({
+                    type: "mutateDocumentResult",
+                    requestId: msg.requestId,
+                    success: false,
+                    error: formatDocumentMutationReducerError(
+                        reduced.error,
+                        state.currentSettings.language
+                    ),
+                } satisfies HostToEditorMessage);
+                return;
+            }
+
+            if (reduced.status === "noop") {
+                await reply({
+                    type: "mutateDocumentResult",
+                    requestId: msg.requestId,
+                    success: true,
+                } satisfies HostToEditorMessage);
+                return;
+            }
+
+            const changed = applyContentFromWebview(serializePersistedTree(reduced.tree));
+            if (changed) {
+                await postMessage({
+                    type: "documentUpdated",
+                    content: document.content,
+                } satisfies HostToEditorMessage);
+            }
+
+            await reply({
+                type: "mutateDocumentResult",
+                requestId: msg.requestId,
+                success: true,
+            } satisfies HostToEditorMessage);
+        });
     };
 
     const handleDocumentMutationResultMessage = async (

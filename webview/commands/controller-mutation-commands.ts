@@ -1,5 +1,4 @@
 import { VERSION } from "../shared/misc/b3type";
-import { computeNodeOverride } from "../shared/misc/b3util";
 import i18n from "../shared/misc/i18n";
 import { stringifyJson } from "../shared/misc/stringify";
 import { generateUuid } from "../shared/stable-id";
@@ -7,12 +6,16 @@ import type {
     DropIntent,
     DocumentMutation,
     EditorCommand,
-    NodeDef,
     PersistedNodeModel,
     PersistedTreeModel,
     UpdateNodeInput,
     UpdateTreeMetaInput,
 } from "../shared/contracts";
+import {
+    type DocumentMutationReducerError,
+    formatDocumentMutationReducerError,
+    reduceDocumentMutation,
+} from "../shared/document-mutation-reducer";
 import { parseWorkdirRelativeJsonPath } from "../shared/protocol";
 import {
     clonePersistedNode,
@@ -20,7 +23,7 @@ import {
     findPersistedNodeByStableId,
     serializePersistedTree,
 } from "../shared/tree";
-import { cloneVars, isJsonEqual, type ControllerRuntime } from "./controller-runtime";
+import { type ControllerRuntime } from "./controller-runtime";
 
 type MutationCommandKeys =
     | "updateTreeMeta"
@@ -40,6 +43,7 @@ export const createMutationCommands = (
 ): Pick<EditorCommand, MutationCommandKeys> => {
     const { deps } = runtime;
     const isInspectorSidebar = () => window.__B3_WEBVIEW_KIND__ === "inspector-sidebar";
+    const getLanguage = () => deps.workspaceStore.getState().settings.language;
 
     const forwardDocumentMutation = async (mutation: DocumentMutation): Promise<boolean> => {
         const response = await deps.hostAdapter.mutateDocument(mutation);
@@ -48,6 +52,32 @@ export const createMutationCommands = (
             return false;
         }
         return true;
+    };
+
+    const notifyDocumentMutationError = (error: DocumentMutationReducerError): void => {
+        if (error.code === "invalid-json-path") {
+            runtime.notifyError(i18n.t("validation.invalidJsonPath", { path: error.path }));
+            return;
+        }
+
+        runtime.notifyError(formatDocumentMutationReducerError(error, getLanguage()));
+    };
+
+    const buildUpdateNodePayload = (payload: UpdateNodeInput): UpdateNodeInput => {
+        const selectedSnapshot = deps.selectionStore.getState().selectedNodeSnapshot;
+        const shouldDetachSubtree = Boolean(selectedSnapshot?.data.path) && !payload.data.path;
+        if (!shouldDetachSubtree) {
+            return payload;
+        }
+
+        const detachedSubtreeRoot = runtime.buildPersistedNodeFromResolved(payload.target.instanceKey, {
+            clearPathOnRoot: true,
+        });
+
+        return {
+            ...payload,
+            detachedSubtreeRoot: detachedSubtreeRoot ?? undefined,
+        };
     };
 
     const openSubtreePath = async (path: string) => {
@@ -65,199 +95,82 @@ export const createMutationCommands = (
 
     return {
         async updateTreeMeta(payload: UpdateTreeMetaInput) {
-            if (isInspectorSidebar()) {
-                for (const rawPath of payload.variables.imports) {
-                    if (!parseWorkdirRelativeJsonPath(rawPath)) {
-                        runtime.notifyError(
-                            i18n.t("validation.invalidJsonPath", { path: rawPath })
-                        );
-                        return;
-                    }
-                }
-                await forwardDocumentMutation({ type: "updateTreeMeta", payload });
-                return;
-            }
-
             const tree = deps.documentStore.getState().persistedTree;
             if (!tree) {
                 return;
             }
-            const nextDesc = payload.desc?.trim() || undefined;
-            const nextPrefix = payload.prefix ?? "";
-            const nextExport = payload.export !== false;
-            const nextGroup = [...payload.group];
-            const nextVars = cloneVars(payload.variables.locals).sort((a, b) =>
-                a.name.localeCompare(b.name)
-            );
-            const nextImportRefs: NonNullable<typeof tree.variables>["imports"] = [];
-            for (const rawPath of payload.variables.imports) {
-                const parsedPath = parseWorkdirRelativeJsonPath(rawPath);
-                if (!parsedPath) {
-                    runtime.notifyError(i18n.t("validation.invalidJsonPath", { path: rawPath }));
-                    return;
-                }
-                nextImportRefs.push(parsedPath);
-            }
-            nextImportRefs.sort((a, b) => a.localeCompare(b));
+            const mutation: DocumentMutation = { type: "updateTreeMeta", payload };
+            const result = reduceDocumentMutation(mutation, {
+                tree,
+                nodeDefs: deps.workspaceStore.getState().nodeDefs,
+            });
 
-            if (
-                tree.desc === nextDesc &&
-                tree.prefix === nextPrefix &&
-                (tree.export !== false) === nextExport &&
-                isJsonEqual(tree.group, nextGroup) &&
-                isJsonEqual(tree.variables.locals, nextVars) &&
-                isJsonEqual(tree.variables.imports, nextImportRefs)
-            ) {
+            if (result.status === "error") {
+                notifyDocumentMutationError(result.error);
                 return;
             }
 
-            const nextTree = clonePersistedTree(tree);
-            nextTree.desc = nextDesc;
-            nextTree.prefix = nextPrefix;
-            nextTree.export = nextExport;
-            nextTree.group = nextGroup;
-            nextTree.variables = {
-                imports: nextImportRefs,
-                locals: nextVars,
-            };
-            await runtime.commitTreeMutation(nextTree, {
+            if (isInspectorSidebar()) {
+                await forwardDocumentMutation(mutation);
+                return;
+            }
+
+            if (result.status === "noop") {
+                return;
+            }
+
+            await runtime.commitTreeMutation(result.tree, {
                 syncSubtreeSources: false,
-                rebuildGraph: tree.prefix !== nextPrefix || !isJsonEqual(tree.group, nextGroup),
+                rebuildGraph: result.rebuildGraph,
                 preserveSelection: true,
                 applyVisualState: true,
             });
         },
 
         async updateNode(payload: UpdateNodeInput) {
-            if (isInspectorSidebar()) {
-                const rawPath = payload.data.path?.trim();
-                if (rawPath && !parseWorkdirRelativeJsonPath(rawPath)) {
-                    runtime.notifyError(i18n.t("validation.invalidJsonPath", { path: rawPath }));
-                    return;
-                }
-                await forwardDocumentMutation({ type: "updateNode", payload });
-                return;
-            }
-
             const currentTree = deps.documentStore.getState().persistedTree;
             const selectedSnapshot = deps.selectionStore.getState().selectedNodeSnapshot;
-            const resolvedNode =
-                runtime.getResolvedGraph()?.nodesByInstanceKey[payload.target.instanceKey] ?? null;
-            if (!currentTree || !resolvedNode) {
+            if (!currentTree) {
                 return;
             }
 
-            const nextName =
-                String(payload.data.name ?? resolvedNode.name).trim() || resolvedNode.name;
-            const nextNodeDef = runtime.getNodeDef(nextName);
-            const nextNodeDefDesc = nextNodeDef?.desc?.trim() || undefined;
-            const nextDescRaw = payload.data.desc?.trim() || undefined;
-            const nextDesc = nextDescRaw === nextNodeDefDesc ? undefined : nextDescRaw;
-            const rawNextPath = payload.data.path?.trim() || undefined;
-            let nextPath: PersistedNodeModel["path"];
-            if (rawNextPath) {
-                const parsedPath = parseWorkdirRelativeJsonPath(rawNextPath);
-                if (!parsedPath) {
-                    runtime.notifyError(
-                        i18n.t("validation.invalidJsonPath", { path: rawNextPath })
-                    );
-                    return;
-                }
-                nextPath = parsedPath;
-            }
-            const nextDebug = payload.data.debug ? true : undefined;
-            const nextDisabled = payload.data.disabled ? true : undefined;
-            const nextInput = payload.data.input;
-            const nextOutput = payload.data.output;
-            const nextArgs = payload.data.args;
+            const mutation: DocumentMutation = {
+                type: "updateNode",
+                payload: buildUpdateNodePayload(payload),
+            };
+            const result = reduceDocumentMutation(mutation, {
+                tree: currentTree,
+                nodeDefs: deps.workspaceStore.getState().nodeDefs,
+                selectedNode: selectedSnapshot,
+            });
 
-            if (
-                nextName === resolvedNode.name &&
-                nextDesc === resolvedNode.desc &&
-                nextPath === resolvedNode.path &&
-                nextDebug === resolvedNode.debug &&
-                nextDisabled === resolvedNode.disabled &&
-                isJsonEqual(nextInput ?? [], resolvedNode.input ?? []) &&
-                isJsonEqual(nextOutput ?? [], resolvedNode.output ?? []) &&
-                isJsonEqual(nextArgs ?? {}, resolvedNode.args ?? {})
-            ) {
-                return;
-            }
-
-            const tree = clonePersistedTree(currentTree);
-            if (resolvedNode.subtreeNode) {
-                const original = resolvedNode.subtreeOriginal;
-                if (!original) {
+            if (result.status === "error") {
+                if (
+                    isInspectorSidebar() &&
+                    (result.error.code === "missing-selected-node" ||
+                        result.error.code === "selected-node-mismatch" ||
+                        result.error.code === "missing-target-node" ||
+                        result.error.code === "missing-subtree-original" ||
+                        result.error.code === "missing-detached-subtree-root")
+                ) {
+                    await forwardDocumentMutation(mutation);
                     return;
                 }
 
-                const editedNode: PersistedNodeModel = {
-                    uuid: resolvedNode.ref.sourceStableId,
-                    id: resolvedNode.ref.displayId,
-                    name: nextName,
-                    desc: nextDesc,
-                    args: nextArgs,
-                    input: nextInput,
-                    output: nextOutput,
-                    debug: nextDebug,
-                    disabled: nextDisabled,
-                    path: resolvedNode.path,
-                };
-
-                const diff = computeNodeOverride(
-                    original as never,
-                    editedNode as never,
-                    { args: nextNodeDef?.args } as { args?: NodeDef["args"] } as never
-                );
-
-                if (diff) {
-                    tree.overrides[payload.target.sourceStableId] = diff;
-                } else {
-                    delete tree.overrides[payload.target.sourceStableId];
-                }
-
-                await runtime.commitTreeMutation(tree);
+                notifyDocumentMutationError(result.error);
                 return;
             }
 
-            const node = findPersistedNodeByStableId(tree.root, payload.target.structuralStableId);
-            if (!node) {
+            if (isInspectorSidebar()) {
+                await forwardDocumentMutation(mutation);
                 return;
             }
 
-            const isDetachingSubtree = Boolean(selectedSnapshot?.data.path) && !payload.data.path;
-            if (isDetachingSubtree) {
-                const detached = runtime.buildPersistedNodeFromResolved(
-                    payload.target.instanceKey,
-                    {
-                        clearPathOnRoot: true,
-                    }
-                );
-                if (detached) {
-                    detached.name = nextName;
-                    detached.desc = nextDesc;
-                    detached.args = nextArgs;
-                    detached.input = nextInput;
-                    detached.output = nextOutput;
-                    detached.debug = nextDebug;
-                    detached.disabled = nextDisabled;
-                    runtime.overwritePersistedNode(node, detached);
-                }
-            } else {
-                node.name = nextName;
-                node.desc = nextDesc;
-                node.args = nextArgs;
-                node.input = nextInput;
-                node.output = nextOutput;
-                node.debug = nextDebug;
-                node.disabled = nextDisabled;
-                node.path = nextPath;
-                if (nextPath && nextPath !== selectedSnapshot?.data.path) {
-                    node.children = undefined;
-                }
+            if (result.status === "noop") {
+                return;
             }
 
-            await runtime.commitTreeMutation(tree);
+            await runtime.commitTreeMutation(result.tree);
         },
 
         async performDrop(intent: DropIntent) {

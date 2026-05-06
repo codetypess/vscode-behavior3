@@ -174,6 +174,7 @@ export interface UpdateNodeInput {
         disabled?: boolean;
         path?: string;
     };
+    detachedSubtreeRoot?: PersistedNodeModel;
 }
 
 export interface DropIntent {

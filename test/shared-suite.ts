@@ -12,6 +12,7 @@ import { DocumentSessionState } from "../src/editor-session/document-session-sta
 import { handleNativeWheelZoom } from "../webview/adapters/graph/g6-wheel-zoom";
 import { buildResolvedGraphModel } from "../webview/domain/graph-selectors";
 import { collectResolvedNodeDiagnostics } from "../webview/domain/tree-validation";
+import { reduceDocumentMutation } from "../webview/shared/document-mutation-reducer";
 import {
     normalizeNodeDefCollection,
     parseNodeDefsContent,
@@ -28,7 +29,27 @@ import { parseWorkdirRelativeJsonPath } from "../webview/shared/protocol";
 import b3path from "../webview/shared/misc/b3path";
 import { loadRuntimeModule } from "../webview/shared/misc/b3build";
 import type { GraphAdapter } from "../webview/shared/graph-contracts";
-import type { HostAdapter } from "../webview/shared/contracts";
+import type { HostAdapter, NodeDef, PersistedTreeModel } from "../webview/shared/contracts";
+
+const createTestTree = (): PersistedTreeModel => ({
+    version: "2.0.0",
+    name: "main",
+    prefix: "",
+    export: true,
+    group: [],
+    variables: {
+        imports: [],
+        locals: [],
+    },
+    custom: {},
+    overrides: {},
+    root: {
+        uuid: "root",
+        id: "1",
+        name: "Sequence",
+        children: [],
+    },
+});
 
 const tests: Array<{ name: string; run(): Promise<void> | void }> = [
     {
@@ -151,6 +172,200 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 alertReload: false,
                 pendingExternalContent: null,
             });
+        },
+    },
+    {
+        name: "reduces tree meta mutations in shared host reducer",
+        run() {
+            const tree = createTestTree();
+            const result = reduceDocumentMutation(
+                {
+                    type: "updateTreeMeta",
+                    payload: {
+                        desc: "updated",
+                        prefix: "BT",
+                        export: true,
+                        group: ["combat"],
+                        variables: {
+                            imports: ["vars/b.json", "vars/a.json"],
+                            locals: [
+                                { name: "zeta", desc: "Z" },
+                                { name: "alpha", desc: "A" },
+                            ],
+                        },
+                    },
+                },
+                {
+                    tree,
+                    nodeDefs: [],
+                }
+            );
+
+            assert.equal(result.status, "changed");
+            if (result.status !== "changed") {
+                return;
+            }
+
+            assert.equal(result.rebuildGraph, true);
+            assert.deepEqual(result.tree.variables.imports, ["vars/a.json", "vars/b.json"]);
+            assert.deepEqual(
+                result.tree.variables.locals.map((entry) => entry.name),
+                ["alpha", "zeta"]
+            );
+        },
+    },
+    {
+        name: "reduces subtree override node mutations in shared host reducer",
+        run() {
+            const tree = createTestTree();
+            const nodeDefs: NodeDef[] = [
+                {
+                    name: "Wait",
+                    type: "Action",
+                    desc: "",
+                    args: [{ name: "time", type: "int", desc: "" }],
+                },
+            ];
+
+            const result = reduceDocumentMutation(
+                {
+                    type: "updateNode",
+                    payload: {
+                        target: {
+                            instanceKey: "node-1",
+                            displayId: "2",
+                            structuralStableId: "sub-node",
+                            sourceStableId: "sub-node",
+                            sourceTreePath: "subtree/child.json" as any,
+                            subtreeStack: [],
+                        },
+                        data: {
+                            name: "Wait",
+                            args: { time: 2 },
+                        },
+                    },
+                },
+                {
+                    tree,
+                    nodeDefs,
+                    selectedNode: {
+                        ref: {
+                            instanceKey: "node-1",
+                            displayId: "2",
+                            structuralStableId: "sub-node",
+                            sourceStableId: "sub-node",
+                            sourceTreePath: "subtree/child.json" as any,
+                            subtreeStack: [],
+                        },
+                        data: {
+                            uuid: "sub-node",
+                            id: "2",
+                            name: "Wait",
+                            args: { time: 1 },
+                        },
+                        prefix: "",
+                        activeChildCount: 0,
+                        disabled: false,
+                        subtreeNode: true,
+                        subtreeEditable: true,
+                        subtreeOriginal: {
+                            uuid: "sub-node",
+                            id: "2",
+                            name: "Wait",
+                            args: { time: 1 },
+                        },
+                    },
+                }
+            );
+
+            assert.equal(result.status, "changed");
+            if (result.status !== "changed") {
+                return;
+            }
+
+            assert.deepEqual(result.tree.overrides["sub-node"], {
+                args: { time: 2 },
+            });
+        },
+    },
+    {
+        name: "reduces subtree detach mutations in shared host reducer",
+        run() {
+            const tree = createTestTree();
+            tree.root.children = [
+                {
+                    uuid: "sub-root",
+                    id: "2",
+                    name: "SubtreeRef",
+                    path: "subtree/child.json" as any,
+                },
+            ];
+
+            const result = reduceDocumentMutation(
+                {
+                    type: "updateNode",
+                    payload: {
+                        target: {
+                            instanceKey: "node-1",
+                            displayId: "2",
+                            structuralStableId: "sub-root",
+                            sourceStableId: "sub-root",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                        data: {
+                            name: "Sequence",
+                        },
+                        detachedSubtreeRoot: {
+                            uuid: "sub-root",
+                            id: "2",
+                            name: "Sequence",
+                            children: [
+                                {
+                                    uuid: "leaf-1",
+                                    id: "3",
+                                    name: "ActionA",
+                                },
+                            ],
+                        },
+                    },
+                },
+                {
+                    tree,
+                    nodeDefs: [],
+                    selectedNode: {
+                        ref: {
+                            instanceKey: "node-1",
+                            displayId: "2",
+                            structuralStableId: "sub-root",
+                            sourceStableId: "sub-root",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                        data: {
+                            uuid: "sub-root",
+                            id: "2",
+                            name: "SubtreeRef",
+                            path: "subtree/child.json" as any,
+                        },
+                        prefix: "",
+                        activeChildCount: 1,
+                        disabled: false,
+                        subtreeNode: false,
+                        subtreeEditable: true,
+                    },
+                }
+            );
+
+            assert.equal(result.status, "changed");
+            if (result.status !== "changed") {
+                return;
+            }
+
+            const detached = result.tree.root.children?.[0];
+            assert.equal(detached?.name, "Sequence");
+            assert.equal(detached?.path, undefined);
+            assert.equal(detached?.children?.[0]?.uuid, "leaf-1");
         },
     },
     {

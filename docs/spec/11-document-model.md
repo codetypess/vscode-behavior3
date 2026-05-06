@@ -99,13 +99,14 @@
 - `sessionState` 维护当前主文档的 `dirty`、`lastSavedSnapshot`、`historyIndex/historyLength`、reload conflict 元数据
 - webview 发来的 `update` 会先规范化，再更新到该文本镜像和宿主 session history
 - webview 发来的 `saveDocument` / `undo` / `redo` 只表达 intent，由宿主 session 自己执行并回推结果
+- sidebar 发来的 `mutateDocument(updateTreeMeta/updateNode)` 先由宿主 shared reducer 尝试提交，再在必要时回退到编辑器兼容执行链
 - 宿主监听到文件变化时，会用 `_ownFileWrites` 区分“自己刚写出的变更”和“真正的外部变化”
 
 这意味着：
 
 - webview 内以 `persistedTree` 作为当前 reducer 的结构化编辑镜像
 - 宿主侧以 `content` 为磁盘写入真源
-- 宿主 session 负责 save/undo/redo/dirty 的权威状态
+- 宿主 session 负责 save/undo/redo/dirty，以及已迁入 host 的 sidebar mutation 的权威提交状态
 - 二者必须通过规范化序列化保持同步
 
 ## Workspace 依赖态

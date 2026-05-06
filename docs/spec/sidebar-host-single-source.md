@@ -3,7 +3,7 @@
 Status: Implementing
 Date: 2026-05-06
 Scope: Migrate main-document authority from webview-local controller state to an extension-host document session, using staged intent-based save, undo/redo, mutation, and snapshot fanout flows
-Progress: Phase 1 host session shell landed; Phase 2 host intent routing is complete for save, undo, and redo; structural mutation intents are still in migration
+Progress: Phase 1 host session shell landed; Phase 2 host intent routing is complete for save, undo, and redo; Phase 3 is complete for sidebar `updateTreeMeta` / `updateNode`; broader structural mutation intents are still in migration
 
 ## 1. Context
 
@@ -55,10 +55,11 @@ As a result, a narrow Ctrl+S or pending-dot fix would treat symptoms but would n
 - `TreeEditorDocument` in the extension host owns only serialized text content, custom-editor dirty state, and own-write suppression.
 - The main editor executes structural mutations locally through `EditorCommand`, updates local history, computes dirty locally, and sends serialized `update` snapshots back to the host.
 - The sidebar receives mirrored init/content/selection data from the host, but still bootstraps a local document runtime and local history/save state.
-- Sidebar `mutateDocument` currently covers only `updateTreeMeta` and `updateNode`, and the host forwards those back into the active editor webview for actual execution.
+- Sidebar `mutateDocument` currently covers `updateTreeMeta` and `updateNode`, and those intents now enter the host first.
 - `saveDocument`, `undo`, and `redo` now enter the host first from both the editor and the sidebar.
 - The host applies save/history transitions against its own document session state and rebroadcasts the committed result back to both webviews.
-- Structural mutations are still mostly executed in the active editor runtime and reflected back through content snapshots.
+- For sidebar `updateTreeMeta` and `updateNode`, the host now runs a shared reducer directly when it has enough context, and only falls back to the active editor compatibility executor when required context is temporarily missing.
+- Structural mutations are still mostly executed in the active editor runtime for canvas-side commands and unported reducer paths, then reflected back through content snapshots.
 - Cross-view content sync still primarily uses content-bearing messages such as `update`, `documentUpdated`, and `documentReloaded`, rather than a normalized host session snapshot feed.
 
 ## 5. Proposed Behavior
@@ -223,6 +224,7 @@ Exit criteria:
 
 - Sidebar never commits document state locally before the host session commits it.
 - Sidebar pending/save state cannot diverge from the committed host session state.
+- Sidebar `updateTreeMeta` and `updateNode` now satisfy this exit criteria; remaining mutation work is in canvas-originated structural commands.
 
 ### Phase 4. Canvas Mutation Intents
 

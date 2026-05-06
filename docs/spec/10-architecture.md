@@ -50,6 +50,7 @@ Shared Layer
 - 维护主文档 `sessionState` 的 dirty、history、save/reload conflict 元数据
 - 串行化主文档 save、revert、external reload、sidebar proxy mutation
 - 执行 save、undo、redo 这类主文档 intent，并把权威结果广播回 webview
+- 对 sidebar 的 `updateTreeMeta` / `updateNode` 运行 host-first shared reducer，并只在必要时回退到主编辑器兼容执行链
 - 监听主文件、subtree 文件、setting 文件、workspace 文件、VS Code 配置与主题变化
 - 解析 nodeDefs、工作目录、变量声明、可见文件列表
 - 运行 build 与节点参数自定义检查脚本
@@ -64,6 +65,7 @@ Shared Layer
 - 将 resolved graph 投影到 G6 画布模型
 - 执行当前仍留在 webview 的树级和节点级编辑命令
 - 把 save、undo、redo 作为用户 intent 发给宿主，再消费宿主回推的权威 session/content
+- sidebar 的 `updateTreeMeta` / `updateNode` 也只发送 intent，不再先在本地提交主文档状态
 - 管理 search、variable focus、selection restore，以及当前兼容期内的本地 history 镜像逻辑
 
 ### Shared Layer
@@ -136,10 +138,9 @@ Shared Layer
 ### 侧栏代理编辑
 
 1. Inspector Sidebar 发送 `mutateDocument`
-2. active editor session 把它转发成 `executeDocumentMutation`
-3. 主编辑器 webview 执行真正的 `EditorCommand`
-4. 主编辑器把结果以 `documentMutationResult` 回给宿主
-5. 宿主把结果返回侧栏，并同步最新内容/selection
+2. active editor session 先尝试在 host 侧直接 reduce 并提交权威 snapshot
+3. 若 host 当前缺少足够上下文，才回退为 `executeDocumentMutation`
+4. 宿主把提交结果返回侧栏，并同步最新内容/selection
 
 ### 外部文件变化
 
@@ -161,7 +162,8 @@ Shared Layer
 3. 宿主消息兼容、路径归一化和 IO 细节只停留在 host/session/adapter 层。
 4. 任何 persisted tree 写入都必须能定位到一个明确的 command。
 5. save、undo、redo 必须先进入 extension-host session，再广播回 webview。
-6. 与项目根目录、build、nodeDefs、check scripts 相关的能力只在 extension-host 侧实现。
+6. sidebar 的主文档 mutation intent 必须先进入 extension-host session。
+7. 与项目根目录、build、nodeDefs、check scripts 相关的能力只在 extension-host 侧实现。
 
 ## 当前目录落点
 

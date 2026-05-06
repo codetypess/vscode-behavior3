@@ -31,6 +31,7 @@ export const createDocumentCommands = (
     runtime: ControllerRuntime
 ): Pick<EditorCommand, DocumentCommandKeys> => {
     const { deps } = runtime;
+    const isInspectorSidebar = () => window.__B3_WEBVIEW_KIND__ === "inspector-sidebar";
     const syncHistoryToSnapshot = (snapshot: string) => {
         deps.documentStore.setState((state) => {
             const existingIndex = state.history.findIndex((entry) => entry === snapshot);
@@ -112,6 +113,9 @@ export const createDocumentCommands = (
 
             const snapshot = serializePersistedTree(tree);
             syncHistoryToSnapshot(snapshot);
+            if (!isInspectorSidebar()) {
+                runtime.scheduleTreeSelected();
+            }
         },
 
         async reloadDocumentFromHost(content: string, opts?: { force?: boolean }) {

@@ -90,7 +90,7 @@
 - `documentSessionChanged`
   - 宿主把权威 document session 元数据广播给 editor 或 sidebar
 - `documentUpdated`
-  - 宿主提交了主文档 update、undo 或 redo 后，把最新内容同步给当前视图
+  - 宿主提交了主文档 update、undo、redo 或 host-first mutation 后，把最新内容同步给当前视图
 - `fileChanged`
   - 磁盘文件外部变化到来，但当前编辑器可能仍 dirty，需要走冲突判断
 - `documentReloaded`
@@ -180,6 +180,11 @@
 
 它们用于 Inspector Sidebar 代理主编辑器修改。
 
+补充：
+
+- `updateNode` 在“解绑 subtree 引用为本地节点”时可以携带 `detachedSubtreeRoot`
+- 该快照由 sidebar 当前 runtime 提供，供 host reducer 直接提交
+
 ## 会话规则
 
 ### 1. `ready` 握手
@@ -206,8 +211,9 @@
 ### 3. Sidebar 代理
 
 - Sidebar 不能直接执行主文档 mutation
-- 宿主把 `mutateDocument` 转发为 `executeDocumentMutation`
-- 主编辑器执行后再把结果回给宿主，再由宿主回复 sidebar
+- 宿主收到 `mutateDocument` 后优先尝试在 host 侧直接 reduce 并提交
+- 只有在 host 当前缺少必要上下文时，才回退为 `executeDocumentMutation`
+- 若走兼容回退，主编辑器执行后再把结果回给宿主，再由宿主回复 sidebar
 
 ### 4. 请求超时
 
