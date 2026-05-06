@@ -31,10 +31,10 @@ export const createNode = (data: NodeData, includeChildren: boolean = true): Nod
         uuid: stableIdentity.uuid || stableIdentity.$id || generateUuid(),
         id: data.id,
         name: data.name,
-        desc: data.desc,
+        desc: data.desc?.trim() || undefined,
         path: data.path,
-        debug: data.debug,
-        disabled: data.disabled,
+        debug: data.debug || undefined,
+        disabled: data.disabled || undefined,
     };
 
     if (data.input) {
@@ -52,12 +52,15 @@ export const createNode = (data: NodeData, includeChildren: boolean = true): Nod
     }
 
     if (data.args) {
-        node.args = {};
+        const args: Record<string, unknown> = {};
         for (const key in data.args) {
             const value = data.args[key];
             if (value !== undefined) {
-                node.args[key] = value;
+                args[key] = value;
             }
+        }
+        if (Object.keys(args).length > 0) {
+            node.args = args;
         }
     }
 

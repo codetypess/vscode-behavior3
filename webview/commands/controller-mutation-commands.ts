@@ -115,7 +115,10 @@ export const createMutationCommands = (
 
             const nextName =
                 String(payload.data.name ?? resolvedNode.name).trim() || resolvedNode.name;
-            const nextDesc = payload.data.desc?.trim() || undefined;
+            const nextNodeDef = runtime.getNodeDef(nextName);
+            const nextNodeDefDesc = nextNodeDef?.desc?.trim() || undefined;
+            const nextDescRaw = payload.data.desc?.trim() || undefined;
+            const nextDesc = nextDescRaw === nextNodeDefDesc ? undefined : nextDescRaw;
             const rawNextPath = payload.data.path?.trim() || undefined;
             let nextPath: PersistedNodeModel["path"];
             if (rawNextPath) {
@@ -126,8 +129,8 @@ export const createMutationCommands = (
                 }
                 nextPath = parsedPath;
             }
-            const nextDebug = Boolean(payload.data.debug);
-            const nextDisabled = Boolean(payload.data.disabled);
+            const nextDebug = payload.data.debug ? true : undefined;
+            const nextDisabled = payload.data.disabled ? true : undefined;
             const nextInput = payload.data.input;
             const nextOutput = payload.data.output;
             const nextArgs = payload.data.args;
@@ -136,8 +139,8 @@ export const createMutationCommands = (
                 nextName === resolvedNode.name &&
                 nextDesc === resolvedNode.desc &&
                 nextPath === resolvedNode.path &&
-                nextDebug === Boolean(resolvedNode.debug) &&
-                nextDisabled === Boolean(resolvedNode.disabled) &&
+                nextDebug === resolvedNode.debug &&
+                nextDisabled === resolvedNode.disabled &&
                 isJsonEqual(nextInput ?? [], resolvedNode.input ?? []) &&
                 isJsonEqual(nextOutput ?? [], resolvedNode.output ?? []) &&
                 isJsonEqual(nextArgs ?? {}, resolvedNode.args ?? {})
@@ -147,7 +150,6 @@ export const createMutationCommands = (
 
             const tree = clonePersistedTree(currentTree);
             if (resolvedNode.subtreeNode) {
-                const def = runtime.getNodeDef(resolvedNode.name);
                 const original = resolvedNode.subtreeOriginal;
                 if (!original) {
                     return;
@@ -169,7 +171,7 @@ export const createMutationCommands = (
                 const diff = computeNodeOverride(
                     original as never,
                     editedNode as never,
-                    { args: def?.args } as { args?: NodeDef["args"] } as never
+                    { args: nextNodeDef?.args } as { args?: NodeDef["args"] } as never
                 );
 
                 if (diff) {

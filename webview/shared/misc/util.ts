@@ -17,7 +17,7 @@ export const treeDataForPersistence = (data: TreeData, name: string): TreeData =
     return {
         version: VERSION,
         name,
-        desc: data.desc,
+        desc: data.desc?.trim() || undefined,
         prefix: data.prefix ?? "",
         export: data.export,
         group: data.group ?? [],
@@ -72,7 +72,7 @@ export const writeTreeToFile = (path: string, data: TreeData) => {
     writeJson<TreeData>(path, {
         version: VERSION,
         name: b3path.basenameWithoutExt(path),
-        desc: data.desc,
+        desc: data.desc?.trim() || undefined,
         prefix: data.prefix ?? "",
         export: data.export,
         group: data.group ?? [],

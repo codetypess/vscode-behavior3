@@ -890,14 +890,17 @@ export const NodeInspectorForm: React.FC = () => {
                                 (entry) => entry.name === String(values.name ?? "").trim()
                             ) ?? null;
                         const args = currentNodeDef
-                            ? Object.fromEntries(
-                                  (currentNodeDef.args ?? [])
-                                      .map((arg) => [
-                                          arg.name,
-                                          parseArgSubmitValue(arg, values.args?.[arg.name]),
-                                      ])
-                                      .filter(([, value]) => value !== undefined)
-                              )
+                            ? (() => {
+                                  const nextArgs = Object.fromEntries(
+                                      (currentNodeDef.args ?? [])
+                                          .map((arg) => [
+                                              arg.name,
+                                              parseArgSubmitValue(arg, values.args?.[arg.name]),
+                                          ])
+                                          .filter(([, value]) => value !== undefined)
+                                  );
+                                  return Object.keys(nextArgs).length > 0 ? nextArgs : undefined;
+                              })()
                             : selectedNode.data.args;
 
                         void runtime.controller.updateNode({
@@ -911,8 +914,8 @@ export const NodeInspectorForm: React.FC = () => {
                                     selectedNode.subtreeNode || fieldEditDisabled
                                         ? selectedNode.data.path
                                         : values.path?.trim() || undefined,
-                                debug: Boolean(values.debug),
-                                disabled: Boolean(values.disabled),
+                                debug: values.debug ? true : undefined,
+                                disabled: values.disabled ? true : undefined,
                                 input: buildNodeSlotArray(
                                     currentNodeDef?.input,
                                     values.inputSlots,

@@ -495,12 +495,14 @@ export const createFileDataWithContext = (
     includeSubtree: boolean | undefined,
     context: Pick<BuildContext, "nodeDefs" | "isSubtreeRoot">
 ): NodeData => {
+    const nextArgs =
+        data.args && Object.keys(data.args).length > 0 ? { ...data.args } : undefined;
     const nodeData: NodeData = {
         uuid: data.uuid,
         id: data.id,
         name: data.name,
         desc: data.desc || undefined,
-        args: data.args || undefined,
+        args: nextArgs,
         input: data.input || undefined,
         output: data.output || undefined,
         debug: data.debug || undefined,
