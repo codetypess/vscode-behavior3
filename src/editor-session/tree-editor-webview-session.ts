@@ -317,6 +317,8 @@ export async function resolveTreeEditorSession({
         inspectorSelectionRevision: 0,
         inspectorContentSyncKind: "reload",
     };
+    const documentSession = document.sessionState;
+    const buildDocumentSessionMessage = () => documentSession.getSnapshot();
 
     configureWebview(webviewPanel.webview, workspaceFolderUri);
 
@@ -355,8 +357,10 @@ export async function resolveTreeEditorSession({
                 theme: getVSCodeTheme(),
                 allFiles: state.latestAllFiles,
                 nodeColors: state.currentSettings.nodeColors,
+                documentSession: buildDocumentSessionMessage(),
             },
             varsMessage: buildInspectorVarsMessage(),
+            documentSession: buildDocumentSessionMessage(),
             selectedNode: state.selectedInspectorNode,
             selectionRevision: state.inspectorSelectionRevision,
             contentSyncKind: state.inspectorContentSyncKind,
@@ -608,10 +612,15 @@ export async function resolveTreeEditorSession({
         }
 
         state.inspectorContentSyncKind = "update";
+        documentSession.applyCommittedSnapshot(normalizedContent);
         invalidateSubtreeRefs();
         void refreshTrackedSubtreeRefs();
         updateFileVersionState(normalizedContent);
         onDidChangeDocument(document);
+        void postMessage({
+            type: "documentSessionChanged",
+            documentSession: buildDocumentSessionMessage(),
+        });
         notifyInspectorSessionUpdate();
         return true;
     };
@@ -688,6 +697,7 @@ export async function resolveTreeEditorSession({
             theme,
             allFiles,
             nodeColors: state.currentSettings.nodeColors,
+            documentSession: buildDocumentSessionMessage(),
         });
 
         if (initUsingVars) {
@@ -804,7 +814,6 @@ export async function resolveTreeEditorSession({
 
                 if (success) {
                     state.inspectorContentSyncKind = "reload";
-                    notifyInspectorSessionUpdate();
                 }
             } catch (error) {
                 getBehavior3OutputChannel().error(
@@ -834,7 +843,6 @@ export async function resolveTreeEditorSession({
                     requestId: msg.requestId,
                     success: true,
                 } satisfies HostToEditorMessage);
-                notifyInspectorSessionUpdate();
             } catch (error) {
                 await reply({
                     type: "revertDocumentResult",
@@ -874,9 +882,14 @@ export async function resolveTreeEditorSession({
              */
             if (!document.isDirty) {
                 document.updateContent(content, { markSaved: true, markDirty: false });
+                documentSession.replaceFromDisk(content);
                 state.inspectorContentSyncKind = "reload";
                 void refreshTrackedSubtreeRefs();
                 updateFileVersionState(content, { showWarning: true });
+                void postMessage({
+                    type: "documentSessionChanged",
+                    documentSession: buildDocumentSessionMessage(),
+                });
                 await postMessage({
                     type: "documentReloaded",
                     content,
@@ -885,6 +898,11 @@ export async function resolveTreeEditorSession({
                 return;
             }
 
+            documentSession.showReloadConflict(content);
+            void postMessage({
+                type: "documentSessionChanged",
+                documentSession: buildDocumentSessionMessage(),
+            });
             await postMessage({
                 type: "fileChanged",
                 content,

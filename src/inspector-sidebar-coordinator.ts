@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { EditNode } from "../webview/shared/contracts";
+import type { EditNode, HostDocumentSessionState } from "../webview/shared/contracts";
 import type { EditorToHostMessage, HostToEditorMessage } from "../webview/shared/message-protocol";
 import { InspectorSidebarProvider } from "./inspector-sidebar-provider";
 
@@ -10,6 +10,7 @@ export interface InspectorSessionSnapshot {
     documentUri: string;
     initMessage: InitMessage;
     varsMessage: VarsMessage;
+    documentSession: HostDocumentSessionState;
     selectedNode: EditNode | null;
     selectionRevision: number;
     contentSyncKind: "update" | "reload";
@@ -109,6 +110,13 @@ export class InspectorSidebarCoordinator {
             });
         }
 
+        if (!isJsonEqual(previous.documentSession, snapshot.documentSession)) {
+            void this.postMessage({
+                type: "documentSessionChanged",
+                documentSession: snapshot.documentSession,
+            });
+        }
+
         if (!isJsonEqual(previous.varsMessage, snapshot.varsMessage)) {
             void this.postMessage(snapshot.varsMessage);
         }
@@ -125,7 +133,11 @@ export class InspectorSidebarCoordinator {
         }
     }
 
-    notifyDocumentSaved(documentUri: string, content: string): void {
+    notifyDocumentSaved(
+        documentUri: string,
+        content: string,
+        documentSession: HostDocumentSessionState
+    ): void {
         const snapshot = this.sessionSnapshots.get(documentUri);
         if (snapshot) {
             this.sessionSnapshots.set(documentUri, {
@@ -133,7 +145,9 @@ export class InspectorSidebarCoordinator {
                 initMessage: {
                     ...snapshot.initMessage,
                     content,
+                    documentSession,
                 },
+                documentSession,
                 contentSyncKind: "reload",
             });
         }
@@ -143,6 +157,7 @@ export class InspectorSidebarCoordinator {
         }
 
         void this.postMessage({ type: "documentReloaded", content });
+        void this.postMessage({ type: "documentSessionChanged", documentSession });
     }
 
     setActiveDocument(documentUri: string | null): void {
@@ -179,10 +194,20 @@ export class InspectorSidebarCoordinator {
         previous: InspectorSessionSnapshot,
         next: InspectorSessionSnapshot
     ): boolean {
-        const { content: prevContent, ...prevInitWithoutContent } = previous.initMessage;
-        const { content: nextContent, ...nextInitWithoutContent } = next.initMessage;
+        const {
+            content: prevContent,
+            documentSession: prevDocumentSession,
+            ...prevInitWithoutContent
+        } = previous.initMessage;
+        const {
+            content: nextContent,
+            documentSession: nextDocumentSession,
+            ...nextInitWithoutContent
+        } = next.initMessage;
         void prevContent;
         void nextContent;
+        void prevDocumentSession;
+        void nextDocumentSession;
         return isJsonEqual(prevInitWithoutContent, nextInitWithoutContent);
     }
 

@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { stringifyJson } from "../../webview/shared/misc/stringify";
 import { basenameWithoutExt, readTree, writeTree } from "../../webview/shared/misc/util";
+import { DocumentSessionState } from "./document-session-state";
 
 interface SuppressedDocumentChange {
     raw: string;
@@ -71,6 +72,7 @@ export class TreeEditorDocument implements vscode.CustomDocument {
     private _content: string;
     private _isDirty: boolean;
     private _ownFileWrites: SuppressedDocumentChange[] = [];
+    readonly sessionState: DocumentSessionState;
 
     constructor(
         public readonly uri: vscode.Uri,
@@ -79,6 +81,10 @@ export class TreeEditorDocument implements vscode.CustomDocument {
     ) {
         this._content = content;
         this._isDirty = opts?.dirty ?? false;
+        this.sessionState = new DocumentSessionState({
+            initialContent: content,
+            dirty: opts?.dirty,
+        });
     }
 
     get content(): string {

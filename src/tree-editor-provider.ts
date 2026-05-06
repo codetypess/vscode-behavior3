@@ -139,6 +139,7 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
             document.content
         );
         document.markSaved(normalizedContent);
+        document.sessionState.markSaved(normalizedContent);
         document.rememberOwnWrite(normalizedContent);
 
         if (opts?.notifyReload !== false) {
@@ -146,9 +147,14 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
                 type: "documentReloaded",
                 content: normalizedContent,
             });
+            TreeEditorProvider.postMessageToDocument(document.uri.toString(), {
+                type: "documentSessionChanged",
+                documentSession: document.sessionState.getSnapshot(),
+            });
             this.inspectorCoordinator.notifyDocumentSaved(
                 document.uri.toString(),
-                normalizedContent
+                normalizedContent,
+                document.sessionState.getSnapshot()
             );
         }
 
@@ -213,10 +219,20 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         const content = await readFileContentFromDisk(document.uri);
         document.clearOwnWrites();
         document.updateContent(content, { markSaved: true, markDirty: false });
+        document.sessionState.replaceFromDisk(content);
         TreeEditorProvider.postMessageToDocument(document.uri.toString(), {
             type: "documentReloaded",
             content,
         });
+        TreeEditorProvider.postMessageToDocument(document.uri.toString(), {
+            type: "documentSessionChanged",
+            documentSession: document.sessionState.getSnapshot(),
+        });
+        this.inspectorCoordinator.notifyDocumentSaved(
+            document.uri.toString(),
+            content,
+            document.sessionState.getSnapshot()
+        );
     }
 
     async backupCustomDocument(

@@ -51,6 +51,15 @@ export interface Settings {
     nodeColors?: Record<string, string>;
 }
 
+export interface HostDocumentSessionState {
+    dirty: boolean;
+    historyIndex: number;
+    historyLength: number;
+    lastSavedSnapshot: string | null;
+    alertReload: boolean;
+    pendingExternalContent: string | null;
+}
+
 export interface HostInitPayload {
     filePath: string;
     workdir: string;
@@ -58,6 +67,7 @@ export interface HostInitPayload {
     nodeDefs: NodeDef[];
     allFiles: WorkdirRelativeJsonPath[];
     settings: Settings;
+    documentSession: HostDocumentSessionState;
 }
 
 export interface HostVarsPayload {
@@ -101,6 +111,8 @@ export interface DocumentState {
     history: string[];
     historyIndex: number;
     lastSavedSnapshot: string | null;
+    hostHistoryIndex: number;
+    hostHistoryLength: number;
 }
 
 export interface WorkspaceState {
@@ -223,6 +235,7 @@ export interface DocumentMutationResponse {
 
 export type HostEvent =
     | { type: "init"; payload: HostInitPayload }
+    | { type: "documentSessionChanged"; documentSession: HostDocumentSessionState }
     | { type: "documentUpdated"; content: string }
     | { type: "executeUndo" }
     | { type: "executeRedo" }
@@ -389,6 +402,7 @@ export interface HostAdapter {
 
 export interface EditorCommand {
     initFromHost(payload: HostInitPayload): Promise<void>;
+    applyDocumentSession(documentSession: HostDocumentSessionState): Promise<void>;
     syncDocumentFromHost(content: string): Promise<void>;
     reloadDocumentFromHost(content: string, opts?: { force?: boolean }): Promise<void>;
     applyNodeDefs(defs: NodeDef[]): Promise<void>;

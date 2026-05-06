@@ -4,6 +4,7 @@ import type { EditorCommand, HostInitPayload, HostVarsPayload, NodeDef } from ".
 import { deriveGroupDefs } from "../shared/protocol";
 import { parsePersistedTreeContent, serializePersistedTree } from "../shared/tree";
 import {
+    applyHostDocumentSession,
     clearDocumentReloadConflict,
     markDocumentSaved,
     showDocumentReloadConflict,
@@ -12,6 +13,7 @@ import { buildUsingGroups, isJsonEqual, type ControllerRuntime } from "./control
 
 type DocumentCommandKeys =
     | "initFromHost"
+    | "applyDocumentSession"
     | "syncDocumentFromHost"
     | "reloadDocumentFromHost"
     | "applyNodeDefs"
@@ -88,6 +90,11 @@ export const createDocumentCommands = (
                 preserveSelection: false,
             });
             runtime.resetDocumentHistory();
+            applyHostDocumentSession(deps.documentStore, payload.documentSession);
+        },
+
+        async applyDocumentSession(documentSession) {
+            applyHostDocumentSession(deps.documentStore, documentSession);
         },
 
         async syncDocumentFromHost(content: string) {

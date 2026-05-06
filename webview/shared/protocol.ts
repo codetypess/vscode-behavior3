@@ -100,6 +100,7 @@ export const normalizeHostInitMessage = (
         nodeDefs: message.nodeDefs,
         allFiles: (message.allFiles ?? []).map(normalizeWorkdirRelativePath),
         settings,
+        documentSession: message.documentSession,
     };
 };
 

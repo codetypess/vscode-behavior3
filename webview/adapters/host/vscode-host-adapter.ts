@@ -255,6 +255,13 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
                         onMessage({ type: "init", payload: normalizeHostInitMessage(message) });
                         return;
 
+                    case "documentSessionChanged":
+                        onMessage({
+                            type: "documentSessionChanged",
+                            documentSession: message.documentSession,
+                        });
+                        return;
+
                     case "documentUpdated":
                         onMessage({ type: "documentUpdated", content: message.content });
                         return;

@@ -25,8 +25,8 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 1 份 work-item spec
-- 0 份登记中的 active work-item spec
+- 2 份 work-item spec
+- 1 份登记中的 active work-item spec
 - 1 份登记中的 done work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
@@ -213,9 +213,11 @@ Scope: <short boundary>
 
 ## Active Work Items
 
-当前暂无登记中的 active work-item spec。
+当前登记中的 active work-item spec：
 
-新增 work-item 时，请在这里补一条，格式建议：
+- `sidebar-host-single-source.md` - `Implementing` - 将主文档 authority 从 webview-local runtime 渐进迁移到 extension-host document session
+
+新增 work-item 时，请继续按以下格式补充：
 
 - `your-work-item-slug.md` - `Draft` - 一句话范围说明
 

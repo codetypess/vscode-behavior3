@@ -3,7 +3,12 @@
  */
 
 import type { NodeDef } from "./misc/b3type";
-import type { DocumentMutation, EditNode, NodeCheckValidationNode } from "./contracts";
+import type {
+    DocumentMutation,
+    EditNode,
+    HostDocumentSessionState,
+    NodeCheckValidationNode,
+} from "./contracts";
 
 export type { NodeDef };
 
@@ -56,7 +61,9 @@ export type HostToEditorMessage =
           theme: "dark" | "light";
           allFiles: string[];
           nodeColors?: Record<string, string>;
+          documentSession: HostDocumentSessionState;
       }
+    | { type: "documentSessionChanged"; documentSession: HostDocumentSessionState }
     | { type: "documentUpdated"; content: string }
     | { type: "executeUndo" }
     | { type: "executeRedo" }

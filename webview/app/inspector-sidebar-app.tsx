@@ -9,7 +9,10 @@ import { getThemeConfig } from "../shared/misc/theme";
 import { setI18nLanguage } from "../shared/misc/i18n";
 import { isMacos } from "../shared/misc/keys";
 import type { EditNode, HostEvent, HostInitPayload, HostVarsPayload } from "../shared/contracts";
-import { createInitialDocumentState } from "../stores/document-store";
+import {
+    applyHostDocumentSession,
+    createInitialDocumentState,
+} from "../stores/document-store";
 import { createInitialSelectionState } from "../stores/selection-store";
 import { createInitialWorkspaceState } from "../stores/workspace-store";
 import { buildUsingGroups } from "../commands/controller-runtime";
@@ -53,13 +56,11 @@ const applySidebarInit = async (
     runtime.documentStore.setState((state) => ({
         ...state,
         persistedTree,
-        dirty: false,
-        alertReload: false,
-        pendingExternalContent: null,
         history: [snapshot],
         historyIndex: 0,
         lastSavedSnapshot: snapshot,
     }));
+    applyHostDocumentSession(runtime.documentStore, payload.documentSession);
     runtime.workspaceStore.setState((state) => ({
         ...state,
         filePath: payload.filePath,
@@ -142,6 +143,10 @@ const SidebarHostBridge: React.FC = () => {
 
                 case "documentUpdated":
                     void runtime.controller.syncDocumentFromHost(hostEvent.content);
+                    return;
+
+                case "documentSessionChanged":
+                    void runtime.controller.applyDocumentSession(hostEvent.documentSession);
                     return;
 
                 case "documentReloaded":
