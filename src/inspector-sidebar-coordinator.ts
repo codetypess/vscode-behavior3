@@ -352,7 +352,7 @@ export class InspectorSidebarCoordinator {
             case "redo":
             case "selectTree":
             case "selectNode":
-            case "focusVariable":
+            case "requestFocusVariable":
             case "requestSetting":
             case "build":
             case "webviewLog":

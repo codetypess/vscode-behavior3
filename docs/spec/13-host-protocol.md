@@ -45,7 +45,7 @@
 - `selectTree`
 - `selectNode`
   - payload: `{ target: NodeInstanceRef }`
-- `focusVariable`
+- `requestFocusVariable`
   - payload: `{ names }`
   - 语义：sidebar 请求把变量聚焦作为一次性视觉 intent relay 给当前 active editor；不是共享状态同步
 
@@ -94,7 +94,7 @@
 
 ### 编辑命令代理
 
-- `focusVariable`
+- `relayFocusVariable`
   - 语义：宿主向 editor 投递一次新鲜变量聚焦 relay
   - 不属于 `init` / `documentSnapshotChanged` 的 snapshot 内容
 
@@ -168,7 +168,7 @@
 
 - 它是 host 当前共享 tree/node 选中的权威 DTO
 - editor 与 sidebar 都只消费这个快照，再各自在本地 resolved graph 上做 projection
-- variable focus 不属于 `HostSelectionState`；它只通过瞬时 `focusVariable` relay 进入 editor-local graph UI state
+- variable focus 不属于 `HostSelectionState`；它只通过瞬时 `relayFocusVariable` relay 进入 editor-local graph UI state
 
 ### HostDocumentSnapshot
 

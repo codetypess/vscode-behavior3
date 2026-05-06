@@ -161,7 +161,7 @@ export interface GraphUiSearchState {
 }
 
 export interface GraphUiState {
-    /** Editor-local visual focus, optionally set by a fresh `focusVariable` relay. */
+    /** Editor-local visual focus, optionally set by a fresh variable-focus relay. */
     activeVariableNames: string[];
     selectionVisualHint: GraphSelectionState | null;
     search: GraphUiSearchState;
@@ -283,7 +283,7 @@ export interface DocumentMutationResponse {
 export type HostEvent =
     | { type: "init"; payload: HostInitPayload }
     | { type: "documentSnapshotChanged"; snapshot: HostDocumentSnapshot }
-    /** One-shot variable highlight relay into the active editor; not snapshot authority. */
+    /** Normalized editor-local variable-focus event from a raw `relayFocusVariable` message. */
     | { type: "focusVariable"; names: string[] }
     | { type: "themeChanged"; theme: Settings["theme"] }
     | { type: "subtreeFileChanged" }
@@ -417,7 +417,7 @@ export interface HostAdapter {
     mutateDocument(mutation: DocumentMutation): Promise<DocumentMutationResponse>;
     selectTree(): void;
     selectNode(target: NodeInstanceRef): void;
-    /** Request a one-shot variable focus relay; callers must not treat it as persisted state. */
+    /** Send a raw `requestFocusVariable` message; callers must not treat it as persisted state. */
     requestFocusVariable(names: string[]): void;
     sendRequestSetting(): void;
     sendBuild(opts?: { buildScriptDebug?: boolean }): void;

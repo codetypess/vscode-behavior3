@@ -262,7 +262,7 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
                         });
                         return;
 
-                    case "focusVariable":
+                    case "relayFocusVariable":
                         onMessage({ type: "focusVariable", names: message.names });
                         return;
 
@@ -358,7 +358,7 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
         },
 
         requestFocusVariable(names) {
-            postMessage({ type: "focusVariable", names });
+            postMessage({ type: "requestFocusVariable", names });
         },
 
         sendRequestSetting() {

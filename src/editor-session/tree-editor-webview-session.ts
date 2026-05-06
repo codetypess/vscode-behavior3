@@ -1452,11 +1452,11 @@ export async function resolveTreeEditorSession({
                 await handleSelectNodeMessage(msg);
                 return;
 
-            case "focusVariable":
+            case "requestFocusVariable":
                 if (source !== "editor") {
-                    // Transient editor-local highlight relay; never store it in host snapshots.
+                    // Transient raw relay into editor-local highlights; never store it in host snapshots.
                     await postMessage({
-                        type: "focusVariable",
+                        type: "relayFocusVariable",
                         names: msg.names,
                     });
                 }

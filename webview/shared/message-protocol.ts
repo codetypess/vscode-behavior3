@@ -21,7 +21,7 @@ export type EditorToHostMessage =
     | { type: "selectTree" }
     | { type: "selectNode"; target: NodeInstanceRef }
     /** Ask the host to relay a one-shot variable highlight intent to the active editor. */
-    | { type: "focusVariable"; names: string[] }
+    | { type: "requestFocusVariable"; names: string[] }
     | { type: "mutateDocument"; requestId: string; mutation: DocumentMutation }
     | { type: "saveDocument"; requestId: string }
     | { type: "revertDocument"; requestId: string }
@@ -59,7 +59,7 @@ export type HostToEditorMessage =
       }
     | { type: "documentSnapshotChanged"; snapshot: HostDocumentSnapshot }
     /** One-shot variable highlight relay into the active editor; not snapshot authority. */
-    | { type: "focusVariable"; names: string[] }
+    | { type: "relayFocusVariable"; names: string[] }
     /** A referenced subtree file was saved or edited; parent canvas should reload subtree data. */
     | { type: "subtreeFileChanged" }
     /** No active Behavior3 editor is currently driving the sidebar inspector. */

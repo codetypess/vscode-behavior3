@@ -91,7 +91,7 @@
 - 仅更新 `graphUiStore.activeVariableNames`
 - 不修改文档、history、dirty 或 host-projected selection
 - 不进入 `init` / `documentSnapshotChanged`，也不跨 reload/save/undo/redo/webview re-init 持久化
-- sidebar 触发时只是一条经宿主转发到 active editor 的瞬时 relay，wire name 暂时仍为 `focusVariable`
+- sidebar 触发时，raw request 使用 `requestFocusVariable`，宿主转发到 active editor 的 raw relay 使用 `relayFocusVariable`
 - 触发图高亮与灰化
 
 ## Search 语义

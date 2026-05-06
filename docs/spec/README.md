@@ -25,9 +25,9 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 7 份 work-item spec
+- 8 份 work-item spec
 - 0 份登记中的 active work-item spec
-- 7 份登记中的 done work-item spec
+- 8 份登记中的 done work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
 目录判断规则：
@@ -220,6 +220,7 @@ Scope: <short boundary>
 ## Done Work Items
 
 - `baseline-spec-sync-current-code.md` - `Done` - 按当前实现回写编号基线 spec
+- `focus-variable-wire-rename.md` - `Done` - 将 raw `focusVariable` 协议拆成 request/relay 双向命名
 - `focus-variable-relay-semantics.md` - `Done` - 明确 `focusVariable` 是瞬时变量高亮 relay，不是 host snapshot authority
 - `host-selection-authority.md` - `Done` - 将 tree/node selection authority 收口到 extension-host selection intent 与 host snapshot fanout
 - `selection-store-authority-boundary.md` - `Done` - 将 host-projected selection authority 与本地 graph UI state 正式拆分成独立 store/model

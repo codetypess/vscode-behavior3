@@ -1494,7 +1494,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
         },
     },
     {
-        name: "sidebar focusVariable relay updates editor-local graph UI state",
+        name: "sidebar variable-focus requests still update editor-local graph UI state",
         async run() {
             const documentStore = createDocumentStore();
             const workspaceStore = createWorkspaceStore();
@@ -2692,7 +2692,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
         },
     },
     {
-        name: "resolves pending host requests on disconnect",
+        name: "serializes focus-variable request/relay messages and resolves pending host requests on disconnect",
         async run() {
             const testGlobal = globalThis as unknown as {
                 window?: unknown;
@@ -2731,10 +2731,40 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 const { createVsCodeHostAdapter } =
                     await import("../webview/adapters/host/vscode-host-adapter");
                 const adapter = createVsCodeHostAdapter();
-                const off = adapter.connect(() => {});
+                let relayedNames: string[] | null = null;
+                const off = adapter.connect((message) => {
+                    if (message.type === "focusVariable") {
+                        relayedNames = message.names;
+                    }
+                });
+
+                adapter.requestFocusVariable(["hp"]);
+                assert.equal(
+                    (posts[0] as { type?: string } | undefined)?.type,
+                    "requestFocusVariable"
+                );
+                assert.deepEqual(
+                    posts[0],
+                    {
+                        type: "requestFocusVariable",
+                        names: ["hp"],
+                    }
+                );
+
+                const messageListeners = listeners.get("message");
+                const messageListener = messageListeners ? Array.from(messageListeners)[0] : null;
+                assert.ok(messageListener);
+                messageListener?.({
+                    data: {
+                        type: "relayFocusVariable",
+                        names: ["mp"],
+                    },
+                } as MessageEvent);
+                assert.deepEqual(relayedNames, ["mp"]);
+
                 const resultPromise = adapter.readFile(parseWorkdirRelativeJsonPath("sub/a.json")!);
 
-                assert.equal((posts[0] as { type?: string } | undefined)?.type, "readFile");
+                assert.equal((posts[1] as { type?: string } | undefined)?.type, "readFile");
                 off();
 
                 const result = await resultPromise;
