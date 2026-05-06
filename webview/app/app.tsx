@@ -43,26 +43,12 @@ const AppShell: React.FC = () => {
                     })();
                     return;
 
-                case "documentUpdated":
-                    void runtime.controller.syncDocumentFromHost(hostEvent.content);
-                    return;
-
-                case "documentSessionChanged":
-                    void runtime.controller.applyDocumentSession(hostEvent.documentSession);
+                case "documentSnapshotChanged":
+                    void runtime.controller.applyDocumentSnapshot(hostEvent.snapshot);
                     return;
 
                 case "focusVariable":
                     void runtime.controller.focusVariable(hostEvent.names);
-                    return;
-
-                case "fileChanged":
-                    void runtime.controller.reloadDocumentFromHost(hostEvent.content);
-                    return;
-
-                case "documentReloaded":
-                    void runtime.controller.reloadDocumentFromHost(hostEvent.content, {
-                        force: true,
-                    });
                     return;
 
                 case "themeChanged":

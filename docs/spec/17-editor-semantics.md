@@ -64,7 +64,7 @@
 - rebuild graph
 - 不维护 webview-local history projection
 - 不直接把主文档内容写回宿主
-- 调度 `treeSelected`
+- 不再调度 `treeSelected`；宿主直接基于 committed snapshot 刷新变量声明视图
 
 ## Selection 语义
 
@@ -142,7 +142,7 @@
 - 增加 subtree refresh 序号
 - 重新加载 reachable subtree cache
 - rebuild graph
-- 立即触发 `treeSelected`
+- 不承担 host vars 刷新职责；宿主会直接补发新的 `varDeclLoaded`
 
 ## 文档变更命令
 
@@ -180,7 +180,7 @@
 ### `performDrop(intent)`
 
 - canvas 先发送 `mutateDocument(performDrop)` intent 给宿主
-- 宿主当前会优先直接提交，并在 response 中回传 `nextSelection`
+- 宿主当前会优先直接提交，并在 response 与 committed `documentSnapshotChanged` 中公开 `nextSelection`
 - 拒绝拖动 subtree 内部节点
 - 拒绝向 subtree link 直接添加 child
 - 拒绝移动根节点、围绕根节点 before/after、移动到自己的后代下
@@ -195,7 +195,7 @@
 ### `pasteNode()`
 
 - canvas 先发送 `mutateDocument(pasteNode)`，并携带剪贴板节点快照
-- 宿主直接提交后回传新节点的 `nextSelection`
+- 宿主直接提交后回传新节点的 `nextSelection`，并在 committed snapshot fanout 中附带同一投影
 - 从剪贴板读取 persisted snapshot
 - 为整棵粘贴子树分配新的稳定 id
 - 追加到当前节点 children
@@ -203,7 +203,7 @@
 ### `insertNode()`
 
 - canvas 先发送 `mutateDocument(insertNode)`
-- 宿主直接提交后回传新节点的 `nextSelection`
+- 宿主直接提交后回传新节点的 `nextSelection`，并在 committed snapshot fanout 中附带同一投影
 - 在当前节点下追加一个最小节点：
   - `uuid`
   - `id: ""`
@@ -219,7 +219,7 @@
 ### `deleteNode()`
 
 - canvas 先发送 `mutateDocument(deleteNode)`
-- 宿主直接提交后回传父节点的 `nextSelection`
+- 宿主直接提交后回传父节点的 `nextSelection`，并在 committed snapshot fanout 中附带同一投影
 - 不能删除根节点
 - 删除后默认选中父节点
 
@@ -228,7 +228,7 @@
 ### `undo()` / `redo()`
 
 - 通过 host session 恢复序列化快照实现
-- webview 接收宿主回推的 committed content 后重新应用主树、subtree cache、图和选中
+- webview 接收宿主 `documentSnapshotChanged` 后重新应用主树、subtree cache、图和选中
 
 ### history push 规则
 
@@ -246,7 +246,7 @@
 ### `revertDocument()`
 
 - 通过 host `revertDocument` 请求回滚
-- 真正 reload 由宿主后续 `documentReloaded` 驱动
+- 真正 reload 由宿主后续 `documentSnapshotChanged(syncKind: "reload")` 驱动
 
 ### `buildDocument(opts?)`
 
@@ -268,7 +268,7 @@
 ### `saveSelectedAsSubtree()`
 
 - canvas 先发送 `mutateDocument(saveSelectedAsSubtree)`，并携带当前子树快照与建议文件名
-- 宿主直接负责弹保存路径、写盘，并在 response 中回传当前节点的 `nextSelection`
+- 宿主直接负责弹保存路径、写盘，并在 response 与 committed snapshot fanout 中回传当前节点的 `nextSelection`
 - 将当前选中子树序列化为新的 `PersistedTreeModel`
 - 通过宿主 `saveSubtreeAs` 选择路径并写盘
 - 成功后将主树中的当前节点替换成 subtree link

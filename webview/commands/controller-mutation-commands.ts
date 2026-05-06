@@ -3,7 +3,6 @@ import type {
     DropIntent,
     DocumentMutation,
     DocumentMutationResponse,
-    DocumentMutationSelection,
     EditorCommand,
     PersistedTreeModel,
     ResolvedNodeModel,
@@ -16,6 +15,7 @@ import {
     formatDocumentMutationReducerError,
     reduceDocumentMutation,
 } from "../shared/document-mutation-reducer";
+import { stringifyJson } from "../shared/misc/stringify";
 import { parseWorkdirRelativeJsonPath } from "../shared/protocol";
 import { clonePersistedNode } from "../shared/tree";
 import { type ControllerRuntime } from "./controller-runtime";
@@ -33,37 +33,8 @@ type MutationCommandKeys =
     | "openSelectedSubtree"
     | "saveSelectedAsSubtree";
 
-const isInspectorSidebar = () => window.__B3_WEBVIEW_KIND__ === "inspector-sidebar";
-
 const getLanguage = (runtime: ControllerRuntime) =>
     runtime.deps.workspaceStore.getState().settings.language;
-
-const applyMutationSelection = async (
-    runtime: ControllerRuntime,
-    nextSelection: DocumentMutationSelection | undefined
-): Promise<void> => {
-    if (!nextSelection || isInspectorSidebar()) {
-        return;
-    }
-
-    if (nextSelection.kind === "tree") {
-        runtime.selectTreeState();
-        await runtime.deps.graphAdapter.applySelection({ selectedNodeKey: null });
-        return;
-    }
-
-    const resolvedGraph = runtime.getResolvedGraph();
-    const nextNode = Object.values(resolvedGraph?.nodesByInstanceKey ?? {}).find(
-        (node) => node.ref.structuralStableId === nextSelection.structuralStableId
-    );
-    if (!nextNode) {
-        runtime.selectPendingNodeState(nextSelection.structuralStableId);
-        return;
-    }
-
-    runtime.selectResolvedNodeState(nextNode.ref.instanceKey);
-    await runtime.deps.graphAdapter.applySelection({ selectedNodeKey: nextNode.ref.instanceKey });
-};
 
 const forwardDocumentMutation = async (
     runtime: ControllerRuntime,
@@ -74,7 +45,6 @@ const forwardDocumentMutation = async (
         runtime.notifyError(response.error ?? "Document mutation failed");
         return response;
     }
-    await applyMutationSelection(runtime, response.nextSelection);
     return response;
 };
 

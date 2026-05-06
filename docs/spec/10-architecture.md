@@ -122,7 +122,7 @@ Shared Layer
 3. runtime 同步 reachable subtree cache
 4. runtime 重建 resolved graph 与 graph view model
 5. runtime 仅维护当前渲染与表单所需 projection，不再承担主文档 mutation 提交职责
-6. runtime 以 `treeSelected` 触发变量声明视图刷新
+6. runtime 只更新本地 graph / Inspector projection；变量声明视图由宿主直接基于已提交 snapshot 刷新
 
 说明：
 
@@ -133,26 +133,26 @@ Shared Layer
 
 1. editor 或 sidebar webview 发送 `saveDocument` / `undo` / `redo` intent
 2. extension-host session 在主文档操作队列内执行对应的 save 或 history 迁移
-3. 宿主以 `documentUpdated` 或 `documentReloaded` 加 `documentSessionChanged` 回推权威结果
+3. 宿主以 `documentSnapshotChanged` 回推权威结果；若变量视图受影响，再单独补发 `varDeclLoaded`
 
 ### Host-First Mutation Intent
 
 1. Inspector Sidebar 或主编辑器 canvas 发送 `mutateDocument`
 2. active editor session 先尝试在 host 侧直接 reduce 并提交权威 snapshot
 3. host 若无法提交，则直接返回权威错误，而不是转回主编辑器执行
-4. 对于结构命令，宿主可通过 mutation response 回传 `nextSelection`，让 webview 更新 selection projection
+4. 对于结构命令，宿主可通过 mutation response 与 committed `documentSnapshotChanged` 共同公开 `nextSelection`，让 editor / sidebar 都更新 selection projection
 
 ### 外部文件变化
 
 1. extension-host 监听到主文件变化
 2. 若该变化是自身刚写出的内容，则抑制回流
-3. 若当前文档不 dirty，发送 `documentReloaded`
-4. 若当前文档 dirty，发送 `fileChanged` 进入冲突态
+3. 若当前文档不 dirty，发送 `documentSnapshotChanged(syncKind: "reload")`
+4. 若当前文档 dirty，仍发送 `documentSnapshotChanged`，但只提升 session 冲突状态，不提交外部内容
 
 ### Subtree 文件变化
 
 1. extension-host 只跟踪当前主树可达的 subtree 集合
-2. 被跟踪 subtree 改动后，session 发送 `subtreeFileChanged`
+2. 被跟踪 subtree 改动后，session 直接刷新 vars，并发送 `subtreeFileChanged`
 3. webview 重新拉取 subtree 内容并 rebuild graph
 
 ## 架构约束

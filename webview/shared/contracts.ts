@@ -60,6 +60,13 @@ export interface HostDocumentSessionState {
     pendingExternalContent: string | null;
 }
 
+export interface HostDocumentSnapshot {
+    content: string;
+    documentSession: HostDocumentSessionState;
+    syncKind: "update" | "reload";
+    nextSelection?: DocumentMutationSelection;
+}
+
 export interface HostInitPayload {
     filePath: string;
     workdir: string;
@@ -262,11 +269,8 @@ export interface DocumentMutationResponse {
 
 export type HostEvent =
     | { type: "init"; payload: HostInitPayload }
-    | { type: "documentSessionChanged"; documentSession: HostDocumentSessionState }
-    | { type: "documentUpdated"; content: string }
+    | { type: "documentSnapshotChanged"; snapshot: HostDocumentSnapshot }
     | { type: "focusVariable"; names: string[] }
-    | { type: "fileChanged"; content: string }
-    | { type: "documentReloaded"; content: string }
     | { type: "themeChanged"; theme: Settings["theme"] }
     | { type: "subtreeFileChanged" }
     | { type: "inspectorSelectionChanged"; selectedNode: EditNode | null }
@@ -399,7 +403,6 @@ export interface HostAdapter {
     redo(): void;
     mutateDocument(mutation: DocumentMutation): Promise<DocumentMutationResponse>;
     requestFocusVariable(names: string[]): void;
-    sendTreeSelected(tree: PersistedTreeModel): void;
     sendInspectorSelection(selectedNode: EditNode | null): void;
     sendRequestSetting(): void;
     sendBuild(opts?: { buildScriptDebug?: boolean }): void;
@@ -421,9 +424,7 @@ export interface HostAdapter {
 
 export interface EditorCommand {
     initFromHost(payload: HostInitPayload): Promise<void>;
-    applyDocumentSession(documentSession: HostDocumentSessionState): Promise<void>;
-    syncDocumentFromHost(content: string): Promise<void>;
-    reloadDocumentFromHost(content: string, opts?: { force?: boolean }): Promise<void>;
+    applyDocumentSnapshot(snapshot: HostDocumentSnapshot): Promise<void>;
     applyNodeDefs(defs: NodeDef[]): Promise<void>;
     applyHostVars(payload: HostVarsPayload): Promise<void>;
     markSubtreeChanged(): Promise<void>;

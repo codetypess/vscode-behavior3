@@ -42,8 +42,6 @@
 
 - `mutateDocument`
   - payload: `{ requestId, mutation }`
-- `treeSelected`
-  - payload: `{ tree }`
 - `reportInspectorSelection`
   - payload: `{ selectedNode }`
 - `focusVariable`
@@ -76,21 +74,18 @@
 ### 初始化与文档同步
 
 - `init`
-- `documentSessionChanged`
-- `documentUpdated`
-- `fileChanged`
-- `documentReloaded`
+- `documentSnapshotChanged`
 
 语义区别：
 
-- `documentSessionChanged`
-  - 宿主把权威 document session 元数据广播给 editor 或 sidebar
-- `documentUpdated`
-  - 宿主提交了主文档内容变更、undo、redo 或 host-first mutation 后，把最新内容同步给当前视图
-- `fileChanged`
-  - 磁盘文件外部变化到来，但当前编辑器可能仍 dirty，需要走冲突判断
-- `documentReloaded`
-  - 宿主已经决定用磁盘版本或已保存版本覆盖当前文档，应强制 reload
+- `documentSnapshotChanged`
+  - 宿主把权威 committed document snapshot 广播给 editor 或 sidebar
+  - payload 同时包含：
+    - committed `content`
+    - `HostDocumentSessionState`
+    - `syncKind` (`update` / `reload`)
+    - 可选 `nextSelection`
+  - 外部文件 dirty 冲突也通过这条消息提升 session 冲突态，而不是另发一条内容消息
 
 ### 编辑命令代理
 
@@ -191,6 +186,7 @@
 - `detachedSubtreeRoot` 由当前 webview runtime 提供，供 host reducer 直接提交
 - `mutateDocumentResult` 当前可以携带 `nextSelection`
 - 该字段只表达“提交后的选中投影应该落到哪里”，不把 selection authority 从 webview 立刻迁成宿主真源
+- 同一个 committed `nextSelection` 也会出现在后续 `documentSnapshotChanged` 中，供非发起方视图同步 projection
 
 ## 会话规则
 

@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { EditNode, HostDocumentSessionState } from "../webview/shared/contracts";
+import type { EditNode, HostDocumentSessionState, HostDocumentSnapshot } from "../webview/shared/contracts";
 import type { EditorToHostMessage, HostToEditorMessage } from "../webview/shared/message-protocol";
 import { InspectorSidebarProvider } from "./inspector-sidebar-provider";
 
@@ -10,10 +10,9 @@ export interface InspectorSessionSnapshot {
     documentUri: string;
     initMessage: InitMessage;
     varsMessage: VarsMessage;
-    documentSession: HostDocumentSessionState;
+    documentSnapshot: HostDocumentSnapshot;
     selectedNode: EditNode | null;
     selectionRevision: number;
-    contentSyncKind: "update" | "reload";
 }
 
 const isJsonEqual = (left: unknown, right: unknown) =>
@@ -102,18 +101,10 @@ export class InspectorSidebarCoordinator {
             return;
         }
 
-        if (previous.initMessage.content !== snapshot.initMessage.content) {
+        if (!isJsonEqual(previous.documentSnapshot, snapshot.documentSnapshot)) {
             void this.postMessage({
-                type:
-                    snapshot.contentSyncKind === "reload" ? "documentReloaded" : "documentUpdated",
-                content: snapshot.initMessage.content,
-            });
-        }
-
-        if (!isJsonEqual(previous.documentSession, snapshot.documentSession)) {
-            void this.postMessage({
-                type: "documentSessionChanged",
-                documentSession: snapshot.documentSession,
+                type: "documentSnapshotChanged",
+                snapshot: snapshot.documentSnapshot,
             });
         }
 
@@ -147,8 +138,11 @@ export class InspectorSidebarCoordinator {
                     content,
                     documentSession,
                 },
-                documentSession,
-                contentSyncKind: "reload",
+                documentSnapshot: {
+                    content,
+                    documentSession,
+                    syncKind: "reload",
+                },
             });
         }
 
@@ -156,8 +150,14 @@ export class InspectorSidebarCoordinator {
             return;
         }
 
-        void this.postMessage({ type: "documentReloaded", content });
-        void this.postMessage({ type: "documentSessionChanged", documentSession });
+        void this.postMessage({
+            type: "documentSnapshotChanged",
+            snapshot: {
+                content,
+                documentSession,
+                syncKind: "reload",
+            },
+        });
     }
 
     setActiveDocument(documentUri: string | null): void {
@@ -352,7 +352,6 @@ export class InspectorSidebarCoordinator {
             case "undo":
             case "redo":
             case "focusVariable":
-            case "treeSelected":
             case "requestSetting":
             case "build":
             case "reportInspectorSelection":

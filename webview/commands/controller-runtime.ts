@@ -6,6 +6,7 @@ import type {
     DocumentState,
     EditNode,
     EditNodeDef,
+    DocumentMutationSelection,
     GraphHighlightState,
     GraphSearchState,
     HostAdapter,
@@ -51,7 +52,6 @@ export interface ControllerDeps {
     appHooks: AppHooksStore;
 }
 
-export type TreeSelectedMode = "debounced" | "immediate" | "skip";
 export type SelectionPatch = Partial<
     Pick<
         SelectionState,
@@ -76,11 +76,13 @@ export interface ControllerRuntime {
     getResolvedGraph(): ResolvedDocumentGraph | null;
     notifyError(text: string): void;
     notifySuccess(text: string): void;
-    scheduleTreeSelected(immediate?: boolean): void;
     getNodeDef(name: string): NodeDef | null;
-    selectTreeState(opts?: { clearVariableFocus?: boolean }): boolean;
-    selectResolvedNodeState(instanceKey: string, opts?: { clearVariableFocus?: boolean }): boolean;
-    selectPendingNodeState(stableId: string): void;
+    selectTreeState(opts?: { clearVariableFocus?: boolean; reportInspector?: boolean }): boolean;
+    selectResolvedNodeState(
+        instanceKey: string,
+        opts?: { clearVariableFocus?: boolean; reportInspector?: boolean }
+    ): boolean;
+    selectPendingNodeState(stableId: string, opts?: { reportInspector?: boolean }): void;
     clearActiveVariableFocus(): boolean;
     getSelectedResolvedNode(): ResolvedNodeModel | null;
     isSubtreeStructureLocked(node: ResolvedNodeModel | null): boolean;
@@ -96,6 +98,10 @@ export interface ControllerRuntime {
     getSerializedCurrentTree(): string | null;
     matchesCurrentDocumentSnapshot(content: string): boolean;
     applyDocumentTree(tree: PersistedTreeModel, opts?: ControllerApplyTreeOptions): Promise<void>;
+    primeHostSelectionProjection(
+        selection: DocumentMutationSelection,
+        opts?: { reportInspector?: boolean }
+    ): void;
 }
 
 export const cloneVars = <T extends { name: string; desc: string }>(entries: T[]): T[] =>
@@ -117,7 +123,6 @@ export const buildUsingGroups = (groupNames: string[]): Record<string, boolean> 
 
 export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime => {
     let resolvedGraph: ResolvedDocumentGraph | null = null;
-    let treeSelectedTimer: number | null = null;
     let nodeCheckRequestSeq = 0;
 
     const notifyError = (text: string) => {
@@ -126,32 +131,6 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
 
     const notifySuccess = (text: string) => {
         deps.appHooks.getMessage().success(text);
-    };
-
-    /**
-     * Keep host `treeSelected` notifications debounced by default so variable
-     * refresh in the extension host does not run on every small mutation.
-     */
-    const scheduleTreeSelected = (immediate = false) => {
-        const tree = deps.documentStore.getState().persistedTree;
-        if (!tree) {
-            return;
-        }
-        if (treeSelectedTimer != null) {
-            window.clearTimeout(treeSelectedTimer);
-            treeSelectedTimer = null;
-        }
-        if (immediate) {
-            deps.hostAdapter.sendTreeSelected(tree);
-            return;
-        }
-        treeSelectedTimer = window.setTimeout(() => {
-            treeSelectedTimer = null;
-            const nextTree = deps.documentStore.getState().persistedTree;
-            if (nextTree) {
-                deps.hostAdapter.sendTreeSelected(nextTree);
-            }
-        }, 300);
     };
 
     const getNodeDef = (name: string): NodeDef | null => {
@@ -174,7 +153,13 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         }));
     };
 
+    const isInspectorSidebar = () =>
+        typeof window !== "undefined" && window.__B3_WEBVIEW_KIND__ === "inspector-sidebar";
+
     const reportInspectorSelection = () => {
+        if (isInspectorSidebar()) {
+            return;
+        }
         deps.hostAdapter.sendInspectorSelection(
             deps.selectionStore.getState().selectedNodeSnapshot ?? null
         );
@@ -279,7 +264,10 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         return true;
     };
 
-    const selectTreeState = (opts?: { clearVariableFocus?: boolean }): boolean => {
+    const selectTreeState = (opts?: {
+        clearVariableFocus?: boolean;
+        reportInspector?: boolean;
+    }): boolean => {
         const shouldClearVariableFocus =
             Boolean(opts?.clearVariableFocus) &&
             deps.selectionStore.getState().activeVariableNames.length > 0;
@@ -287,13 +275,15 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             ...buildTreeSelectionPatch(),
             activeVariableNames: shouldClearVariableFocus ? [] : state.activeVariableNames,
         }));
-        reportInspectorSelection();
+        if (opts?.reportInspector !== false) {
+            reportInspectorSelection();
+        }
         return shouldClearVariableFocus;
     };
 
     const selectResolvedNodeState = (
         instanceKey: string,
-        opts?: { clearVariableFocus?: boolean }
+        opts?: { clearVariableFocus?: boolean; reportInspector?: boolean }
     ): boolean => {
         const patch = buildResolvedNodeSelectionPatch(instanceKey);
         if (!patch) {
@@ -307,12 +297,41 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             ...patch,
             activeVariableNames: shouldClearVariableFocus ? [] : state.activeVariableNames,
         }));
-        reportInspectorSelection();
+        if (opts?.reportInspector !== false) {
+            reportInspectorSelection();
+        }
         return shouldClearVariableFocus;
     };
 
-    const selectPendingNodeState = (stableId: string) => {
+    const selectPendingNodeState = (stableId: string, opts?: { reportInspector?: boolean }) => {
         updateSelectionState(() => buildPendingNodeSelectionPatch(stableId));
+        if (opts?.reportInspector) {
+            reportInspectorSelection();
+        }
+    };
+
+    const primeHostSelectionProjection = (
+        selection: DocumentMutationSelection,
+        opts?: { reportInspector?: boolean }
+    ) => {
+        if (selection.kind === "tree") {
+            selectTreeState({ reportInspector: opts?.reportInspector });
+            return;
+        }
+
+        const nextNode = Object.values(resolvedGraph?.nodesByInstanceKey ?? {}).find(
+            (node) => node.ref.structuralStableId === selection.structuralStableId
+        );
+        if (nextNode) {
+            selectResolvedNodeState(nextNode.ref.instanceKey, {
+                reportInspector: opts?.reportInspector,
+            });
+            return;
+        }
+
+        selectPendingNodeState(selection.structuralStableId, {
+            reportInspector: opts?.reportInspector,
+        });
     };
 
     const getSelectedResolvedNode = (): ResolvedNodeModel | null => {
@@ -600,6 +619,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
     const restoreSelection = async () => {
         const selection = deps.selectionStore.getState();
         if (!resolvedGraph || !selection.selectedNodeRef) {
+            reportInspectorSelection();
             await deps.graphAdapter.applySelection({ selectedNodeKey: null });
             return;
         }
@@ -753,7 +773,6 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         getResolvedGraph: () => resolvedGraph,
         notifyError,
         notifySuccess,
-        scheduleTreeSelected,
         getNodeDef,
         selectTreeState,
         selectResolvedNodeState,
@@ -770,5 +789,6 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         getSerializedCurrentTree,
         matchesCurrentDocumentSnapshot,
         applyDocumentTree,
+        primeHostSelectionProjection,
     };
 };

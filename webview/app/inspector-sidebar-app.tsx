@@ -137,18 +137,8 @@ const SidebarHostBridge: React.FC = () => {
                     void applySidebarInit(runtime, hostEvent.payload);
                     return;
 
-                case "documentUpdated":
-                    void runtime.controller.syncDocumentFromHost(hostEvent.content);
-                    return;
-
-                case "documentSessionChanged":
-                    void runtime.controller.applyDocumentSession(hostEvent.documentSession);
-                    return;
-
-                case "documentReloaded":
-                    void runtime.controller.reloadDocumentFromHost(hostEvent.content, {
-                        force: true,
-                    });
+                case "documentSnapshotChanged":
+                    void runtime.controller.applyDocumentSnapshot(hostEvent.snapshot);
                     return;
 
                 case "varDeclLoaded":
@@ -191,7 +181,6 @@ const SidebarHostBridge: React.FC = () => {
                     resetSidebarContext(runtime);
                     return;
 
-                case "fileChanged":
                 case "subtreeFileChanged":
                 case "buildResult":
                     return;

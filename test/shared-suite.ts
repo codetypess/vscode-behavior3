@@ -1235,7 +1235,6 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                     return { success: true };
                 },
                 requestFocusVariable() {},
-                sendTreeSelected() {},
                 sendInspectorSelection() {},
                 sendRequestSetting() {},
                 sendBuild() {},
@@ -1319,7 +1318,6 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                     return { success: true };
                 },
                 requestFocusVariable() {},
-                sendTreeSelected() {},
                 sendInspectorSelection() {},
                 sendRequestSetting() {},
                 sendBuild() {},
@@ -1518,7 +1516,6 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                     return { success: true };
                 },
                 requestFocusVariable() {},
-                sendTreeSelected() {},
                 sendInspectorSelection() {},
                 sendRequestSetting() {},
                 sendBuild() {},
@@ -1627,6 +1624,191 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             }
             assert.equal(updateNodeMutation.payload.currentNodeSnapshot?.data.uuid, "root");
             assert.equal(updateNodeMutation.payload.currentNodeSnapshot?.subtreeNode, false);
+        },
+    },
+    {
+        name: "applies host document snapshots and nextSelection through controller projection",
+        async run() {
+            const documentStore = createDocumentStore();
+            const workspaceStore = createWorkspaceStore();
+            const selectionStore = createSelectionStore();
+            const appHooks = createAppHooksStore();
+            const reportedSelections: Array<string | null> = [];
+            let appliedSelectionKey: string | null = null;
+
+            appHooks.bind({
+                message: {
+                    success() {},
+                    error() {},
+                } as any,
+                notification: {} as any,
+                modal: {} as any,
+            });
+
+            const hostAdapter: HostAdapter = {
+                connect: () => () => {},
+                sendReady() {},
+                undo() {},
+                redo() {},
+                async mutateDocument() {
+                    return { success: true };
+                },
+                requestFocusVariable() {},
+                sendInspectorSelection(selectedNode) {
+                    reportedSelections.push(selectedNode?.data.uuid ?? null);
+                },
+                sendRequestSetting() {},
+                sendBuild() {},
+                async validateNodeChecks() {
+                    return { diagnostics: [] };
+                },
+                async saveDocument() {
+                    return { success: true };
+                },
+                async revertDocument() {
+                    return { success: true };
+                },
+                async readFile() {
+                    return { content: "{}" };
+                },
+                async saveSubtree() {
+                    return { success: true };
+                },
+                async saveSubtreeAs() {
+                    return { savedPath: null };
+                },
+                log() {},
+            };
+            const graphAdapter: GraphAdapter = {
+                async mount() {},
+                unmount() {},
+                async render() {},
+                async applySelection(payload) {
+                    appliedSelectionKey = payload.selectedNodeKey;
+                },
+                async applyHighlights() {},
+                async applySearch() {},
+                async focusNode() {},
+                async restoreViewport() {},
+                getViewport: () => ({ zoom: 1, x: 0, y: 0 }),
+            };
+
+            const controller = createEditorController({
+                documentStore,
+                workspaceStore,
+                selectionStore,
+                hostAdapter,
+                graphAdapter,
+                appHooks,
+            });
+
+            const initialTree = createTestTree();
+            initialTree.root.children = [
+                {
+                    uuid: "child-a",
+                    id: "2",
+                    name: "ActionA",
+                },
+                {
+                    uuid: "child-b",
+                    id: "3",
+                    name: "ActionB",
+                },
+            ];
+            const initialContent = serializePersistedTree(initialTree);
+            await controller.initFromHost({
+                filePath: "/tmp/main.json",
+                workdir: "/tmp",
+                content: initialContent,
+                nodeDefs: [
+                    {
+                        name: "Sequence",
+                        type: "Composite",
+                        desc: "",
+                        status: ["success"],
+                    },
+                    {
+                        name: "ActionA",
+                        type: "Action",
+                        desc: "",
+                    },
+                    {
+                        name: "ActionB",
+                        type: "Action",
+                        desc: "",
+                    },
+                    {
+                        name: "ActionC",
+                        type: "Action",
+                        desc: "",
+                    },
+                ],
+                allFiles: [],
+                settings: {
+                    checkExpr: true,
+                    subtreeEditable: true,
+                    language: "en",
+                    theme: "light",
+                },
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: initialContent,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+            });
+
+            const nextTree = createTestTree();
+            nextTree.root.children = [
+                {
+                    uuid: "child-a",
+                    id: "2",
+                    name: "ActionA",
+                },
+                {
+                    uuid: "child-b",
+                    id: "3",
+                    name: "ActionB",
+                },
+                {
+                    uuid: "child-c",
+                    id: "4",
+                    name: "ActionC",
+                },
+            ];
+            const nextContent = serializePersistedTree(nextTree);
+
+            await controller.applyDocumentSnapshot({
+                content: nextContent,
+                documentSession: {
+                    dirty: true,
+                    historyIndex: 1,
+                    historyLength: 2,
+                    lastSavedSnapshot: initialContent,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                syncKind: "update",
+                nextSelection: {
+                    kind: "node",
+                    structuralStableId: "child-c",
+                },
+            });
+
+            assert.equal(documentStore.getState().dirty, true);
+            assert.equal(
+                documentStore.getState().persistedTree?.root.children?.[2]?.uuid,
+                "child-c"
+            );
+            assert.equal(selectionStore.getState().selectedNodeRef?.structuralStableId, "child-c");
+            assert.equal(selectionStore.getState().selectedNodeSnapshot?.data.uuid, "child-c");
+            assert.equal(
+                appliedSelectionKey,
+                selectionStore.getState().selectedNodeRef?.instanceKey ?? null
+            );
+            assert.equal(reportedSelections.at(-1), "child-c");
         },
     },
     {

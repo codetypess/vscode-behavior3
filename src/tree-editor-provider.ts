@@ -144,12 +144,12 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
 
         if (opts?.notifyReload !== false) {
             TreeEditorProvider.postMessageToDocument(document.uri.toString(), {
-                type: "documentReloaded",
-                content: normalizedContent,
-            });
-            TreeEditorProvider.postMessageToDocument(document.uri.toString(), {
-                type: "documentSessionChanged",
-                documentSession: document.sessionState.getSnapshot(),
+                type: "documentSnapshotChanged",
+                snapshot: {
+                    content: normalizedContent,
+                    documentSession: document.sessionState.getSnapshot(),
+                    syncKind: "reload",
+                },
             });
             this.inspectorCoordinator.notifyDocumentSaved(
                 document.uri.toString(),
@@ -221,12 +221,12 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         document.updateContent(content, { markSaved: true, markDirty: false });
         document.sessionState.replaceFromDisk(content);
         TreeEditorProvider.postMessageToDocument(document.uri.toString(), {
-            type: "documentReloaded",
-            content,
-        });
-        TreeEditorProvider.postMessageToDocument(document.uri.toString(), {
-            type: "documentSessionChanged",
-            documentSession: document.sessionState.getSnapshot(),
+            type: "documentSnapshotChanged",
+            snapshot: {
+                content,
+                documentSession: document.sessionState.getSnapshot(),
+                syncKind: "reload",
+            },
         });
         this.inspectorCoordinator.notifyDocumentSaved(
             document.uri.toString(),

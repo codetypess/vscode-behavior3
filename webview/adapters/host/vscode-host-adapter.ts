@@ -8,7 +8,6 @@ import {
 import type {
     HostAdapter,
     DocumentMutationResponse,
-    PersistedTreeModel,
     ReadFileResponse,
     RevertDocumentResponse,
     SaveDocumentResponse,
@@ -256,15 +255,11 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
                         onMessage({ type: "init", payload: normalizeHostInitMessage(message) });
                         return;
 
-                    case "documentSessionChanged":
+                    case "documentSnapshotChanged":
                         onMessage({
-                            type: "documentSessionChanged",
-                            documentSession: message.documentSession,
+                            type: "documentSnapshotChanged",
+                            snapshot: message.snapshot,
                         });
-                        return;
-
-                    case "documentUpdated":
-                        onMessage({ type: "documentUpdated", content: message.content });
                         return;
 
                     case "focusVariable":
@@ -276,14 +271,6 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
                             type: "varDeclLoaded",
                             payload: normalizeHostVarsMessage(message),
                         });
-                        return;
-
-                    case "fileChanged":
-                        onMessage({ type: "fileChanged", content: message.content });
-                        return;
-
-                    case "documentReloaded":
-                        onMessage({ type: "documentReloaded", content: message.content });
                         return;
 
                     case "themeChanged":
@@ -371,10 +358,6 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
 
         requestFocusVariable(names) {
             postMessage({ type: "focusVariable", names });
-        },
-
-        sendTreeSelected(tree: PersistedTreeModel) {
-            postMessage({ type: "treeSelected", tree });
         },
 
         sendInspectorSelection(selectedNode) {

@@ -1,9 +1,9 @@
 # Sidebar Host Single Source
 
-Status: Implementing
+Status: Done
 Date: 2026-05-06
 Scope: Migrate main-document authority from webview-local controller state to an extension-host document session, using staged intent-based save, undo/redo, mutation, and snapshot fanout flows
-Progress: Phase 1 host session shell landed; Phase 2 host intent routing is complete for save, undo, and redo; Phase 3 is complete for sidebar `updateTreeMeta` / `updateNode`; Phase 4 is complete, all current main-document mutations now commit directly in host, and Phase 5 cleanup has begun
+Progress: Phase 1 host session shell landed; Phase 2 host intent routing is complete for save, undo, and redo; Phase 3 is complete for sidebar `updateTreeMeta` / `updateNode`; Phase 4 is complete, all current main-document mutations now commit directly in host; Phase 5 is complete, with unified host document snapshot fanout, mutation-follow selection projection, and `treeSelected` removed from the authoritative document-sync loop
 
 ## 1. Context
 
@@ -61,7 +61,9 @@ As a result, a narrow Ctrl+S or pending-dot fix would treat symptoms but would n
 - For sidebar `updateTreeMeta` and `updateNode`, the host now runs a shared reducer directly; `updateNode` carries explicit node snapshot context, so fallback is no longer needed for selected-node drift or subtree-original reconstruction.
 - Canvas structural commands now enter the host first as `mutateDocument` intents instead of mutating locally before sending `update`.
 - `performDrop`, `pasteNode`, `insertNode`, `replaceNode`, `deleteNode`, and `saveSelectedAsSubtree` now commit directly in host, with `nextSelection` returned to the webview so selection projection can follow the committed snapshot.
-- Cross-view content sync still primarily uses content-bearing messages such as `documentUpdated` and `documentReloaded`, rather than a normalized host session snapshot feed.
+- Cross-view committed main-document sync now fans out through one `documentSnapshotChanged` payload that carries content, session metadata, sync kind, and optional mutation-follow selection.
+- Mutation follow-up selection now enters both editor and sidebar through that same committed snapshot fanout, so sidebar no longer waits for a second editor-origin selection echo after host-side structural commits.
+- Host var-decl refresh after committed main-document changes now runs directly from the committed content in the host session; `treeSelected` is no longer part of authoritative document-state convergence.
 
 ## 5. Proposed Behavior
 
@@ -77,7 +79,7 @@ The final target architecture is:
   - save/revert/reload conflict state
   - current shared selection payload used by canvas and sidebar
 - canvas and sidebar webviews emit user intents instead of committing document mutations locally
-- the host applies or delegates the intent, commits the authoritative result, and broadcasts the resulting session snapshot back to both webviews
+- the host applies or delegates the intent, commits the authoritative result, and broadcasts one authoritative document snapshot payload back to both webviews
 - sidebar save and pending-state drift disappears because save-state authority exists in one place only
 
 ### 5.2 Migration Behavior
@@ -98,6 +100,12 @@ For Phase 4 specifically, the first migration cut is allowed to:
 - let canvas commands enter the host first as `mutateDocument` intents
 - complete the migration by removing the host-triggered webview compat executor once all main-document mutations are host-owned
 
+For the current Phase 5 cleanup cut, the migration should additionally:
+
+- replace separate "content changed" and "session changed" fanout with one host document snapshot event
+- let mutation-driven `nextSelection` travel with that host snapshot so both editor and sidebar can project the same committed selection intent
+- stop treating `treeSelected` as part of the authoritative main-document sync loop after host commits content
+
 ## 6. Design
 
 ### 6.1 Authoritative Host Session State
@@ -112,6 +120,13 @@ Add a host-side document session state object that becomes the canonical owner o
 - current shared selection payload for sidebar and editor fanout
 
 The host may continue to persist `TreeEditorDocument.content` as the VS Code custom-editor mirror, but that mirror should become a projection of the document session rather than an independent conceptual authority.
+
+For committed document fanout, the host should expose one normalized snapshot shape that at minimum carries:
+
+- normalized committed content
+- current `HostDocumentSessionState`
+- the sync kind (`update` vs `reload`)
+- optional mutation-follow selection projection such as `nextSelection`
 
 ### 6.2 Intent Surface
 
@@ -180,6 +195,8 @@ However, selection can migrate in two steps:
 Legacy protocol pieces such as:
 
 - `documentUpdated`
+- `documentReloaded`
+- `documentSessionChanged`
 
 may remain temporarily, but each one must be classified in implementation as either:
 
@@ -187,6 +204,28 @@ may remain temporarily, but each one must be classified in implementation as eit
 - replaced by an intent-plus-snapshot session flow
 
 The migration is not complete while these message paths still act as the primary authority boundary.
+
+### 6.7 Mutation-Follow Selection Projection
+
+Full cross-view selection authority does not need to migrate to host intents in this cut.
+
+However, once a host-side mutation commits, the host should be the place that decides the committed follow-up selection projection exposed to both webviews. Concretely:
+
+- shared reducers may continue to return `nextSelection`
+- the initiating `mutateDocumentResult` may still include that field for request/response ergonomics
+- the same committed `nextSelection` should also be attached to the authoritative host document snapshot fanout for that commit
+- editor and sidebar should apply that projection locally against their own rebuilt graph/runtime state instead of waiting for editor-to-sidebar inspector echo
+
+This shrinks local fallback logic without requiring the host to synthesize full inspector DTOs for every mutation outcome.
+
+### 6.8 `treeSelected` Demotion Rule
+
+`treeSelected` is no longer allowed to be the required bridge that completes host understanding of a just-committed main-document snapshot.
+
+After this cleanup:
+
+- host-owned save, undo/redo, mutation, revert, and reload flows must refresh host vars/session fanout directly from the committed content they already own
+- any remaining `treeSelected` usage must be documented as auxiliary or derived behavior only, not as part of authoritative document-state convergence
 
 ## 7. Implementation Plan
 
@@ -243,13 +282,18 @@ Exit criteria:
 ### Phase 5. Reducer Port and Cleanup
 
 - Move mutation reducers into a shared pure domain layer that the host can run directly.
+- Replace split content/session fanout with one host document snapshot event.
+- Feed mutation `nextSelection` through that snapshot fanout so both webviews can project the committed selection locally.
 - Remove or demote compatibility protocol paths that depended on the active editor webview as the executor.
+- Stop relying on `treeSelected` as the host's post-commit var refresh trigger.
 - Shrink webview document stores to projection-only responsibilities.
 
 Exit criteria:
 
 - The host can commit document mutations without requiring the active editor webview to be the executor.
 - Dirty, save, and undo/redo ownership no longer live in webview-local document state.
+- Host-driven document sync no longer depends on separate content/session message pairs for committed snapshots.
+- Host var-decl refresh for committed main-document changes no longer waits for the webview to echo the tree back.
 
 ## 8. Testing Plan
 
@@ -260,8 +304,12 @@ Exit criteria:
   - external file change while clean
   - external file change while dirty
   - subtree-linked node edits and override behavior
+- Manual regression for:
+  - structural mutation from editor updates sidebar selection without waiting for a second editor-origin selection echo
+  - committed mutation/save/undo/reload fanout reaches editor and sidebar through a single host document snapshot path
 - Add reducer or session-state tests for host history, dirty, save, and reload-conflict transitions as host ownership moves.
 - Add protocol-level checks for new host intent and snapshot message shapes.
+- Add coverage that mutation `nextSelection` is visible to non-initiating webviews through host fanout.
 - Re-run the acceptance scenarios that touch:
   - save/revert/reload
   - inspector sidebar proxy editing
@@ -275,6 +323,9 @@ Exit criteria:
 - Sidebar and canvas cannot disagree about whether the main document is dirty or saved after the same committed command sequence.
 - Any document mutation that changes persisted-tree content first passes through a host-session intent boundary before becoming committed state.
 - By the end of the migration, the host can commit document mutations without requiring the active editor webview to remain the primary executor.
+- Committed host document fanout no longer requires separate content and session notifications to describe one state transition.
+- Mutation follow-up selection for committed host-side reducers is observable from the authoritative host snapshot fanout, not only from local editor-side repair logic.
+- Host var refresh after committed main-document changes no longer depends on a webview `treeSelected` echo.
 - Numbered baseline specs are updated only when the implemented code has actually crossed the relevant ownership boundary.
 
 ## 10. Risks and Rollback

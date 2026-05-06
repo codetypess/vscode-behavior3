@@ -24,7 +24,7 @@ import type {
     HostToEditorMessage,
     NodeDef,
 } from "../../webview/shared/message-protocol";
-import type { EditNode } from "../../webview/shared/contracts";
+import type { DocumentMutationSelection, EditNode } from "../../webview/shared/contracts";
 import {
     formatDocumentMutationReducerError,
     isReducibleDocumentMutation,
@@ -32,7 +32,6 @@ import {
 } from "../../webview/shared/document-mutation-reducer";
 import { isDocumentVersionNewer } from "../../webview/shared/document-version";
 import { parseWorkdirRelativeJsonPath } from "../../webview/shared/protocol";
-import { stringifyJson } from "../../webview/shared/misc/stringify";
 import { parseWorkspaceModelContent } from "../../webview/shared/schema";
 import {
     clonePersistedNode,
@@ -354,7 +353,23 @@ export async function resolveTreeEditorSession({
         subtreeDecls: state.latestVarDecls.subtreeDecls,
     });
 
+    const buildDocumentSnapshotMessage = (opts?: {
+        content?: string;
+        documentSession?: ReturnType<typeof buildDocumentSessionMessage>;
+        syncKind?: "update" | "reload";
+        nextSelection?: DocumentMutationSelection;
+    }): Extract<HostToEditorMessage, { type: "documentSnapshotChanged" }> => ({
+        type: "documentSnapshotChanged",
+        snapshot: {
+            content: opts?.content ?? document.content,
+            documentSession: opts?.documentSession ?? buildDocumentSessionMessage(),
+            syncKind: opts?.syncKind ?? state.inspectorContentSyncKind,
+            nextSelection: opts?.nextSelection,
+        },
+    });
+
     const notifyInspectorSessionUpdate = () => {
+        const documentSession = buildDocumentSessionMessage();
         onInspectorSessionUpdate({
             documentUri: document.uri.toString(),
             initMessage: {
@@ -369,14 +384,29 @@ export async function resolveTreeEditorSession({
                 theme: getVSCodeTheme(),
                 allFiles: state.latestAllFiles,
                 nodeColors: state.currentSettings.nodeColors,
-                documentSession: buildDocumentSessionMessage(),
+                documentSession,
             },
             varsMessage: buildInspectorVarsMessage(),
-            documentSession: buildDocumentSessionMessage(),
+            documentSnapshot: buildDocumentSnapshotMessage({
+                documentSession,
+            }).snapshot,
             selectedNode: state.selectedInspectorNode,
             selectionRevision: state.inspectorSelectionRevision,
-            contentSyncKind: state.inspectorContentSyncKind,
         });
+    };
+
+    const refreshLatestVarDeclsFromContent = async (content: string): Promise<void> => {
+        const [allFiles, result] = await Promise.all([
+            projectIndex.getAllFiles(),
+            parseUsingVarsFromContent(projectIndex, content),
+        ]);
+
+        state.latestAllFiles = allFiles;
+        state.latestVarDecls = result ?? {
+            usingVars: {},
+            importDecls: [],
+            subtreeDecls: [],
+        };
     };
 
     const activeWebviewEntry: ActiveTreeEditorWebview = {
@@ -577,7 +607,12 @@ export async function resolveTreeEditorSession({
     };
 
     const flushParentSubtreeRefresh = () => {
-        void postMessage({ type: "subtreeFileChanged" });
+        void (async () => {
+            await refreshLatestVarDeclsFromContent(document.content);
+            await postMessage(buildInspectorVarsMessage());
+            notifyInspectorSessionUpdate();
+            await postMessage({ type: "subtreeFileChanged" });
+        })();
     };
 
     const isMainDocumentUri = (uri: vscode.Uri): boolean =>
@@ -628,15 +663,31 @@ export async function resolveTreeEditorSession({
         void refreshTrackedSubtreeRefs();
         updateFileVersionState(normalizedContent);
         onDidChangeDocument(document);
-        void postMessage({
-            type: "documentSessionChanged",
-            documentSession: buildDocumentSessionMessage(),
-        });
-        notifyInspectorSessionUpdate();
         return true;
     };
 
-    const applySessionHistorySnapshot = async (snapshot: string): Promise<boolean> => {
+    const fanoutDocumentSnapshot = async (opts?: {
+        syncKind?: "update" | "reload";
+        nextSelection?: DocumentMutationSelection;
+        refreshVars?: boolean;
+    }): Promise<void> => {
+        await postMessage(
+            buildDocumentSnapshotMessage({
+                syncKind: opts?.syncKind,
+                nextSelection: opts?.nextSelection,
+            })
+        );
+        if (opts?.refreshVars !== false) {
+            await refreshLatestVarDeclsFromContent(document.content);
+            await postMessage(buildInspectorVarsMessage());
+        }
+        notifyInspectorSessionUpdate();
+    };
+
+    const applySessionHistorySnapshot = async (
+        snapshot: string,
+        opts?: { nextSelection?: DocumentMutationSelection }
+    ): Promise<boolean> => {
         const sessionSnapshot = buildDocumentSessionMessage();
         const changed = document.syncContentState(snapshot, sessionSnapshot.dirty);
         if (!changed) {
@@ -648,15 +699,10 @@ export async function resolveTreeEditorSession({
         void refreshTrackedSubtreeRefs();
         updateFileVersionState(snapshot);
         onDidChangeDocument(document);
-        await postMessage({
-            type: "documentUpdated",
-            content: snapshot,
-        } satisfies HostToEditorMessage);
-        await postMessage({
-            type: "documentSessionChanged",
-            documentSession: sessionSnapshot,
-        } satisfies HostToEditorMessage);
-        notifyInspectorSessionUpdate();
+        await fanoutDocumentSnapshot({
+            syncKind: "update",
+            nextSelection: opts?.nextSelection,
+        });
         return true;
     };
 
@@ -707,18 +753,7 @@ export async function resolveTreeEditorSession({
 
         updateFileVersionState(content, { showWarning: true });
 
-        const [allFiles, initUsingVars] = await Promise.all([
-            projectIndex.getAllFiles(),
-            parseUsingVarsFromContent(projectIndex, content),
-            refreshTrackedSubtreeRefs(),
-        ]);
-
-        state.latestAllFiles = allFiles;
-        state.latestVarDecls = initUsingVars ?? {
-            usingVars: {},
-            importDecls: [],
-            subtreeDecls: [],
-        };
+        await Promise.all([refreshLatestVarDeclsFromContent(content), refreshTrackedSubtreeRefs()]);
 
         await reply({
             type: "init",
@@ -730,14 +765,12 @@ export async function resolveTreeEditorSession({
             subtreeEditable: state.currentSettings.subtreeEditable,
             language: state.currentSettings.language,
             theme,
-            allFiles,
+            allFiles: state.latestAllFiles,
             nodeColors: state.currentSettings.nodeColors,
             documentSession: buildDocumentSessionMessage(),
         });
 
-        if (initUsingVars) {
-            await postVarDeclLoaded(reply, initUsingVars);
-        }
+        await postVarDeclLoaded(reply, state.latestVarDecls, state.latestAllFiles);
 
         notifyInspectorSessionUpdate();
     };
@@ -868,12 +901,16 @@ export async function resolveTreeEditorSession({
 
         nextTargetNode.path = savedPath;
         nextTargetNode.children = undefined;
+        const nextSelection: DocumentMutationSelection = {
+            kind: "node",
+            structuralStableId: nextTargetNode.uuid,
+        };
         const changed = applyContentFromWebview(serializePersistedTree(nextTree));
         if (changed) {
-            await postMessage({
-                type: "documentUpdated",
-                content: document.content,
-            } satisfies HostToEditorMessage);
+            await fanoutDocumentSnapshot({
+                syncKind: "update",
+                nextSelection,
+            });
         }
 
         return {
@@ -882,10 +919,7 @@ export async function resolveTreeEditorSession({
                 type: "mutateDocumentResult",
                 requestId: msg.requestId,
                 success: true,
-                nextSelection: {
-                    kind: "node",
-                    structuralStableId: nextTargetNode.uuid,
-                },
+                nextSelection,
             },
         };
     };
@@ -966,10 +1000,10 @@ export async function resolveTreeEditorSession({
 
             const changed = applyContentFromWebview(serializePersistedTree(reduced.tree));
             if (changed) {
-                await postMessage({
-                    type: "documentUpdated",
-                    content: document.content,
-                } satisfies HostToEditorMessage);
+                await fanoutDocumentSnapshot({
+                    syncKind: "update",
+                    nextSelection: reduced.nextSelection,
+                });
             }
 
             await reply({
@@ -1110,47 +1144,18 @@ export async function resolveTreeEditorSession({
                 state.inspectorContentSyncKind = "reload";
                 void refreshTrackedSubtreeRefs();
                 updateFileVersionState(content, { showWarning: true });
-                void postMessage({
-                    type: "documentSessionChanged",
-                    documentSession: buildDocumentSessionMessage(),
+                await fanoutDocumentSnapshot({
+                    syncKind: "reload",
                 });
-                await postMessage({
-                    type: "documentReloaded",
-                    content,
-                } satisfies HostToEditorMessage);
-                notifyInspectorSessionUpdate();
                 return;
             }
 
             documentSession.showReloadConflict(content);
-            void postMessage({
-                type: "documentSessionChanged",
-                documentSession: buildDocumentSessionMessage(),
+            await fanoutDocumentSnapshot({
+                syncKind: "update",
+                refreshVars: false,
             });
-            await postMessage({
-                type: "fileChanged",
-                content,
-            } satisfies HostToEditorMessage);
         });
-    };
-
-    const handleTreeSelectedMessage = async (
-        msg: Extract<EditorToHostMessage, { type: "treeSelected" }>
-    ): Promise<void> => {
-        const content = stringifyJson(msg.tree, { indent: 2 });
-        const [allFiles, result] = await Promise.all([
-            projectIndex.getAllFiles(),
-            parseUsingVarsFromContent(projectIndex, content),
-        ]);
-
-        state.latestAllFiles = allFiles;
-
-        if (result) {
-            state.latestVarDecls = result;
-            await postVarDeclLoaded(postMessage, result, allFiles);
-        }
-
-        notifyInspectorSessionUpdate();
     };
 
     const handleReadFileMessage = async (
@@ -1397,10 +1402,6 @@ export async function resolveTreeEditorSession({
 
             case "saveDocument":
                 await handleSaveDocumentMessage(msg, reply);
-                return;
-
-            case "treeSelected":
-                await handleTreeSelectedMessage(msg);
                 return;
 
             case "reportInspectorSelection":

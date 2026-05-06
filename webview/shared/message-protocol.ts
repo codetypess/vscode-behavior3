@@ -7,6 +7,7 @@ import type {
     DocumentMutation,
     DocumentMutationSelection,
     EditNode,
+    HostDocumentSnapshot,
     HostDocumentSessionState,
     NodeCheckValidationNode,
 } from "./contracts";
@@ -22,7 +23,6 @@ export type EditorToHostMessage =
     | { type: "mutateDocument"; requestId: string; mutation: DocumentMutation }
     | { type: "saveDocument"; requestId: string }
     | { type: "revertDocument"; requestId: string }
-    | { type: "treeSelected"; tree: unknown }
     | { type: "requestSetting" }
     | { type: "build"; buildScriptDebug?: boolean }
     | {
@@ -56,12 +56,9 @@ export type HostToEditorMessage =
           nodeColors?: Record<string, string>;
           documentSession: HostDocumentSessionState;
       }
-    | { type: "documentSessionChanged"; documentSession: HostDocumentSessionState }
-    | { type: "documentUpdated"; content: string }
+    | { type: "documentSnapshotChanged"; snapshot: HostDocumentSnapshot }
     /** Cross-webview variable focus sync from the sidebar inspector into the active editor. */
     | { type: "focusVariable"; names: string[] }
-    | { type: "fileChanged"; content: string }
-    | { type: "documentReloaded"; content: string }
     /** A referenced subtree file was saved or edited; parent canvas should reload subtree data. */
     | { type: "subtreeFileChanged" }
     /** Sidebar inspector selection sync for the active editor session. */

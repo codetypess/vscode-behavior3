@@ -11,6 +11,6 @@
     "types": ["node"],
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "webview/global.d.ts"],
   "exclude": ["node_modules", "dist", "webview"]
 }

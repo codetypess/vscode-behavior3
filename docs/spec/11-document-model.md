@@ -199,7 +199,7 @@
 ### Dirty 规则
 
 - 宿主 session 的 dirty 由“当前宿主快照是否等于 lastSavedSnapshot”决定
-- webview `documentStore.dirty` 只通过 `documentSessionChanged` 镜像宿主 dirty
+- webview `documentStore.dirty` 只通过 `documentSnapshotChanged.documentSession` 镜像宿主 dirty
 - dirty 不是独立于快照的第二份手工业务真源
 
 ## Save / Revert / Reload
@@ -211,19 +211,19 @@
 1. webview 发送 `saveDocument` intent
 2. 宿主保存当前 `TreeEditorDocument.content`
 3. 成功后更新宿主 `sessionState.lastSavedSnapshot`
-4. 宿主广播 `documentReloaded` 和 `documentSessionChanged`
+4. 宿主广播 `documentSnapshotChanged(syncKind: "reload")`
 
 ### Undo / Redo
 
 1. webview 发送 `undo` 或 `redo` intent
 2. 宿主在 `sessionState.history` 上推进 history 游标
 3. 宿主更新 `TreeEditorDocument.content` / `isDirty`
-4. 宿主广播 `documentUpdated` 和 `documentSessionChanged`
+4. 宿主广播 `documentSnapshotChanged(syncKind: "update")`
 
 ### Revert
 
 - 宿主重新读取磁盘内容
-- webview 强制 `reloadDocumentFromHost(..., { force: true })`
+- webview 通过 `documentSnapshotChanged(syncKind: "reload")` 强制应用宿主快照
 - history 以磁盘快照重置
 
 ### External Reload Conflict

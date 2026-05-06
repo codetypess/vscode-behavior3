@@ -1,20 +1,20 @@
 import { VERSION } from "../shared/misc/b3type";
 import { compareDocumentVersion } from "../shared/document-version";
-import type { EditorCommand, HostInitPayload, HostVarsPayload, NodeDef } from "../shared/contracts";
+import type {
+    EditorCommand,
+    HostDocumentSnapshot,
+    HostInitPayload,
+    HostVarsPayload,
+    NodeDef,
+} from "../shared/contracts";
 import { deriveGroupDefs } from "../shared/protocol";
 import { parsePersistedTreeContent } from "../shared/tree";
-import {
-    applyHostDocumentSession,
-    clearDocumentReloadConflict,
-    showDocumentReloadConflict,
-} from "../stores/document-store";
+import { applyHostDocumentSession, clearDocumentReloadConflict } from "../stores/document-store";
 import { buildUsingGroups, isJsonEqual, type ControllerRuntime } from "./controller-runtime";
 
 type DocumentCommandKeys =
     | "initFromHost"
-    | "applyDocumentSession"
-    | "syncDocumentFromHost"
-    | "reloadDocumentFromHost"
+    | "applyDocumentSnapshot"
     | "applyNodeDefs"
     | "applyHostVars"
     | "markSubtreeChanged"
@@ -30,7 +30,6 @@ export const createDocumentCommands = (
     runtime: ControllerRuntime
 ): Pick<EditorCommand, DocumentCommandKeys> => {
     const { deps } = runtime;
-    const isInspectorSidebar = () => window.__B3_WEBVIEW_KIND__ === "inspector-sidebar";
 
     return {
         async initFromHost(payload: HostInitPayload) {
@@ -53,45 +52,39 @@ export const createDocumentCommands = (
             applyHostDocumentSession(deps.documentStore, payload.documentSession);
         },
 
-        async applyDocumentSession(documentSession) {
-            applyHostDocumentSession(deps.documentStore, documentSession);
-        },
+        async applyDocumentSnapshot(snapshot: HostDocumentSnapshot) {
+            applyHostDocumentSession(deps.documentStore, snapshot.documentSession);
 
-        async syncDocumentFromHost(content: string) {
-            if (runtime.matchesCurrentDocumentSnapshot(content)) {
-                clearDocumentReloadConflict(deps.documentStore);
+            const matchesCurrent = runtime.matchesCurrentDocumentSnapshot(snapshot.content);
+            if (matchesCurrent) {
+                if (snapshot.nextSelection) {
+                    runtime.primeHostSelectionProjection(snapshot.nextSelection, {
+                        reportInspector: false,
+                    });
+                    if (snapshot.nextSelection.kind === "tree") {
+                        await deps.graphAdapter.applySelection({ selectedNodeKey: null });
+                    } else {
+                        const selectedKey =
+                            deps.selectionStore.getState().selectedNodeRef?.instanceKey ?? null;
+                        const resolvedGraph = runtime.getResolvedGraph();
+                        if (selectedKey && resolvedGraph?.nodesByInstanceKey[selectedKey]) {
+                            await deps.graphAdapter.applySelection({ selectedNodeKey: selectedKey });
+                        }
+                    }
+                }
                 return;
             }
 
+            if (snapshot.nextSelection) {
+                runtime.primeHostSelectionProjection(snapshot.nextSelection, {
+                    reportInspector: false,
+                });
+            }
             const filePath = deps.workspaceStore.getState().filePath || undefined;
-            const tree = parsePersistedTreeContent(content, filePath);
-            clearDocumentReloadConflict(deps.documentStore);
+            const tree = parsePersistedTreeContent(snapshot.content, filePath);
             await runtime.applyDocumentTree(tree, {
                 preserveSelection: true,
             });
-            if (!isInspectorSidebar()) {
-                runtime.scheduleTreeSelected();
-            }
-        },
-
-        async reloadDocumentFromHost(content: string, opts?: { force?: boolean }) {
-            if (runtime.matchesCurrentDocumentSnapshot(content)) {
-                clearDocumentReloadConflict(deps.documentStore);
-                return;
-            }
-
-            if (!opts?.force) {
-                showDocumentReloadConflict(deps.documentStore, content);
-                return;
-            }
-
-            const filePath = deps.workspaceStore.getState().filePath || undefined;
-            const tree = parsePersistedTreeContent(content, filePath);
-            clearDocumentReloadConflict(deps.documentStore);
-            await runtime.applyDocumentTree(tree, {
-                preserveSelection: true,
-            });
-            runtime.scheduleTreeSelected(true);
         },
 
         async applyNodeDefs(defs: NodeDef[]) {
@@ -140,7 +133,6 @@ export const createDocumentCommands = (
             }));
             await runtime.syncReachableSubtreeSources();
             await runtime.rebuildGraph({ preserveSelection: true });
-            runtime.scheduleTreeSelected(true);
         },
 
         async dismissReloadConflict() {
