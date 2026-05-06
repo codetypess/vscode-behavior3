@@ -140,8 +140,6 @@
 - `selectedNodeRef`
 - `selectedNodeSnapshot`
 - `selectedNodeDef`
-- `activeVariableNames`
-- `search`
 
 说明：
 
@@ -150,6 +148,20 @@
 - `selectedNodeSnapshot` 是给 Inspector 使用的编辑投影
 - `selectedNodeDef` 是当前节点对应的 nodeDef 快照
 - 这些都不是主文档真源，只是当前 resolved graph 的投影视图
+
+`graphUiStore` 持有：
+
+- `activeVariableNames`
+- `search`
+- `selectionVisualHint`
+
+说明：
+
+- 它们都是 webview-local graph UI state，不属于 host 共享 authority
+- `activeVariableNames` 驱动变量高亮
+- `search` 驱动 search overlay、结果列表与当前结果 index
+- `selectionVisualHint` 是 host snapshot 收敛前的 graph-only transient selection hint
+- 这些状态可以在 reload/reset 时整体清空，而不影响 committed host selection projection
 
 ## Override Model
 
@@ -194,6 +206,7 @@
 - selection 变化
 - search 条件变化
 - variable focus 变化
+- graph-only selection hint 变化
 - 视口变化
 - 图纯视觉刷新
 - 宿主推送的主题、变量声明、nodeDefs 热更新

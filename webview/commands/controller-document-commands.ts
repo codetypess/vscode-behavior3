@@ -44,6 +44,7 @@ export const createDocumentCommands = (
                 settings: payload.settings,
                 usingGroups: buildUsingGroups(persistedTree.group),
             }));
+            runtime.resetGraphUiState();
             runtime.applyHostSelectionState(payload.selection);
 
             await runtime.applyDocumentTree(persistedTree, {
@@ -57,6 +58,9 @@ export const createDocumentCommands = (
 
             const matchesCurrent = runtime.matchesCurrentDocumentSnapshot(snapshot.content);
             runtime.applyHostSelectionState(snapshot.selection);
+            if (!matchesCurrent && snapshot.syncKind === "reload") {
+                runtime.resetGraphUiState();
+            }
             if (matchesCurrent) {
                 await runtime.applyVisualState();
                 return;

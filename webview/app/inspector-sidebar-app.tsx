@@ -14,6 +14,7 @@ import type {
     HostVarsPayload,
 } from "../shared/contracts";
 import { createInitialDocumentState } from "../stores/document-store";
+import { createInitialGraphUiState } from "../stores/graph-ui-store";
 import { createInitialSelectionState } from "../stores/selection-store";
 import { createInitialWorkspaceState } from "../stores/workspace-store";
 import { InspectorPane } from "../features/inspector/inspector-pane";
@@ -32,6 +33,7 @@ import { GlobalHooksBridge } from "./global-hooks-bridge";
 const resetSidebarContext = (runtime: ReturnType<typeof createEditorRuntime>) => {
     runtime.documentStore.setState(() => createInitialDocumentState());
     runtime.selectionStore.setState(() => createInitialSelectionState());
+    runtime.graphUiStore.setState(() => createInitialGraphUiState());
     runtime.workspaceStore.setState((state) => ({
         ...createInitialWorkspaceState(),
         settings: state.settings,
@@ -75,7 +77,7 @@ const buildCurrentHostSelection = (
 };
 
 const queueSidebarSelectionBlur = (runtime: ReturnType<typeof createEditorRuntime>) => {
-    runtime.selectionStore.setState((state) => ({
+    runtime.graphUiStore.setState((state) => ({
         ...state,
         activeVariableNames: [],
     }));

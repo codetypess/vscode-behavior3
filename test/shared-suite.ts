@@ -5,6 +5,7 @@ import path from "node:path";
 import { createAppHooksStore } from "../webview/shared/misc/hooks";
 import { createEditorController } from "../webview/commands/create-editor-controller";
 import { createDocumentStore, showDocumentReloadConflict } from "../webview/stores/document-store";
+import { createGraphUiStore } from "../webview/stores/graph-ui-store";
 import { createSelectionStore } from "../webview/stores/selection-store";
 import { createWorkspaceStore } from "../webview/stores/workspace-store";
 import { buildBehaviorProject, resolveBehaviorBuildPaths } from "../src/build/build-cli";
@@ -1213,6 +1214,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             const documentStore = createDocumentStore();
             const workspaceStore = createWorkspaceStore();
             const selectionStore = createSelectionStore();
+            const graphUiStore = createGraphUiStore();
             const appHooks = createAppHooksStore();
             const errors: string[] = [];
             appHooks.bind({
@@ -1276,6 +1278,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 documentStore,
                 workspaceStore,
                 selectionStore,
+                graphUiStore,
                 hostAdapter,
                 graphAdapter,
                 appHooks,
@@ -1299,6 +1302,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             const documentStore = createDocumentStore();
             const workspaceStore = createWorkspaceStore();
             const selectionStore = createSelectionStore();
+            const graphUiStore = createGraphUiStore();
             const appHooks = createAppHooksStore();
             let appliedSelectionKey: string | null = null;
             let treeSelectionCount = 0;
@@ -1367,6 +1371,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 documentStore,
                 workspaceStore,
                 selectionStore,
+                graphUiStore,
                 hostAdapter,
                 graphAdapter,
                 appHooks,
@@ -1431,7 +1436,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             await controller.focusVariable(["hp"]);
             await controller.selectTree();
             assert.equal(treeSelectionCount, 1);
-            assert.deepEqual(selectionStore.getState().activeVariableNames, []);
+            assert.deepEqual(graphUiStore.getState().activeVariableNames, []);
             assert.equal(selectionStore.getState().selectedNodeSnapshot?.data.uuid, "root");
             assert.equal(appliedSelectionKey, null);
 
@@ -1458,6 +1463,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             const documentStore = createDocumentStore();
             const workspaceStore = createWorkspaceStore();
             const selectionStore = createSelectionStore();
+            const graphUiStore = createGraphUiStore();
             const appHooks = createAppHooksStore();
             let appliedSelectionKey: string | null = null;
             let focusedNodeKey: string | null = null;
@@ -1526,6 +1532,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 documentStore,
                 workspaceStore,
                 selectionStore,
+                graphUiStore,
                 hostAdapter,
                 graphAdapter,
                 appHooks,
@@ -1591,7 +1598,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             assert.equal(selectedNodeTargets.length, 1);
             assert.equal(selectedNodeTargets[0]?.structuralStableId, "child-b");
             assert.equal(selectionStore.getState().selectedNodeRef, null);
-            assert.equal(selectionStore.getState().search.results[0], "3");
+            assert.equal(graphUiStore.getState().search.results[0], "3");
             assert.equal(appliedSelectionKey, "3");
             assert.equal(focusedNodeKey, "3");
 
@@ -1622,6 +1629,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             const documentStore = createDocumentStore();
             const workspaceStore = createWorkspaceStore();
             const selectionStore = createSelectionStore();
+            const graphUiStore = createGraphUiStore();
             const appHooks = createAppHooksStore();
             let appliedSelectionKey: string | null = null;
             const selectedNodeTargets: NodeInstanceRef[] = [];
@@ -1687,6 +1695,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 documentStore,
                 workspaceStore,
                 selectionStore,
+                graphUiStore,
                 hostAdapter,
                 graphAdapter,
                 appHooks,
@@ -1726,7 +1735,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             await controller.focusVariable(["hp"]);
             await controller.selectNode("1", { clearVariableFocus: false });
 
-            assert.deepEqual(selectionStore.getState().activeVariableNames, ["hp"]);
+            assert.deepEqual(graphUiStore.getState().activeVariableNames, ["hp"]);
             assert.equal(selectionStore.getState().selectedNodeRef, null);
             assert.equal(appliedSelectionKey, "1");
             assert.equal(selectedNodeTargets.length, 1);
@@ -1748,7 +1757,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 syncKind: "update",
             });
 
-            assert.deepEqual(selectionStore.getState().activeVariableNames, ["hp"]);
+            assert.deepEqual(graphUiStore.getState().activeVariableNames, ["hp"]);
             assert.equal(selectionStore.getState().selectedNodeSnapshot?.data.uuid, "root");
         },
     },
@@ -1758,6 +1767,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             const documentStore = createDocumentStore();
             const workspaceStore = createWorkspaceStore();
             const selectionStore = createSelectionStore();
+            const graphUiStore = createGraphUiStore();
             const appHooks = createAppHooksStore();
             let appliedSelectionKey: string | null = null;
             const selectedNodeTargets: NodeInstanceRef[] = [];
@@ -1823,6 +1833,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 documentStore,
                 workspaceStore,
                 selectionStore,
+                graphUiStore,
                 hostAdapter,
                 graphAdapter,
                 appHooks,
@@ -1859,18 +1870,28 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 selection: { kind: "tree" },
             });
 
+            await controller.focusVariable(["hp"]);
+            await controller.openSearch("id");
+            await controller.updateSearch("missing");
             await controller.selectNode("1");
             assert.equal(selectedNodeTargets.length, 1);
             assert.equal(selectionStore.getState().selectedNodeRef, null);
             assert.equal(appliedSelectionKey, "1");
+            assert.deepEqual(graphUiStore.getState().activeVariableNames, ["hp"]);
+            assert.equal(graphUiStore.getState().search.open, true);
+            assert.equal(graphUiStore.getState().search.query, "missing");
+
+            const reloadedTree = createTestTree();
+            reloadedTree.desc = "reloaded";
+            const reloadedContent = serializePersistedTree(reloadedTree);
 
             await controller.applyDocumentSnapshot({
-                content,
+                content: reloadedContent,
                 documentSession: {
                     dirty: false,
                     historyIndex: 0,
                     historyLength: 1,
-                    lastSavedSnapshot: content,
+                    lastSavedSnapshot: reloadedContent,
                     alertReload: false,
                     pendingExternalContent: null,
                 },
@@ -1881,6 +1902,9 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             assert.equal(selectionStore.getState().selectedNodeRef, null);
             assert.equal(selectionStore.getState().selectedTree?.filePath, "/tmp/main.json");
             assert.equal(appliedSelectionKey, null);
+            assert.deepEqual(graphUiStore.getState().activeVariableNames, []);
+            assert.equal(graphUiStore.getState().search.open, false);
+            assert.equal(graphUiStore.getState().search.query, "");
         },
     },
     {
@@ -1889,6 +1913,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             const documentStore = createDocumentStore();
             const workspaceStore = createWorkspaceStore();
             const selectionStore = createSelectionStore();
+            const graphUiStore = createGraphUiStore();
             const appHooks = createAppHooksStore();
             appHooks.bind({
                 message: {
@@ -1952,6 +1977,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 documentStore,
                 workspaceStore,
                 selectionStore,
+                graphUiStore,
                 hostAdapter,
                 graphAdapter,
                 appHooks,
@@ -2143,6 +2169,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             const documentStore = createDocumentStore();
             const workspaceStore = createWorkspaceStore();
             const selectionStore = createSelectionStore();
+            const graphUiStore = createGraphUiStore();
             const appHooks = createAppHooksStore();
             appHooks.bind({
                 message: {
@@ -2206,6 +2233,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 documentStore,
                 workspaceStore,
                 selectionStore,
+                graphUiStore,
                 hostAdapter,
                 graphAdapter,
                 appHooks,
@@ -2302,6 +2330,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             const documentStore = createDocumentStore();
             const workspaceStore = createWorkspaceStore();
             const selectionStore = createSelectionStore();
+            const graphUiStore = createGraphUiStore();
             const appHooks = createAppHooksStore();
             let appliedSelectionKey: string | null = null;
 
@@ -2365,6 +2394,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 documentStore,
                 workspaceStore,
                 selectionStore,
+                graphUiStore,
                 hostAdapter,
                 graphAdapter,
                 appHooks,

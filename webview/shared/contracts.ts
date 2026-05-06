@@ -146,16 +146,22 @@ export interface SelectionState {
     selectedNodeRef: NodeInstanceRef | null;
     selectedNodeSnapshot: EditNode | null;
     selectedNodeDef: EditNodeDef | null;
+}
+
+export interface GraphUiSearchState {
+    open: boolean;
+    mode: "content" | "id";
+    query: string;
+    caseSensitive: boolean;
+    focusOnly: boolean;
+    results: string[];
+    index: number;
+}
+
+export interface GraphUiState {
     activeVariableNames: string[];
-    search: {
-        open: boolean;
-        mode: "content" | "id";
-        query: string;
-        caseSensitive: boolean;
-        focusOnly: boolean;
-        results: string[];
-        index: number;
-    };
+    selectionVisualHint: GraphSelectionState | null;
+    search: GraphUiSearchState;
 }
 
 export interface UpdateTreeMetaInput {

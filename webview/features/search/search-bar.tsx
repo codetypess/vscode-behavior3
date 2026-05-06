@@ -6,8 +6,8 @@ import { RiFocus3Line } from "react-icons/ri";
 import { VscCaseSensitive } from "react-icons/vsc";
 import { Hotkey } from "../../shared/misc/keys";
 import { mergeClassNames } from "../../shared/misc/util";
-import { useRuntime, useSelectionStore } from "../../app/runtime";
-import { patchSelectionSearchState, resetSelectionSearchState } from "../../stores/selection-store";
+import { useGraphUiStore, useRuntime } from "../../app/runtime";
+import { patchGraphUiSearchState, resetGraphUiSearchState } from "../../stores/graph-ui-store";
 
 interface SearchBarProps {
     focusToken: number;
@@ -17,7 +17,7 @@ interface SearchBarProps {
 export const SearchBar: React.FC<SearchBarProps> = ({ focusToken, onClose }) => {
     const runtime = useRuntime();
     const { t } = useTranslation();
-    const search = useSelectionStore((state) => state.search);
+    const search = useGraphUiStore((state) => state.search);
     const searchInputRef = useRef<InputRef | null>(null);
 
     useEffect(() => {
@@ -40,7 +40,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ focusToken, onClose }) => 
     };
 
     const handleClose = () => {
-        resetSelectionSearchState(runtime.selectionStore);
+        resetGraphUiSearchState(runtime.graphUiStore);
         void runtime.controller.updateSearch("");
         onClose?.();
     };
@@ -89,7 +89,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ focusToken, onClose }) => 
                                         />
                                     }
                                     onClick={() => {
-                                        patchSelectionSearchState(runtime.selectionStore, {
+                                        patchGraphUiSearchState(runtime.graphUiStore, {
                                             caseSensitive: !search.caseSensitive,
                                         });
                                         reapplySearch();
@@ -105,7 +105,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ focusToken, onClose }) => 
                                 )}
                                 icon={<RiFocus3Line />}
                                 onClick={() => {
-                                    patchSelectionSearchState(runtime.selectionStore, {
+                                    patchGraphUiSearchState(runtime.graphUiStore, {
                                         focusOnly: !search.focusOnly,
                                     });
                                     reapplySearch();

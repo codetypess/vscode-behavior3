@@ -6,6 +6,7 @@ import type {
     DocumentState,
     EditNode,
     EditNodeDef,
+    GraphUiState,
     GraphHighlightState,
     GraphSearchState,
     GraphSelectionState,
@@ -37,7 +38,7 @@ import {
     computeVariableHighlights,
 } from "../domain/graph-selectors";
 import { resolveDocumentGraph } from "../domain/resolve-graph";
-import { patchSelectionSearchState } from "../stores/selection-store";
+import { createInitialGraphUiState, patchGraphUiSearchState } from "../stores/graph-ui-store";
 
 /**
  * Shared controller runtime for the webview editor.
@@ -48,6 +49,7 @@ export interface ControllerDeps {
     documentStore: StoreApi<DocumentState>;
     workspaceStore: StoreApi<WorkspaceState>;
     selectionStore: StoreApi<SelectionState>;
+    graphUiStore: StoreApi<GraphUiState>;
     hostAdapter: HostAdapter;
     graphAdapter: GraphAdapter;
     appHooks: AppHooksStore;
@@ -61,7 +63,6 @@ export type SelectionPatch = Partial<
         | "selectedNodeRef"
         | "selectedNodeSnapshot"
         | "selectedNodeDef"
-        | "activeVariableNames"
     >
 >;
 
@@ -81,6 +82,7 @@ export interface ControllerRuntime {
     clearActiveVariableFocus(): boolean;
     getCurrentGraphSelectionKey(): string | null;
     showSelectionVisualHint(selectedNodeKey: string | null): Promise<void>;
+    resetGraphUiState(): void;
     applyHostSelectionState(selection: HostSelectionState): void;
     getSelectedResolvedNode(): ResolvedNodeModel | null;
     isSubtreeStructureLocked(node: ResolvedNodeModel | null): boolean;
@@ -118,7 +120,6 @@ export const buildUsingGroups = (groupNames: string[]): Record<string, boolean> 
 export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime => {
     let resolvedGraph: ResolvedDocumentGraph | null = null;
     let nodeCheckRequestSeq = 0;
-    let selectionVisualHint: GraphSelectionState | null = null;
 
     const notifyError = (text: string) => {
         deps.appHooks.getMessage().error(text);
@@ -134,6 +135,13 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
 
     const updateSelectionState = (buildPatch: (state: SelectionState) => SelectionPatch) => {
         deps.selectionStore.setState((state) => ({
+            ...state,
+            ...buildPatch(state),
+        }));
+    };
+
+    const updateGraphUiState = (buildPatch: (state: GraphUiState) => Partial<GraphUiState>) => {
+        deps.graphUiStore.setState((state) => ({
             ...state,
             ...buildPatch(state),
         }));
@@ -264,44 +272,50 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
     };
 
     const clearActiveVariableFocus = (): boolean => {
-        if (deps.selectionStore.getState().activeVariableNames.length === 0) {
+        if (deps.graphUiStore.getState().activeVariableNames.length === 0) {
             return false;
         }
 
-        updateSelectionState(() => ({
+        updateGraphUiState(() => ({
             activeVariableNames: [],
         }));
         return true;
     };
 
     const applyTreeSelectionProjection = () => {
-        updateSelectionState((state) => ({
-            ...buildTreeSelectionPatch(),
-            activeVariableNames: state.activeVariableNames,
-        }));
+        updateSelectionState(() => buildTreeSelectionPatch());
     };
 
     const getCurrentGraphSelectionState = (): GraphSelectionState =>
-        selectionVisualHint ?? {
+        deps.graphUiStore.getState().selectionVisualHint ?? {
             selectedNodeKey: deps.selectionStore.getState().selectedNodeKey,
         };
 
     const showSelectionVisualHint = async (selectedNodeKey: string | null) => {
-        selectionVisualHint = { selectedNodeKey };
-        await deps.graphAdapter.applySelection(selectionVisualHint);
+        updateGraphUiState(() => ({
+            selectionVisualHint: { selectedNodeKey },
+        }));
+        await deps.graphAdapter.applySelection({ selectedNodeKey });
+    };
+
+    const resetGraphUiState = () => {
+        deps.graphUiStore.setState(() => createInitialGraphUiState());
     };
 
     const applyHostSelectionState = (selection: HostSelectionState) => {
-        selectionVisualHint = null;
+        updateGraphUiState((state) =>
+            state.selectionVisualHint
+                ? {
+                      selectionVisualHint: null,
+                  }
+                : {}
+        );
         if (selection.kind === "tree") {
             applyTreeSelectionProjection();
             return;
         }
 
-        updateSelectionState((state) => ({
-            ...projectSelectionRef(selection.ref),
-            activeVariableNames: state.activeVariableNames,
-        }));
+        updateSelectionState(() => projectSelectionRef(selection.ref));
     };
 
     const getSelectedResolvedNode = (): ResolvedNodeModel | null => {
@@ -550,6 +564,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             return;
         }
         const selection = deps.selectionStore.getState();
+        const graphUi = deps.graphUiStore.getState();
         const workspace = deps.workspaceStore.getState();
 
         await deps.graphAdapter.applySelection(getCurrentGraphSelectionState());
@@ -557,21 +572,21 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         const highlights: GraphHighlightState = computeVariableHighlights(
             resolvedGraph,
             workspace.nodeDefs,
-            selection.activeVariableNames
+            graphUi.activeVariableNames
         );
         await deps.graphAdapter.applyHighlights(highlights);
 
         const graphSearch: GraphSearchState = buildSearchState({
             graph: resolvedGraph,
-            query: selection.search.query,
-            mode: selection.search.mode,
-            caseSensitive: selection.search.caseSensitive,
-            focusOnly: selection.search.focusOnly,
-            activeResultIndex: selection.search.index,
+            query: graphUi.search.query,
+            mode: graphUi.search.mode,
+            caseSensitive: graphUi.search.caseSensitive,
+            focusOnly: graphUi.search.focusOnly,
+            activeResultIndex: graphUi.search.index,
             tree: deps.documentStore.getState().persistedTree,
         });
 
-        patchSelectionSearchState(deps.selectionStore, {
+        patchGraphUiSearchState(deps.graphUiStore, {
             results: graphSearch.resultKeys,
             index: graphSearch.activeResultIndex,
         });
@@ -725,6 +740,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         clearActiveVariableFocus,
         getCurrentGraphSelectionKey: () => getCurrentGraphSelectionState().selectedNodeKey,
         showSelectionVisualHint,
+        resetGraphUiState,
         applyHostSelectionState,
         getSelectedResolvedNode,
         isSubtreeStructureLocked,

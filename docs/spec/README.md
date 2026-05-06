@@ -25,9 +25,9 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 5 份 work-item spec
+- 6 份 work-item spec
 - 0 份登记中的 active work-item spec
-- 5 份登记中的 done work-item spec
+- 6 份登记中的 done work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
 目录判断规则：
@@ -213,8 +213,6 @@ Scope: <short boundary>
 
 ## Active Work Items
 
-当前没有登记中的 active work-item spec。
-
 新增 work-item 时，请继续按以下格式补充：
 
 - `your-work-item-slug.md` - `Draft` - 一句话范围说明
@@ -223,6 +221,7 @@ Scope: <short boundary>
 
 - `baseline-spec-sync-current-code.md` - `Done` - 按当前实现回写编号基线 spec
 - `host-selection-authority.md` - `Done` - 将 tree/node selection authority 收口到 extension-host selection intent 与 host snapshot fanout
+- `selection-store-authority-boundary.md` - `Done` - 将 host-projected selection authority 与本地 graph UI state 正式拆分成独立 store/model
 - `selection-snapshot-single-authority.md` - `Done` - 移除公开 `nextSelection` 协议面，让共享选中只通过 host snapshot `selection` 收敛
 - `selection-visual-hint-host-authority.md` - `Done` - 收掉 editor 普通选中的 optimistic `selectionStore` authority，仅保留 graph-only 本地 hint
 - `sidebar-host-single-source.md` - `Done` - 将主文档 authority 收口到 extension-host document/session 与统一 snapshot fanout

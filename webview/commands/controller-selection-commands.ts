@@ -1,5 +1,5 @@
 import type { EditorCommand } from "../shared/contracts";
-import { patchSelectionSearchState } from "../stores/selection-store";
+import { patchGraphUiSearchState } from "../stores/graph-ui-store";
 import type { ControllerRuntime } from "./controller-runtime";
 
 type SelectionCommandKeys =
@@ -63,7 +63,7 @@ export const createSelectionCommands = (
         },
 
         async focusVariable(names: string[]) {
-            deps.selectionStore.setState((state) => ({
+            deps.graphUiStore.setState((state) => ({
                 ...state,
                 activeVariableNames: [...names],
             }));
@@ -71,7 +71,7 @@ export const createSelectionCommands = (
         },
 
         async openSearch(mode: "content" | "id") {
-            patchSelectionSearchState(deps.selectionStore, {
+            patchGraphUiSearchState(deps.graphUiStore, {
                 open: true,
                 mode,
             });
@@ -79,12 +79,12 @@ export const createSelectionCommands = (
         },
 
         async updateSearch(query: string) {
-            patchSelectionSearchState(deps.selectionStore, {
+            patchGraphUiSearchState(deps.graphUiStore, {
                 query,
                 index: 0,
             });
             await runtime.applyVisualState();
-            const { results } = deps.selectionStore.getState().search;
+            const { results } = deps.graphUiStore.getState().search;
             if (results.length > 0) {
                 await commands.selectNode(results[0], { force: true });
                 await deps.graphAdapter.focusNode(results[0]);
@@ -92,16 +92,16 @@ export const createSelectionCommands = (
         },
 
         async nextSearchResult() {
-            const search = deps.selectionStore.getState().search;
+            const search = deps.graphUiStore.getState().search;
             if (search.results.length === 0) {
                 return;
             }
             const nextIndex = (search.index + 1) % search.results.length;
-            patchSelectionSearchState(deps.selectionStore, {
+            patchGraphUiSearchState(deps.graphUiStore, {
                 index: nextIndex,
             });
             await runtime.applyVisualState();
-            const key = deps.selectionStore.getState().search.results[nextIndex];
+            const key = deps.graphUiStore.getState().search.results[nextIndex];
             if (key) {
                 await commands.selectNode(key, { force: true });
                 await deps.graphAdapter.focusNode(key);
@@ -109,16 +109,16 @@ export const createSelectionCommands = (
         },
 
         async prevSearchResult() {
-            const search = deps.selectionStore.getState().search;
+            const search = deps.graphUiStore.getState().search;
             if (search.results.length === 0) {
                 return;
             }
             const nextIndex = (search.index + search.results.length - 1) % search.results.length;
-            patchSelectionSearchState(deps.selectionStore, {
+            patchGraphUiSearchState(deps.graphUiStore, {
                 index: nextIndex,
             });
             await runtime.applyVisualState();
-            const key = deps.selectionStore.getState().search.results[nextIndex];
+            const key = deps.graphUiStore.getState().search.results[nextIndex];
             if (key) {
                 await commands.selectNode(key, { force: true });
                 await deps.graphAdapter.focusNode(key);

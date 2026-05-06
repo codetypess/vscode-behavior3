@@ -5,12 +5,14 @@ import { createG6GraphAdapter } from "../adapters/graph/g6-graph-adapter";
 import { createVsCodeHostAdapter } from "../adapters/host/vscode-host-adapter";
 import { createEditorController } from "../commands/create-editor-controller";
 import { createDocumentStore } from "../stores/document-store";
+import { createGraphUiStore } from "../stores/graph-ui-store";
 import { createSelectionStore } from "../stores/selection-store";
 import { createWorkspaceStore } from "../stores/workspace-store";
 import { createAppHooksStore, type AppHooksStore } from "../shared/misc/hooks";
 import type {
     DocumentState,
     EditorCommand,
+    GraphUiState,
     SelectionState,
     WorkspaceState,
 } from "../shared/contracts";
@@ -20,6 +22,7 @@ export interface EditorRuntime {
     documentStore: StoreApi<DocumentState>;
     workspaceStore: StoreApi<WorkspaceState>;
     selectionStore: StoreApi<SelectionState>;
+    graphUiStore: StoreApi<GraphUiState>;
     controller: EditorCommand;
     graphAdapter: GraphAdapter;
     hostAdapter: ReturnType<typeof createVsCodeHostAdapter>;
@@ -30,6 +33,7 @@ export const createEditorRuntime = (): EditorRuntime => {
     const documentStore = createDocumentStore();
     const workspaceStore = createWorkspaceStore();
     const selectionStore = createSelectionStore();
+    const graphUiStore = createGraphUiStore();
     const hostAdapter = createVsCodeHostAdapter();
     const graphAdapter = createG6GraphAdapter();
     const appHooks = createAppHooksStore();
@@ -37,6 +41,7 @@ export const createEditorRuntime = (): EditorRuntime => {
         documentStore,
         workspaceStore,
         selectionStore,
+        graphUiStore,
         hostAdapter,
         graphAdapter,
         appHooks,
@@ -46,6 +51,7 @@ export const createEditorRuntime = (): EditorRuntime => {
         documentStore,
         workspaceStore,
         selectionStore,
+        graphUiStore,
         controller,
         graphAdapter,
         hostAdapter,
@@ -83,6 +89,11 @@ export const useWorkspaceStore = <T,>(selector: (state: WorkspaceState) => T): T
 export const useSelectionStore = <T,>(selector: (state: SelectionState) => T): T => {
     const runtime = useRuntime();
     return useStore(runtime.selectionStore, selector);
+};
+
+export const useGraphUiStore = <T,>(selector: (state: GraphUiState) => T): T => {
+    const runtime = useRuntime();
+    return useStore(runtime.graphUiStore, selector);
 };
 
 export const useAppShellState = () => {
@@ -166,7 +177,7 @@ export const useTreeInspectorState = () => {
 export const useGraphPaneState = () => {
     const selectedNode = useSelectionStore((state) => state.selectedNodeSnapshot);
     const selectedNodeRef = useSelectionStore((state) => state.selectedNodeRef);
-    const searchOpen = useSelectionStore((state) => state.search.open);
+    const searchOpen = useGraphUiStore((state) => state.search.open);
     const rootStableId = useDocumentStore((state) => state.persistedTree?.root.uuid ?? null);
 
     return {

@@ -24,6 +24,7 @@
 - `DocumentState`
 - `WorkspaceState`
 - `SelectionState`
+- `GraphUiState`
 - `GraphAdapter`
 - `HostAdapter`
 - `EditorCommand`
@@ -34,7 +35,8 @@
 | --- | --- |
 | `persistedTree` / host-projected `dirty` / reload conflict | `documentStore` |
 | `nodeDefs` / `allFiles` / `settings` / `usingVars` / `subtreeSources` / `nodeCheckDiagnostics` | `workspaceStore` |
-| host-projected tree/node 选中、本地 Inspector snapshot、variable focus、search 状态 | `selectionStore` |
+| host-projected tree/node 选中、本地 Inspector selection projection | `selectionStore` |
+| `activeVariableNames` / `search` / `selectionVisualHint` | `graphUiStore` |
 | `ResolvedDocumentGraph` | controller runtime 私有缓存 |
 | 图节点尺寸、布局结果、视口、选中视觉态、drag intent | `graphAdapter` |
 | 主文档序列化文本、custom editor dirty、磁盘写入抑制 | extension-host `TreeEditorDocument` |
@@ -53,7 +55,7 @@
 
 职责：
 
-- 初始化三类 store
+- 初始化四类 store
 - 吸收宿主推送的主文档、变量声明、nodeDefs、subtree 变化
 - 管理 reload conflict 状态
 
@@ -70,10 +72,10 @@
 
 职责：
 
-- 维护本地 search / variable-focus store
+- 维护本地 graph UI store（search / variable-focus / selection visual hint）
 - 对用户选中手势发送 `HostAdapter.selectTree/selectNode` intent
 - 仅通过宿主 `selection` snapshot 投影共享 tree/node selection 到 `selectionStore`
-- 驱动 graph adapter 应用 selection/highlight/search 状态；必要时可保留 graph-only 本地选中 hint
+- 驱动 graph adapter 应用 selection/highlight/search 状态；graph-only 本地选中 hint 只进入 `graphUiStore`
 - 在必要时触发节点聚焦
 
 ### 文档修改
@@ -135,7 +137,7 @@
 
 ### `applyVisualState()`
 
-- 根据 `selectionStore` 计算 selection/highlights/search
+- 根据 `selectionStore + graphUiStore` 计算 selection/highlights/search
 - 分别调用 `graphAdapter.applySelection/applyHighlights/applySearch`
 
 ### `syncReachableSubtreeSources()`

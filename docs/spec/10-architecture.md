@@ -28,6 +28,7 @@ Webview Runtime
   -> documentStore
   -> workspaceStore
   -> selectionStore
+  -> graphUiStore
   -> controller runtime + EditorCommand
   -> G6GraphAdapter
   -> Inspector forms / GraphPane / SearchBar
@@ -61,13 +62,13 @@ Shared Layer
 
 职责：
 
-- 持有结构化文档状态、工作区状态和选中状态
+- 持有结构化文档状态、工作区状态、host-projected selection authority 与本地 graph UI state
 - 解析 `persistedTree + subtreeSources + nodeDefs` 为 resolved graph
 - 将 resolved graph 投影到 G6 画布模型
 - 执行当前仍留在 webview 的树级和节点级编辑命令
 - 把 save、undo、redo 作为用户 intent 发给宿主，再消费宿主回推的权威 session/content
 - sidebar 的 `updateTreeMeta` / `updateNode` 也只发送 intent，不再先在本地提交主文档状态
-- 管理 search、variable focus、selection restore，以及宿主回推 document/session/selection snapshot 的本地 projection 刷新逻辑
+- 管理 selection restore、search、variable focus、graph-only selection hint，以及宿主回推 document/session/selection snapshot 的本地 projection 刷新逻辑
 
 ### Shared Layer
 
@@ -176,7 +177,7 @@ Shared Layer
 - `webview/commands/`
   - controller runtime 与命令实现
 - `webview/stores/`
-  - document / workspace / selection store
+  - document / workspace / selection / graph-ui store
 - `webview/domain/`
   - resolve graph、graph selectors、tree validation
 - `webview/adapters/`
