@@ -3,6 +3,7 @@
 Status: Implementing
 Date: 2026-05-06
 Scope: Migrate main-document authority from webview-local controller state to an extension-host document session, using staged intent-based save, undo/redo, mutation, and snapshot fanout flows
+Progress: Phase 1 host session shell landed; Phase 2 host intent routing is complete for save, undo, and redo; structural mutation intents are still in migration
 
 ## 1. Context
 
@@ -55,8 +56,9 @@ As a result, a narrow Ctrl+S or pending-dot fix would treat symptoms but would n
 - The main editor executes structural mutations locally through `EditorCommand`, updates local history, computes dirty locally, and sends serialized `update` snapshots back to the host.
 - The sidebar receives mirrored init/content/selection data from the host, but still bootstraps a local document runtime and local history/save state.
 - Sidebar `mutateDocument` currently covers only `updateTreeMeta` and `updateNode`, and the host forwards those back into the active editor webview for actual execution.
-- `undo` and `redo` are still executed by the active editor runtime, not by a host reducer.
-- `saveDocument` still starts from a webview-produced snapshot payload, and host save success is mirrored back into webview-local saved state.
+- `saveDocument`, `undo`, and `redo` now enter the host first from both the editor and the sidebar.
+- The host applies save/history transitions against its own document session state and rebroadcasts the committed result back to both webviews.
+- Structural mutations are still mostly executed in the active editor runtime and reflected back through content snapshots.
 - Cross-view content sync still primarily uses content-bearing messages such as `update`, `documentUpdated`, and `documentReloaded`, rather than a normalized host session snapshot feed.
 
 ## 5. Proposed Behavior

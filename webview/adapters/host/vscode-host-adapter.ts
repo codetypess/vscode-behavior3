@@ -266,14 +266,6 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
                         onMessage({ type: "documentUpdated", content: message.content });
                         return;
 
-                    case "executeUndo":
-                        onMessage({ type: "executeUndo" });
-                        return;
-
-                    case "executeRedo":
-                        onMessage({ type: "executeRedo" });
-                        return;
-
                     case "executeDocumentMutation":
                         onMessage({
                             type: "executeDocumentMutation",
@@ -431,10 +423,10 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
             });
         },
 
-        saveDocument(content: string) {
+        saveDocument() {
             return new Promise<SaveDocumentResponse>((resolve) => {
                 const requestId = registerPendingRequest("saveDocument", resolve);
-                postMessage({ type: "saveDocument", requestId, content });
+                postMessage({ type: "saveDocument", requestId });
             });
         },
 

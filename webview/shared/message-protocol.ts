@@ -27,7 +27,7 @@ export type EditorToHostMessage =
           error?: string;
           content?: string;
       }
-    | { type: "saveDocument"; requestId: string; content: string }
+    | { type: "saveDocument"; requestId: string }
     | { type: "revertDocument"; requestId: string }
     | { type: "treeSelected"; tree: unknown }
     | { type: "requestSetting" }
@@ -65,8 +65,6 @@ export type HostToEditorMessage =
       }
     | { type: "documentSessionChanged"; documentSession: HostDocumentSessionState }
     | { type: "documentUpdated"; content: string }
-    | { type: "executeUndo" }
-    | { type: "executeRedo" }
     | { type: "executeDocumentMutation"; requestId: string; mutation: DocumentMutation }
     /** Cross-webview variable focus sync from the sidebar inspector into the active editor. */
     | { type: "focusVariable"; names: string[] }

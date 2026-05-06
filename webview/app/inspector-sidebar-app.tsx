@@ -261,9 +261,9 @@ const SidebarShell: React.FC = () => {
             void (async () => {
                 await flushPendingInspectorEdits();
                 if (undoPressed) {
-                    runtime.hostAdapter.undo();
+                    await runtime.controller.undo();
                 } else {
-                    runtime.hostAdapter.redo();
+                    await runtime.controller.redo();
                 }
             })();
         };

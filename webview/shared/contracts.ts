@@ -237,8 +237,6 @@ export type HostEvent =
     | { type: "init"; payload: HostInitPayload }
     | { type: "documentSessionChanged"; documentSession: HostDocumentSessionState }
     | { type: "documentUpdated"; content: string }
-    | { type: "executeUndo" }
-    | { type: "executeRedo" }
     | { type: "executeDocumentMutation"; requestId: string; mutation: DocumentMutation }
     | { type: "focusVariable"; names: string[] }
     | { type: "fileChanged"; content: string }
@@ -389,7 +387,7 @@ export interface HostAdapter {
         treePath: string,
         nodes: NodeCheckValidationNode[]
     ): Promise<ValidateNodeChecksResponse>;
-    saveDocument(content: string): Promise<SaveDocumentResponse>;
+    saveDocument(): Promise<SaveDocumentResponse>;
     revertDocument(): Promise<RevertDocumentResponse>;
     readFile(
         path: WorkdirRelativeJsonPath,

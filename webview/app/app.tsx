@@ -71,14 +71,6 @@ const AppShell: React.FC = () => {
                     void runtime.controller.applyDocumentSession(hostEvent.documentSession);
                     return;
 
-                case "executeUndo":
-                    void runtime.controller.undo();
-                    return;
-
-                case "executeRedo":
-                    void runtime.controller.redo();
-                    return;
-
                 case "executeDocumentMutation":
                     void (async () => {
                         try {

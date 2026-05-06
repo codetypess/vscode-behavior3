@@ -36,7 +36,7 @@
 - `undo`
 - `redo`
 - `saveDocument`
-  - payload: `{ requestId, content }`
+  - payload: `{ requestId }`
 - `revertDocument`
   - payload: `{ requestId }`
 
@@ -80,23 +80,24 @@
 ### 初始化与文档同步
 
 - `init`
+- `documentSessionChanged`
 - `documentUpdated`
 - `fileChanged`
 - `documentReloaded`
 
 语义区别：
 
+- `documentSessionChanged`
+  - 宿主把权威 document session 元数据广播给 editor 或 sidebar
 - `documentUpdated`
-  - 宿主接受到另一个视图的变更后，把最新主文档内容同步给当前编辑器
+  - 宿主提交了主文档 update、undo 或 redo 后，把最新内容同步给当前视图
 - `fileChanged`
   - 磁盘文件外部变化到来，但当前编辑器可能仍 dirty，需要走冲突判断
 - `documentReloaded`
-  - 宿主已经决定用磁盘版本覆盖当前文档，应强制 reload
+  - 宿主已经决定用磁盘版本或已保存版本覆盖当前文档，应强制 reload
 
 ### 编辑命令代理
 
-- `executeUndo`
-- `executeRedo`
 - `executeDocumentMutation`
 - `focusVariable`
 
@@ -136,6 +137,17 @@
 - `nodeDefs`
 - `allFiles`
 - `settings`
+- `documentSession`
+  - 当前宿主 document session 元数据
+
+### HostDocumentSessionState
+
+- `dirty`
+- `historyIndex`
+- `historyLength`
+- `lastSavedSnapshot`
+- `alertReload`
+- `pendingExternalContent`
 
 ### HostVarsPayload
 
@@ -182,6 +194,8 @@
 在 extension-host session 中，以下操作共用一条主文档操作队列：
 
 - `update`
+- `undo`
+- `redo`
 - `saveDocument`
 - `revertDocument`
 - 外部主文件 reload

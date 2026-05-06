@@ -31,7 +31,6 @@ export const createDocumentCommands = (
     runtime: ControllerRuntime
 ): Pick<EditorCommand, DocumentCommandKeys> => {
     const { deps } = runtime;
-    const isInspectorSidebar = () => window.__B3_WEBVIEW_KIND__ === "inspector-sidebar";
     const syncHistoryToSnapshot = (snapshot: string) => {
         deps.documentStore.setState((state) => {
             const existingIndex = state.history.findIndex((entry) => entry === snapshot);
@@ -197,19 +196,11 @@ export const createDocumentCommands = (
         },
 
         async undo() {
-            const current = deps.documentStore.getState();
-            if (current.historyIndex <= 0) {
-                return;
-            }
-            await runtime.applyHistoryIndex(current.historyIndex - 1);
+            deps.hostAdapter.undo();
         },
 
         async redo() {
-            const current = deps.documentStore.getState();
-            if (current.historyIndex >= current.history.length - 1) {
-                return;
-            }
-            await runtime.applyHistoryIndex(current.historyIndex + 1);
+            deps.hostAdapter.redo();
         },
 
         async refreshGraph(opts?: { preserveSelection?: boolean }) {
@@ -230,19 +221,10 @@ export const createDocumentCommands = (
                 );
                 return;
             }
-            const snapshot = runtime.getSerializedCurrentTree();
-            if (!snapshot) {
-                return;
-            }
-            const response = await deps.hostAdapter.saveDocument(snapshot);
+            const response = await deps.hostAdapter.saveDocument();
             if (!response.success) {
                 runtime.notifyError(response.error ?? "Save failed");
-                return;
             }
-            if (isInspectorSidebar()) {
-                return;
-            }
-            markDocumentSaved(deps.documentStore, snapshot);
         },
 
         async revertDocument() {

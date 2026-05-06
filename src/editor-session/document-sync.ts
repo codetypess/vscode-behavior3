@@ -95,6 +95,13 @@ export class TreeEditorDocument implements vscode.CustomDocument {
         return this._isDirty;
     }
 
+    syncContentState(content: string, dirty: boolean): boolean {
+        const changed = this._content !== content;
+        this._content = content;
+        this._isDirty = dirty;
+        return changed;
+    }
+
     updateContent(
         content: string,
         opts?: {
@@ -115,8 +122,7 @@ export class TreeEditorDocument implements vscode.CustomDocument {
     }
 
     markSaved(content = this._content): void {
-        this._content = content;
-        this._isDirty = false;
+        this.syncContentState(content, false);
     }
 
     rememberOwnWrite(content: string): void {

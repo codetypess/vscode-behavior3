@@ -625,6 +625,30 @@ export async function resolveTreeEditorSession({
         return true;
     };
 
+    const applySessionHistorySnapshot = async (snapshot: string): Promise<boolean> => {
+        const sessionSnapshot = buildDocumentSessionMessage();
+        const changed = document.syncContentState(snapshot, sessionSnapshot.dirty);
+        if (!changed) {
+            return false;
+        }
+
+        state.inspectorContentSyncKind = "update";
+        invalidateSubtreeRefs();
+        void refreshTrackedSubtreeRefs();
+        updateFileVersionState(snapshot);
+        onDidChangeDocument(document);
+        await postMessage({
+            type: "documentUpdated",
+            content: snapshot,
+        } satisfies HostToEditorMessage);
+        await postMessage({
+            type: "documentSessionChanged",
+            documentSession: sessionSnapshot,
+        } satisfies HostToEditorMessage);
+        notifyInspectorSessionUpdate();
+        return true;
+    };
+
     const getActiveNewerFileEditMessage = (): string | null => {
         updateFileVersionState(document.content);
         if (!state.fileVersionIsNewer) {
@@ -779,8 +803,7 @@ export async function resolveTreeEditorSession({
      */
     const handleSaveDocumentMessage = async (
         msg: Extract<EditorToHostMessage, { type: "saveDocument" }>,
-        reply: HostMessageSink = postMessage,
-        source: MessageSource = "editor"
+        reply: HostMessageSink = postMessage
     ): Promise<void> => {
         await enqueueMainDocumentOperation(async () => {
             const editBlockedMessage = blockEditingForNewerFile();
@@ -795,8 +818,7 @@ export async function resolveTreeEditorSession({
             }
 
             try {
-                const changed = source === "editor" ? applyContentFromWebview(msg.content) : false;
-                if (changed || document.isDirty) {
+                if (document.isDirty) {
                     await vscode.workspace.save(document.uri);
                 }
                 const success = !document.isDirty;
@@ -826,6 +848,23 @@ export async function resolveTreeEditorSession({
                     error: String(error),
                 } satisfies HostToEditorMessage);
             }
+        });
+    };
+
+    const handleHistoryNavigationMessage = async (direction: "undo" | "redo"): Promise<void> => {
+        await enqueueMainDocumentOperation(async () => {
+            const editBlockedMessage = blockEditingForNewerFile();
+            if (editBlockedMessage) {
+                return;
+            }
+
+            const snapshot =
+                direction === "undo" ? documentSession.undo() : documentSession.redo();
+            if (!snapshot) {
+                return;
+            }
+
+            await applySessionHistorySnapshot(snapshot);
         });
     };
 
@@ -1169,15 +1208,11 @@ export async function resolveTreeEditorSession({
                 return;
 
             case "undo":
-                await postMessage({
-                    type: "executeUndo",
-                });
+                await handleHistoryNavigationMessage("undo");
                 return;
 
             case "redo":
-                await postMessage({
-                    type: "executeRedo",
-                });
+                await handleHistoryNavigationMessage("redo");
                 return;
 
             case "focusVariable":
@@ -1198,7 +1233,7 @@ export async function resolveTreeEditorSession({
                 return;
 
             case "saveDocument":
-                await handleSaveDocumentMessage(msg, reply, source);
+                await handleSaveDocumentMessage(msg, reply);
                 return;
 
             case "treeSelected":

@@ -47,7 +47,9 @@ Shared Layer
 
 - 管理 VS Code custom editor 生命周期
 - 维护 `TreeEditorDocument.content` 与磁盘文件的保存/回滚关系
+- 维护主文档 `sessionState` 的 dirty、history、save/reload conflict 元数据
 - 串行化主文档 save、revert、external reload、sidebar proxy mutation
+- 执行 save、undo、redo 这类主文档 intent，并把权威结果广播回 webview
 - 监听主文件、subtree 文件、setting 文件、workspace 文件、VS Code 配置与主题变化
 - 解析 nodeDefs、工作目录、变量声明、可见文件列表
 - 运行 build 与节点参数自定义检查脚本
@@ -60,8 +62,9 @@ Shared Layer
 - 持有结构化文档状态、工作区状态和选中状态
 - 解析 `persistedTree + subtreeSources + nodeDefs` 为 resolved graph
 - 将 resolved graph 投影到 G6 画布模型
-- 执行树级和节点级编辑命令
-- 管理 search、variable focus、selection restore、history 与 dirty 相关逻辑
+- 执行当前仍留在 webview 的树级和节点级编辑命令
+- 把 save、undo、redo 作为用户 intent 发给宿主，再消费宿主回推的权威 session/content
+- 管理 search、variable focus、selection restore，以及当前兼容期内的本地 history 镜像逻辑
 
 ### Shared Layer
 
@@ -89,7 +92,7 @@ Shared Layer
 ### TreeEditorSession
 
 - 是 extension-host 侧的文档会话核心
-- 负责消息分发、监听器、项目索引、文档版本保护与主文档操作队列
+- 负责消息分发、监听器、项目索引、文档版本保护、host document session 与主文档操作队列
 
 ### EditorCommand + Controller Runtime
 
@@ -119,6 +122,17 @@ Shared Layer
 5. runtime 推进 history，并向宿主发送 `update`
 6. runtime 以 `treeSelected` 触发变量声明视图刷新
 
+说明：
+
+- 这条路径仍是当前结构化 mutation 的兼容执行链
+- save、undo、redo 已不再由该路径直接落地执行
+
+### Save / Undo / Redo
+
+1. editor 或 sidebar webview 发送 `saveDocument` / `undo` / `redo` intent
+2. extension-host session 在主文档操作队列内执行对应的 save 或 history 迁移
+3. 宿主以 `documentUpdated` 或 `documentReloaded` 加 `documentSessionChanged` 回推权威结果
+
 ### 侧栏代理编辑
 
 1. Inspector Sidebar 发送 `mutateDocument`
@@ -146,7 +160,8 @@ Shared Layer
 2. Inspector Sidebar 不是第二个独立编辑器实现。
 3. 宿主消息兼容、路径归一化和 IO 细节只停留在 host/session/adapter 层。
 4. 任何 persisted tree 写入都必须能定位到一个明确的 command。
-5. 与项目根目录、build、nodeDefs、check scripts 相关的能力只在 extension-host 侧实现。
+5. save、undo、redo 必须先进入 extension-host session，再广播回 webview。
+6. 与项目根目录、build、nodeDefs、check scripts 相关的能力只在 extension-host 侧实现。
 
 ## 当前目录落点
 

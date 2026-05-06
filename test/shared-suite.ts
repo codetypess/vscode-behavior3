@@ -8,6 +8,7 @@ import { createDocumentStore, showDocumentReloadConflict } from "../webview/stor
 import { createSelectionStore } from "../webview/stores/selection-store";
 import { createWorkspaceStore } from "../webview/stores/workspace-store";
 import { buildBehaviorProject, resolveBehaviorBuildPaths } from "../src/build/build-cli";
+import { DocumentSessionState } from "../src/editor-session/document-session-state";
 import { handleNativeWheelZoom } from "../webview/adapters/graph/g6-wheel-zoom";
 import { buildResolvedGraphModel } from "../webview/domain/graph-selectors";
 import { collectResolvedNodeDiagnostics } from "../webview/domain/tree-validation";
@@ -106,6 +107,50 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                     ),
                 /checker.*non-empty string/
             );
+        },
+    },
+    {
+        name: "replays host document session undo and redo from snapshot history",
+        run() {
+            const session = new DocumentSessionState({ initialContent: "A" });
+
+            assert.equal(session.applyCommittedSnapshot("B"), true);
+            assert.equal(session.applyCommittedSnapshot("C"), true);
+            assert.equal(session.canUndo(), true);
+            assert.equal(session.canRedo(), false);
+            assert.equal(session.undo(), "B");
+            assert.deepEqual(session.getSnapshot(), {
+                dirty: true,
+                historyIndex: 1,
+                historyLength: 3,
+                lastSavedSnapshot: "A",
+                alertReload: false,
+                pendingExternalContent: null,
+            });
+            assert.equal(session.canRedo(), true);
+            assert.equal(session.redo(), "C");
+            assert.equal(session.getCurrentSnapshot(), "C");
+        },
+    },
+    {
+        name: "clears host document dirty when undo returns to the saved snapshot",
+        run() {
+            const session = new DocumentSessionState({ initialContent: "A" });
+
+            session.applyCommittedSnapshot("B");
+            session.markSaved("B");
+            session.applyCommittedSnapshot("C");
+            session.showReloadConflict("disk");
+
+            assert.equal(session.undo(), "B");
+            assert.deepEqual(session.getSnapshot(), {
+                dirty: false,
+                historyIndex: 1,
+                historyLength: 3,
+                lastSavedSnapshot: "B",
+                alertReload: false,
+                pendingExternalContent: null,
+            });
         },
     },
     {

@@ -45,6 +45,18 @@ export class DocumentSessionState {
         };
     }
 
+    getCurrentSnapshot(): string {
+        return this.currentSnapshot;
+    }
+
+    canUndo(): boolean {
+        return this.historyIndex > 0;
+    }
+
+    canRedo(): boolean {
+        return this.historyIndex >= 0 && this.historyIndex < this.history.length - 1;
+    }
+
     applyCommittedSnapshot(snapshot: string): boolean {
         if (snapshot === this.currentSnapshot) {
             this.clearReloadConflict();
@@ -63,6 +75,14 @@ export class DocumentSessionState {
         this.history = [...this.history.slice(0, this.historyIndex + 1), snapshot];
         this.historyIndex = this.history.length - 1;
         return true;
+    }
+
+    undo(): string | null {
+        return this.applyHistoryIndex(this.historyIndex - 1);
+    }
+
+    redo(): string | null {
+        return this.applyHistoryIndex(this.historyIndex + 1);
     }
 
     markSaved(snapshot = this.currentSnapshot): void {
@@ -93,5 +113,16 @@ export class DocumentSessionState {
 
     private computeDirty(): boolean {
         return this.forceDirty || this.currentSnapshot !== this.lastSavedSnapshot;
+    }
+
+    private applyHistoryIndex(nextIndex: number): string | null {
+        if (nextIndex < 0 || nextIndex >= this.history.length) {
+            return null;
+        }
+
+        this.historyIndex = nextIndex;
+        this.currentSnapshot = this.history[nextIndex] ?? this.currentSnapshot;
+        this.clearReloadConflict();
+        return this.currentSnapshot;
     }
 }
