@@ -5,7 +5,6 @@
 import type { NodeDef } from "./misc/b3type";
 import type {
     DocumentMutation,
-    DocumentMutationSelection,
     HostDocumentSnapshot,
     HostDocumentSessionState,
     HostSelectionState,
@@ -111,7 +110,6 @@ export type HostToEditorMessage =
           requestId: string;
           success: boolean;
           error?: string;
-          nextSelection?: DocumentMutationSelection;
       }
     | {
           type: "revertDocumentResult";

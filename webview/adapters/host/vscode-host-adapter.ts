@@ -241,7 +241,6 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
                         resolvePendingRequest(message.requestId, "mutateDocument", {
                             success: message.success,
                             error: message.error,
-                            nextSelection: message.nextSelection,
                         });
                         return;
 

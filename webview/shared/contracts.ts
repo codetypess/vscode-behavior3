@@ -96,7 +96,6 @@ export interface HostDocumentSnapshot {
     documentSession: HostDocumentSessionState;
     selection: HostSelectionState;
     syncKind: "update" | "reload";
-    nextSelection?: DocumentMutationSelection;
 }
 
 export interface EditNode {
@@ -270,7 +269,6 @@ export type DocumentMutation =
 export interface DocumentMutationResponse {
     success: boolean;
     error?: string;
-    nextSelection?: DocumentMutationSelection;
 }
 
 export type HostEvent =

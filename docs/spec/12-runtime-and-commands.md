@@ -162,7 +162,7 @@
 2. 宿主优先尝试在 host 侧直接 reduce 并提交
 3. 当前 `updateTreeMeta` / `updateNode` / `performDrop` / `pasteNode` / `insertNode` / `replaceNode` / `deleteNode` / `saveSelectedAsSubtree` 已可直接在 host 提交
 4. `updateNode` 在发送 intent 前会补齐 `currentNodeSnapshot`，若发生 subtree 脱链再补 `detachedSubtreeRoot`
-5. 对于需要改选中的结构命令，宿主通过 mutation response 公开 `nextSelection`，并同步更新 committed `documentSnapshotChanged.selection`
+5. 对于需要改选中的结构命令，宿主在内部消费 reducer `nextSelection`，并只通过 committed `documentSnapshotChanged.selection` 公开共享选中结果
 6. 若宿主无法提交 mutation，则直接返回错误，不再把执行权转回主编辑器
 
 这条规则意味着：

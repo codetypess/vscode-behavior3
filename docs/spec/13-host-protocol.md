@@ -89,7 +89,6 @@
     - `HostDocumentSessionState`
     - `HostSelectionState`
     - `syncKind` (`update` / `reload`)
-    - 可选 `nextSelection`
   - 外部文件 dirty 冲突也通过这条消息提升 session 冲突态，而不是另发一条内容消息
 
 ### 编辑命令代理
@@ -172,12 +171,11 @@
 - `documentSession`
 - `selection`
 - `syncKind`
-- `nextSelection?`
 
 说明：
 
-- `selection` 才是 committed fanout 时的共享选中权威结果
-- `nextSelection` 只是 mutation reducer 的补充过渡信息，不替代 `selection`
+- `selection` 是 committed fanout 时唯一公开的共享选中权威结果
+- reducer `nextSelection` 只保留在 host session 内部，不属于稳定对外协议
 
 ### NodeInstanceRef
 
@@ -213,10 +211,9 @@
 - 该快照来自当前发起 webview 的选中节点投影，包含 host reducer 需要的当前节点数据、subtree 标记和 `subtreeOriginal`
 - `updateNode` 在“解绑 subtree 引用为本地节点”时可以携带 `detachedSubtreeRoot`
 - `detachedSubtreeRoot` 由当前 webview runtime 提供，供 host reducer 直接提交
-- `mutateDocumentResult` 当前可以携带 `nextSelection`
-- 该字段只表达“本次提交后宿主会把共享 selection 推到哪里”
 - 真正的共享 selection authority 在 `init.selection` / `documentSnapshotChanged.selection`
-- 同一个 committed `nextSelection` 仍可出现在后续 `documentSnapshotChanged` 中，供发起方做对账或兼容过渡
+- reducer `nextSelection` 只用于 host 在提交时更新自身 `sharedSelection`
+- `mutateDocumentResult` 只承担成功/失败应答，不再承载共享选中结果
 
 ## 会话规则
 

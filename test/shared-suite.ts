@@ -1925,10 +1925,6 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                     },
                 },
                 syncKind: "update",
-                nextSelection: {
-                    kind: "node",
-                    structuralStableId: "child-c",
-                },
             });
 
             assert.equal(documentStore.getState().dirty, true);

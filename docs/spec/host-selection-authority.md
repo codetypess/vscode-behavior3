@@ -41,7 +41,7 @@ That means shared selection is not yet host truth even though the main document 
 - `reportInspectorSelection` sends an editor-built `EditNode | null` back to host.
 - The host stores that DTO and fans it out as `inspectorSelectionChanged`.
 - The sidebar applies the DTO directly instead of rebuilding the selection projection from its own runtime graph.
-- `documentSnapshotChanged` already carries mutation-follow `nextSelection`, but ordinary `selectTree` / `selectNode` do not enter the host first.
+- structural mutation follow-up selection still piggybacks on reducer `nextSelection`, but ordinary `selectTree` / `selectNode` do not enter the host first.
 
 ## 5. Proposed Behavior
 
@@ -113,7 +113,6 @@ Implications:
 
 When host-side mutation reducers return `nextSelection`:
 
-- the response may still carry `nextSelection`
 - the host must also update the shared host selection snapshot in the same commit
 - the following `documentSnapshotChanged` must carry the updated host selection snapshot
 

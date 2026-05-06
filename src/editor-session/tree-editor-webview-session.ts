@@ -378,7 +378,6 @@ export async function resolveTreeEditorSession({
         documentSession?: ReturnType<typeof buildDocumentSessionMessage>;
         syncKind?: "update" | "reload";
         selection?: HostSelectionState;
-        nextSelection?: DocumentMutationSelection;
     }): Extract<HostToEditorMessage, { type: "documentSnapshotChanged" }> => ({
         type: "documentSnapshotChanged",
         snapshot: {
@@ -386,7 +385,6 @@ export async function resolveTreeEditorSession({
             documentSession: opts?.documentSession ?? buildDocumentSessionMessage(),
             selection: opts?.selection ?? state.sharedSelection,
             syncKind: opts?.syncKind ?? state.inspectorContentSyncKind,
-            nextSelection: opts?.nextSelection,
         },
     });
 
@@ -710,13 +708,11 @@ export async function resolveTreeEditorSession({
 
     const fanoutDocumentSnapshot = async (opts?: {
         syncKind?: "update" | "reload";
-        nextSelection?: DocumentMutationSelection;
         refreshVars?: boolean;
     }): Promise<void> => {
         await postMessage(
             buildDocumentSnapshotMessage({
                 syncKind: opts?.syncKind,
-                nextSelection: opts?.nextSelection,
             })
         );
         if (opts?.refreshVars !== false) {
@@ -726,10 +722,7 @@ export async function resolveTreeEditorSession({
         notifyInspectorSessionUpdate();
     };
 
-    const applySessionHistorySnapshot = async (
-        snapshot: string,
-        opts?: { nextSelection?: DocumentMutationSelection }
-    ): Promise<boolean> => {
+    const applySessionHistorySnapshot = async (snapshot: string): Promise<boolean> => {
         const sessionSnapshot = buildDocumentSessionMessage();
         const changed = document.syncContentState(snapshot, sessionSnapshot.dirty);
         if (!changed) {
@@ -741,12 +734,8 @@ export async function resolveTreeEditorSession({
         void refreshTrackedSubtreeRefs();
         updateFileVersionState(snapshot);
         onDidChangeDocument(document);
-        if (opts?.nextSelection) {
-            updateSharedSelection(buildHostSelectionFromMutationSelection(opts.nextSelection));
-        }
         await fanoutDocumentSnapshot({
             syncKind: "update",
-            nextSelection: opts?.nextSelection,
         });
         return true;
     };
@@ -956,7 +945,6 @@ export async function resolveTreeEditorSession({
             updateSharedSelection(buildHostSelectionFromMutationSelection(nextSelection));
             await fanoutDocumentSnapshot({
                 syncKind: "update",
-                nextSelection,
             });
         }
 
@@ -966,7 +954,6 @@ export async function resolveTreeEditorSession({
                 type: "mutateDocumentResult",
                 requestId: msg.requestId,
                 success: true,
-                nextSelection,
             },
         };
     };
@@ -1053,7 +1040,6 @@ export async function resolveTreeEditorSession({
                 }
                 await fanoutDocumentSnapshot({
                     syncKind: "update",
-                    nextSelection: reduced.nextSelection,
                 });
             }
 
@@ -1061,7 +1047,6 @@ export async function resolveTreeEditorSession({
                 type: "mutateDocumentResult",
                 requestId: msg.requestId,
                 success: true,
-                nextSelection: reduced.nextSelection,
             } satisfies HostToEditorMessage);
         });
     };
