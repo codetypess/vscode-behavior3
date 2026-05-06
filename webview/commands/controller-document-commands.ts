@@ -6,7 +6,6 @@ import { parsePersistedTreeContent, serializePersistedTree } from "../shared/tre
 import {
     applyHostDocumentSession,
     clearDocumentReloadConflict,
-    markDocumentSaved,
     showDocumentReloadConflict,
 } from "../stores/document-store";
 import { buildUsingGroups, isJsonEqual, type ControllerRuntime } from "./controller-runtime";
@@ -35,13 +34,11 @@ export const createDocumentCommands = (
     const syncHistoryToSnapshot = (snapshot: string) => {
         deps.documentStore.setState((state) => {
             const existingIndex = state.history.findIndex((entry) => entry === snapshot);
-            const dirty = state.lastSavedSnapshot ? snapshot !== state.lastSavedSnapshot : false;
 
             if (existingIndex >= 0) {
                 return {
                     ...state,
                     historyIndex: existingIndex,
-                    dirty,
                     alertReload: false,
                     pendingExternalContent: null,
                 };
@@ -52,7 +49,6 @@ export const createDocumentCommands = (
                     ...state,
                     history: [snapshot],
                     historyIndex: 0,
-                    dirty,
                     alertReload: false,
                     pendingExternalContent: null,
                 };
@@ -63,7 +59,6 @@ export const createDocumentCommands = (
                 ...state,
                 history: nextHistory,
                 historyIndex: nextHistory.length - 1,
-                dirty,
                 alertReload: false,
                 pendingExternalContent: null,
             };
@@ -86,7 +81,6 @@ export const createDocumentCommands = (
             runtime.selectTreeState();
 
             await runtime.applyDocumentTree(persistedTree, {
-                savedSnapshot: null,
                 preserveSelection: false,
             });
             runtime.resetDocumentHistory();
@@ -107,7 +101,6 @@ export const createDocumentCommands = (
             const tree = parsePersistedTreeContent(content, filePath);
             clearDocumentReloadConflict(deps.documentStore);
             await runtime.applyDocumentTree(tree, {
-                savedSnapshot: deps.documentStore.getState().lastSavedSnapshot,
                 preserveSelection: true,
             });
 
@@ -121,16 +114,10 @@ export const createDocumentCommands = (
         async reloadDocumentFromHost(content: string, opts?: { force?: boolean }) {
             if (runtime.matchesCurrentDocumentSnapshot(content)) {
                 clearDocumentReloadConflict(deps.documentStore);
-                if (opts?.force) {
-                    const snapshot = runtime.getSerializedCurrentTree();
-                    if (snapshot) {
-                        markDocumentSaved(deps.documentStore, snapshot);
-                    }
-                }
                 return;
             }
 
-            if (deps.documentStore.getState().dirty && !opts?.force) {
+            if (!opts?.force) {
                 showDocumentReloadConflict(deps.documentStore, content);
                 return;
             }
@@ -139,7 +126,6 @@ export const createDocumentCommands = (
             const tree = parsePersistedTreeContent(content, filePath);
             clearDocumentReloadConflict(deps.documentStore);
             await runtime.applyDocumentTree(tree, {
-                savedSnapshot: null,
                 preserveSelection: true,
             });
             runtime.resetDocumentHistory();

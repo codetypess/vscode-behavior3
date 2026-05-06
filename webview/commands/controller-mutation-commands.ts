@@ -156,6 +156,7 @@ const executeUpdateTreeMetaCompat = async (
         rebuildGraph: result.rebuildGraph,
         preserveSelection: true,
         applyVisualState: true,
+        pushHistory: false,
     });
     return result.nextSelection;
 };
@@ -191,7 +192,9 @@ const executeUpdateNodeCompat = async (
         return undefined;
     }
 
-    await runtime.commitTreeMutation(result.tree);
+    await runtime.commitTreeMutation(result.tree, {
+        pushHistory: false,
+    });
     return result.nextSelection;
 };
 
@@ -322,6 +325,7 @@ const executePerformDropCompat = async (
         prepareSelection: () => {
             runtime.selectResolvedNodeState(sourceResolved.ref.instanceKey);
         },
+        pushHistory: false,
     });
     return {
         kind: "node",
@@ -358,6 +362,7 @@ const executePasteNodeCompat = async (
         prepareSelection: () => {
             runtime.selectPendingNodeState(nextNode.uuid);
         },
+        pushHistory: false,
     });
     return {
         kind: "node",
@@ -397,6 +402,7 @@ const executeInsertNodeCompat = async (
         prepareSelection: () => {
             runtime.selectPendingNodeState(nextNode.uuid);
         },
+        pushHistory: false,
     });
     return {
         kind: "node",
@@ -438,6 +444,7 @@ const executeReplaceNodeCompat = async (
         prepareSelection: () => {
             runtime.selectPendingNodeState(replacement.uuid);
         },
+        pushHistory: false,
     });
     return {
         kind: "node",
@@ -481,6 +488,7 @@ const executeDeleteNodeCompat = async (
         prepareSelection: () => {
             runtime.selectPendingNodeState(nextSelection);
         },
+        pushHistory: false,
     });
     return {
         kind: "node",
@@ -543,6 +551,7 @@ const executeSaveSelectedAsSubtreeCompat = async (
         prepareSelection: () => {
             runtime.selectPendingNodeState(targetNode.uuid);
         },
+        pushHistory: false,
     });
     runtime.notifySuccess(i18n.t("node.subtreeSaveSuccess", { path: targetNode.path }));
     return {

@@ -65,7 +65,6 @@ export type SelectionPatch = Partial<
 >;
 
 export interface ControllerApplyTreeOptions {
-    savedSnapshot?: string | null;
     syncSubtreeSources?: boolean;
     rebuildGraph?: boolean;
     preserveSelection?: boolean;
@@ -103,7 +102,6 @@ export interface ControllerRuntime {
         opts?: { clearPathOnRoot?: boolean }
     ): PersistedNodeModel | null;
     overwritePersistedNode(target: PersistedNodeModel, source: PersistedNodeModel): void;
-    applyHistoryIndex(nextIndex: number): Promise<void>;
     applyVisualState(): Promise<void>;
     rebuildGraph(opts?: { preserveSelection?: boolean }): Promise<void>;
     syncReachableSubtreeSources(): Promise<void>;
@@ -119,16 +117,6 @@ export const cloneVars = <T extends { name: string; desc: string }>(entries: T[]
 
 export const isJsonEqual = (left: unknown, right: unknown): boolean =>
     JSON.stringify(left) === JSON.stringify(right);
-
-const computeDirty = (
-    tree: PersistedTreeModel | null,
-    lastSavedSnapshot: string | null
-): boolean => {
-    if (!tree || lastSavedSnapshot == null) {
-        return false;
-    }
-    return serializePersistedTree(tree) !== lastSavedSnapshot;
-};
 
 export const buildUsingGroups = (groupNames: string[]): Record<string, boolean> | null => {
     if (groupNames.length === 0) {
@@ -516,20 +504,15 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
     const pushHistorySnapshot = (snapshot: string) => {
         deps.documentStore.setState((state) => {
             if (state.history[state.historyIndex] === snapshot) {
-                return {
-                    ...state,
-                    dirty: computeDirty(state.persistedTree, state.lastSavedSnapshot),
-                };
+                return state;
             }
             const nextHistory = [...state.history.slice(0, state.historyIndex + 1), snapshot];
             return {
                 ...state,
                 history: nextHistory,
                 historyIndex: nextHistory.length - 1,
-                dirty: computeDirty(state.persistedTree, state.lastSavedSnapshot),
             };
         });
-        deps.hostAdapter.sendUpdate(snapshot);
     };
 
     const getSerializedCurrentTree = (): string | null => {
@@ -784,17 +767,11 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         }));
     };
 
-    const setDocumentTree = (
-        tree: PersistedTreeModel,
-        opts?: { savedSnapshot?: string | null }
-    ) => {
+    const setDocumentTree = (tree: PersistedTreeModel) => {
         deps.documentStore.setState((state) => {
-            const nextSavedSnapshot = opts?.savedSnapshot ?? state.lastSavedSnapshot;
             return {
                 ...state,
                 persistedTree: tree,
-                dirty: computeDirty(tree, nextSavedSnapshot),
-                lastSavedSnapshot: nextSavedSnapshot,
             };
         });
         deps.workspaceStore.setState((state) => ({
@@ -820,8 +797,6 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             ...state,
             history: [snapshot],
             historyIndex: 0,
-            lastSavedSnapshot: snapshot,
-            dirty: false,
             alertReload: false,
             pendingExternalContent: null,
         }));
@@ -836,7 +811,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         tree: PersistedTreeModel,
         opts?: ControllerApplyTreeOptions
     ) => {
-        setDocumentTree(tree, { savedSnapshot: opts?.savedSnapshot });
+        setDocumentTree(tree);
 
         if (opts?.syncSubtreeSources !== false) {
             await syncReachableSubtreeSources();
@@ -854,8 +829,8 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
 
     /**
      * Wrap a structural mutation in the full editor commit pipeline:
-     * optional selection prep, document state update, graph rebuild, history,
-     * and host notification.
+     * optional selection prep, document projection update, graph rebuild,
+     * optional projection-history sync, and treeSelected fanout.
      */
     const commitTreeMutation = async (
         tree: PersistedTreeModel,
@@ -867,7 +842,6 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             rebuildGraph: opts?.rebuildGraph,
             preserveSelection: opts?.preserveSelection,
             applyVisualState: opts?.applyVisualState,
-            savedSnapshot: opts?.savedSnapshot,
         });
 
         if (opts?.pushHistory !== false) {
@@ -878,30 +852,6 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         if (treeSelectedMode !== "skip") {
             scheduleTreeSelected(treeSelectedMode === "immediate");
         }
-    };
-
-    /**
-     * Undo/redo replays the serialized tree snapshot while the graph adapter
-     * keeps the visible viewport anchored around the current center.
-     */
-    const applyHistoryIndex = async (nextIndex: number) => {
-        const documentState = deps.documentStore.getState();
-        const snapshot = documentState.history[nextIndex];
-        if (!snapshot) {
-            return;
-        }
-        const filePath = deps.workspaceStore.getState().filePath || undefined;
-        const tree = parsePersistedTreeContent(snapshot, filePath);
-        await applyDocumentTree(tree, {
-            preserveSelection: true,
-        });
-        deps.documentStore.setState((state) => ({
-            ...state,
-            historyIndex: nextIndex,
-            dirty: computeDirty(state.persistedTree, state.lastSavedSnapshot),
-        }));
-        deps.hostAdapter.sendUpdate(snapshot);
-        scheduleTreeSelected();
     };
 
     return {
@@ -923,7 +873,6 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         isDescendantInstance,
         buildPersistedNodeFromResolved,
         overwritePersistedNode,
-        applyHistoryIndex,
         applyVisualState,
         rebuildGraph,
         syncReachableSubtreeSources,

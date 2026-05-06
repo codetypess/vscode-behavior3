@@ -15,7 +15,6 @@ export type { NodeDef };
 
 export type EditorToHostMessage =
     | { type: "ready" }
-    | { type: "update"; content: string }
     | { type: "undo" }
     | { type: "redo" }
     /** Ask the active editor webview to highlight nodes that use these variables. */

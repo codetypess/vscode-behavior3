@@ -31,8 +31,6 @@
 ### 生命周期与主文档
 
 - `ready`
-- `update`
-  - payload: `{ content: string }`
 - `undo`
 - `redo`
 - `saveDocument`
@@ -90,7 +88,7 @@
 - `documentSessionChanged`
   - 宿主把权威 document session 元数据广播给 editor 或 sidebar
 - `documentUpdated`
-  - 宿主提交了主文档 update、undo、redo 或 host-first mutation 后，把最新内容同步给当前视图
+  - 宿主提交了主文档内容变更、undo、redo 或 host-first mutation 后，把最新内容同步给当前视图
 - `fileChanged`
   - 磁盘文件外部变化到来，但当前编辑器可能仍 dirty，需要走冲突判断
 - `documentReloaded`
@@ -208,13 +206,13 @@
 
 在 extension-host session 中，以下操作共用一条主文档操作队列：
 
-- `update`
 - `undo`
 - `redo`
 - `saveDocument`
 - `revertDocument`
 - 外部主文件 reload
 - host-first mutation 回写
+- `executeDocumentMutation` 兼容回退结果回写
 
 目的是避免 watcher 与多来源消息交错，把文档推进到不一致状态。
 

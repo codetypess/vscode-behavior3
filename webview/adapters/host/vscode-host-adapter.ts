@@ -362,10 +362,6 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
             postMessage({ type: "ready" });
         },
 
-        sendUpdate(content) {
-            postMessage({ type: "update", content });
-        },
-
         undo() {
             postMessage({ type: "undo" });
         },

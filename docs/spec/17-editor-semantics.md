@@ -62,8 +62,8 @@
 - 应用新树
 - 同步 subtree cache
 - rebuild graph
-- 推进 history
-- 向宿主发送 `update`
+- 在兼容回退里可选择更新本地 projection history
+- 不直接把主文档内容写回宿主
 - 调度 `treeSelected`
 
 ## Selection 语义
@@ -229,8 +229,8 @@
 
 ### history push 规则
 
-- 由 `commitTreeMutation` 在真实结构变更后推进
-- 推进后向宿主发送最新 `update`
+- host-first 正常路径下，权威 history 只由 host session 推进
+- `commitTreeMutation` 只在兼容回退仍需要时保留局部 projection history
 
 ## Save / Revert / Build
 

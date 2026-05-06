@@ -51,9 +51,9 @@ As a result, a narrow Ctrl+S or pending-dot fix would treat symptoms but would n
 
 ## 4. Current Behavior
 
-- `documentStore` in the webview owns `persistedTree`, `dirty`, reload conflict state, `history`, `historyIndex`, and `lastSavedSnapshot`.
+- `documentStore` in the webview still holds `persistedTree` plus compatibility projection caches for `dirty`, reload conflict state, `history`, `historyIndex`, and `lastSavedSnapshot`.
 - `TreeEditorDocument` in the extension host owns only serialized text content, custom-editor dirty state, and own-write suppression.
-- The main editor executes structural mutations locally through `EditorCommand`, updates local history, computes dirty locally, and sends serialized `update` snapshots back to the host.
+- The main editor no longer uses `update` as a primary write path; normal structural mutations enter the host first, while `executeDocumentMutation` fallback only returns a proposed result for host commit.
 - The sidebar receives mirrored init/content/selection data from the host, but still bootstraps a local document runtime and local history/save state.
 - Sidebar `mutateDocument` currently covers `updateTreeMeta` and `updateNode`, and those intents now enter the host first.
 - `saveDocument`, `undo`, and `redo` now enter the host first from both the editor and the sidebar.
@@ -62,7 +62,7 @@ As a result, a narrow Ctrl+S or pending-dot fix would treat symptoms but would n
 - Canvas structural commands now enter the host first as `mutateDocument` intents instead of mutating locally before sending `update`.
 - `performDrop`, `pasteNode`, `insertNode`, `replaceNode`, `deleteNode`, and `saveSelectedAsSubtree` now commit directly in host, with `nextSelection` returned to the webview so selection projection can follow the committed snapshot.
 - `executeDocumentMutation` still remains as a compatibility executor only for context gaps such as stale selection state or reducer inputs the host cannot yet reconstruct.
-- Cross-view content sync still primarily uses content-bearing messages such as `update`, `documentUpdated`, and `documentReloaded`, rather than a normalized host session snapshot feed.
+- Cross-view content sync still primarily uses content-bearing messages such as `documentUpdated` and `documentReloaded`, rather than a normalized host session snapshot feed.
 
 ## 5. Proposed Behavior
 
@@ -137,7 +137,7 @@ Add an explicit host intent layer for document-affecting actions. The intent cat
   - `selectNode`
   - variable-focus or inspector-selection sync, where needed
 
-The current `update { content }` message should be treated as a compatibility path to retire, not as the long-term primary protocol.
+The previous `update { content }` message has been retired from the main document write path and should not be reintroduced as the long-term primary protocol.
 
 ### 6.3 Hybrid Reducer Transition
 
@@ -181,7 +181,6 @@ However, selection can migrate in two steps:
 
 Legacy protocol pieces such as:
 
-- `update`
 - `documentUpdated`
 - `executeDocumentMutation`
 - `documentMutationResult`
@@ -238,8 +237,8 @@ Exit criteria:
 
 - Route canvas-originated structural commands through the same host intent path.
 - Allow `mutateDocument` from the active editor webview, not only from external/sidebar views.
-- Keep the active editor compat executor only behind host-owned fallback, instead of letting canvas commands mutate locally first and then send `update`.
-- Retire "local mutation first, then send `update`" as the normal edit model.
+- Keep the active editor compat executor only behind host-owned fallback, and make it return content to the host instead of directly writing host state.
+- Retire "local mutation first, then push host content" as the normal edit model.
 
 Exit criteria:
 

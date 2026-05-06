@@ -121,12 +121,12 @@ Shared Layer
 2. controller 修改 `persistedTree` 或 `overrides`
 3. runtime 同步 reachable subtree cache
 4. runtime 重建 resolved graph 与 graph view model
-5. runtime 推进 history，并向宿主发送 `update`
+5. runtime 在兼容回退里只更新本地 projection，并把结果交还宿主统一 commit
 6. runtime 以 `treeSelected` 触发变量声明视图刷新
 
 说明：
 
-- 这条路径仍是当前结构化 mutation 的兼容执行链
+- 这条路径只剩 `executeDocumentMutation` 的兼容执行链
 - save、undo、redo 已不再由该路径直接落地执行
 
 ### Save / Undo / Redo

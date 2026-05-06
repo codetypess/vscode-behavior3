@@ -1405,21 +1405,6 @@ export async function resolveTreeEditorSession({
                 await handleReadyMessage(reply);
                 return;
 
-            case "update":
-                await enqueueMainDocumentOperation(async () => {
-                    if (blockEditingForNewerFile()) {
-                        return;
-                    }
-                    const changed = applyContentFromWebview(msg.content);
-                    if (changed && source !== "editor") {
-                        await postMessage({
-                            type: "documentUpdated",
-                            content: document.content,
-                        });
-                    }
-                });
-                return;
-
             case "undo":
                 await handleHistoryNavigationMessage("undo");
                 return;

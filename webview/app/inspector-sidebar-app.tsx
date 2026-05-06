@@ -58,7 +58,6 @@ const applySidebarInit = async (
         persistedTree,
         history: [snapshot],
         historyIndex: 0,
-        lastSavedSnapshot: snapshot,
     }));
     applyHostDocumentSession(runtime.documentStore, payload.documentSession);
     runtime.workspaceStore.setState((state) => ({

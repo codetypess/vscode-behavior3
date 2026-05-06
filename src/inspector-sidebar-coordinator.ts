@@ -349,7 +349,6 @@ export class InspectorSidebarCoordinator {
                 return;
 
             case "ready":
-            case "update":
             case "undo":
             case "redo":
             case "focusVariable":

@@ -396,7 +396,6 @@ export interface GraphEventHandlers {
 export interface HostAdapter {
     connect(onMessage: (msg: HostEvent) => void): () => void;
     sendReady(): void;
-    sendUpdate(content: string): void;
     undo(): void;
     redo(): void;
     mutateDocument(mutation: DocumentMutation): Promise<DocumentMutationResponse>;

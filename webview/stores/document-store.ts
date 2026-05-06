@@ -20,16 +20,6 @@ export const clearDocumentReloadConflict = (store: StoreApi<DocumentState>): voi
     }));
 };
 
-export const markDocumentSaved = (store: StoreApi<DocumentState>, snapshot: string): void => {
-    store.setState((state) => ({
-        ...state,
-        lastSavedSnapshot: snapshot,
-        dirty: false,
-        alertReload: false,
-        pendingExternalContent: null,
-    }));
-};
-
 export const applyHostDocumentSession = (
     store: StoreApi<DocumentState>,
     session: HostDocumentSessionState

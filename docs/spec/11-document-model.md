@@ -97,9 +97,9 @@
 
 - `content` 是 VS Code custom editor 生命周期看到的文档文本
 - `sessionState` 维护当前主文档的 `dirty`、`lastSavedSnapshot`、`historyIndex/historyLength`、reload conflict 元数据
-- webview 发来的 `update` 会先规范化，再更新到该文本镜像和宿主 session history
 - webview 发来的 `saveDocument` / `undo` / `redo` 只表达 intent，由宿主 session 自己执行并回推结果
 - `mutateDocument` 发来的主文档 mutation 先由宿主尝试提交；其中 `updateTreeMeta/updateNode/performDrop/pasteNode/insertNode/replaceNode/deleteNode` 优先走 shared reducer，`saveSelectedAsSubtree` 也已由宿主直接处理保存副作用与主树 link 回写
+- 若仍需 `executeDocumentMutation` 兼容回退，主编辑器只返回 mutation 结果和序列化内容，由宿主统一 commit
 - 宿主监听到文件变化时，会用 `_ownFileWrites` 区分“自己刚写出的变更”和“真正的外部变化”
 
 这意味着：
@@ -206,7 +206,7 @@
 ### Dirty 规则
 
 - 宿主 session 的 dirty 由“当前宿主快照是否等于 lastSavedSnapshot”决定
-- webview `documentStore.dirty` 通过 `documentSessionChanged` 镜像宿主 dirty，并在本地 reducer 兼容期内做同步更新
+- webview `documentStore.dirty` 只通过 `documentSessionChanged` 镜像宿主 dirty
 - dirty 不是独立于快照的第二份手工业务真源
 
 ## Save / Revert / Reload
