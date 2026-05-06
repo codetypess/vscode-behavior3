@@ -200,9 +200,10 @@ Sidebar 在执行保存、撤销、重做前，会先 flush 待提交的 Inspect
 
 ## 变量聚焦契约
 
-- 侧栏中点击变量行时，请求主编辑器 `focusVariable`
+- 侧栏中点击变量行时，请求宿主把 `focusVariable` 作为瞬时 relay 投递给当前主编辑器
 - 主编辑器图层热点点击也会驱动相同变量聚焦语义
-- 变量聚焦不直接修改文档，只影响视觉状态
+- 变量聚焦不直接修改文档，只影响 editor-local graph UI 视觉状态
+- 变量聚焦不写入 `init` / `documentSnapshotChanged`，也不跨 reload/save/undo/redo 持久化
 
 ## 验收要点
 

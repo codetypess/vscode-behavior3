@@ -51,9 +51,9 @@
 
 ### `applyVisualState()`
 
-- 从 `selectionStore` 计算 graph selection
-- 计算 variable highlights
-- 计算 search result keys 与 active index
+- 从 `selectionStore` 的 host-projected selection 与 `graphUiStore.selectionVisualHint` 计算 graph selection
+- 从 `graphUiStore.activeVariableNames` 计算 variable highlights
+- 从 `graphUiStore.search` 计算 search result keys 与 active index
 - 分别下发到 graph adapter
 
 ### `applyDocumentTree(tree, opts?)`
@@ -88,8 +88,10 @@
 
 ### `focusVariable(names)`
 
-- 仅更新 `activeVariableNames`
-- 不修改文档或 history
+- 仅更新 `graphUiStore.activeVariableNames`
+- 不修改文档、history、dirty 或 host-projected selection
+- 不进入 `init` / `documentSnapshotChanged`，也不跨 reload/save/undo/redo/webview re-init 持久化
+- sidebar 触发时只是一条经宿主转发到 active editor 的瞬时 relay，wire name 暂时仍为 `focusVariable`
 - 触发图高亮与灰化
 
 ## Search 语义
@@ -118,6 +120,7 @@
 - 初始化 workspace state
 - 解析主文档文本为 `persistedTree`
 - 应用宿主 `selection`
+- 重置 editor-local graph UI state，因此不会从 init 恢复 variable focus
 - 构建首个 resolved graph
 - 应用宿主 document session projection
 
@@ -126,6 +129,7 @@
 - 用于吸收宿主推送的最新 committed document/session/selection snapshot
 - 若内容与当前结构化快照等价，则只重放宿主 selection projection 与 session 状态
 - 否则更新主树并保持 selection 尽量稳定，不在 webview 本地推进 history
+- reload snapshot 会清除 editor-local graph UI state；snapshot 本身不能携带或恢复 variable focus
 
 ### `applyNodeDefs(defs)`
 

@@ -107,8 +107,10 @@ export const normalizeHostSelectionState = (selection: HostSelectionState): Host
 export const normalizeHostDocumentSnapshot = (
     snapshot: HostDocumentSnapshot
 ): HostDocumentSnapshot => ({
-    ...snapshot,
+    content: snapshot.content,
+    documentSession: snapshot.documentSession,
     selection: normalizeHostSelectionState(snapshot.selection),
+    syncKind: snapshot.syncKind,
 });
 
 export const normalizeHostInitMessage = (

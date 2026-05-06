@@ -47,6 +47,7 @@
   - payload: `{ target: NodeInstanceRef }`
 - `focusVariable`
   - payload: `{ names }`
+  - 语义：sidebar 请求把变量聚焦作为一次性视觉 intent relay 给当前 active editor；不是共享状态同步
 
 ### 项目与设置
 
@@ -94,6 +95,8 @@
 ### 编辑命令代理
 
 - `focusVariable`
+  - 语义：宿主向 editor 投递一次新鲜变量聚焦 relay
+  - 不属于 `init` / `documentSnapshotChanged` 的 snapshot 内容
 
 ### 环境与依赖变化
 
@@ -134,6 +137,7 @@
   - 当前宿主 document session 元数据
 - `selection`
   - 当前宿主共享选中快照
+  - 只承载 tree/node selection，不承载 variable focus
 
 ### HostDocumentSessionState
 
@@ -164,6 +168,7 @@
 
 - 它是 host 当前共享 tree/node 选中的权威 DTO
 - editor 与 sidebar 都只消费这个快照，再各自在本地 resolved graph 上做 projection
+- variable focus 不属于 `HostSelectionState`；它只通过瞬时 `focusVariable` relay 进入 editor-local graph UI state
 
 ### HostDocumentSnapshot
 
@@ -176,6 +181,7 @@
 
 - `selection` 是 committed fanout 时唯一公开的共享选中权威结果
 - reducer `nextSelection` 只保留在 host session 内部，不属于稳定对外协议
+- snapshot 不承载 variable focus；reload/save/undo/redo/webview re-init 都不能从 snapshot 恢复变量高亮
 
 ### NodeInstanceRef
 

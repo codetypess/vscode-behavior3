@@ -87,10 +87,12 @@ export interface NodeInstanceRef {
     subtreeStack: WorkdirRelativeJsonPath[];
 }
 
+/** Host snapshot authority is limited to shared tree/node selection. */
 export type HostSelectionState =
     | { kind: "tree" }
     | { kind: "node"; ref: NodeInstanceRef };
 
+/** Committed document fanout; local graph UI state such as variable focus is excluded. */
 export interface HostDocumentSnapshot {
     content: string;
     documentSession: HostDocumentSessionState;
@@ -159,6 +161,7 @@ export interface GraphUiSearchState {
 }
 
 export interface GraphUiState {
+    /** Editor-local visual focus, optionally set by a fresh `focusVariable` relay. */
     activeVariableNames: string[];
     selectionVisualHint: GraphSelectionState | null;
     search: GraphUiSearchState;
@@ -280,6 +283,7 @@ export interface DocumentMutationResponse {
 export type HostEvent =
     | { type: "init"; payload: HostInitPayload }
     | { type: "documentSnapshotChanged"; snapshot: HostDocumentSnapshot }
+    /** One-shot variable highlight relay into the active editor; not snapshot authority. */
     | { type: "focusVariable"; names: string[] }
     | { type: "themeChanged"; theme: Settings["theme"] }
     | { type: "subtreeFileChanged" }
@@ -413,6 +417,7 @@ export interface HostAdapter {
     mutateDocument(mutation: DocumentMutation): Promise<DocumentMutationResponse>;
     selectTree(): void;
     selectNode(target: NodeInstanceRef): void;
+    /** Request a one-shot variable focus relay; callers must not treat it as persisted state. */
     requestFocusVariable(names: string[]): void;
     sendRequestSetting(): void;
     sendBuild(opts?: { buildScriptDebug?: boolean }): void;

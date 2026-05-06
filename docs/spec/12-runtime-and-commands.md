@@ -75,6 +75,7 @@
 - 维护本地 graph UI store（search / variable-focus / selection visual hint）
 - 对用户选中手势发送 `HostAdapter.selectTree/selectNode` intent
 - 仅通过宿主 `selection` snapshot 投影共享 tree/node selection 到 `selectionStore`
+- `focusVariable(names)` 只更新 editor-local variable focus；sidebar 来源也只是 host relay，不是 snapshot authority
 - 驱动 graph adapter 应用 selection/highlight/search 状态；graph-only 本地选中 hint 只进入 `graphUiStore`
 - 在必要时触发节点聚焦
 

@@ -26,12 +26,16 @@ import {
     parsePersistedTreeContent,
     serializePersistedTree,
 } from "../webview/shared/tree";
-import { parseWorkdirRelativeJsonPath } from "../webview/shared/protocol";
+import {
+    normalizeHostDocumentSnapshot,
+    parseWorkdirRelativeJsonPath,
+} from "../webview/shared/protocol";
 import b3path from "../webview/shared/misc/b3path";
 import { loadRuntimeModule } from "../webview/shared/misc/b3build";
 import type { GraphAdapter } from "../webview/shared/graph-contracts";
 import type {
     DocumentMutation,
+    GraphHighlightState,
     HostAdapter,
     NodeDef,
     NodeInstanceRef,
@@ -547,6 +551,38 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             assert.equal(parseWorkdirRelativeJsonPath("C:\\absolute.json"), null);
             assert.equal(parseWorkdirRelativeJsonPath("tree.txt"), null);
             assert.equal(parseWorkdirRelativeJsonPath("http://example.com/tree.json"), null);
+        },
+    },
+    {
+        name: "normalizes host document snapshots without variable focus fields",
+        run() {
+            const normalized = normalizeHostDocumentSnapshot({
+                content: "{}",
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: "{}",
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: {
+                    kind: "tree",
+                    activeVariableNames: ["hp"],
+                },
+                syncKind: "update",
+                activeVariableNames: ["hp"],
+            } as any);
+
+            assert.deepEqual(normalized.selection, { kind: "tree" });
+            assert.equal(
+                Object.prototype.hasOwnProperty.call(normalized, "activeVariableNames"),
+                false
+            );
+            assert.equal(
+                Object.prototype.hasOwnProperty.call(normalized.selection, "activeVariableNames"),
+                false
+            );
         },
     },
     {
@@ -1458,6 +1494,129 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
         },
     },
     {
+        name: "sidebar focusVariable relay updates editor-local graph UI state",
+        async run() {
+            const documentStore = createDocumentStore();
+            const workspaceStore = createWorkspaceStore();
+            const selectionStore = createSelectionStore();
+            const graphUiStore = createGraphUiStore();
+            const appHooks = createAppHooksStore();
+            let requestedVariableNames: string[] | null = null;
+            let lastHighlights: GraphHighlightState | null = null;
+
+            appHooks.bind({
+                message: {
+                    success() {},
+                    error() {},
+                } as any,
+                notification: {} as any,
+                modal: {} as any,
+            });
+
+            const hostAdapter: HostAdapter = {
+                connect: () => () => {},
+                sendReady() {},
+                undo() {},
+                redo() {},
+                async mutateDocument() {
+                    return { success: true };
+                },
+                selectTree() {},
+                selectNode() {},
+                requestFocusVariable(names) {
+                    requestedVariableNames = [...names];
+                },
+                sendRequestSetting() {},
+                sendBuild() {},
+                async validateNodeChecks() {
+                    return { diagnostics: [] };
+                },
+                async saveDocument() {
+                    return { success: true };
+                },
+                async revertDocument() {
+                    return { success: true };
+                },
+                async readFile() {
+                    return { content: "{}" };
+                },
+                async saveSubtree() {
+                    return { success: true };
+                },
+                async saveSubtreeAs() {
+                    return { savedPath: null };
+                },
+                log() {},
+            };
+            const graphAdapter: GraphAdapter = {
+                async mount() {},
+                unmount() {},
+                async render() {},
+                async applySelection() {},
+                async applyHighlights(payload) {
+                    lastHighlights = payload;
+                },
+                async applySearch() {},
+                async focusNode() {},
+                async restoreViewport() {},
+                getViewport: () => ({ zoom: 1, x: 0, y: 0 }),
+            };
+            const controller = createEditorController({
+                documentStore,
+                workspaceStore,
+                selectionStore,
+                graphUiStore,
+                hostAdapter,
+                graphAdapter,
+                appHooks,
+            });
+
+            const tree = createTestTree();
+            tree.root.input = ["hp"];
+            const content = serializePersistedTree(tree);
+            await controller.initFromHost({
+                filePath: "/tmp/main.json",
+                workdir: "/tmp",
+                content,
+                nodeDefs: [
+                    {
+                        name: "Sequence",
+                        type: "Composite",
+                        desc: "",
+                        status: ["success"],
+                    },
+                ],
+                allFiles: [],
+                settings: {
+                    checkExpr: true,
+                    subtreeEditable: true,
+                    language: "en",
+                    theme: "light",
+                },
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: content,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: { kind: "tree" },
+            });
+
+            hostAdapter.requestFocusVariable(["hp"]);
+            assert.deepEqual(requestedVariableNames, ["hp"]);
+            assert.ok(requestedVariableNames);
+
+            await controller.focusVariable(requestedVariableNames);
+
+            assert.deepEqual(graphUiStore.getState().activeVariableNames, ["hp"]);
+            assert.equal(selectionStore.getState().selectedNodeRef, null);
+            assert.deepEqual(lastHighlights?.activeVariableNames, ["hp"]);
+            assert.deepEqual(lastHighlights?.variableHits["1"], ["input"]);
+        },
+    },
+    {
         name: "search jumps keep graph feedback local until host selection snapshot converges",
         async run() {
             const documentStore = createDocumentStore();
@@ -1905,6 +2064,22 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             assert.deepEqual(graphUiStore.getState().activeVariableNames, []);
             assert.equal(graphUiStore.getState().search.open, false);
             assert.equal(graphUiStore.getState().search.query, "");
+
+            await controller.applyDocumentSnapshot({
+                content: reloadedContent,
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: reloadedContent,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: { kind: "tree" },
+                syncKind: "update",
+            });
+
+            assert.deepEqual(graphUiStore.getState().activeVariableNames, []);
         },
     },
     {

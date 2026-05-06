@@ -20,7 +20,7 @@ export type EditorToHostMessage =
     | { type: "redo" }
     | { type: "selectTree" }
     | { type: "selectNode"; target: NodeInstanceRef }
-    /** Ask the active editor webview to highlight nodes that use these variables. */
+    /** Ask the host to relay a one-shot variable highlight intent to the active editor. */
     | { type: "focusVariable"; names: string[] }
     | { type: "mutateDocument"; requestId: string; mutation: DocumentMutation }
     | { type: "saveDocument"; requestId: string }
@@ -58,7 +58,7 @@ export type HostToEditorMessage =
           selection: HostSelectionState;
       }
     | { type: "documentSnapshotChanged"; snapshot: HostDocumentSnapshot }
-    /** Cross-webview variable focus sync from the sidebar inspector into the active editor. */
+    /** One-shot variable highlight relay into the active editor; not snapshot authority. */
     | { type: "focusVariable"; names: string[] }
     /** A referenced subtree file was saved or edited; parent canvas should reload subtree data. */
     | { type: "subtreeFileChanged" }
