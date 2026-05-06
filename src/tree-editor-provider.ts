@@ -146,6 +146,10 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
                 type: "documentReloaded",
                 content: normalizedContent,
             });
+            this.inspectorCoordinator.notifyDocumentSaved(
+                document.uri.toString(),
+                normalizedContent
+            );
         }
 
         return normalizedContent;
@@ -249,8 +253,6 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
                     mode: "editor",
                 });
             },
-            persistMainDocumentToDisk: (currentDocument, opts) =>
-                this.persistMainDocumentToDisk(currentDocument, opts),
             writeDocumentContentToDisk: (targetUri, content) =>
                 this.writeDocumentContentToDisk(targetUri, content),
             revertDocument: (currentDocument, cancellation) =>

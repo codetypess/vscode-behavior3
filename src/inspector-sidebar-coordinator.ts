@@ -126,6 +126,26 @@ export class InspectorSidebarCoordinator {
         }
     }
 
+    notifyDocumentSaved(documentUri: string, content: string): void {
+        const snapshot = this.sessionSnapshots.get(documentUri);
+        if (snapshot) {
+            this.sessionSnapshots.set(documentUri, {
+                ...snapshot,
+                initMessage: {
+                    ...snapshot.initMessage,
+                    content,
+                },
+                contentSyncKind: "reload",
+            });
+        }
+
+        if (documentUri !== this.activeDocumentUri || !this.viewReady) {
+            return;
+        }
+
+        void this.postMessage({ type: "documentReloaded", content });
+    }
+
     setActiveDocument(documentUri: string | null): void {
         const previousDocumentUri = this.activeDocumentUri;
         this.activeDocumentUri = documentUri;

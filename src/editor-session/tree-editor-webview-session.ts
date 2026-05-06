@@ -89,10 +89,6 @@ interface ResolveTreeEditorSessionParams {
     webviewPanel: vscode.WebviewPanel;
     viewType: string;
     configureWebview(webview: vscode.Webview, workspaceFolderUri: vscode.Uri): void;
-    persistMainDocumentToDisk(
-        document: TreeEditorDocument,
-        opts?: { notifyReload?: boolean }
-    ): Promise<string>;
     writeDocumentContentToDisk(targetUri: vscode.Uri, content: string): Promise<string>;
     revertDocument(
         document: TreeEditorDocument,
@@ -284,7 +280,6 @@ export async function resolveTreeEditorSession({
     webviewPanel,
     viewType,
     configureWebview,
-    persistMainDocumentToDisk,
     writeDocumentContentToDisk,
     revertDocument,
     onDidChangeDocument,
@@ -702,7 +697,8 @@ export async function resolveTreeEditorSession({
 
     /**
      * Save requests reuse the serialized main-document queue so an external file
-     * change cannot interleave between "apply webview content" and "persist to disk".
+     * change cannot interleave between "apply webview content" and the VS Code
+     * custom-editor save lifecycle.
      */
     const handleSaveDocumentMessage = async (
         msg: Extract<EditorToHostMessage, { type: "saveDocument" }>,
@@ -722,11 +718,8 @@ export async function resolveTreeEditorSession({
 
             try {
                 const changed = applyContentFromWebview(msg.content);
-                let savedContent: string | null = null;
                 if (changed || document.isDirty) {
-                    savedContent = await persistMainDocumentToDisk(document, {
-                        notifyReload: false,
-                    });
+                    await vscode.workspace.save(document.uri);
                 }
                 const success = !document.isDirty;
                 if (!success) {
@@ -741,11 +734,9 @@ export async function resolveTreeEditorSession({
                     error: success ? undefined : "Failed to save document",
                 } satisfies HostToEditorMessage);
 
-                if (success && savedContent !== null) {
-                    await postMessage({
-                        type: "documentReloaded",
-                        content: savedContent,
-                    } satisfies HostToEditorMessage);
+                if (success) {
+                    state.inspectorContentSyncKind = "reload";
+                    notifyInspectorSessionUpdate();
                 }
             } catch (error) {
                 getBehavior3OutputChannel().error(
