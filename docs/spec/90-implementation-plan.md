@@ -2,118 +2,118 @@
 
 ## 目标
 
-将当前编辑器收敛为一套以 `G6` 为核心、边界清晰、文档与实现一致的实现。
+本文件不再描述“未来将迁移到 G6”的计划，而是记录当前实现已经落地的主线，以及未来继续做跨层改动时应遵守的实现顺序。
 
-## 阶段 0：重置文档基线
+## 当前实现基线
 
-交付物：
+当前代码已经完成以下主线：
 
-- 刷新后的 `docs/spec/*`
-- 明确的 G6 技术路线
+### 阶段 0：文档与共享协议定型
 
-完成标准：
+- `contracts.ts`
+- `message-protocol.ts`
+- path normalization
+- resolved graph / graph VM / Inspector snapshot 等共享语义
 
-- 各文档术语一致
-- 图层、宿主、文档模型的边界已经固定
-- 后续实现不再需要回头追问边界和职责归属
+### 阶段 1：Extension-host 会话化
 
-## 阶段 1：收敛稳定接口
+- `TreeEditorProvider`
+- `TreeEditorSession`
+- `InspectorSidebarCoordinator`
+- 主文档操作串行化
+- 文件监听、setting/watchers、project index
 
-先收敛这些文件：
+### 阶段 2：G6 图层落地
 
-- `webview/shared/contracts.ts`
-- graph / host adapter 接口
-- command catalog
+- `G6GraphAdapter`
+- LR 树布局
+- 自定义 vector tree node
+- selection / search / variable highlight / drag-drop
 
-完成标准：
+### 阶段 3：Controller Runtime 收敛
 
-- 图层输入输出契约稳定
-- DTO 命名与文档一致
-- 不为图层边界保留多余状态
+- document / workspace / selection store
+- `EditorCommand`
+- history / dirty / reload conflict
+- subtree source cache 同步
 
-## 阶段 2：建立 G6GraphAdapter 骨架
+### 阶段 4：Inspector Sidebar 代理编辑
 
-实现目标：
+- 独立 sidebar webview
+- 当前激活文档上下文同步
+- 代理 tree/node mutation
+- 侧栏内 save / undo / redo
 
-- 新建 G6 graph adapter
-- 让 `GraphPane` 只保留容器挂载职责
-- 跑通 mount / render / selection / viewport 基础链路
+### 阶段 5：项目级能力回接
 
-完成标准：
+- nodeDefs / groupDefs
+- varDeclLoaded / importDecls / subtreeDecls
+- build/build debug
+- node arg custom checks
+- 新版本文件保护
 
-- G6 成为唯一图层运行时
+## 未来继续演进时的推荐顺序
 
-## 阶段 3：重建布局与节点视觉
+对跨层行为改动，推荐仍按以下顺序推进：
 
-实现目标：
-
-- 基于 G6 树布局完成横向树布局
-- 注册自定义节点和边
-- 统一节点尺寸、状态图标、备注、IO、拖放态等视觉规则
-
-完成标准：
-
-- 图层已能独立完成合理布局与浏览
-- 不再依赖 DOM 测量驱动整体布局
-
-## 阶段 4：重建图交互
-
-实现目标：
-
-- selection
-- focus node
-- search gray/highlight
-- variable highlight
-- drag/drop intent
-- subtree 相关双击与降级显示
-
-完成标准：
-
-- 图交互全部通过 G6 adapter 出入
-- commandController 不直接依赖图引擎事件模型
-
-## 阶段 5：回接业务语义
-
-实现目标：
-
-- 让 controller、stores、Inspector 与新图层重新对齐
-- 对齐 override、history、save、reload、selection restore
-
-完成标准：
-
-- 文档修改命令与图层交互命令边界清晰
-- 主树节点与 subtree internal node 的编辑语义都已跑通
-
-## 阶段 6：清理与验证
-
-实现目标：
-
-- 移除废弃自绘代码
-- 跑类型检查、构建和关键手工回归
-- 修正文档与实现的最后偏差
-
-完成标准：
-
-- `docs/spec` 与实现一致
+1. spec 与 acceptance
+2. shared contracts / protocol / path semantics
+3. extension-host session 与 watcher 逻辑
+4. controller runtime 与 store ownership
+5. resolve graph / graph VM / graph adapter
+6. Inspector Sidebar 表单与代理消息
+7. save / reload / build / validation 回归
 
 ## 实现期间强约束
 
 1. 不把 G6 graph instance 当成文档真源。
-2. 不把 host message 处理散落回组件和图事件。
-3. 不为了赶进度保留两套长期并存的图层实现。
-4. 不让 selection/search/highlight 直接修改 persisted tree。
-5. 不在 contracts 未定时并行扩写实现细节。
+2. 不把宿主 IO 细节泄露到图层或表单层。
+3. 不让 Inspector Sidebar 演化成第二套独立 mutation runtime。
+4. 不把 subtree 内部编辑偷偷回写到 subtree 源文件。
+5. 不在 shared contracts 未收敛时并行扩展多层实现。
 
-## 最低交付顺序
+## 发生跨层改动时的最低交付顺序
 
-推荐顺序：
+### 1. 先改 spec
 
-1. spec
-2. `contracts.ts`
-3. graph adapter skeleton
-4. node geometry + node visuals
-5. graph interactions
-6. controller / inspector / host 联调
-7. 清理与验证
+- work-item spec
+- 必要的编号基线 spec
 
-这样做的原因是：先把边界和契约钉死，再让 G6 图层挂上去，可以避免新实现重新长成“图层、命令、宿主互相穿透”的形状。
+### 2. 再改共享边界
+
+- DTO
+- message names
+- path rules
+- command surface
+
+### 3. 再改宿主与 controller
+
+- session
+- watchers
+- mutation flow
+- history / save / reload
+
+### 4. 最后改图层与侧栏
+
+- graph view model
+- graph adapter
+- Inspector UI / validation / proxy wiring
+
+## 最低回归要求
+
+只要涉及以下任一方面，就至少需要整体验证一轮：
+
+- host protocol
+- subtree resolution
+- save / revert / external reload
+- Inspector Sidebar 代理 mutation
+- search / selection / variable focus
+- build 或 node arg custom checks
+
+## 完成标准
+
+对未来任一非 trivial 改动，若遵守本文件顺序，最终应满足：
+
+- spec、shared contracts、实现与回归场景同时更新
+- 主编辑器、侧栏和宿主之间没有出现职责倒挂
+- 文档与当前代码基线仍能保持一致

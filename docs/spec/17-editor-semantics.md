@@ -2,262 +2,275 @@
 
 ## 目的
 
-本文件定义编辑器 command 的精确语义，以及它们如何驱动：
-
-- 文档修改
-- resolved graph 重建
-- 纯视觉重绘
-- 宿主同步
+本文件定义当前编辑器命令、图刷新、save/reload/history、Inspector Sidebar 代理与宿主往返流程的稳定语义。
 
 ## 总规则
 
-### Rule 1. 所有跨层动作都走 commandController
+### Rule 1. 所有主文档写入都走 `EditorCommand`
 
-组件、graph adapter、host adapter 都不直接改 persisted tree。
+无论变更来自：
 
-### Rule 2. 区分 full resolve 与 visual repaint
+- 主编辑器图交互
+- Inspector Sidebar 表单
+- 快捷键
+- 宿主代理 mutation
 
-- full resolve
-    - 重建 `ResolvedDocumentGraph` 与图数据
-- visual repaint
-    - 只更新 selection/search/highlight/viewport 等可视状态
+最终都必须落到主编辑器 runtime 的 `EditorCommand`。
 
-### Rule 3. dirty 由快照比较决定
+### Rule 2. “改树”和“改视觉状态”要分开
 
-dirty 只由 persisted tree 当前快照与最后保存快照比较得出。
+- 结构变更后走 `applyDocumentTree` / `commitTreeMutation`
+- 纯选中、高亮、搜索变化走 `applyVisualState`
 
-### Rule 4. 图层不是命令所有者
+### Rule 3. reload conflict 不是自动合并
 
-G6 只翻译事件，不拥有业务规则。
+- 外部磁盘变化与本地未保存修改冲突时，只进入 `alertReload`
+- 需要用户显式选择 reload 或 dismiss
+
+### Rule 4. Inspector Sidebar 是代理而不是第二套写模型
+
+- 侧栏可以发起 mutation/save/undo/redo
+- 真正执行这些动作的是当前激活主编辑器或宿主 custom editor 生命周期
 
 ## 共享内部流程
 
-### `syncReachableSubtreeSources(reason)`
+### `syncReachableSubtreeSources()`
 
-职责：
+- 递归读取当前主树可达 subtree
+- 构建 `workspaceStore.subtreeSources`
+- subtree 解析到缺失稳定 id 时进行规范化回写
 
-- 遍历当前主文档中可达的 subtree link
-- 通过 `HostAdapter.readFile(...)` 刷新 subtree source cache
-- 记录缺失、非法和循环引用相关结果
+### `rebuildGraph(opts?)`
 
-### `rebuildResolvedGraph(reason, opts?)`
+- 基于 `persistedTree + subtreeSources + nodeDefs + subtreeEditable` 重新 resolve graph
+- 请求节点参数检查结果
+- 重建 `ResolvedGraphModel`
+- 交给 graph adapter render
+- 视情况恢复 selection
+- 最后重放 selection/highlight/search
 
-职责：
+### `applyVisualState()`
 
-- 从当前 persisted tree + subtree cache 解析 resolved graph
-- 推导 `ResolvedGraphModel`
-- 触发 graph adapter `render(...)`
-- 按需恢复 selection
-- 重放 visual state
+- 从 `selectionStore` 计算 graph selection
+- 计算 variable highlights
+- 计算 search result keys 与 active index
+- 分别下发到 graph adapter
 
-### `applyGraphVisualState()`
+### `commitTreeMutation(tree, opts?)`
 
-职责：
-
-- 下发 selection
-- 下发 variable highlight
-- 下发 search state
-- 必要时聚焦目标节点
-
-### `commitDocumentMutation(mutator, opts?)`
-
-职责：
-
-- 克隆当前 persisted tree
-- 执行 mutation
-- 写回 document store
-- 处理 history / dirty / host sync / graph rebuild
+- 可预先写入“待恢复 selection”
+- 应用新树
+- 同步 subtree cache
+- rebuild graph
+- 推进 history
+- 向宿主发送 `update`
+- 调度 `treeSelected`
 
 ## Selection 语义
 
 ### `selectTree()`
 
-- 清空 selected node
-- 进入 tree Inspector 上下文
-- graph adapter 取消节点选中态
+- 清空节点选中
+- 保留或清除 variable focus，取决于调用路径
+- 向侧栏同步 tree 级上下文
 
 ### `selectNode(nodeKey, opts?)`
 
-- 选中 resolved graph 中对应实例
-- 刷新 selected node snapshot 与 node def snapshot
-- 默认不移动视口；需要时由 `focusNode(...)` 单独触发
+- 选中 resolved graph 中的实例节点
+- 若节点已选中且未强制刷新，可只重发侧栏选中
+- 若来自变量热点点击，可选择保留 variable focus
 
 ### `focusVariable(names)`
 
-- 更新 active variable names
-- 重算 highlight state
-- 不修改 persisted tree
+- 仅更新 `activeVariableNames`
+- 不修改文档或 history
+- 触发图高亮与灰化
 
 ## Search 语义
 
 ### `openSearch(mode)`
 
-- 打开搜索 UI
-- 切换 `content` / `id` 模式
-- 不自动修改当前 query
+- 打开 search overlay
+- `mode` 为：
+  - `content`
+  - `id`
 
 ### `updateSearch(query)`
 
-- 更新 query
-- 重算结果列表
-- 若存在结果，默认激活第一个结果并触发 `focusNode`
+- 更新 query 并重算结果
+- 若结果非空，自动选中并聚焦第一个结果
 
 ### `nextSearchResult()` / `prevSearchResult()`
 
-- 只在现有结果内循环切换
-- 切换后更新选中节点并聚焦目标
-
-### 视口稳定性
-
-- 非导航型交互应尽量保持当前视口
-  例如字段提交、selection 变化、变量高亮、宿主 variables/import/subtree decl 回流
-- full render 与 graph 容器 resize 后都应恢复原视口
-- 显式导航型交互允许移动视口
-  例如搜索结果聚焦、用户拖动画布、用户缩放画布
+- 在结果集内循环移动
+- 同步选中和图聚焦
 
 ## Host 驱动命令
 
 ### `initFromHost(payload)`
 
-职责：
+- 初始化 workspace state
+- 解析主文档文本为 `persistedTree`
+- 选择 tree
+- 构建首个 resolved graph
+- 重置 history 为当前快照
 
-1. 初始化 workspace state
-2. 解析主文档内容为 persisted tree
-3. 刷新 subtree cache
-4. 构建首个 resolved graph
-5. 默认进入 tree 或首节点选中态
+### `syncDocumentFromHost(content)`
 
-### `reloadDocumentFromHost(content)`
+- 用于吸收其他视图或宿主推送的最新主文档内容
+- 若内容与当前结构化快照等价，则只清理 conflict 状态
+- 否则更新主树并保持 selection 尽量稳定
 
-- 仅在允许覆盖当前文档时执行
-- 重新解析 persisted tree
-- 重建 resolved graph
-- 尽量恢复 selection
+### `reloadDocumentFromHost(content, opts?)`
+
+- 用于磁盘 reload
+- 若 dirty 且未 `force`，进入 conflict 状态
+- 否则直接替换当前主树并重置 history
 
 ### `applyNodeDefs(defs)`
 
-- 更新 workspace nodeDefs
-- 若影响节点样式、类型判断或字段渲染，则重建 resolved graph
+- 更新 nodeDefs 与 groupDefs
+- 重新构建图与 Inspector 结构
 
 ### `applyHostVars(payload)`
 
-- 更新 variables/import/subtree declare 相关派生数据
-- 默认不推进 history
+- 更新 `usingVars`、`allFiles`、`importDecls`、`subtreeDecls`
+- 若变量视图实际变化，重建图
 
 ### `markSubtreeChanged()`
 
-- 标记 subtree cache 失效
-- 下次刷新或当前可安全刷新时重载 subtree sources
+- 增加 subtree refresh 序号
+- 重新加载 reachable subtree cache
+- rebuild graph
+- 立即触发 `treeSelected`
 
 ## 文档变更命令
 
 ### `updateTreeMeta(payload)`
 
-- 修改主文档树级字段
-- 推进 history
-- 重建 resolved graph
-- 尽量保留当前节点选中
+- 规范化 `desc`、`prefix`、`export`
+- 校验 import paths
+- 排序 locals 与 import refs
+- 仅在值确实变化时提交 mutation
 
 ### `updateNode(payload)`
 
-按节点类型分三类处理：
+当前分三条路径：
 
-#### A. 普通主树节点
+#### A. 主树普通节点
 
-- 直接修改 persisted node
-- 推进 history
-- 重建 resolved graph
+- 直接在主文档结构上修改该节点
+- 若新填入 `path` 且与原值不同，清空本地 `children`
 
-#### B. Materialized Subtree Root
+#### B. subtree 内部节点
 
-- `path` 相关修改落到 structural link node
-- subtree 内容字段修改落到 `overrides[sourceStableId]`
-- 不直接改 subtree source 文件
+- 不改 subtree 源文件
+- 以 `subtreeOriginal` 对比出 diff
+- 写入或清理主文档 `overrides`
 
-#### C. Subtree Internal Node
+#### C. 从 subtree link 脱链
 
-- 仅允许写 `overrides[sourceStableId]`
-- 不允许直接改结构
+- 若原节点有 `path`，且这次清空 `path`
+- 先把当前 resolved 子树重新持久化为主树节点结构
+- 再应用当前表单值
 
 ### `performDrop(intent)`
 
-- 先校验 drop 是否合法
-- 合法时修改主文档结构
-- 非法时抛出用户可见错误
-- drop 永远不直接改 subtree source 结构
+- 拒绝拖动 subtree 内部节点
+- 拒绝向 subtree link 直接添加 child
+- 拒绝移动根节点、围绕根节点 before/after、移动到自己的后代下
+- 合法时在主树结构中重排 children
 
 ### `copyNode()`
 
-- 复制当前选中实例对应的“可脱离主树保存”的 persisted snapshot
-- 若源自 subtree internal node，复制的是已物化的本地快照，而不是外部文件引用
+- 从当前 resolved node 构建 persisted snapshot
+- 根节点 `path` 会被清掉，避免复制出 link 壳子
+- 写入系统剪贴板 JSON
 
 ### `pasteNode()`
 
-- 将 clipboard snapshot 粘贴回主文档结构
-- 默认优先作为 child，其次作为 sibling
-- 粘贴节点必须生成新的稳定 `uuid`
+- 从剪贴板读取 persisted snapshot
+- 为整棵粘贴子树分配新的稳定 id
+- 追加到当前节点 children
 
 ### `insertNode()`
 
-- 在当前选中位置插入新节点
-- 具体默认节点类型由 UI 或 node def picker 决定
+- 在当前节点下追加一个最小节点：
+  - `uuid`
+  - `id: ""`
+  - `name: "unknown"`
 
 ### `replaceNode()`
 
-- 用新节点定义替换当前节点
-- 是否保留 children 由新旧节点的结构能力决定
+- 用剪贴板节点替换当前主树节点
+- 保留当前节点根部的 `uuid`
+- 子节点重新分配稳定 id
 
 ### `deleteNode()`
 
-- 删除当前主树结构节点
-- 根节点不可删除
-- 删除后 selection 回到最近有效父节点或 tree
+- 不能删除根节点
+- 删除后默认选中父节点
+
+## Undo / Redo / History
 
 ### `undo()` / `redo()`
 
-- 恢复 history 快照
-- 重新 resolve graph
-- 恢复 selection 与 visual state
+- 通过恢复序列化快照实现
+- 恢复后重新应用主树、subtree cache、图和选中
 
-## 图与宿主命令
+### history push 规则
 
-### `refreshGraph(opts?)`
+- 由 `commitTreeMutation` 在真实结构变更后推进
+- 推进后向宿主发送最新 `update`
 
-- 强制刷新图层
-- 默认保留 selection
-- 必要时同步 subtree cache 后再 resolve
+## Save / Revert / Build
 
 ### `saveDocument()`
 
-- 序列化当前 persisted tree
-- 调用 `HostAdapter.sendUpdate(content)`
-- 成功后更新 `lastSavedSnapshot`
+- 比较文档版本，拒绝保存“新版本生成的文件”
+- 通过 host `saveDocument` 请求落盘
+- 成功后清理 dirty 与 reload conflict
 
-### `buildDocument()`
+### `revertDocument()`
 
-- 调用 `HostAdapter.sendBuild()`
-- 不修改文档真源
+- 通过 host `revertDocument` 请求回滚
+- 真正 reload 由宿主后续 `documentReloaded` 驱动
+
+### `buildDocument(opts?)`
+
+- 只是把 build 请求交给宿主
+- 结果通过 `buildResult` 回推
+
+## Subtree 相关命令
+
+### `openSubtreePath(path)`
+
+- 规范化 path
+- 通过 host `readFile(..., { openIfSubtree: true })` 打开对应 subtree
 
 ### `openSelectedSubtree()`
 
-- 仅对带 `path` 的节点有效
-- 无 path 时为 no-op 或用户可见提示
+- 优先读取当前节点 `path`
+- 若当前选中的是 subtree 内部节点，则退回 `subtreeStack` 的最后一个路径
 
 ### `saveSelectedAsSubtree()`
 
-- 读取当前选中节点内容
-- 生成 subtree 文件
-- 调用 `HostAdapter.saveSubtreeAs(...)`
-- 成功后把当前节点替换为 subtree link
+- 将当前选中子树序列化为新的 `PersistedTreeModel`
+- 通过宿主 `saveSubtreeAs` 选择路径并写盘
+- 成功后将主树中的当前节点替换成 subtree link
 
-## alertReload 语义
+## Selection Restore 规则
 
-- 外部主文件变化且当前文档已脏时，设置 `alertReload = true`
-- 用户显式重载或保存成功后，清除 `alertReload`
+graph rebuild 后，恢复选中按以下优先级回绑：
+
+1. 原 `instanceKey`
+2. `structuralStableId + sourceStableId + sourceTreePath`
+3. `sourceStableId + sourceTreePath`
+4. `structuralStableId`
+5. 若仍失败，则退回 tree 选中
 
 ## 验收清单
 
-- 每个 command 都能说清楚它改的是 persisted tree、visual state 还是 host state
-- 每次文档 mutation 都能说清楚是否推进 history
-- 每次 graph 刷新都能说清楚是 full resolve 还是 visual repaint
-- subtree 相关节点的编辑能区分 structural mutation 与 override mutation
+- 任一用户动作都能指出最终进入了哪个 command
+- 任一 reload/save/undo 路径都能说明何时改树、何时改视觉状态
+- 侧栏代理编辑与主编辑器本地编辑得到的最终语义一致

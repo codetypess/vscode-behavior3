@@ -2,203 +2,210 @@
 
 ## 目的
 
-本文件定义 Inspector 的结构、提交流程和 override 语义。
+当前 Inspector 是一个独立的 VS Code Sidebar webview，用于展示并编辑当前激活 Behavior3 编辑器的树与节点上下文。
 
-它服务的是“高频编辑侧栏”，不是独立详情页。
+它与主编辑器共享同一套业务语义，但不直接拥有主文档真源。
 
 ## 总体原则
 
-### Principle 1. Inspector 是编辑侧栏
+### Principle 1. Inspector 是独立侧栏，而不是主编辑器内面板
 
-要求：
+当前主编辑器只显示画布；Tree Inspector 与 Node Inspector 运行在独立 sidebar 中。
 
-- 保持窄栏、高密度、快速浏览与编辑
-- tree/node 两种上下文切换要清晰
-- 不把节点编辑拆成多个全屏步骤
+### Principle 2. Inspector 通过宿主代理修改主文档
 
-### Principle 2. 提交按字段节奏进行
+侧栏中的树/节点编辑不会直接改 `persistedTree`，而是通过：
 
-要求：
+1. `mutateDocument`
+2. 宿主转发到当前激活主编辑器
+3. 主编辑器执行真实 mutation
+4. 宿主再把结果与最新上下文回传侧栏
 
-- 单字段修改应尽快进入 command
-- 不依赖整表 `Apply`
-- 校验失败要留在当前字段上下文，不把整份表单锁死
+### Principle 3. Inspector 既展示结构，也展示校验与降级信息
 
-### Principle 3. 结构先于装饰
+Inspector 不只是字段表单，还需要表达：
 
-Inspector 的主要职责是让用户快速理解：
+- subtree resolution error
+- 节点参数校验错误
+- subtree override 差异
+- 当前无激活文档时的空状态
 
-- 当前选中的是 tree、普通节点、subtree root 还是 subtree internal node
-- 哪些字段可编辑
-- 哪些值来自 subtree source
-- 哪些字段当前是 override
+## 外层状态
 
-## 外层布局契约
+### No Active Document
 
-### Inspector Pane
+- 显示空状态文案
+- 不保留上一份文档的陈旧字段
 
-- 作为 VS Code 中的编辑侧栏承载 Inspector
-- 支持 tree / node 两种上下文下的直接编辑
-- 与图层并排，而不是盖在图上
-- 允许滚动，但不改变图层视口
+### Tree Selected
 
-### Header
+- 显示 Tree Inspector
 
-上下文信息可以由 VS Code 视图标题与表单字段共同表达，不强制要求 Inspector 内容区再渲染独立 header。
+### Node Selected
 
-### Form Structure
+- 显示 Node Inspector
 
-要求：
+### Reload Conflict
 
-- label 宽度稳定
-- 高度紧凑
-- 长文本可折行
-- 错误提示就地显示
-- 字段级校验错误以 Inspector 为唯一展示入口，不同步回 graph 节点卡片
+- 顶部显示 warning banner
+- 提供 reload 与 dismiss 操作
 
 ## Tree Inspector Contract
 
+当前 Tree Inspector 结构为：
+
 ### Section Order
 
-建议顺序：
-
-1. Tree Meta
-2. Group
-3. Local Vars
-4. Subtree Vars
-5. Import Vars
+1. `name`
+2. `desc`
+3. `prefix`
+4. `export`
+5. `group`（仅在存在 groupDefs 时显示）
+6. local vars
+7. subtree declarations
+8. import refs
 
 ### Tree Meta
 
-至少包含：
-
-- `name`
-- `prefix`
-- `desc`
-- `export`
-
-### Group
-
-- 支持树级 group 编辑
-- 变更进入 history
+- `name` 只读
+- `desc` / `prefix` 可编辑
+- `export` 用 `Switch`
+- `group` 用多选 `Select`
 
 ### Local Vars
 
-- 显示主文档 `variables.locals`
-- 支持新增、编辑、删除
+- 支持新增、删除
+- `name` 必须是合法变量名
+- `desc` 必填
+- 提交后进入 `updateTreeMeta`
 
-### Subtree Vars / Import Vars
+### Subtree Decls
 
-- 主要用于查看和理解依赖来源
-- 若存在冲突或缺失，应有清晰提示
+- 由宿主 `subtreeDecls` 驱动
+- 只读展示每个 subtree 的变量列表
+- 可通过 inline action 打开对应 subtree 文件
+
+### Import Refs
+
+- 由 `document.variables.imports` 驱动
+- 使用工作目录 `allFiles` 作为自动补全来源
+- 每个 import path 下展示宿主解析出的变量声明
 
 ## Node Inspector Contract
 
+当前 Node Inspector 至少包含以下区域：
+
 ### Section Order
 
-建议顺序：
-
-1. Node Summary
-2. Readonly Meta
-3. Editable Core Fields
-4. Subtree Source / Path
-5. Doc / Description
-6. Input / Output
-7. Args
+1. `id`
+2. `type`
+3. `group`（若 nodeDef 声明）
+4. `children`
+5. `name`
+6. `desc`
+7. `debug`
+8. `disabled`
+9. `path`
+10. nodeDef markdown doc（若存在）
+11. input slots
+12. output slots
+13. structured args
+14. raw node JSON fallback（仅未知节点）
 
 ### Readonly Meta
 
-至少展示：
-
-- `displayId`
-- `typeLabel`
-- `sourceStableId`
-- `structuralStableId`
-- `sourceTreePath`
-- `subtreeStack` 摘要
+- `id` 只读，来自 `displayId`
+- `type` 只读，来自 nodeDef.type 或 unknown fallback
+- `children` 只读，展示当前 children 约束结果
 
 ### Editable Core Fields
 
-普通主树节点可编辑：
+- `name` 可通过 nodeDefs 自动补全切换节点类型
+- `desc`、`debug`、`disabled` 可编辑
+- `path` 可编辑 subtree link；subtree 内部节点自身不允许再改 path
 
-- `name`
-- `desc`
-- `debug`
-- `disabled`
-- `path`
+### Inputs / Outputs
 
-subtree internal node：
-
-- 只允许编辑 override 范围内的字段
-- 不允许直接改结构字段
-
-materialized subtree root：
-
-- subtree 内容字段按 override 处理
-- subtree link 路径字段单独编辑
-
-### Subtree Source / Path
-
-当节点与 subtree 相关时，应明确显示：
-
-- link path
-- 来源 subtree 文件
-- 当前节点是结构锚点还是仅来源节点
-
-### Input / Output Variables
-
-要求：
-
-- 使用列表或行编辑模型
-- 支持点击变量名触发高亮
-- 空值与非法值要有就地提示
+- 按 nodeDef 的 slot 声明渲染
+- variadic 槽位使用数组式列表
+- required / optional / oneof 约束即时校验
 
 ### Args
 
-要求：
-
-- 按 node def 动态渲染
-- 支持表达式与基础类型校验
-- 表达式相关错误不应污染无关字段
+- 按 arg 类型渲染为 `Select` / `Switch` / `InputNumber` / `TextArea` 等
+- 表达式型参数校验变量引用与表达式合法性
+- 自定义 node check 结果会映射到对应 arg 校验提示
 
 ### Unknown Fallback
 
-若 node def 缺失：
-
-- 仍显示基础字段与原始值
-- 禁止因未知节点而导致 Inspector 崩溃
+- 当前 nodeDef 不存在时，不渲染结构化 args
+- 显示原始节点 JSON 只读视图
 
 ## Override Contract
 
-### 字段级 override 是主交互
+当前 override 交互只用于 subtree 内部节点：
 
-override 必须精确到字段级，而不是只给“整节点已覆写”的模糊提示。
+### 显示条件
 
-### Override Bar
+- `selectedNode.subtreeNode === true`
+- 且存在 `subtreeOriginal`
 
-建议表现：
+### Reset Scope
 
-- 在字段或区块旁显示轻量 override 标记
-- 能看出该值来自当前文档而非 subtree source
+可逐字段 reset：
 
-### Reset
+- `desc`
+- `debug`
+- `disabled`
+- 输入槽
+- 输出槽
+- 结构化 args
 
-要求：
+### 语义
 
-- 支持将单字段恢复到来源值
-- 恢复后若整个 override 为空，应删除 `overrides[sourceStableId]`
+- reset 后提交新的 node 数据
+- controller 会重新计算 override diff
+- 若 diff 为空，则从主文档 `overrides` 中删除
 
-## Variable Highlight Contract
+## 可编辑性规则
 
-Inspector 里的变量名点击与图层变量点击语义一致：
+当前 Inspector 中有两类“不可编辑”：
 
-- 点击后更新 active variable
-- 图层重绘高亮
-- 不改变当前 tree/node 选中上下文
+### 1. 业务只读
+
+- `name`、`id`、`type` 等元字段本就只读或半只读
+- `path` 对 subtree 内部节点只读
+
+### 2. subtree 结构锁
+
+当节点来自外部 subtree 且 `subtreeEditable = false` 时：
+
+- 字段编辑会被禁用
+- 但仍可查看当前解析结果
+
+注意：
+
+- 节点自身的 `data.disabled` 是 persisted 字段
+- `selectedNode.disabled` 在 Inspector snapshot 中表达的是“当前是否因 subtree 规则而不可编辑”
+
+## 提交节奏
+
+当前表单提交通常遵循：
+
+- 文本输入：`onBlur`
+- `Switch` / `Select`：立即排队提交
+- 列表增删：立即排队提交
+
+Sidebar 在执行保存、撤销、重做前，会先 flush 待提交的 Inspector 编辑。
+
+## 变量聚焦契约
+
+- 侧栏中点击变量行时，请求主编辑器 `focusVariable`
+- 主编辑器图层热点点击也会驱动相同变量聚焦语义
+- 变量聚焦不直接修改文档，只影响视觉状态
 
 ## 验收要点
 
-- 用户能一眼分辨自己在编辑主树节点还是 subtree 派生节点
-- 字段修改后，图层与文档状态会同步更新
-- override 的来源、存在与重置语义清晰
-- 未知节点、缺失 node def、异常 subtree 不会让 Inspector 失效
+- 侧栏永远展示当前激活 Behavior3 编辑器的上下文
+- Tree Inspector 与 Node Inspector 的字段、校验和提交路径稳定
+- subtree override 与 resolution error 能在 UI 中明确表达

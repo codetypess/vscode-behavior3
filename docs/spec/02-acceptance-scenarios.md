@@ -2,148 +2,106 @@
 
 ## 使用方式
 
-本文件定义当前版本必须满足的行为基线。
+本文件记录当前实现必须守住的黑盒回归场景。
 
-它用于：
-
-- 做实现前的行为对齐
-- 做手工回归清单
-- 限定哪些体验属于“必须成立”，哪些只是可选实现细节
+这些场景不要求测试一定按相同实现路径触发，但最终对用户呈现的行为应保持一致。
 
 ## Case List
 
-### BB-01 启动与初始化
+### BB-01 打开编辑器与初始化
 
-要求：
+- 打开一个 Behavior3 JSON 文件后，主编辑器发送 `ready`，宿主返回 `init` 与后续 `varDeclLoaded`
+- 画布加载主树，主题、语言、nodeDefs、allFiles 与 settings 一并生效
+- Inspector Sidebar 若已挂载，应同步获得同一份 init/vars/selection 上下文
 
-- 收到 `init` 后，编辑器必须建立完整的 document/workspace/selection 初始状态。
-- resolved graph 与 Inspector 初始态必须来自同一份文档快照。
-- 图层首次渲染后应处于可浏览状态，不能出现空白容器或需要用户手动触发的二次布局。
+### BB-02 主编辑器与侧栏上下文同步
 
-### BB-02 外部文件变化处理
+- 激活某个 Behavior3 编辑器时，Inspector Sidebar 自动切到该文档上下文
+- 点击画布空白处时，侧栏显示 Tree Inspector
+- 点击节点或右键节点时，侧栏切换到对应 Node Inspector
+- 没有激活 Behavior3 编辑器时，侧栏显示空状态而不是陈旧数据
 
-要求：
+### BB-03 节点选中、搜索与变量聚焦
 
-- 文档未脏时，`fileChanged` 应自动替换当前文档并刷新图层。
-- 文档已脏时，不得静默覆盖当前编辑内容；应只更新 `alertReload` 一类冲突提示状态。
-- 子树文件变化触发后，应刷新相关 subtree source cache，并在下一次 graph rebuild 中生效。
+- 点击节点可更新选中态，并同步到侧栏
+- `Ctrl/Cmd+F` 打开内容搜索，`Ctrl/Cmd+G` 打开按 id 跳转
+- 搜索结果可在图中跳转并高亮，`focusOnly` 打开时其余节点置灰
+- 点击输入/输出热点或侧栏中的变量行时，相关变量命中节点高亮，其余节点按规则置灰
 
-### BB-03 画布与节点选中
+### BB-04 Tree Inspector 编辑
 
-要求：
+- Tree Inspector 可编辑 `desc`、`prefix`、`export`、`group`
+- 本地变量列表支持新增、删除与字段校验
+- import 引用支持从工作目录 `.json` 列表中选择
+- 树级内容变更后，会重新驱动变量声明视图与相关图刷新
 
-- 点击空白画布进入 tree 级选中态。
-- 点击节点进入 node 级选中态，并同步刷新 Inspector。
-- 图层刷新后，若目标节点仍存在，应尽量保留选中；若节点消失，退回到最近可解释的选中态。
+### BB-05 Node Inspector 编辑
 
-### BB-04 视口与浏览
+- Node Inspector 展示节点 id、类型、children、name、desc、debug、disabled、path
+- 已知 nodeDef 走结构化字段编辑；未知节点显示只读原始 JSON 视图
+- 输入/输出槽、表达式参数、oneof 约束、必填项和自定义检查结果会进入表单校验
+- subtree 内部节点若允许编辑，显示 override 重置条；若不允许编辑，相关字段为只读
 
-要求：
+### BB-06 结构编辑与快捷键
 
-- 主浏览语义是 `pan + zoom`，不是依赖容器滚动浏览整棵树。
-- 图层首次渲染时应给出合理的默认视口。
-- 调用 `focusNode(instanceKey)` 后，目标节点应进入用户可见区域。
-- selection、search、highlight 的视觉变化不应触发整图重新布局。
-
-### BB-05 搜索与跳转
-
-要求：
-
-- search 支持 `content` 与 `id` 两种模式。
-- `focusOnly === true` 且 query 非空时，未命中节点应进入灰显。
-- 切换搜索结果时，应同步更新选中节点并聚焦目标。
-- 清空 query 后，灰显与搜索高亮应被完整清除。
-
-### BB-06 变量高亮
-
-要求：
-
-- 点击图中 `input` / `output` 变量热点后，必须更新 active variable 并重绘高亮。
-- 变量高亮至少区分 `input`、`output`、`args` 三类命中来源。
-- active variable 为空时，所有变量相关高亮应清除，同时保留当前 search 状态。
+- 复制、粘贴、替换、插入、删除支持快捷键与右键菜单
+- 删除根节点被拒绝
+- 对 subtree 内部结构执行粘贴、替换、插入、删除会被拒绝
+- 新插入或粘贴的节点会获得新的稳定 id
 
 ### BB-07 拖放与重排
 
-要求：
+- 画布拖放可表达 `before`、`after`、`child` 三种意图
+- 不能拖动 subtree 内部节点
+- 不能把节点拖到自己的后代下
+- 不能围绕根节点 before/after 放置，也不能向 subtree link 直接追加 child
+- 合法拖放提交后，图和侧栏选中保持一致
 
-- 图层必须支持 `before`、`after`、`child` 三种 drop intent。
-- 拖动过程中应有明确的目标反馈，而不是只在 drop 后报错。
-- drop 通过统一的 `DropIntent` 回交给 controller，由 controller 决定是否提交。
+### BB-08 Undo / Redo / Dirty
 
-### BB-08 拖放拒绝规则
+- 树级和节点级真实变更会推进 history
+- selection、搜索、变量高亮、视口变化不会推进 history
+- undo / redo 恢复后，图、选中和侧栏上下文重新对齐
+- 保存成功后 dirty 清零
 
-要求：
+### BB-09 保存、回滚与外部文件变化
 
-- 根节点不能被移动。
-- 节点不能拖入自己的后代。
-- subtree internal node 不能作为结构编辑目标。
-- 不允许把节点投放到违反文档树结构约束的位置。
+- 保存时主文档内容先规范化，再交由 VS Code custom editor 生命周期写盘
+- 磁盘外部改动到来且当前无未保存更改时，编辑器静默重载
+- 磁盘外部改动到来且当前有未保存更改时，进入 reload conflict 状态
+- 侧栏中的 reload 操作会触发回滚到磁盘版本，而不是在 webview 内直接做文本合并
 
-具体拒绝规则的业务判断归 `commandController`，图层只负责命中与意图翻译。
+### BB-10 Subtree 打开、另存与追踪刷新
 
-### BB-09 子树展开与显示
+- 节点 `path` 指向的 subtree 可被打开到对应 Behavior3 编辑器
+- `Save as subtree` 会把当前选中子树序列化为新文件，并把原节点替换为 subtree link
+- 会话只跟踪“当前主树可达”的 subtree 集合
+- 被跟踪 subtree 保存或修改后，父编辑器收到 `subtreeFileChanged` 并重建解析结果
 
-要求：
+### BB-11 Settings、Theme 与 NodeDefs 热更新
 
-- subtree link 在 resolved graph 中可以展开为 materialized subtree。
-- 子树文件缺失、非法或循环引用时，图层仍应显示降级节点，而不是整图失败。
-- 主树节点、subtree root link、subtree internal node 在 Inspector 和图层中必须有可区分的语义。
+- 宿主推送 `settingLoaded` 后，语言、`checkExpr`、`subtreeEditable`、`nodeColors` 与 nodeDefs 生效
+- VS Code 主题变化时，画布和侧栏主题同步切换
+- nodeDefs 变化后，图节点样式、Inspector 表单结构和 groupDefs 一并刷新
 
-### BB-10 Tree Inspector 编辑
+### BB-12 Build 与节点参数检查
 
-要求：
+- 触发 build / build debug 后，宿主执行构建流程并返回 `buildResult`
+- 图重建时会按当前节点定义与工作区脚本执行节点参数检查
+- 校验失败的节点以错误风格显示，且相关字段在 Inspector 中反馈错误
 
-- Tree Inspector 修改元数据后，文档、resolved graph、宿主同步状态要一起更新。
-- 树级字段更新后，应尽量保持当前 node selection。
-- 导入、变量、group 等树级配置修改必须进入 history。
+### BB-13 新版本文件保护
 
-### BB-11 Node Inspector 编辑与 Override
-
-要求：
-
-- 主树节点编辑直接修改 persisted tree。
-- subtree internal node 编辑不直接改 subtree source，而是写入当前主树的 `overrides`。
-- 当 subtree override 恢复为与基线一致时，应自动删除对应 override 记录。
-
-### BB-12 Undo / Redo / Dirty
-
-要求：
-
-- 只有语义性文档修改才进入 history。
-- visual state、选中态、搜索态、视口变化不进入 history。
-- dirty 基于当前文档快照与最后保存快照比较得出，而不是人工加减标记。
-
-### BB-13 保存、构建与子树文件操作
-
-要求：
-
-- `saveDocument()` 保存主文档当前 persisted tree。
-- `buildDocument()` 不修改文档真源，只触发宿主构建并接收结果。
-- `openSelectedSubtree()` 只对 subtree link 有效。
-- `saveSelectedAsSubtree()` 应生成新 subtree 文件，并把当前节点改造成 subtree link。
-
-### BB-14 图刷新与状态保持
-
-要求：
-
-- full resolve 只在结构、外部依赖或文档内容变化时发生。
-- selection/highlight/search/view state 的纯视觉重绘应走轻量路径。
-- graph rebuild 后应先恢复 selection，再重算 visual state。
-
-### BB-15 异常与降级显示
-
-要求：
-
-- unknown node def、missing subtree、invalid subtree、cyclic subtree 都必须有明确的降级节点表现。
-- 降级节点仍可被选中、搜索、聚焦和查看上下文。
-- 错误节点不会阻断其他正常节点的渲染与交互。
+- 当前主文档若由更新版本的 Behavior3 生成，编辑、保存、subtree 保存都会被阻止
+- 目标 subtree 文件若由更新版本生成，覆盖保存也会被阻止
+- 这些拒绝路径会给出明确错误信息，而不是静默失败
 
 ## 最低回归样例
 
-每轮重要改动后，至少人工验证以下路径：
+每次涉及架构、协议、保存、subtree 或 Inspector 语义的改动，至少应人工回归：
 
-1. 打开一个含主树、子树、变量和 `variables.imports` 的文档，确认初始化、默认视口、Inspector 基础状态正常。
-2. 点击节点、点击空白、搜索跳转、变量高亮，确认 selection/search/highlight 互不污染。
-3. 拖动一个普通节点做 `before` / `after` / `child`，确认允许与拒绝规则都正确。
-4. 修改主树节点与 subtree internal node，确认 persisted tree 与 `overrides` 的行为不同。
-5. 执行 undo/redo、保存、外部文件变更、子树文件变更，确认图层和 Inspector 状态能回到可解释结果。
+1. 打开主树，点击节点与空白区，确认主编辑器和侧栏同步
+2. 修改 Tree Inspector 与 Node Inspector，保存后重开文件确认结果持久化
+3. 执行 copy / paste / replace / insert / delete / drag-drop，确认 history 与 dirty 正常
+4. 触发 subtree 打开、另存和外部 subtree 改动，确认父树刷新
+5. 触发 `settingLoaded`、主题切换与 build，确认图和侧栏行为不漂移

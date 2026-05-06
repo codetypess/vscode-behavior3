@@ -2,36 +2,38 @@
 
 ## 目标
 
-本文件定义编辑器的文档真源、resolved graph 依赖数据、override 与 history/save 语义。
+本文件描述当前实现中的文档真源、宿主文档镜像、subtree 缓存、override 语义与 history/save/reload 模型。
 
 核心原则：
 
-- persisted tree 是唯一可保存真源
-- resolved graph 是图层消费的派生结果
-- 图层不能把自己的内部状态反向写回 persisted tree
+- webview 内可写的结构化树只有一份：`documentStore.persistedTree`
+- extension-host 内可写的序列化文本只有一份：`TreeEditorDocument.content`
+- resolved graph、图视图模型、变量高亮和搜索结果都属于派生数据
 
-## 三层模型
+## 主文档持久化模型
 
-### 1. PersistedTreeModel
+### PersistedTreeModel
 
-`PersistedTreeModel` 表示磁盘上的主文档结构。
+`PersistedTreeModel` 是当前主文档的结构化表示，字段以 [`contracts.ts`](../../webview/shared/contracts.ts) 为准：
 
-它包含：
+- `version`
+- `name`
+- `prefix`
+- `desc`
+- `export`
+- `group`
+- `variables.imports`
+- `variables.locals`
+- `custom`
+- `root`
+- `overrides`
 
-- 树级元数据：`version`、`name`、`prefix`、`desc`、`export`
-- 依赖数据：`group`、`variables.imports`、`variables.locals`
-- 扩展字段：`custom`
-- 根节点：`root`
-- subtree override：`overrides`
+### PersistedNodeModel
 
-### 2. PersistedNodeModel
-
-每个 persisted node 至少包含：
+当前实现中每个 persisted node 至少可能包含：
 
 - `uuid`
-    - 稳定 identity，用于 override、selection restore、diff
 - `id`
-    - 原始存档里的节点 id，保留用于 round-trip
 - `name`
 - `desc`
 - `args`
@@ -43,77 +45,116 @@
 - `path`
 - `$status`
 
-说明：
+其中：
 
-- `id` 保留在文档模型里，但图层搜索与实例定位使用 resolved graph 的 `displayId`
-- `path` 表示该节点是 subtree link
+- `uuid` 是稳定结构锚点
+- `id` 是面向展示或兼容旧数据的字段，不再被视为唯一运行时主键
+- `path` 表示该节点引用了外部 subtree 文件
+- `$status` 是物化后按 nodeDefs 和子节点状态计算出的位标记
 
-### 3. DocumentState
+## Webview 文档态
 
-`DocumentState` 是当前打开主文档的编辑态：
+### DocumentState
+
+`documentStore` 当前持有：
 
 - `persistedTree`
 - `dirty`
 - `alertReload`
+- `pendingExternalContent`
 - `history`
 - `historyIndex`
 - `lastSavedSnapshot`
 
-### 4. ResolvedDocumentGraph
+语义：
 
-`ResolvedDocumentGraph` 是根据当前 persisted tree、subtree sources、node defs 解析出的运行时图。
+- `alertReload`
+  - 表示检测到了外部文件变化，但当前文档仍有未保存修改
+- `pendingExternalContent`
+  - 保存冲突时宿主带回的磁盘内容快照
+- `history`
+  - 保存的是序列化后的主文档文本快照，而不是 diff
+- `lastSavedSnapshot`
+  - 作为 dirty 比较基线
 
-它包含：
+## Extension-host 文档态
 
-- `rootKey`
-- `nodesByInstanceKey`
-- `nodeOrder`
+### TreeEditorDocument
 
-图层永远只消费这个派生结构，而不是直接消费 persisted tree。
+宿主侧的 `TreeEditorDocument` 维护：
 
-## Workspace-Side Subtree Cache
+- `content`
+- `isDirty`
+- 自身写盘抑制队列 `_ownFileWrites`
 
-`workspaceStore.subtreeSources` 是主树外部依赖的缓存层。
+语义：
 
-规则：
+- `content` 是 VS Code custom editor 生命周期看到的文档文本
+- webview 发来的 `update` 会先规范化，再更新到该文本镜像
+- 宿主监听到文件变化时，会用 `_ownFileWrites` 区分“自己刚写出的变更”和“真正的外部变化”
 
-1. key 为规范化后的 `WorkdirRelativeJsonPath`
-2. value 为：
-    - `PersistedTreeModel`
-    - `null`，表示读取失败、文件缺失或解析失败
-3. subtree cache 的刷新由 controller 驱动，不由图层驱动
+这意味着：
 
-## Identity Model
+- webview 内以 `persistedTree` 为结构化真源
+- 宿主侧以 `content` 为磁盘写入真源
+- 二者必须通过规范化序列化保持同步
 
-运行时同时维护三类 identity：
+## Workspace 依赖态
 
-- `structuralStableId`
-    - 当前实例在主文档结构里的锚点
-- `sourceStableId`
-    - 来源 persisted node 的 `uuid`
-- `displayId`
-    - resolved graph 内面向用户的逻辑图节点编号
-- `instanceKey`
-    - resolved graph 内唯一实例标识
+`workspaceStore` 当前包含这些与文档相关但非主文档真源的数据：
 
-当前推荐规则：
+- `nodeDefs`
+- `groupDefs`
+- `allFiles`
+- `settings`
+- `usingVars`
+- `usingGroups`
+- `importDecls`
+- `subtreeDecls`
+- `subtreeSources`
+- `subtreeSourceRevision`
+- `hostSubtreeRefreshSeq`
+- `nodeCheckDiagnostics`
 
-- `structuralStableId` 用于定位当前主文档结构中的可编辑锚点
-- `sourceStableId` 跨文档刷新尽量稳定
-- `displayId` 由 resolved graph 生成，可随结构变化
-- `instanceKey` 唯一定位当前实例，不要求跨结构修改稳定
+### subtreeSources
+
+`subtreeSources` 是主树可达 subtree 的缓存快照：
+
+- key：`WorkdirRelativeJsonPath`
+- value：
+  - `PersistedTreeModel`
+  - `null`：文件缺失或不可读
+  - `{ error: "invalid-subtree" }`：文件存在但不可解析
+
+该缓存由 controller 通过 host `readFile` 递归加载，不由图层主动维护。
+
+## Selection 与 Inspector 投影视图
+
+`selectionStore` 持有：
+
+- `selectedTree`
+- `selectedNodeKey`
+- `selectedNodeRef`
+- `selectedNodeSnapshot`
+- `selectedNodeDef`
+- `activeVariableNames`
+- `search`
+
+说明：
+
+- `selectedNodeSnapshot` 是给 Inspector 使用的编辑投影
+- `selectedNodeDef` 是当前节点对应的 nodeDef 快照
+- 这些都不是主文档真源，只是当前 resolved graph 的投影视图
 
 ## Override Model
 
-### 存储位置
+当前实现中，subtree 内部节点的可编辑结果存放在主树 `overrides` 上。
 
-subtree internal node 的编辑结果写入主树的 `overrides`。
-
-key：
+### key
 
 - `sourceStableId`
 
-value：
+### value
 
 - `desc`
 - `input`
@@ -124,82 +165,72 @@ value：
 
 ### 规则
 
-1. override 只描述“相对来源节点基线的差异”。
-2. 若差异为空，应删除该 override 项。
-3. override 不直接回写 subtree source 文件。
-4. 主树节点编辑不使用 `overrides`。
+1. override 只用于 subtree 内部节点，不用于主树节点。
+2. override 表达的是“相对 subtree 原始节点的差异”。
+3. 若差异为空，应删除对应 override 条目。
+4. override 不会直接回写 subtree 源文件。
 
-## History Model
+## History 与 Dirty
 
-### Snapshot Shape
+### 推进 history 的操作
 
-history 存储主文档的序列化文本快照。
+- `updateTreeMeta`
+- `updateNode`
+- `performDrop`
+- `copyNode`
+- `pasteNode`
+- `insertNode`
+- `replaceNode`
+- `deleteNode`
+- `saveSelectedAsSubtree` 造成的主树变化
 
-### Push Rules
-
-以下操作应推进 history：
-
-- tree meta 修改
-- node 修改
-- 结构拖放
-- copy/paste/insert/replace/delete
-- subtree save-as 造成的主文档变化
-
-以下操作不推进 history：
+### 不推进 history 的操作
 
 - selection 变化
-- search / highlight 变化
-- viewport 变化
-- graph 纯视觉重绘
-- host variables / nodeDefs 的外部刷新
+- search 条件变化
+- variable focus 变化
+- 视口变化
+- 图纯视觉刷新
+- 宿主推送的主题、变量声明、nodeDefs 热更新
 
-### Undo / Redo Rules
+### Dirty 规则
 
-- `undo()` / `redo()` 通过恢复快照重建 persisted tree
-- 恢复后必须重新 resolve graph、恢复 selection、重放 visual state
+- dirty 由 `serializePersistedTree(tree) !== lastSavedSnapshot` 计算
+- 不是手工布尔开关
 
-### Dirty Rules
+## Save / Revert / Reload
 
-- dirty 由当前 persisted tree 快照与 `lastSavedSnapshot` 比较得出
-- 不依赖手工 `true/false` 切换
+### Save
 
-## Save Model
+保存路径：
 
-### 保存输入
+1. webview 把当前 `persistedTree` 序列化
+2. 宿主将文本规范化后写盘
+3. 成功后更新 `lastSavedSnapshot`
+4. 清空 reload conflict 状态
 
-- 当前 `persistedTree`
-- 当前树级元数据与 `overrides`
+### Revert
 
-### 保存输出
+- 宿主重新读取磁盘内容
+- webview 强制 `reloadDocumentFromHost(..., { force: true })`
+- history 以磁盘快照重置
 
-- 序列化后的主文档文本
-- 成功后更新 `lastSavedSnapshot`
-- 不改变 selection / search / viewport
+### External Reload Conflict
 
-### Save-As-Subtree
+- 外部文件变化到达且当前无未保存修改：静默 reload
+- 外部文件变化到达且当前 dirty：仅设置 `alertReload` 与 `pendingExternalContent`
 
-`saveSelectedAsSubtree()` 的结果应包括：
+## 文档规范化
 
-1. 生成一个新的 subtree 文件内容
-2. 调用宿主保存该文件
-3. 将当前选中节点替换为 subtree link
-4. 必要时清理本地 children，转而依赖 subtree resolve
+写回磁盘前会做当前实现要求的规范化：
 
-## Declare and Vars View
-
-declare 相关数据分为两层：
-
-- 持久化层
-    - `group`、`variables.imports`、`variables.locals`
-- 宿主补充层
-    - `usingVars`、`importDecls`、`subtreeDecls`
-
-Inspector 看到的是两层合成后的派生视图。
+1. 尝试按行为树模型重新解析/序列化
+2. 主文档 `name` 与目标文件名保持一致
+3. subtree 文件在加载时若缺少稳定 id，会被补齐并回写规范化结果
 
 ## 不变量
 
-1. 主文档任何时刻只有一份可写 persisted tree。
-2. subtree cache 不是可写真源，只是外部依赖快照。
-3. resolved graph 随时可丢弃并重建。
-4. graph adapter 不能成为 save / history 的参与者。
-5. override 永远属于主文档，而不属于 subtree source 本身。
+1. 任意时刻，webview 里只有一份可写 `persistedTree`。
+2. 任意时刻，宿主里只有一份代表当前 custom editor 内容的 `TreeEditorDocument.content`。
+3. `subtreeSources`、resolved graph、Inspector snapshot、graph model 都可以丢弃并重建。
+4. 图层和侧栏都不能绕过 controller 或宿主会话直接写磁盘。

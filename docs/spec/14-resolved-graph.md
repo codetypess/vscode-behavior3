@@ -2,292 +2,197 @@
 
 ## 目的
 
-本文件定义如何把：
+当前实现不会直接把 persisted tree 交给图层。图层消费的是一份已经物化并扁平化的 resolved graph。
 
-- `PersistedTreeModel`
-- `workspaceStore.subtreeSources`
-- `workspaceStore.nodeDefs`
-- `workspaceStore.settings`
+本文件定义：
 
-解析为：
-
-- `ResolvedDocumentGraph`
-- `ResolvedGraphModel`
-- Inspector 所需的节点实例引用与快照
-
-resolved graph 是图层唯一可信输入。
+- 主树与 subtree 如何物化
+- override 如何叠加
+- 运行时 identity 如何生成
+- 缺失、非法、循环 subtree 如何降级
 
 ## 输入与输出
 
 ### 输入
 
-- 主文档 `persistedTree`
-- subtree source cache
-- node defs
+- `persistedTree`
+- `subtreeSources`
+- `nodeDefs`
 - `subtreeEditable`
 
 ### 输出
 
-- `ResolveGraphResult.graph`
+- `ResolvedDocumentGraph`
 - `ResolveGraphResult.mainTreeDisplayIdsByStableId`
-
-说明：
-
-- `graph` 是长期稳定输出
-- `mainTreeDisplayIdsByStableId` 目前可作为辅助映射保留，但不应再驱动 persisted node `id` 回写
-
-## 术语
-
-### Structural Node
-
-当前主文档里真实存在、可被结构编辑的 persisted node。
-
-### Materialized Subtree Root
-
-一个带 `path` 的 structural node 在 resolved graph 中对应出的图节点实例。它占据主树结构位置，但内容来自引用 subtree 的 root。
-
-### Subtree Internal Node
-
-materialized subtree root 向下展开出的外部节点实例。它存在于 resolved graph 中，但不直接存在于主文档结构里。
-
-### Source Stable Id
-
-提供当前实例内容的 persisted node `uuid`。
-
-### Structural Stable Id
-
-当前实例在主文档结构中的锚点 `uuid`。
-
-规则：
-
-- 普通主树节点：`structuralStableId === sourceStableId`
-- materialized subtree root：`structuralStableId` 来自主树 link node，`sourceStableId` 来自 subtree root
-- subtree internal node：`structuralStableId === sourceStableId`
-
-### Display Id
-
-resolved graph 内面向用户的逻辑编号。
-
-当前建议格式：
-
-- root: `1`
-- 第一个孩子: `1.1`
-- 第二个孩子: `1.2`
-
-### Instance Key
-
-resolved graph 内唯一实例 key。
-
-当前建议：
-
-- 直接使用 `displayId`
-
-如果后续改成别的编码方式，必须仍满足“单图内唯一、可用于 selection/search/focus”的要求。
-
-## 前提
-
-1. 所有 persisted node 在进入 resolve 前都应具备 `uuid`。
-2. subtree source cache 中的树也应经过相同的默认值与 `uuid` 规范化。
-3. 路径已统一为 `WorkdirRelativeJsonPath`。
-
-## 不变量
-
-1. resolved graph 不修改 persisted tree。
-2. 同一次 resolve 里，每个实例只有一个 `instanceKey`。
-3. 同一次 resolve 里，每个实例只有一个父节点。
-4. resolve 失败的 subtree 只降级当前分支，不拖垮整图。
-
-## Context Model
-
-递归解析时，至少维护以下上下文：
-
-- `displayPath`
-    - 当前逻辑编号路径
-- `parentKey`
-    - 父实例 key
-- `sourceTreePath`
-    - 当前内容来源树文件；主树为 `null`
-- `subtreeStack`
-    - 走到当前节点经历的 subtree path 栈
-- `structuralStableId`
-    - 当前结构锚点
-
-## 节点数据来源规则
-
-### A. 普通主树节点
-
-条件：
-
-- 当前 persisted node 无 `path`
-
-规则：
-
-- `sourceStableId = node.uuid`
-- `structuralStableId = node.uuid`
-- `sourceTreePath = null`
-- children 来自 `node.children`
-
-### B. Materialized Subtree Root
-
-条件：
-
-- 当前 persisted node 有 `path`
-- subtree source 存在且合法
-
-规则：
-
-- `sourceStableId = subtree.root.uuid`
-- `structuralStableId = linkNode.uuid`
-- `sourceTreePath = linkNode.path`
-- `subtreeStack = parentStack + [linkNode.path]`
-- 节点可视内容来自 `subtree.root`
-- 节点结构位置来自当前主树 link node
-
-override 规则：
-
-- 若允许编辑 subtree 节点属性，则当前主文档 `overrides[sourceStableId]` 可覆盖该 root 的可编辑字段
-- `path` 始终来自 structural link node，而不是 subtree root
-
-### C. Subtree Internal Node
-
-条件：
-
-- 当前节点来自某个已 materialize 的 subtree 内容
-
-规则：
-
-- `sourceStableId = sourceNode.uuid`
-- `structuralStableId = sourceNode.uuid`
-- `sourceTreePath = 当前 subtree 文件路径`
-- `subtreeNode = true`
-- 若允许编辑 subtree 节点属性，则可通过当前主文档 `overrides[sourceStableId]` 覆盖字段
-
-### D. Missing / Invalid / Cyclic Subtree
-
-条件：
-
-- path 指向的 subtree 文件不存在、解析失败或形成循环引用
-
-规则：
-
-- 仍产出一个 resolved node
-- `resolutionError` 标记为：
-    - `missing-subtree`
-    - `invalid-subtree`
-    - `cyclic-subtree`
-- 该节点不继续展开 children
-
-## Display Id 分配
-
-分配规则对齐原编辑器的 `refreshNodeData(...)`：
-
-1. 从 root 开始做深度优先遍历
-2. 每访问一个 resolved node，就分配当前顺序号字符串：`"1"`, `"2"`, `"3"` ...
-3. subtree link 被 materialize 时，当前实例直接占用该顺序号
-4. materialize 出来的 subtree children 继续沿用同一个 DFS 计数器往后编号
-
-说明：
-
-- `displayId` 是当前图实例编号，不回写 persisted tree
-- `renderedIdLabel = persistedTree.prefix + displayId`
-- persisted node 自带的 `id` 字段只保留用于文档 round-trip
-
-## NodeInstanceRef 生成
-
-每个 resolved node 必须生成一个 `NodeInstanceRef`，至少包含：
-
-- `instanceKey`
-- `displayId`
-- `structuralStableId`
-- `sourceStableId`
-- `sourceTreePath`
-- `subtreeStack`
 
 其中：
 
-- `instanceKey` 供选中、聚焦、搜索结果和图层内部映射使用
-- `structuralStableId` 供主树结构命令定位锚点使用
-- `sourceStableId` 供 override、只读来源说明和 subtree 节点编辑使用
+- `ResolvedDocumentGraph`
+  - 供搜索、选中、Inspector snapshot 和图模型构建使用
+- `mainTreeDisplayIdsByStableId`
+  - 当前保留为辅助映射，不驱动 persisted `id` 回写
 
-## 解析流程
+## 术语
 
-### Step 1. 入口
+### Structured Node
 
-从主文档 root 开始，以 DFS 顺序号 `1` 递归解析。
+主文档结构中的节点，即当前主树里通过 `children` / `path` 组织出来的节点锚点。
 
-### Step 2. 识别节点类型
+### Source Node
 
-根据当前 persisted node 是否带 `path`、subtree source 是否可用，判定为：
+当前实例真正展示出来的节点数据来源。它可能来自：
 
-- 普通主树节点
-- materialized subtree root
-- 降级 subtree 节点
+- 主树自身节点
+- 某个 subtree 文件的根节点
+- subtree 文件内部节点
 
-### Step 3. 生成 base snapshot
+### Materialized Subtree Root
 
-对当前实例生成基础字段：
+主树里带 `path` 的节点，在 subtree 文件可成功加载时，当前实现会用 subtree 的 `root` 替换其展示内容，但保留主树结构锚点。
 
-- `name`
-- `desc`
-- `args`
-- `input`
-- `output`
-- `debug`
-- `disabled`
-- `path`
-- `$status`
+### Subtree Internal Node
 
-字段来源遵循上一节的数据来源规则。
+位于外部 subtree 内部的物化节点，不属于主文档结构真源。
 
-### Step 4. 应用 override
+### Override Chain
 
-当 `subtreeEditable === true` 且当前实例来自 subtree source 时：
+物化外部 subtree 节点时，当前实现会叠加：
 
-- 查找当前主文档 `overrides[sourceStableId]`
-- 覆盖允许编辑的字段
+1. 外层 subtree 自己的 `overrides`
+2. 更外层 subtree 的 `overrides`
+3. 主文档的 `overrides`
 
-### Step 5. 注入解析元数据
+## Identity Model
+
+当前运行时同时维护四种 identity：
+
+### `structuralStableId`
+
+- 当前实例在主文档结构中的锚点
+- 对应 structured node 的 `uuid`
+
+### `sourceStableId`
+
+- 当前展示数据来源节点的稳定 `uuid`
+- 对 subtree 内部节点，来自外部 subtree 源文件
+
+### `displayId`
+
+- pre-order 顺序分配的逻辑节点编号
+- 从 `1` 递增
+- 最终渲染标签是 `prefix + displayId`
+
+### `instanceKey`
+
+- 当前实现中与 `displayId` 相同
+- 用于 graph、selection、search 的运行时唯一 key
 
 补充：
 
-- `parentKey`
-- `childKeys`
-- `depth`
-- `subtreeNode`
-- `subtreeEditable`
-- `subtreeOriginal`
-- `resolutionError`
+- `sourceTreePath`
+  - `null` 表示主树节点
+  - 非 `null` 表示来源于某个 subtree 文件
+- `subtreeStack`
+  - 记录从主树走到当前实例时经过的 subtree 路径链
 
-### Step 6. 递归 children
+## 物化规则
 
-- 普通主树节点：递归其 persisted children
-- materialized subtree root：递归 subtree root 的 source children
-- 降级 subtree 节点：无 children
+### 1. 路径解析
 
-## Selection Restore 规则
+若节点带 `path`：
 
-恢复选中时按以下顺序尝试：
+- 先做 `WorkdirRelativeJsonPath` 规范化
+- 非法路径直接记为 `invalid-subtree`
 
-1. 精确命中 `instanceKey`
-2. 命中 `(sourceStableId, sourceTreePath)`
-3. 命中 `structuralStableId`
-4. 回退到最近仍存在的祖先
-5. 全部失败则回退到 tree 级选中
+### 2. 循环检测
+
+若规范化后的 subtree path 已存在于当前 `subtreeStack`，记为 `cyclic-subtree`
+
+### 3. 读取 subtree source
+
+路径合法且不循环时：
+
+- `subtreeSources[path] === null`
+  - 记为 `missing-subtree`
+- `subtreeSources[path] === { error: "invalid-subtree" }`
+  - 记为 `invalid-subtree`
+- `subtreeSources[path]` 为 `PersistedTreeModel`
+  - 进入成功物化
+
+### 4. 成功物化 subtree root
+
+成功物化时：
+
+1. 克隆 subtree `root`
+2. 保留当前主树 link 的 `path`
+3. 将其视为当前 source node
+4. 记录 `sourceTreePath = subtree path`
+5. 叠加 override chain
+6. 记录 `subtreeOriginal`
+
+### 5. 外部 subtree 内部节点
+
+若当前递归已经在外部 subtree 内部：
+
+- 继续沿用 `sourceTreePath`
+- 继续应用 override chain
+- `subtreeNode = true`
+- `subtreeEditable = settings.subtreeEditable`
+
+### 6. 子节点来源
+
+- 若当前节点成功物化为 subtree root，子节点来自 `subtreeTree.root.children`
+- 若存在 resolution error，子节点为空
+- 否则子节点来自 source node 自身 `children`
+
+### 7. 默认参数补齐
+
+在节点定义存在时，若某个 arg 在 node data 中缺失且 nodeDef 提供默认值，则当前物化结果会补齐默认值。
+
+## 状态位计算
+
+当前实现会在物化阶段计算 `$status`：
+
+1. 先读取 nodeDef 自身声明的状态输出
+2. 再聚合未 disabled 的子节点状态
+3. 按当前 `behavior3` 规则合成 `success` / `failure` / `running` 位
+
+这意味着图层看到的 `$status` 已经是运行时派生结果，而不是原始存档字段。
+
+## 扁平化规则
+
+物化树随后被扁平化为：
+
+- `rootKey`
+- `nodesByInstanceKey`
+- `nodeOrder`
+
+扁平化采用 pre-order 遍历：
+
+- `displayId` / `instanceKey` 也按这个顺序生成
+- `mainTreeDisplayIdsByStableId` 仅记录 `sourceTreePath === null` 的主树节点
 
 ## 降级显示规则
 
-- missing subtree
-    - 节点正常显示，但带错误态与路径信息
-- invalid subtree
-    - 节点正常显示，但提示文件不可解析
-- cyclic subtree
-    - 节点正常显示，但提示循环引用并停止展开
-- unknown node def
-    - 节点类型标记为错误或未知，不阻断渲染
+当 subtree 无法正常物化时：
+
+- 节点仍保留在 resolved graph 中
+- `resolutionError` 标记为：
+  - `missing-subtree`
+  - `invalid-subtree`
+  - `cyclic-subtree`
+- 图层与 Inspector 以错误样式和错误文案显示
+- 不再继续展开其子树
+
+## 不变量
+
+1. resolved graph 可以随时丢弃并重建。
+2. `structuralStableId` 始终锚定主文档结构。
+3. `sourceStableId` 反映当前实例真正的数据来源。
+4. subtree 内部编辑不修改 subtree 源文件，只通过主文档 `overrides` 表达。
 
 ## 验收清单
 
-- resolved graph 中每个实例都有唯一 `instanceKey`
-- materialized subtree root 能区分 structural identity 与 source identity
-- subtree override 能覆盖 root 与 internal node
-- 结构变化后 selection restore 有明确退化顺序
+- 任一 resolved node 都能说明它来自主树还是 subtree
+- 任一实例都能给出 `NodeInstanceRef`
+- 任一 subtree 错误都能落到明确的 `resolutionError`

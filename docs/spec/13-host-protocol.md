@@ -2,177 +2,214 @@
 
 ## 目的
 
-本文件定义：
-
-- webview 与 extension host 之间的 raw wire messages
-- 编辑器内部使用的 normalized DTO
-- 路径、节点引用、drop intent 等跨层对象的统一语义
+本文件定义当前 extension-host 与 webview 之间的 raw message、归一化 DTO、路径语义以及侧栏代理规则。
 
 原则：
 
-- raw wire message 可以面向宿主实现
-- 编辑器内部一律使用 normalized DTO
-- 历史遗留或宿主 quirks 必须停留在 `HostAdapter`
+- raw message 可以面向 VS Code 生命周期和宿主实现
+- webview controller 与业务层只消费归一化后的 DTO
+- 路径规范化、请求超时和消息兼容细节只能停留在 host/session/adapter 层
 
 ## Path Rules
 
-编辑器内部只承认两类路径：
+编辑器内部当前只承认两类路径：
 
 - `AbsoluteFsPath`
-    - 仅用于宿主返回的绝对文件路径
+  - 仅用于宿主返回或持有的绝对文件路径，例如主文档 `filePath`
 - `WorkdirRelativeJsonPath`
-    - 编辑器文档、subtree link、import、selection、override 一律使用的相对路径
+  - 编辑器内部对 subtree、import、allFiles、`NodeInstanceRef.sourceTreePath` 使用的相对 `.json` 路径
 
 规则：
 
-1. 进入 `commandController` 之前，路径必须已规范化。
-2. graph adapter、Inspector、domain 不处理绝对路径拼接。
-3. 子树与 import 路径比较时，统一使用规范化后的 `WorkdirRelativeJsonPath`。
+1. `WorkdirRelativeJsonPath` 必须是 workdir 内部路径。
+2. 不允许绝对路径、URI scheme、`..`、空段或非 `.json` 结尾。
+3. 进入 controller 之前，路径必须已经被 `parseWorkdirRelativeJsonPath` 规范化。
+4. 图层和 Inspector 不负责路径拼接或越界判断。
 
-## Raw Wire Protocol
+## Editor -> Host Raw Messages
 
-### Webview -> Host
+### 生命周期与主文档
 
 - `ready`
 - `update`
-    - payload: `{ content: string }`
-- `treeSelected`
-    - payload: `{ tree: PersistedTreeModel }`
-- `requestSetting`
-    - 请求宿主重新解析当前会话相关设置，并推送最新 `settingLoaded`
-- `build`
-- `readFile`
-    - payload: `{ path: WorkdirRelativeJsonPath, openIfSubtree?: boolean }`
-- `saveSubtree`
-    - payload: `{ path: WorkdirRelativeJsonPath, content: string }`
-- `saveSubtreeAs`
-    - payload: `{ content: string, suggestedBaseName: string }`
+  - payload: `{ content: string }`
+- `undo`
+- `redo`
+- `saveDocument`
+  - payload: `{ requestId, content }`
+- `revertDocument`
+  - payload: `{ requestId }`
 
-### Host -> Webview
+### 代理与同步
+
+- `mutateDocument`
+  - payload: `{ requestId, mutation }`
+- `documentMutationResult`
+  - payload: `{ requestId, success, error?, content? }`
+- `treeSelected`
+  - payload: `{ tree }`
+- `reportInspectorSelection`
+  - payload: `{ selectedNode }`
+- `focusVariable`
+  - payload: `{ names }`
+
+### 项目与设置
+
+- `requestSetting`
+- `build`
+  - payload: `{ buildScriptDebug? }`
+- `validateNodeChecks`
+  - payload: `{ requestId, content, treePath, nodes }`
+
+### 文件读写
+
+- `readFile`
+  - payload: `{ requestId, path, openIfSubtree? }`
+- `saveSubtree`
+  - payload: `{ requestId, path, content }`
+- `saveSubtreeAs`
+  - payload: `{ requestId, content, suggestedBaseName }`
+
+### 诊断与日志
+
+- `webviewLog`
+  - payload: `{ level, message }`
+
+## Host -> Editor Raw Messages
+
+### 初始化与文档同步
 
 - `init`
-    - payload: `HostInitPayload`
+- `documentUpdated`
 - `fileChanged`
-    - payload: `{ content: string }`
-- `subtreeFileChanged`
+- `documentReloaded`
+
+语义区别：
+
+- `documentUpdated`
+  - 宿主接受到另一个视图的变更后，把最新主文档内容同步给当前编辑器
+- `fileChanged`
+  - 磁盘文件外部变化到来，但当前编辑器可能仍 dirty，需要走冲突判断
+- `documentReloaded`
+  - 宿主已经决定用磁盘版本覆盖当前文档，应强制 reload
+
+### 编辑命令代理
+
+- `executeUndo`
+- `executeRedo`
+- `executeDocumentMutation`
+- `focusVariable`
+
+### 环境与依赖变化
+
 - `settingLoaded`
-    - payload: `{ nodeDefs: NodeDef[]; settings?: Partial<Settings> }`
 - `varDeclLoaded`
-    - payload: `HostVarsPayload`
+- `themeChanged`
+- `subtreeFileChanged`
 - `buildResult`
-    - payload: `{ success: boolean, message: string }`
+
+### Inspector Sidebar 同步
+
+- `inspectorSelectionChanged`
+- `inspectorContextCleared`
+
+### request/response 结果消息
+
+- `readFileResult`
+- `saveSubtreeResult`
+- `saveSubtreeAsResult`
+- `saveDocumentResult`
+- `mutateDocumentResult`
+- `revertDocumentResult`
+- `validateNodeChecksResult`
 
 ## Normalized DTOs
 
 ### HostInitPayload
 
-字段职责：
-
 - `filePath`
-    - 当前主文档绝对路径
+  - 当前主文档绝对路径
 - `workdir`
-    - 工作区根目录
+  - 当前行为树项目根目录，不一定等于 VS Code workspace folder
 - `content`
-    - 当前主文档文本
+  - 当前主文档文本
 - `nodeDefs`
-    - 节点定义
 - `allFiles`
-    - 工作区内可见文件列表
 - `settings`
-    - 当前 editor settings
-    - 作为首包完整设置快照；后续增量刷新走 `settingLoaded`
 
 ### HostVarsPayload
 
-字段职责：
-
 - `usingVars`
-    - 宿主计算后的变量视图
+  - 合并后的变量可见视图
 - `allFiles`
-    - 可选刷新后的文件列表
+  - 可选更新后的文件列表
 - `importDecls`
-    - import 解析结果
+  - import 文件的有序变量声明视图
 - `subtreeDecls`
-    - subtree 解析结果
+  - subtree 文件的有序变量声明视图
 
 ### NodeInstanceRef
 
-`NodeInstanceRef` 是图层与 Inspector 之间传递“当前节点实例”的稳定引用。
-
-字段语义：
-
 - `instanceKey`
-    - resolved graph 内的唯一实例 key
 - `displayId`
-    - 用户可搜索的逻辑图节点 id
 - `structuralStableId`
-    - 当前实例在主文档结构里的锚点 `uuid`
 - `sourceStableId`
-    - 来源 persisted node 的稳定 `uuid`
 - `sourceTreePath`
-    - 来源树文件；主树为 `null`
 - `subtreeStack`
-    - 从主树走到当前实例时经过的 subtree 路径栈
 
-### DropIntent
+它是 graph、Inspector、drag/drop、side panel selection sync 使用的稳定业务引用。
 
-- `source`
-    - 被拖动节点的 `NodeInstanceRef`
-- `target`
-    - 目标节点的 `NodeInstanceRef`
-- `position`
-    - `"before" | "after" | "child"`
+### DocumentMutation
 
-`DropIntent` 只表达用户意图，不代表该 drop 一定合法。
+当前仅有两种代理 mutation：
 
-### Host Request Results
+- `updateTreeMeta`
+- `updateNode`
 
-- `ReadFileResponse`
-    - `{ content: string | null }`
-- `SaveSubtreeResponse`
-    - `{ success: boolean; error?: string }`
-- `SaveSubtreeAsResponse`
-    - `{ savedPath: WorkdirRelativeJsonPath | null; error?: string }`
+它们用于 Inspector Sidebar 代理主编辑器修改。
 
-## HostAdapter Contract
+## 会话规则
 
-`HostAdapter` 必须提供：
+### 1. `ready` 握手
 
-- `connect(onMessage)`
-- `sendReady()`
-- `sendUpdate(content)`
-- `sendTreeSelected(tree)`
-- `sendRequestSetting()`
-- `sendBuild()`
-- `readFile(path, opts?)`
-- `saveSubtree(path, content)`
-- `saveSubtreeAs(content, suggestedBaseName)`
-- `log(level, message)`
+主编辑器或侧栏 webview 启动后，先发 `ready`，宿主返回：
 
-约束：
+1. `init`
+2. 如果变量索引成功，再补发 `varDeclLoaded`
 
-- raw wire protocol 的奇怪字段、路径差异、时序差异，只能在这里被吸收
-- `commandController` 只接收归一化后的 DTO
+### 2. 主文档操作串行化
 
-补充：
+在 extension-host session 中，以下操作共用一条主文档操作队列：
 
-- `settingLoaded` 除了显式响应 `requestSetting`，宿主也可以在相关配置源变化时主动推送
-- 当前优先用于热更新的设置切片包括：
-    - `checkExpr`
-    - `subtreeEditable`
-    - `language`
-    - `nodeColors`
-- `.b3-setting`、`.b3-workspace` 与 `behavior3.*` 配置变化都属于允许触发 `settingLoaded` 的宿主事件源
+- `update`
+- `saveDocument`
+- `revertDocument`
+- 外部主文件 reload
+- 侧栏代理 mutation 回写
 
-## DTO 设计原则
+目的是避免 watcher 与多来源消息交错，把文档推进到不一致状态。
 
-1. DTO 要表达“业务意义”，而不是某个具体控件或图引擎对象。
-2. DTO 必须可序列化、可记录、可测试。
-3. DTO 不能混入 DOM event、G6 event、React state setter 之类实现细节。
-4. DTO 命名以当前设计语义为准，不再以“兼容某旧实现”命名。
+### 3. Sidebar 代理
+
+- Sidebar 不能直接执行主文档 mutation
+- 宿主把 `mutateDocument` 转发为 `executeDocumentMutation`
+- 主编辑器执行后再把结果回给宿主，再由宿主回复 sidebar
+
+### 4. 请求超时
+
+`HostAdapter` 对 request/response 风格调用设置超时保护；超时后返回失败结果或空内容，而不是无限等待。
+
+## 版本保护规则
+
+当前宿主协议还承担“新版本文件保护”：
+
+- 若主文档版本高于当前扩展支持版本，则阻止编辑与保存
+- 若目标 subtree 文件版本更高，则阻止覆盖保存
+
+该保护发生在 extension-host session 层，而不是图层或 Inspector 层。
 
 ## 验收标准
 
-- 任意 command 的输入参数都可以只靠本文件理解
-- 任意 host message 都可以只靠本文件知道其 raw shape
-- 任意路径值都能判断它属于绝对路径还是 workdir 相对路径
+- 任意 host message 的 raw shape 都能只靠本文件理解
+- 任意 DTO 字段都能指出它属于宿主原始数据还是归一化内部语义
+- 任一路径值都能判断它是绝对路径还是 workdir-relative `.json` 路径

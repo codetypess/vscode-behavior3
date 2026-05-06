@@ -2,17 +2,22 @@
 
 ## 设计约束
 
-编辑器运行时必须满足以下约束：
+当前运行时必须满足以下约束：
 
-1. 文档真源只有一个：`documentStore.persistedTree`。
-2. 图层、Inspector、宿主通信都不能各自持有第二份可写文档。
-3. `selectionStore` 只保存 UI / Inspector 状态，不保存完整树副本。
-4. `workspaceStore` 只保存环境态、宿主态和依赖态，不保存可提交文档。
-5. 所有用户动作与宿主动作都必须经过 `EditorCommand`。
+1. 主编辑器内唯一可写结构化文档是真实的 `documentStore.persistedTree`。
+2. 图层、Inspector、搜索和变量高亮都只能消费派生数据，不能各自维护第二份可写树。
+3. Extension-host 负责磁盘 IO、监听器、项目索引、构建与检查脚本运行。
+4. 所有主文档结构修改都必须经过 `EditorCommand`。
+5. Inspector Sidebar 的编辑只是代理，不拥有独立文档真源。
 
 ## 稳定内部接口
 
-内部接口以 [`contracts.ts`](/Users/codetypess/Desktop/Github/vscode-behavior3/webview/shared/contracts.ts) 为准。
+当前内部接口以以下文件为准：
+
+- [`contracts.ts`](../../webview/shared/contracts.ts)
+- [`graph-contracts.ts`](../../webview/shared/graph-contracts.ts)
+- [`message-protocol.ts`](../../webview/shared/message-protocol.ts)
+- [`protocol.ts`](../../webview/shared/protocol.ts)
 
 当前稳定关注点：
 
@@ -23,43 +28,35 @@
 - `HostAdapter`
 - `EditorCommand`
 
-其中：
-
-- `GraphAdapter` 代表 G6 图层边界
-- `HostAdapter` 代表 extension host 边界
-- `EditorCommand` 代表唯一命令入口
-
 ## 状态归属表
 
-| 状态                                                 | 归属                                   |
-| ---------------------------------------------------- | -------------------------------------- |
-| 当前 persisted tree                                  | `documentStore`                        |
-| dirty / alertReload                                  | `documentStore`                        |
-| history / historyIndex / lastSavedSnapshot           | `documentStore`                        |
-| filePath / workdir / settings                        | `workspaceStore`                       |
-| nodeDefs / allFiles / importDecls / subtreeDecls     | `workspaceStore`                       |
-| subtreeSources / subtreeSourceRevision               | `workspaceStore`                       |
-| selectedTree / selectedNodeKey / selectedNodeRef     | `selectionStore`                       |
-| selectedNodeSnapshot / selectedNodeDef               | `selectionStore`                       |
-| activeVariableNames / search / inspector panel state | `selectionStore`                       |
-| resolved graph                                       | controller / domain 派生，不常驻 store |
-| 图节点坐标、视口、G6 内部实例态                      | `graphAdapter`                         |
+| 状态 | 当前归属 |
+| --- | --- |
+| `persistedTree` / `dirty` / `history` / `lastSavedSnapshot` / reload conflict | `documentStore` |
+| `nodeDefs` / `allFiles` / `settings` / `usingVars` / `subtreeSources` / `nodeCheckDiagnostics` | `workspaceStore` |
+| tree/node 选中、Inspector snapshot、variable focus、search 状态 | `selectionStore` |
+| `ResolvedDocumentGraph` | controller runtime 私有缓存 |
+| 图节点尺寸、布局结果、视口、选中视觉态、drag intent | `graphAdapter` |
+| 主文档序列化文本、custom editor dirty、磁盘写入抑制 | extension-host `TreeEditorDocument` |
+| 文件监听、项目索引、build、check scripts、当前激活 inspector 会话 | extension-host session / coordinator |
 
-## Command Catalog
+## EditorCommand Catalog
 
 ### 启动与宿主同步
 
 - `initFromHost(payload)`
-    - 初始化 workspace、document、selection，并触发首次图渲染
-- `reloadDocumentFromHost(content)`
-    - 在允许覆盖当前文档时重载 persisted tree
+- `syncDocumentFromHost(content)`
+- `reloadDocumentFromHost(content, opts?)`
 - `applyNodeDefs(defs)`
-    - 更新节点定义并重建必要的派生状态
-    - 与 `workspaceStore.settings` 的热更新配合使用，但只负责 node defs 本身
 - `applyHostVars(payload)`
-    - 更新宿主计算出的 variables/import/subtree declare 视图
 - `markSubtreeChanged()`
-    - 标记 subtree 依赖失效，并在下一次刷新时重载
+- `dismissReloadConflict()`
+
+职责：
+
+- 初始化三类 store
+- 吸收宿主推送的主文档、变量声明、nodeDefs、subtree 变化
+- 管理 reload conflict 状态
 
 ### 选中与可视状态
 
@@ -72,7 +69,11 @@
 - `prevSearchResult()`
 - `refreshGraph(opts?)`
 
-这些命令只在必要时重建图；纯视觉变化优先走 graph adapter 的 visual repaint。
+职责：
+
+- 改写 selection/search 相关 store
+- 驱动 graph adapter 应用 selection/highlight/search 状态
+- 在必要时触发节点聚焦
 
 ### 文档修改
 
@@ -87,74 +88,88 @@
 - `undo()`
 - `redo()`
 
-这些命令是唯一允许修改 persisted tree 或 `overrides` 的入口。
+职责：
+
+- 是唯一允许修改主树结构或 `overrides` 的入口
+- 必要时同步 subtree cache、重建图、推进 history、通知宿主
 
 ### 文件与构建
 
 - `saveDocument()`
-- `buildDocument()`
+- `revertDocument()`
+- `buildDocument(opts?)`
+- `openSubtreePath(path)`
 - `openSelectedSubtree()`
 - `saveSelectedAsSubtree()`
 
-## Host Message Mapping
+职责：
 
-当前建议保留以下宿主消息职责，不把这些细节泄露到组件层。
+- 将文档操作映射到 host request / VS Code command
+- 管理 subtree 打开与另存路径
 
-### Webview -> Host
+## Controller Runtime 共享流程
 
-- `ready`
-    - 通知 webview 可接收初始数据
-- `update`
-    - 发送当前主文档内容
-- `treeSelected`
-    - 发送当前树级状态，供宿主刷新相关信息
-- `requestSetting`
-    - 请求宿主重新解析当前会话相关设置（node defs / 校验开关 / subtree 编辑开关 / 语言 / nodeColors）
-    - 请求宿主推送最新 settings / nodeDefs
-- `build`
-    - 触发宿主构建
-- `readFile`
-    - 读取 subtree 文件
-- `saveSubtree`
-    - 保存 subtree 文件
-- `saveSubtreeAs`
-    - 另存 subtree
+当前 command 模块共享几条核心内部流程：
 
-### Host -> Webview
+### `applyDocumentTree(tree, opts?)`
 
-- `init`
-- `fileChanged`
-- `subtreeFileChanged`
-- `settingLoaded`
-    - 默认用于承载 node defs 与当前会话设置切片的热更新
-- `varDeclLoaded`
-- `buildResult`
+- 设置 `persistedTree`
+- 视情况同步 reachable subtree sources
+- 视情况 rebuild graph 或仅重放 visual state
 
-这些 raw messages 由 `HostAdapter` 吸收，再转换成内部 DTO 与 command 调用。
+### `commitTreeMutation(tree, opts?)`
 
-补充约束：
+- 可在提交前准备下一次选中状态
+- 应用新树
+- 推进 history
+- 触发 `treeSelected`
 
-- `workspaceStore.settings` 在初始化后仍允许被宿主增量刷新
-- 组件层不直接读取 VS Code 配置；一律消费 `workspaceStore.settings`
-- `.b3-setting`、`.b3-workspace`、`behavior3.*` 配置变化进入编辑器后，统一表现为 `settingLoaded`
+### `rebuildGraph(opts?)`
 
-## Derived Data
+- 根据当前主树、subtreeSources、nodeDefs、`subtreeEditable` 重新 resolve graph
+- 重新请求节点参数检查结果
+- 重建 `ResolvedGraphModel`
+- 交给 `graphAdapter.render`
+- 恢复 selection，再应用 visual state
 
-以下数据不作为主 store 真源长期保存：
+### `applyVisualState()`
 
-- `ResolvedDocumentGraph`
-- `ResolvedGraphModel`
-- variable hit map
-- search result keys
-- selected node snapshot
-- selected node def snapshot
-- graph node/edge data for G6
+- 根据 `selectionStore` 计算 selection/highlights/search
+- 分别调用 `graphAdapter.applySelection/applyHighlights/applySearch`
 
-它们应该由 controller / domain / adapter 按需生成、刷新和销毁。
+### `syncReachableSubtreeSources()`
+
+- 对当前主树可达 subtree 递归 `readFile`
+- 解析成功则填充缓存
+- 若加载时发现缺少稳定 id，则回写规范化 subtree
+
+## HostAdapter 责任
+
+`HostAdapter` 当前负责：
+
+- 连接 webview 与 `window.postMessage`
+- 归一化 `init` / `varDeclLoaded` 等宿主消息
+- 管理带 `requestId` 的异步请求
+- 为 `readFile` / `saveSubtree` / `saveDocument` / `mutateDocument` / `validateNodeChecks` 提供 Promise 风格 API
+- 对 host request 设置超时保护
+
+## Sidebar 代理规则
+
+Inspector Sidebar 当前不是直接改主树，而是：
+
+1. 发送 `mutateDocument`
+2. 由宿主转发到当前激活主编辑器
+3. 主编辑器执行真正的 `EditorCommand`
+4. 宿主把结果和更新后的文档内容回传给侧栏
+
+这条规则意味着：
+
+- 只有主编辑器 webview 会真正执行树结构修改
+- 侧栏可以触发表单提交、保存、撤销、重做，但不拥有独立的 mutation runtime
 
 ## 验收标准
 
-- 任何 persisted tree 的写入都能指出唯一 command
-- 任何图状态写入都能指出唯一 graph adapter 方法
-- 任何宿主消息都能指出唯一 host adapter 入口
-- 任一字段只出现在一个“可写真源”里
+- 任意 persisted tree 写入都能指出唯一的 `EditorCommand`
+- 任意宿主请求都能指出唯一的 `HostAdapter` 方法
+- 任意图视觉状态变化都能指出唯一的 `graphAdapter` 入口
+- 任一字段只存在于一个明确的可写真源中

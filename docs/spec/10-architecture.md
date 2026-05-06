@@ -2,203 +2,173 @@
 
 ## 总体结构
 
-当前架构的目标不是“把图画出来”，而是把编辑器拆成可替换、可验证的层。
+当前架构由三层组成：
 
-推荐分层如下：
+1. Extension-host 层
+2. Webview runtime 层
+3. Shared domain / protocol 层
+
+推荐理解方式：
 
 ```text
-React Components
-  ├─ EditorShell
-  ├─ GraphPane
-  ├─ InspectorPane
-  └─ Search / Toolbar / Status UI
+VS Code Providers
+  -> TreeEditorProvider
+  -> InspectorSidebarProvider
+  -> InspectorSidebarCoordinator
+  -> per-document TreeEditorSession
 
-Command Controller
-  ├─ UI intent -> domain mutation
-  ├─ graph event -> command
-  └─ host event -> store updates
+TreeEditorSession
+  -> document save/revert queue
+  -> file / subtree / settings watchers
+  -> project index
+  -> build + node-check runtime
+  -> host <-> webview message bridge
 
-Stores
-  ├─ documentStore
-  ├─ workspaceStore
-  └─ selectionStore
+Webview Runtime
+  -> documentStore
+  -> workspaceStore
+  -> selectionStore
+  -> controller runtime + EditorCommand
+  -> G6GraphAdapter
+  -> Inspector forms / GraphPane / SearchBar
 
-Adapters
-  ├─ G6GraphAdapter
-  └─ HostAdapter
-
-Domain
-  ├─ resolve graph
-  ├─ override diff
-  ├─ search/highlight selectors
-  └─ tree mutation helpers
+Shared Layer
+  -> contracts.ts
+  -> message-protocol.ts
+  -> protocol.ts
+  -> tree / subtree / resolve-graph utilities
 ```
 
 ## 层职责
 
-### Components
+### Extension-host
 
-组件层只做三件事：
+职责：
 
-- 读取 store selector
-- 触发 `commandController`
-- 挂载 graph / inspector / search 等 UI
+- 管理 VS Code custom editor 生命周期
+- 维护 `TreeEditorDocument.content` 与磁盘文件的保存/回滚关系
+- 串行化主文档 save、revert、external reload、sidebar proxy mutation
+- 监听主文件、subtree 文件、setting 文件、workspace 文件、VS Code 配置与主题变化
+- 解析 nodeDefs、工作目录、变量声明、可见文件列表
+- 运行 build 与节点参数自定义检查脚本
+- 协调 Inspector Sidebar 与当前激活编辑器之间的上下文同步
 
-组件层禁止：
+### Webview Runtime
 
-- 直接调用宿主 `postMessage`
-- 直接调用 G6 实例
-- 直接修改 persisted tree
+职责：
 
-### Command Controller
+- 持有结构化文档状态、工作区状态和选中状态
+- 解析 `persistedTree + subtreeSources + nodeDefs` 为 resolved graph
+- 将 resolved graph 投影到 G6 画布模型
+- 执行树级和节点级编辑命令
+- 管理 search、variable focus、selection restore、history 与 dirty 相关逻辑
 
-`commandController` 是编辑器唯一动作入口。
+### Shared Layer
 
-它负责：
+职责：
 
-- 接收 UI、图层、宿主三类事件
-- 调用 domain mutation 与 selector
-- 决定何时 full resolve、何时仅视觉重绘
-- 协调 stores、graph adapter、host adapter
+- 定义 host/webview 协议和内部稳定 DTO
+- 封装 workdir-relative path 规范
+- 统一 persisted tree 的解析、序列化、subtree 遍历与 stable id 生成
+- 提供 resolved graph 与图视图模型转换工具
 
-它不负责：
+## 关键组件
 
-- 直接渲染图节点
-- 直接生成 DOM 或 G6 shape
-- 保存额外的图层内部真源
+### TreeEditorProvider
 
-### documentStore
+- 注册自定义编辑器
+- 为每个打开的主文档建立 `TreeEditorSession`
+- 向对应 webview 投递宿主消息
 
-只保存可持久化或与持久化直接相关的状态：
+### InspectorSidebarCoordinator
 
-- 当前 persisted tree
-- dirty
-- alertReload
-- history / historyIndex
-- lastSavedSnapshot
+- 维护当前激活文档的快照
+- 将主编辑器的 init/content/vars/selection 镜像到侧栏
+- 将侧栏发起的保存、回滚、变更代理回当前激活编辑器
 
-### workspaceStore
+### TreeEditorSession
 
-保存宿主和环境态：
+- 是 extension-host 侧的文档会话核心
+- 负责消息分发、监听器、项目索引、文档版本保护与主文档操作队列
 
-- filePath / workdir
-- nodeDefs / allFiles / settings
-- usingVars / usingGroups / importDecls / subtreeDecls
-- subtreeSources
-- 宿主刷新序列号
+### EditorCommand + Controller Runtime
 
-### selectionStore
-
-保存纯 UI / Inspector 状态：
-
-- 当前选中 tree / node / nodeDef
-- active variable names
-- search state
-- Inspector panel state
+- 是 webview 内唯一的业务命令入口
+- 统一负责应用文档树、同步 subtree 缓存、重建图、维护 history 与通知宿主
 
 ### G6GraphAdapter
 
-`G6GraphAdapter` 是图层桥接器，不是业务核心。
-
-它负责：
-
-- 管理 G6 graph 实例生命周期
-- 把 `ResolvedGraphModel` 转成 G6 data
-- 注册自定义节点、边、behaviors
-- 应用 selection / search / highlight / viewport visual state
-- 将 G6 事件翻译为标准 graph events
-
-它禁止：
-
-- 直接读写 stores
-- 私自调用 host adapter
-- 自己决定文档结构是否合法
-
-### HostAdapter
-
-`HostAdapter` 负责：
-
-- webview 与 extension host 的消息协议
-- 文件读取、子树保存、构建请求、日志
-- 将 wire messages 归一化成内部 DTO
-- 把宿主配置源变化统一折叠成 `settingLoaded`
-
-## G6 方向约束
-
-图层实现统一按以下规则设计：
-
-- React 不负责节点坐标计算和拖放命中
-- 节点视觉由 G6 自定义节点承担
-- 布局优先使用 G6 树布局或其定制版本
-- 视口状态由 graph adapter 维护并暴露标准接口
-- 业务层永远不接触 G6 原生事件对象
+- 是唯一图层运行时
+- 只接收 `ResolvedGraphModel` 和视觉状态，不直接接触 persisted tree
 
 ## 关键事件流
 
 ### 启动
 
-1. `hostAdapter` 收到 `init`
-2. `commandController.initFromHost(...)`
-3. 初始化 `workspaceStore` 与 `documentStore`
-4. resolve 当前文档得到 `ResolvedDocumentGraph`
-5. `graphAdapter.render(...)`
-6. `graphAdapter.applySelection/applySearch/applyHighlights(...)`
+1. webview 发送 `ready`
+2. extension-host 返回 `init`
+3. extension-host 计算变量与文件列表后补发 `varDeclLoaded`
+4. webview 初始化 stores，构建 resolved graph，渲染 G6
 
-### 设置热更新
+### 本地编辑
 
-1. 宿主监听 `.b3-setting`、`.b3-workspace` 与 `behavior3.*` 配置变化
-2. 宿主重新解析 node defs 与当前会话相关设置切片
-3. 通过 `settingLoaded` 推送给 webview
-4. webview 更新 `workspaceStore.settings`
-5. 必要时重建 resolved graph，并让依赖该设置的 UI 重新读取 store
+1. 用户在图或 Inspector 中触发命令
+2. controller 修改 `persistedTree` 或 `overrides`
+3. runtime 同步 reachable subtree cache
+4. runtime 重建 resolved graph 与 graph view model
+5. runtime 推进 history，并向宿主发送 `update`
+6. runtime 以 `treeSelected` 触发变量声明视图刷新
 
-### 文档修改
+### 侧栏代理编辑
 
-1. Inspector 或图交互触发 command
-2. controller 修改 persisted tree 或 `overrides`
-3. 必要时同步 subtree source cache
-4. rebuild resolved graph
-5. graph adapter full render
-6. 恢复 selection 并重放 visual state
-7. 向 host 发出必要同步
+1. Inspector Sidebar 发送 `mutateDocument`
+2. active editor session 把它转发成 `executeDocumentMutation`
+3. 主编辑器 webview 执行真正的 `EditorCommand`
+4. 主编辑器把结果以 `documentMutationResult` 回给宿主
+5. 宿主把结果返回侧栏，并同步最新内容/selection
 
-### 纯视觉状态修改
+### 外部文件变化
 
-1. 用户切换搜索、变量高亮或 focus
-2. controller 只更新 `selectionStore`
-3. graph adapter 执行 visual repaint
-4. 不触发 history，也不重建 persisted tree
+1. extension-host 监听到主文件变化
+2. 若该变化是自身刚写出的内容，则抑制回流
+3. 若当前文档不 dirty，发送 `documentReloaded`
+4. 若当前文档 dirty，发送 `fileChanged` 进入冲突态
 
-### 拖放
+### Subtree 文件变化
 
-1. G6 节点拖动产生候选落点
-2. graph adapter 翻译为标准 `DropIntent`
-3. controller 验证是否合法
-4. 合法则提交文档 mutation，非法则报错并保持原图
+1. extension-host 只跟踪当前主树可达的 subtree 集合
+2. 被跟踪 subtree 改动后，session 发送 `subtreeFileChanged`
+3. webview 重新拉取 subtree 内容并 rebuild graph
 
-## 推荐目录结构
+## 架构约束
 
-```text
-webview/
-  app/
-  adapters/
-    graph/
-    host/
-  commands/
-  domain/
-  features/
-    graph/
-    inspector/
-    search/
-  shared/
-  spec/
-  stores/
-```
+1. 图层不是文档真源。
+2. Inspector Sidebar 不是第二个独立编辑器实现。
+3. 宿主消息兼容、路径归一化和 IO 细节只停留在 host/session/adapter 层。
+4. 任何 persisted tree 写入都必须能定位到一个明确的 command。
+5. 与项目根目录、build、nodeDefs、check scripts 相关的能力只在 extension-host 侧实现。
+
+## 当前目录落点
+
+- `src/`
+  - provider、session、coordinator、build、settings、project index
+- `webview/app/`
+  - runtime 创建、host bridge、应用壳层
+- `webview/commands/`
+  - controller runtime 与命令实现
+- `webview/stores/`
+  - document / workspace / selection store
+- `webview/domain/`
+  - resolve graph、graph selectors、tree validation
+- `webview/adapters/`
+  - G6 graph adapter、VS Code host adapter
+- `webview/features/`
+  - graph、search、inspector UI
+- `webview/shared/`
+  - contracts、protocol、tree、subtree cache、shared helpers
 
 ## 架构验收标准
 
-- 图层替换不要求改 store schema
-- search/highlight/selection 的业务规则不写在 G6 事件里
-- subtree resolve 与 override diff 不依赖图引擎
-- 任一跨层行为都能指出唯一责任层
-- 宿主配置变化不会要求组件直接触碰 wire message 或 VS Code API
+- 主编辑器、侧栏、宿主三者职责清晰，不通过隐式共享状态耦合
+- 任一外部变化都能指出“在哪一层被吸收、在哪一层变成业务事件”
+- 任一图交互都能指出“图层只负责表达什么，controller 负责决定什么”
