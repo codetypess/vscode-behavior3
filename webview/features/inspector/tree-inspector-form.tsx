@@ -1,5 +1,5 @@
 import { FormOutlined, MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
-import { AutoComplete, Button, Flex, Form, Input, Select, Switch, Typography } from "antd";
+import { AutoComplete, Button, Flex, Form, Input, Select, Switch } from "antd";
 import type { FormInstance } from "antd/es/form";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -18,13 +18,15 @@ import {
     createTreeMetaPayload,
     useTreeInspectorViewState,
 } from "./inspector-state";
+import { useInspectorMode } from "./inspector-mode";
 
 const { TextArea } = Input;
 
 const TreeMetaFields: React.FC<{
     form: FormInstance;
     groupDefs: string[];
-}> = ({ form, groupDefs }) => {
+    readOnly: boolean;
+}> = ({ form, groupDefs, readOnly }) => {
     const { t } = useTranslation();
     const submitTreeForm = () => {
         void form.submit();
@@ -36,17 +38,17 @@ const TreeMetaFields: React.FC<{
                 <Input disabled />
             </Form.Item>
             <Form.Item {...createInspectorLabelProps(t("tree.desc"))} name="desc">
-                <TextArea autoSize={{ minRows: 1 }} onBlur={submitTreeForm} />
+                <TextArea autoSize={{ minRows: 1 }} disabled={readOnly} onBlur={submitTreeForm} />
             </Form.Item>
             <Form.Item {...createInspectorLabelProps(t("tree.prefix"))} name="prefix">
-                <Input onBlur={submitTreeForm} />
+                <Input disabled={readOnly} onBlur={submitTreeForm} />
             </Form.Item>
             <Form.Item
                 {...createInspectorLabelProps(t("tree.export"))}
                 name="export"
                 valuePropName="checked"
             >
-                <Switch onChange={() => queueSubmit(form)} />
+                <Switch disabled={readOnly} onChange={() => queueSubmit(form)} />
             </Form.Item>
 
             {groupDefs.length > 0 ? (
@@ -55,6 +57,7 @@ const TreeMetaFields: React.FC<{
                     <Form.Item name="group">
                         <Select
                             mode="multiple"
+                            disabled={readOnly}
                             placeholder={t("tree.group.placeholder")}
                             options={groupDefs.map((group) => ({
                                 label: group,
@@ -72,7 +75,8 @@ const TreeMetaFields: React.FC<{
 const LocalVariablesSection: React.FC<{
     form: FormInstance;
     onFocusVariable: (name: string) => void;
-}> = ({ form, onFocusVariable }) => {
+    readOnly: boolean;
+}> = ({ form, onFocusVariable, readOnly }) => {
     const { t } = useTranslation();
     const submitTreeForm = () => {
         void form.submit();
@@ -106,12 +110,13 @@ const LocalVariablesSection: React.FC<{
                                 ]}
                             >
                                 <VariableDeclRow
+                                    disabled={readOnly}
                                     onSubmit={submitTreeForm}
                                     onRemove={() => {
                                         remove(field.name);
                                         queueSubmit(form);
                                     }}
-                                    onFocusVariable={onFocusVariable}
+                                    onFocusVariable={readOnly ? undefined : onFocusVariable}
                                 />
                             </Form.Item>
                         ))}
@@ -119,6 +124,7 @@ const LocalVariablesSection: React.FC<{
                             <Button
                                 type="dashed"
                                 block
+                                disabled={readOnly}
                                 icon={<PlusOutlined />}
                                 onClick={() => add({ name: "", desc: "" })}
                             >
@@ -137,7 +143,8 @@ const SubtreeVariablesSection: React.FC<{
     rows: Array<{ path: string; vars: VariableRowValue[] }>;
     onOpenSubtree: (path: string) => void;
     onFocusVariable: (name: string) => void;
-}> = ({ rows, onOpenSubtree, onFocusVariable }) => {
+    readOnly: boolean;
+}> = ({ rows, onOpenSubtree, onFocusVariable, readOnly }) => {
     const { t } = useTranslation();
 
     if (rows.length === 0) {
@@ -150,14 +157,16 @@ const SubtreeVariablesSection: React.FC<{
             <div className="b3-v2-list-block">
                 {rows.map((entry) => (
                     <div key={entry.path} className="b3-v2-decl-group">
-                        <Flex gap={4} align="center">
-                            <Form.Item style={{ flex: 1, marginBottom: 2 }}>
+                        <Flex gap={4} align="center" className="b3-v2-subtree-path-row">
+                            <Form.Item style={{ flex: 1, marginBottom: 0 }}>
                                 <Input value={entry.path} disabled />
                             </Form.Item>
-                            <FormOutlined
-                                className="b3-v2-inline-action"
-                                onClick={() => onOpenSubtree(entry.path)}
-                            />
+                            {readOnly ? null : (
+                                <FormOutlined
+                                    className="b3-v2-inline-action"
+                                    onClick={() => onOpenSubtree(entry.path)}
+                                />
+                            )}
                         </Flex>
                         <div className="b3-v2-decl-vars">
                             {entry.vars.map((variable) => (
@@ -165,7 +174,7 @@ const SubtreeVariablesSection: React.FC<{
                                     key={`${entry.path}:${variable.name}`}
                                     value={variable}
                                     disabled
-                                    onFocusVariable={onFocusVariable}
+                                    onFocusVariable={readOnly ? undefined : onFocusVariable}
                                 />
                             ))}
                         </div>
@@ -182,7 +191,8 @@ const ImportRefsSection: React.FC<{
     currentImportRefs: Array<{ path?: string }>;
     importDeclByPath: Map<string, VariableRowValue[]>;
     onFocusVariable: (name: string) => void;
-}> = ({ form, allFiles, currentImportRefs, importDeclByPath, onFocusVariable }) => {
+    readOnly: boolean;
+}> = ({ form, allFiles, currentImportRefs, importDeclByPath, onFocusVariable, readOnly }) => {
     const { t } = useTranslation();
     const submitTreeForm = () => {
         void form.submit();
@@ -202,12 +212,13 @@ const ImportRefsSection: React.FC<{
 
                             return (
                                 <div key={field.key} className="b3-v2-decl-group">
-                                    <Flex gap={4} align="center">
+                                    <Flex gap={4} align="center" className="b3-v2-subtree-path-row">
                                         <Form.Item
                                             name={[field.name, "path"]}
-                                            style={{ flex: 1, marginBottom: 2 }}
+                                            style={{ flex: 1, marginBottom: 0 }}
                                         >
                                             <AutoComplete
+                                                disabled={readOnly}
                                                 options={allFiles.map((path) => ({
                                                     label: path,
                                                     value: path,
@@ -217,13 +228,15 @@ const ImportRefsSection: React.FC<{
                                                 onSelect={() => queueSubmit(form)}
                                             />
                                         </Form.Item>
-                                        <MinusCircleOutlined
-                                            className="b3-v2-inline-remove-compact"
-                                            onClick={() => {
-                                                remove(field.name);
-                                                queueSubmit(form);
-                                            }}
-                                        />
+                                        {readOnly ? null : (
+                                            <MinusCircleOutlined
+                                                className="b3-v2-inline-remove-compact"
+                                                onClick={() => {
+                                                    remove(field.name);
+                                                    queueSubmit(form);
+                                                }}
+                                            />
+                                        )}
                                     </Flex>
                                     <div className="b3-v2-decl-vars">
                                         {importVars.map((variable) => (
@@ -231,7 +244,7 @@ const ImportRefsSection: React.FC<{
                                                 key={`${currentPath}:${variable.name}`}
                                                 value={variable}
                                                 disabled
-                                                onFocusVariable={onFocusVariable}
+                                                onFocusVariable={readOnly ? undefined : onFocusVariable}
                                             />
                                         ))}
                                     </div>
@@ -242,6 +255,7 @@ const ImportRefsSection: React.FC<{
                             <Button
                                 type="dashed"
                                 block
+                                disabled={readOnly}
                                 icon={<PlusOutlined />}
                                 onClick={() => add({ path: "" })}
                             >
@@ -258,7 +272,7 @@ const ImportRefsSection: React.FC<{
 
 export const TreeInspectorForm: React.FC = () => {
     const runtime = useRuntime();
-    const { t } = useTranslation();
+    const { readOnly } = useInspectorMode();
     const [form] = Form.useForm();
     const {
         document,
@@ -283,6 +297,10 @@ export const TreeInspectorForm: React.FC = () => {
     }
 
     const focusVariable = (name: string) => {
+        if (window.__B3_WEBVIEW_KIND__ === "inspector-sidebar") {
+            runtime.hostAdapter.requestFocusVariable([name]);
+            return;
+        }
         void runtime.controller.focusVariable([name]);
     };
 
@@ -291,40 +309,42 @@ export const TreeInspectorForm: React.FC = () => {
     };
 
     return (
-        <>
-            <div className="b3-v2-inspector-header">
-                <Typography.Title level={5} style={{ margin: 0 }}>
-                    {t("tree.overview")}
-                </Typography.Title>
-            </div>
-            <div className="b3-v2-inspector-content">
-                <Form
+        <div className="b3-v2-inspector-content">
+            <Form
+                form={form}
+                className="b3-v2-inspector-form"
+                labelCol={{ flex: "110px", xs: { flex: "110px" } }}
+                wrapperCol={{ flex: "1 1 0%", xs: { flex: "1 1 0%" } }}
+                labelAlign="right"
+                requiredMark={false}
+                onFinish={(values) => {
+                    if (readOnly) {
+                        return;
+                    }
+                    void runtime.controller.updateTreeMeta(createTreeMetaPayload(values));
+                }}
+            >
+                <TreeMetaFields form={form} groupDefs={groupDefs} readOnly={readOnly} />
+                <LocalVariablesSection
                     form={form}
-                    className="b3-v2-inspector-form"
-                    labelCol={{ span: "auto" }}
-                    wrapperCol={{ span: "auto" }}
-                    labelAlign="right"
-                    requiredMark={false}
-                    onFinish={(values) => {
-                        void runtime.controller.updateTreeMeta(createTreeMetaPayload(values));
-                    }}
-                >
-                    <TreeMetaFields form={form} groupDefs={groupDefs} />
-                    <LocalVariablesSection form={form} onFocusVariable={focusVariable} />
-                    <SubtreeVariablesSection
-                        rows={subtreeRows}
-                        onOpenSubtree={openSubtree}
-                        onFocusVariable={focusVariable}
-                    />
-                    <ImportRefsSection
-                        form={form}
-                        allFiles={allFiles}
-                        currentImportRefs={currentImportRefs}
-                        importDeclByPath={importDeclByPath}
-                        onFocusVariable={focusVariable}
-                    />
-                </Form>
-            </div>
-        </>
+                    onFocusVariable={focusVariable}
+                    readOnly={readOnly}
+                />
+                <SubtreeVariablesSection
+                    rows={subtreeRows}
+                    onOpenSubtree={openSubtree}
+                    onFocusVariable={focusVariable}
+                    readOnly={readOnly}
+                />
+                <ImportRefsSection
+                    form={form}
+                    allFiles={allFiles}
+                    currentImportRefs={currentImportRefs}
+                    importDeclByPath={importDeclByPath}
+                    onFocusVariable={focusVariable}
+                    readOnly={readOnly}
+                />
+            </Form>
+        </div>
     );
 };

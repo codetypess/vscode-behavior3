@@ -41,9 +41,6 @@ export const createInitialSelectionState = (): SelectionState => ({
     selectedNodeDef: null,
     activeVariableNames: [],
     search: createInitialSearchState(),
-    inspector: {
-        panelWidth: 360,
-    },
 });
 
 export const createSelectionStore = (): StoreApi<SelectionState> => {

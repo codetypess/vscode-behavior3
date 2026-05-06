@@ -76,6 +76,11 @@ type RuntimeProcess = {
 type RuntimeGlobals = typeof globalThis & {
     behavior3?: unknown;
 };
+type DecoratorGlobalState = {
+    depth: number;
+    hadBehavior3: boolean;
+    previousBehavior3: unknown;
+};
 
 interface BuildContext {
     workdir: string;
@@ -836,6 +841,40 @@ const toRuntimeImportSpecifier = (fromPath: string, toPath: string) => {
     return relativePath;
 };
 
+const activeRuntimeModulesBySource = new Map<string, Set<string>>();
+const runtimeModuleSourceByPath = new Map<string, string>();
+
+const registerActiveRuntimeModule = (sourcePath: string, modulePath: string) => {
+    const normalizedSourcePath = b3path.posixPath(sourcePath);
+    const normalizedModulePath = b3path.posixPath(modulePath);
+    let activeModules = activeRuntimeModulesBySource.get(normalizedSourcePath);
+    if (!activeModules) {
+        activeModules = new Set<string>();
+        activeRuntimeModulesBySource.set(normalizedSourcePath, activeModules);
+    }
+    activeModules.add(normalizedModulePath);
+    runtimeModuleSourceByPath.set(normalizedModulePath, normalizedSourcePath);
+};
+
+const unregisterActiveRuntimeModule = (modulePath: string) => {
+    const normalizedModulePath = b3path.posixPath(modulePath);
+    const sourcePath = runtimeModuleSourceByPath.get(normalizedModulePath);
+    if (!sourcePath) {
+        return;
+    }
+
+    runtimeModuleSourceByPath.delete(normalizedModulePath);
+    const activeModules = activeRuntimeModulesBySource.get(sourcePath);
+    if (!activeModules) {
+        return;
+    }
+
+    activeModules.delete(normalizedModulePath);
+    if (activeModules.size === 0) {
+        activeRuntimeModulesBySource.delete(sourcePath);
+    }
+};
+
 const cleanupRuntimeModules = (paths: string[]) => {
     for (const filePath of [...paths].reverse()) {
         try {
@@ -843,6 +882,7 @@ const cleanupRuntimeModules = (paths: string[]) => {
         } catch {
             /* ignore temp file cleanup failure */
         }
+        unregisterActiveRuntimeModule(filePath);
     }
 };
 
@@ -851,8 +891,10 @@ const runtimeModuleBaseName = (sourcePath: string) =>
 
 const cleanupStaleRuntimeModulesForSource = (sourcePath: string) => {
     const fsApi = getFs();
-    const dir = b3path.dirname(sourcePath);
-    const base = runtimeModuleBaseName(sourcePath);
+    const normalizedSourcePath = b3path.posixPath(sourcePath);
+    const dir = b3path.dirname(normalizedSourcePath);
+    const base = runtimeModuleBaseName(normalizedSourcePath);
+    const activeModules = activeRuntimeModulesBySource.get(normalizedSourcePath);
     let entries: string[];
     try {
         entries = fsApi.readdirSync(dir);
@@ -864,36 +906,70 @@ const cleanupStaleRuntimeModulesForSource = (sourcePath: string) => {
         entries
             .filter((entry) => entry.startsWith(`${base}.runtime.`) && entry.endsWith(".mjs"))
             .map((entry) => b3path.join(dir, entry))
+            .filter((entry) => !activeModules?.has(b3path.posixPath(entry)))
     );
 };
 
 const deferredRuntimeModuleCleanup = new Set<string>();
 let runtimeModuleExitCleanupRegistered = false;
+const decoratorGlobalState: DecoratorGlobalState = {
+    depth: 0,
+    hadBehavior3: false,
+    previousBehavior3: undefined,
+};
 
 const getRuntimeProcess = (): RuntimeProcess | undefined => {
     const candidate = (globalThis as typeof globalThis & { process?: unknown }).process;
     return candidate && typeof candidate === "object" ? (candidate as RuntimeProcess) : undefined;
 };
 
-const withBehavior3BuildDecoratorGlobal = async <T>(loader: () => Promise<T>): Promise<T> => {
+const applyBehavior3DecoratorGlobal = () => {
     const runtimeGlobal = globalThis as RuntimeGlobals;
-    const hadBehavior3 = Object.prototype.hasOwnProperty.call(runtimeGlobal, "behavior3");
-    const previousBehavior3 = runtimeGlobal.behavior3;
+    if (decoratorGlobalState.depth === 0) {
+        decoratorGlobalState.hadBehavior3 = Object.prototype.hasOwnProperty.call(
+            runtimeGlobal,
+            "behavior3"
+        );
+        decoratorGlobalState.previousBehavior3 = runtimeGlobal.behavior3;
+    }
+
+    decoratorGlobalState.depth += 1;
     runtimeGlobal.behavior3 = {
-        ...(previousBehavior3 && typeof previousBehavior3 === "object"
-            ? (previousBehavior3 as Record<string, unknown>)
+        ...(decoratorGlobalState.previousBehavior3 &&
+        typeof decoratorGlobalState.previousBehavior3 === "object"
+            ? (decoratorGlobalState.previousBehavior3 as Record<string, unknown>)
             : {}),
         build: markBuildHook,
         check: markCheckHook,
     };
+};
+
+const restoreBehavior3DecoratorGlobal = () => {
+    if (decoratorGlobalState.depth === 0) {
+        return;
+    }
+
+    decoratorGlobalState.depth -= 1;
+    if (decoratorGlobalState.depth > 0) {
+        return;
+    }
+
+    const runtimeGlobal = globalThis as RuntimeGlobals;
+    if (decoratorGlobalState.hadBehavior3) {
+        runtimeGlobal.behavior3 = decoratorGlobalState.previousBehavior3;
+    } else {
+        delete runtimeGlobal.behavior3;
+    }
+    decoratorGlobalState.hadBehavior3 = false;
+    decoratorGlobalState.previousBehavior3 = undefined;
+};
+
+const withBehavior3BuildDecoratorGlobal = async <T>(loader: () => Promise<T>): Promise<T> => {
+    applyBehavior3DecoratorGlobal();
     try {
         return await loader();
     } finally {
-        if (hadBehavior3) {
-            runtimeGlobal.behavior3 = previousBehavior3;
-        } else {
-            delete runtimeGlobal.behavior3;
-        }
+        restoreBehavior3DecoratorGlobal();
     }
 };
 
@@ -946,6 +1022,7 @@ const createRuntimeTypeScriptModuleGraph = (
             b3path.dirname(sourcePath),
             `${base || "module"}.runtime.${runId}.${moduleIndex++}.mjs`
         );
+        registerActiveRuntimeModule(sourcePath, tempPath);
         cleanupPaths.push(tempPath);
         return tempPath;
     };

@@ -8,7 +8,6 @@ import {
     InputNumber,
     Select,
     Switch,
-    Typography,
 } from "antd";
 import type { FormInstance } from "antd/es/form";
 import React, { useEffect, useMemo } from "react";
@@ -56,6 +55,7 @@ import {
     getNodeSlotFormValue,
     useNodeInspectorViewState,
 } from "./inspector-state";
+import { useInspectorMode } from "./inspector-mode";
 
 const { TextArea } = Input;
 
@@ -284,6 +284,7 @@ const NodeMetaFields: React.FC<{
     usingGroups: Record<string, boolean> | null;
     allFiles: string[];
     fieldEditDisabled: boolean;
+    readOnly: boolean;
     canShowOverride: boolean;
     subtreeOriginal: ReturnType<typeof useNodeInspectorViewState>["subtreeOriginal"];
     onCommit: () => void;
@@ -296,6 +297,7 @@ const NodeMetaFields: React.FC<{
     usingGroups,
     allFiles,
     fieldEditDisabled,
+    readOnly,
     canShowOverride,
     subtreeOriginal,
     onCommit,
@@ -403,7 +405,7 @@ const NodeMetaFields: React.FC<{
                 ]}
             >
                 <AutoComplete
-                    disabled={fieldEditDisabled}
+                    disabled={readOnly || fieldEditDisabled}
                     options={nodeDefs.map((entry) => ({
                         label: `${entry.name} (${entry.desc})`,
                         value: entry.name,
@@ -421,7 +423,7 @@ const NodeMetaFields: React.FC<{
                 <Form.Item {...createInspectorLabelProps(t("node.desc"))} name="desc">
                     <TextArea
                         autoSize={{ minRows: 1 }}
-                        disabled={fieldEditDisabled}
+                        disabled={readOnly || fieldEditDisabled}
                         onBlur={onCommit}
                     />
                 </Form.Item>
@@ -440,7 +442,7 @@ const NodeMetaFields: React.FC<{
                     valuePropName="checked"
                 >
                     <Switch
-                        disabled={fieldEditDisabled && !selectedNode.data.path}
+                        disabled={readOnly || (fieldEditDisabled && !selectedNode.data.path)}
                         onChange={() => queueSubmit(form)}
                     />
                 </Form.Item>
@@ -459,7 +461,7 @@ const NodeMetaFields: React.FC<{
                     valuePropName="checked"
                 >
                     <Switch
-                        disabled={fieldEditDisabled && !selectedNode.data.path}
+                        disabled={readOnly || (fieldEditDisabled && !selectedNode.data.path)}
                         onChange={() => queueSubmit(form)}
                     />
                 </Form.Item>
@@ -480,7 +482,7 @@ const NodeMetaFields: React.FC<{
                 ]}
             >
                 <AutoComplete
-                    disabled={fieldEditDisabled || selectedNode.subtreeNode}
+                    disabled={readOnly || fieldEditDisabled || selectedNode.subtreeNode}
                     options={allFiles.map((path) => ({ label: path, value: path }))}
                     filterOption={filterOptionByLabel}
                     onBlur={onCommit}
@@ -753,6 +755,7 @@ const NodeRawJsonSection: React.FC<{ visible: boolean }> = ({ visible }) => {
 export const NodeInspectorForm: React.FC = () => {
     const runtime = useRuntime();
     const { t } = useTranslation();
+    const { readOnly } = useInspectorMode();
     const [form] = Form.useForm();
     const {
         selectedNode,
@@ -766,14 +769,12 @@ export const NodeInspectorForm: React.FC = () => {
         variableOptions,
         nodeDef,
         fieldEditDisabled,
-        title,
         structuredArgs,
         hasStructuredArgs,
         shouldShowRawNodeJson,
         subtreeOriginal,
         canShowOverride,
     } = useNodeInspectorViewState(form);
-    const inspectorTitle = title || t("node.unknown.title");
 
     useEffect(() => {
         if (!selectedNode) {
@@ -787,7 +788,7 @@ export const NodeInspectorForm: React.FC = () => {
     }, [form, nodeDefMap, selectedNode, t]);
 
     useEffect(() => {
-        if (!selectedNode) {
+        if (!selectedNode || readOnly) {
             return;
         }
 
@@ -796,13 +797,16 @@ export const NodeInspectorForm: React.FC = () => {
         }, 100);
 
         return () => window.clearTimeout(timer);
-    }, [form, selectedNode, usingVars, usingGroups, checkExpr, nodeDef, nodeCheckDiagnostics]);
+    }, [checkExpr, form, nodeCheckDiagnostics, nodeDef, readOnly, selectedNode, usingGroups, usingVars]);
 
     if (!selectedNode) {
         return null;
     }
 
     const submitNodeForm = () => {
+        if (readOnly) {
+            return;
+        }
         void form.submit();
     };
 
@@ -867,72 +871,69 @@ export const NodeInspectorForm: React.FC = () => {
     };
 
     return (
-        <>
-            <div className="b3-v2-inspector-header">
-                <Typography.Title level={5} style={{ margin: 0 }}>
-                    {inspectorTitle}
-                </Typography.Title>
-            </div>
-            <div className="b3-v2-inspector-content">
-                <Form
-                    key={selectedNode.ref.instanceKey}
-                    form={form}
-                    className="b3-v2-inspector-form"
-                    labelCol={{ span: "auto" }}
-                    wrapperCol={{ span: "auto" }}
-                    labelAlign="right"
-                    requiredMark={false}
-                    onFinish={(values) => {
-                        try {
-                            const currentNodeDef =
-                                nodeDefs.find(
-                                    (entry) => entry.name === String(values.name ?? "").trim()
-                                ) ?? null;
-                            const args = currentNodeDef
-                                ? Object.fromEntries(
-                                      (currentNodeDef.args ?? [])
-                                          .map((arg) => [
-                                              arg.name,
-                                              parseArgSubmitValue(arg, values.args?.[arg.name]),
-                                          ])
-                                          .filter(([, value]) => value !== undefined)
-                                  )
-                                : selectedNode.data.args;
+        <div className="b3-v2-inspector-content">
+            <Form
+                key={selectedNode.ref.instanceKey}
+                form={form}
+                className="b3-v2-inspector-form"
+                labelCol={{ flex: "110px", xs: { flex: "110px" } }}
+                wrapperCol={{ flex: "1 1 0%", xs: { flex: "1 1 0%" } }}
+                labelAlign="right"
+                requiredMark={false}
+                onFinish={(values) => {
+                    if (readOnly) {
+                        return;
+                    }
+                    try {
+                        const currentNodeDef =
+                            nodeDefs.find(
+                                (entry) => entry.name === String(values.name ?? "").trim()
+                            ) ?? null;
+                        const args = currentNodeDef
+                            ? Object.fromEntries(
+                                  (currentNodeDef.args ?? [])
+                                      .map((arg) => [
+                                          arg.name,
+                                          parseArgSubmitValue(arg, values.args?.[arg.name]),
+                                      ])
+                                      .filter(([, value]) => value !== undefined)
+                              )
+                            : selectedNode.data.args;
 
-                            void runtime.controller.updateNode({
-                                target: selectedNode.ref,
-                                data: {
-                                    name:
-                                        String(values.name ?? selectedNode.data.name).trim() ||
-                                        selectedNode.data.name,
-                                    desc: values.desc?.trim() || undefined,
-                                    path:
-                                        selectedNode.subtreeNode || fieldEditDisabled
-                                            ? selectedNode.data.path
-                                            : values.path?.trim() || undefined,
-                                    debug: Boolean(values.debug),
-                                    disabled: Boolean(values.disabled),
-                                    input: buildNodeSlotArray(
-                                        currentNodeDef?.input,
-                                        values.inputSlots,
-                                        selectedNode.data.input
-                                    ),
-                                    output: buildNodeSlotArray(
-                                        currentNodeDef?.output,
-                                        values.outputSlots,
-                                        selectedNode.data.output
-                                    ),
-                                    args,
-                                },
-                            });
-                        } catch (error) {
-                            runtime.hostAdapter.log(
-                                "warn",
-                                `[v2] node form submit failed: ${String(error)}`
-                            );
-                        }
-                    }}
-                >
+                        void runtime.controller.updateNode({
+                            target: selectedNode.ref,
+                            data: {
+                                name:
+                                    String(values.name ?? selectedNode.data.name).trim() ||
+                                    selectedNode.data.name,
+                                desc: values.desc?.trim() || undefined,
+                                path:
+                                    selectedNode.subtreeNode || fieldEditDisabled
+                                        ? selectedNode.data.path
+                                        : values.path?.trim() || undefined,
+                                debug: Boolean(values.debug),
+                                disabled: Boolean(values.disabled),
+                                input: buildNodeSlotArray(
+                                    currentNodeDef?.input,
+                                    values.inputSlots,
+                                    selectedNode.data.input
+                                ),
+                                output: buildNodeSlotArray(
+                                    currentNodeDef?.output,
+                                    values.outputSlots,
+                                    selectedNode.data.output
+                                ),
+                                args,
+                            },
+                        });
+                    } catch (error) {
+                        runtime.hostAdapter.log(
+                            "warn",
+                            `[v2] node form submit failed: ${String(error)}`
+                        );
+                    }
+                }}
+            >
                     <NodeMetaFields
                         form={form}
                         selectedNode={selectedNode}
@@ -942,6 +943,7 @@ export const NodeInspectorForm: React.FC = () => {
                         usingGroups={usingGroups}
                         allFiles={allFiles}
                         fieldEditDisabled={fieldEditDisabled}
+                        readOnly={readOnly}
                         canShowOverride={canShowOverride}
                         subtreeOriginal={subtreeOriginal}
                         onCommit={submitNodeForm}
@@ -954,7 +956,7 @@ export const NodeInspectorForm: React.FC = () => {
                         slotDefs={nodeDef?.input}
                         usingVars={usingVars}
                         variableOptions={variableOptions}
-                        fieldEditDisabled={fieldEditDisabled}
+                        fieldEditDisabled={readOnly || fieldEditDisabled}
                         isOverridden={isInputOverridden}
                         onReset={resetInputField}
                         onCommit={submitNodeForm}
@@ -970,7 +972,7 @@ export const NodeInspectorForm: React.FC = () => {
                             usingVars={usingVars}
                             checkExpr={checkExpr}
                             nodeCheckDiagnostics={nodeCheckDiagnostics}
-                            fieldEditDisabled={fieldEditDisabled}
+                            fieldEditDisabled={readOnly || fieldEditDisabled}
                             isOverridden={isArgOverridden}
                             onReset={resetArgField}
                             onCommit={submitNodeForm}
@@ -986,13 +988,12 @@ export const NodeInspectorForm: React.FC = () => {
                         slotDefs={nodeDef?.output}
                         usingVars={usingVars}
                         variableOptions={variableOptions}
-                        fieldEditDisabled={fieldEditDisabled}
+                        fieldEditDisabled={readOnly || fieldEditDisabled}
                         isOverridden={isOutputOverridden}
                         onReset={resetOutputField}
                         onCommit={submitNodeForm}
                     />
-                </Form>
-            </div>
-        </>
+            </Form>
+        </div>
     );
 };

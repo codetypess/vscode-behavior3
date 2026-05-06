@@ -27,6 +27,7 @@ export const createSelectionCommands = (
                 selection.selectedNodeDef === null;
 
             if (alreadyTreeSelected && selection.activeVariableNames.length === 0) {
+                deps.hostAdapter.sendInspectorSelection(null);
                 return;
             }
 
@@ -57,6 +58,9 @@ export const createSelectionCommands = (
             const previous = deps.selectionStore.getState().selectedNodeKey;
             if (previous === nodeKey && !opts?.force) {
                 if (!shouldClearVariableFocus) {
+                    deps.hostAdapter.sendInspectorSelection(
+                        deps.selectionStore.getState().selectedNodeSnapshot
+                    );
                     return;
                 }
 

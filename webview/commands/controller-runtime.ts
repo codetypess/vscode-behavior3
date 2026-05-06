@@ -1,6 +1,5 @@
 import type { StoreApi } from "zustand/vanilla";
 import i18n from "../shared/misc/i18n";
-import { stringifyJson } from "../shared/misc/stringify";
 import { generateUuid } from "../shared/stable-id";
 import type { AppHooksStore } from "../shared/misc/hooks";
 import type {
@@ -25,8 +24,6 @@ import type { GraphAdapter } from "../shared/graph-contracts";
 import { parseWorkdirRelativeJsonPath } from "../shared/protocol";
 import {
     cloneJsonValue,
-    clonePersistedNode,
-    findPersistedNodeByStableId,
     parsePersistedTreeContent,
     serializePersistedTree,
     walkPersistedNodes,
@@ -203,6 +200,12 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         }));
     };
 
+    const reportInspectorSelection = () => {
+        deps.hostAdapter.sendInspectorSelection(
+            deps.selectionStore.getState().selectedNodeSnapshot ?? null
+        );
+    };
+
     const buildTreeSelectionPatch = (): SelectionPatch => {
         const filePath = deps.workspaceStore.getState().filePath;
         return {
@@ -310,6 +313,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             ...buildTreeSelectionPatch(),
             activeVariableNames: shouldClearVariableFocus ? [] : state.activeVariableNames,
         }));
+        reportInspectorSelection();
         return shouldClearVariableFocus;
     };
 
@@ -329,6 +333,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             ...patch,
             activeVariableNames: shouldClearVariableFocus ? [] : state.activeVariableNames,
         }));
+        reportInspectorSelection();
         return shouldClearVariableFocus;
     };
 
@@ -694,11 +699,13 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
 
         if (!fallback) {
             updateSelectionState(() => buildTreeSelectionPatch());
+            reportInspectorSelection();
             await deps.graphAdapter.applySelection({ selectedNodeKey: null });
             return;
         }
 
         updateSelectionState(() => buildResolvedNodeSelectionPatch(fallback.ref.instanceKey) ?? {});
+        reportInspectorSelection();
         await deps.graphAdapter.applySelection({ selectedNodeKey: fallback.ref.instanceKey });
     };
 

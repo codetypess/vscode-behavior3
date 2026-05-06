@@ -29,6 +29,7 @@ import {
     validateVariableReference,
     type TreeValidationDiagnostic,
 } from "../../domain/tree-validation";
+import { useInspectorMode } from "./inspector-mode";
 
 export type VariableOption = {
     label: string;
@@ -51,6 +52,20 @@ export const queueSubmit = (form: FormInstance) => {
     window.setTimeout(() => {
         void form.submit();
     }, 0);
+};
+
+export const flushPendingInspectorEdits = async (): Promise<void> => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== document.body) {
+        active.blur();
+    }
+
+    await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 0);
+    });
+    await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 0);
+    });
 };
 
 export const cleanSlotLabel = (value: string) => value.replace(/\?$/, "").replace(/\.\.\.$/, "");
@@ -330,8 +345,9 @@ export const OverrideBar: React.FC<{
     children: React.ReactNode;
 }> = ({ active, onReset, children }) => {
     const { t } = useTranslation();
+    const { readOnly } = useInspectorMode();
 
-    if (!active) {
+    if (!active || readOnly) {
         return <>{children}</>;
     }
 

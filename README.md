@@ -195,10 +195,11 @@ For TypeScript authoring hints, import build script types from
 
 ## Inspector
 
-Inspector is embedded on the right side of the tree editor.
+Inspector is available in the dedicated `behavior3` sidebar and supports direct editing.
 
 - Select a node to edit node fields (`args`, `input`, `output`, `desc`, `debug`, `disabled`)
 - Click empty canvas to edit tree fields (`name`, `desc`, `vars`, `import`, `group`)
+- Opening a Behavior3 tree or changing the graph selection will automatically reveal the matching Inspector context
 
 ## Keyboard Shortcuts
 

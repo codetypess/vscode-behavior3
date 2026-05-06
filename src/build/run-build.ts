@@ -235,9 +235,6 @@ export async function runBuild(
             return;
         }
 
-        const workdirFs = path.dirname(workspaceFile);
-        const workdirPosix = workdirFs.replace(/\\/g, "/");
-
         const defaultUri = getLastBuildOutputUri(context, folder.uri) ?? folder.uri;
 
         const picked = await vscode.window.showOpenDialog({

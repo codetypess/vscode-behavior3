@@ -2,7 +2,7 @@ import { VERSION } from "../shared/misc/b3type";
 import { compareDocumentVersion } from "../shared/document-version";
 import type { EditorCommand, HostInitPayload, HostVarsPayload, NodeDef } from "../shared/contracts";
 import { deriveGroupDefs } from "../shared/protocol";
-import { parsePersistedTreeContent } from "../shared/tree";
+import { parsePersistedTreeContent, serializePersistedTree } from "../shared/tree";
 import {
     clearDocumentReloadConflict,
     markDocumentSaved,
@@ -12,6 +12,7 @@ import { buildUsingGroups, isJsonEqual, type ControllerRuntime } from "./control
 
 type DocumentCommandKeys =
     | "initFromHost"
+    | "syncDocumentFromHost"
     | "reloadDocumentFromHost"
     | "applyNodeDefs"
     | "applyHostVars"
@@ -28,6 +29,43 @@ export const createDocumentCommands = (
     runtime: ControllerRuntime
 ): Pick<EditorCommand, DocumentCommandKeys> => {
     const { deps } = runtime;
+    const syncHistoryToSnapshot = (snapshot: string) => {
+        deps.documentStore.setState((state) => {
+            const existingIndex = state.history.findIndex((entry) => entry === snapshot);
+            const dirty = state.lastSavedSnapshot ? snapshot !== state.lastSavedSnapshot : false;
+
+            if (existingIndex >= 0) {
+                return {
+                    ...state,
+                    historyIndex: existingIndex,
+                    dirty,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                };
+            }
+
+            if (state.historyIndex < 0 || state.history.length === 0) {
+                return {
+                    ...state,
+                    history: [snapshot],
+                    historyIndex: 0,
+                    dirty,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                };
+            }
+
+            const nextHistory = [...state.history.slice(0, state.historyIndex + 1), snapshot];
+            return {
+                ...state,
+                history: nextHistory,
+                historyIndex: nextHistory.length - 1,
+                dirty,
+                alertReload: false,
+                pendingExternalContent: null,
+            };
+        });
+    };
 
     return {
         async initFromHost(payload: HostInitPayload) {
@@ -49,6 +87,24 @@ export const createDocumentCommands = (
                 preserveSelection: false,
             });
             runtime.resetDocumentHistory();
+        },
+
+        async syncDocumentFromHost(content: string) {
+            if (runtime.matchesCurrentDocumentSnapshot(content)) {
+                clearDocumentReloadConflict(deps.documentStore);
+                return;
+            }
+
+            const filePath = deps.workspaceStore.getState().filePath || undefined;
+            const tree = parsePersistedTreeContent(content, filePath);
+            clearDocumentReloadConflict(deps.documentStore);
+            await runtime.applyDocumentTree(tree, {
+                savedSnapshot: deps.documentStore.getState().lastSavedSnapshot,
+                preserveSelection: true,
+            });
+
+            const snapshot = serializePersistedTree(tree);
+            syncHistoryToSnapshot(snapshot);
         },
 
         async reloadDocumentFromHost(content: string, opts?: { force?: boolean }) {

@@ -5,20 +5,19 @@ import { getAntdLocale } from "../shared/misc/antd-locale";
 import i18n, { setI18nLanguage } from "../shared/misc/i18n";
 import { getThemeConfig } from "../shared/misc/theme";
 import { GraphPane } from "../features/graph/graph-pane";
-import { InspectorPane } from "../features/inspector/inspector-pane";
 import { applyDocumentTheme } from "../shared/theme-mode";
 import type { HostEvent } from "../shared/contracts";
 import { applyWorkspaceTheme, mergeWorkspaceSettings } from "../stores/workspace-store";
 import { GlobalHooksBridge } from "./global-hooks-bridge";
 import { useAppShellState, useAppThemeState, useRuntime } from "./runtime";
 
-const { Content, Sider } = Layout;
+const { Content } = Layout;
 
 const AppShell: React.FC = () => {
     const runtime = useRuntime();
     const { message: messageApi } = AntdApp.useApp();
     const { t } = useTranslation();
-    const { theme, language, hasDocument, inspectorPanelWidth } = useAppShellState();
+    const { theme, language, hasDocument } = useAppShellState();
 
     useEffect(() => {
         const applyThemeChange = (theme: "dark" | "light") => {
@@ -42,6 +41,22 @@ const AppShell: React.FC = () => {
                         await setI18nLanguage(hostEvent.payload.settings.language);
                         await runtime.controller.initFromHost(hostEvent.payload);
                     })();
+                    return;
+
+                case "documentUpdated":
+                    void runtime.controller.syncDocumentFromHost(hostEvent.content);
+                    return;
+
+                case "executeUndo":
+                    void runtime.controller.undo();
+                    return;
+
+                case "executeRedo":
+                    void runtime.controller.redo();
+                    return;
+
+                case "focusVariable":
+                    void runtime.controller.focusVariable(hostEvent.names);
                     return;
 
                 case "fileChanged":
@@ -78,6 +93,10 @@ const AppShell: React.FC = () => {
                     void runtime.controller.markSubtreeChanged();
                     return;
 
+                case "inspectorSelectionChanged":
+                case "inspectorContextCleared":
+                    return;
+
                 case "buildResult":
                     handleBuildResult(hostEvent);
                     return;
@@ -100,7 +119,7 @@ const AppShell: React.FC = () => {
 
     return (
         <Layout className="b3-v2-shell">
-            <Layout hasSider className="b3-v2-body">
+            <Layout className="b3-v2-body">
                 <Content className="b3-v2-content">
                     {hasDocument ? (
                         <GraphPane />
@@ -112,17 +131,6 @@ const AppShell: React.FC = () => {
                         </Flex>
                     )}
                 </Content>
-                <Sider
-                    width={inspectorPanelWidth}
-                    className="b3-v2-sider"
-                    style={{
-                        flex: `0 0 ${inspectorPanelWidth}px`,
-                        maxWidth: inspectorPanelWidth,
-                        minWidth: inspectorPanelWidth,
-                    }}
-                >
-                    <InspectorPane />
-                </Sider>
             </Layout>
         </Layout>
     );

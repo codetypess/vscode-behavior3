@@ -6,17 +6,34 @@ import { stringifyJson } from "../webview/shared/misc/stringify";
 import { writeTree } from "../webview/shared/misc/util";
 import { composeLoggers, createConsoleLogger, setLogger } from "../webview/shared/misc/logger";
 import { runBuild } from "./build/run-build";
+import { InspectorSidebarCoordinator } from "./inspector-sidebar-coordinator";
+import { InspectorSidebarProvider } from "./inspector-sidebar-provider";
 import { createLogOutputChannelLogger } from "./log-channel";
 import { getBehavior3OutputChannel } from "./output-channel";
 import { findB3SettingPath } from "./setting-resolver";
 import { TreeEditorProvider } from "./tree-editor-provider";
+
+const getVSCodeTheme = (): "dark" | "light" => {
+    const kind = vscode.window.activeColorTheme.kind;
+    return kind === vscode.ColorThemeKind.Light || kind === vscode.ColorThemeKind.HighContrastLight
+        ? "light"
+        : "dark";
+};
 
 export function activate(context: vscode.ExtensionContext) {
     const out = getBehavior3OutputChannel();
     context.subscriptions.push(out);
     setLogger(composeLoggers(createConsoleLogger(), createLogOutputChannelLogger(out)));
 
-    const editorProvider = new TreeEditorProvider(context.extensionUri);
+    const inspectorCoordinator = new InspectorSidebarCoordinator();
+    const editorProvider = new TreeEditorProvider(context.extensionUri, inspectorCoordinator);
+    const inspectorProvider = new InspectorSidebarProvider(
+        context.extensionUri,
+        inspectorCoordinator
+    );
+    inspectorCoordinator.setMessageDispatcher((documentUri, message, reply) =>
+        TreeEditorProvider.dispatchMessageToDocument(documentUri, message, reply)
+    );
     context.subscriptions.push(
         vscode.window.registerCustomEditorProvider(TreeEditorProvider.viewType, editorProvider, {
             supportsMultipleEditorsPerDocument: false,
@@ -25,6 +42,35 @@ export function activate(context: vscode.ExtensionContext) {
             },
         })
     );
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(
+            InspectorSidebarProvider.viewId,
+            inspectorProvider,
+            {
+                webviewOptions: {
+                    retainContextWhenHidden: true,
+                },
+            }
+        )
+    );
+
+    const syncActiveInspectorDocument = () => {
+        const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
+        const input = activeTab?.input;
+        const documentUri =
+            input instanceof vscode.TabInputCustom && input.viewType === TreeEditorProvider.viewType
+                ? input.uri.toString()
+                : null;
+        inspectorCoordinator.setActiveDocument(documentUri);
+    };
+
+    syncActiveInspectorDocument();
+    context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(() => {
+        syncActiveInspectorDocument();
+    }));
+    context.subscriptions.push(vscode.window.onDidChangeActiveColorTheme(() => {
+        inspectorCoordinator.setTheme(getVSCodeTheme());
+    }));
 
     // Auto-open JSON files with Behavior3 editor only when they look like trees and
     // a parent `.b3-setting` exists. Scope: once per open cycle (re-check after close/reopen).

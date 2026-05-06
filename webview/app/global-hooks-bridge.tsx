@@ -1,5 +1,5 @@
 import { App } from "antd";
-import React, { useLayoutEffect } from "react";
+import { useLayoutEffect } from "react";
 import { useRuntime } from "./runtime";
 
 export const GlobalHooksBridge = () => {

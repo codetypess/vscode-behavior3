@@ -37,17 +37,14 @@ Inspector 的主要职责是让用户快速理解：
 
 ### Inspector Pane
 
-- 固定在编辑器一侧
+- 作为 VS Code 中的编辑侧栏承载 Inspector
+- 支持 tree / node 两种上下文下的直接编辑
 - 与图层并排，而不是盖在图上
 - 允许滚动，但不改变图层视口
 
 ### Header
 
-header 至少应表达：
-
-- 当前上下文类型
-- 当前节点标题
-- 关键只读标识，如 `displayId`、节点类型、subtree 来源
+上下文信息可以由 VS Code 视图标题与表单字段共同表达，不强制要求 Inspector 内容区再渲染独立 header。
 
 ### Form Structure
 

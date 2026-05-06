@@ -7,7 +7,6 @@ import {
 } from "../../shared/misc/logger";
 import type {
     HostAdapter,
-    HostEvent,
     PersistedTreeModel,
     ReadFileResponse,
     RevertDocumentResponse,
@@ -246,6 +245,22 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
                         onMessage({ type: "init", payload: normalizeHostInitMessage(message) });
                         return;
 
+                    case "documentUpdated":
+                        onMessage({ type: "documentUpdated", content: message.content });
+                        return;
+
+                    case "executeUndo":
+                        onMessage({ type: "executeUndo" });
+                        return;
+
+                    case "executeRedo":
+                        onMessage({ type: "executeRedo" });
+                        return;
+
+                    case "focusVariable":
+                        onMessage({ type: "focusVariable", names: message.names });
+                        return;
+
                     case "varDeclLoaded":
                         onMessage({
                             type: "varDeclLoaded",
@@ -267,6 +282,17 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
 
                     case "subtreeFileChanged":
                         onMessage({ type: "subtreeFileChanged" });
+                        return;
+
+                    case "inspectorSelectionChanged":
+                        onMessage({
+                            type: "inspectorSelectionChanged",
+                            selectedNode: message.selectedNode,
+                        });
+                        return;
+
+                    case "inspectorContextCleared":
+                        onMessage({ type: "inspectorContextCleared" });
                         return;
 
                     case "settingLoaded":
@@ -322,8 +348,24 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
             postMessage({ type: "update", content });
         },
 
+        undo() {
+            postMessage({ type: "undo" });
+        },
+
+        redo() {
+            postMessage({ type: "redo" });
+        },
+
+        requestFocusVariable(names) {
+            postMessage({ type: "focusVariable", names });
+        },
+
         sendTreeSelected(tree: PersistedTreeModel) {
             postMessage({ type: "treeSelected", tree });
+        },
+
+        sendInspectorSelection(selectedNode) {
+            postMessage({ type: "reportInspectorSelection", selectedNode });
         },
 
         sendRequestSetting() {

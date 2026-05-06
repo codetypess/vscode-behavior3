@@ -137,9 +137,6 @@ export interface SelectionState {
         results: string[];
         index: number;
     };
-    inspector: {
-        panelWidth: number;
-    };
 }
 
 export interface UpdateTreeMetaInput {
@@ -217,10 +214,16 @@ export interface ValidateNodeChecksResponse {
 
 export type HostEvent =
     | { type: "init"; payload: HostInitPayload }
+    | { type: "documentUpdated"; content: string }
+    | { type: "executeUndo" }
+    | { type: "executeRedo" }
+    | { type: "focusVariable"; names: string[] }
     | { type: "fileChanged"; content: string }
     | { type: "documentReloaded"; content: string }
     | { type: "themeChanged"; theme: Settings["theme"] }
     | { type: "subtreeFileChanged" }
+    | { type: "inspectorSelectionChanged"; selectedNode: EditNode | null }
+    | { type: "inspectorContextCleared" }
     | { type: "settingLoaded"; nodeDefs: NodeDef[]; settings?: Partial<Settings> }
     | { type: "varDeclLoaded"; payload: HostVarsPayload }
     | { type: "buildResult"; success: boolean; message: string };
@@ -346,7 +349,11 @@ export interface HostAdapter {
     connect(onMessage: (msg: HostEvent) => void): () => void;
     sendReady(): void;
     sendUpdate(content: string): void;
+    undo(): void;
+    redo(): void;
+    requestFocusVariable(names: string[]): void;
     sendTreeSelected(tree: PersistedTreeModel): void;
+    sendInspectorSelection(selectedNode: EditNode | null): void;
     sendRequestSetting(): void;
     sendBuild(opts?: { buildScriptDebug?: boolean }): void;
     validateNodeChecks(
@@ -367,6 +374,7 @@ export interface HostAdapter {
 
 export interface EditorCommand {
     initFromHost(payload: HostInitPayload): Promise<void>;
+    syncDocumentFromHost(content: string): Promise<void>;
     reloadDocumentFromHost(content: string, opts?: { force?: boolean }): Promise<void>;
     applyNodeDefs(defs: NodeDef[]): Promise<void>;
     applyHostVars(payload: HostVarsPayload): Promise<void>;

@@ -1,6 +1,7 @@
 import { ThemeConfig, theme } from "antd";
 
 type ThemeMode = "dark" | "light";
+type WebviewKind = "editor" | "inspector-sidebar";
 
 type ThemePalette = {
     appBg: string;
@@ -54,21 +55,46 @@ const resolveCssVariable = (names: string[], fallback: string): string => {
     return fallback;
 };
 
+const getActiveWebviewKind = (): WebviewKind => {
+    if (typeof window === "undefined") {
+        return "editor";
+    }
+    return window.__B3_WEBVIEW_KIND__ === "inspector-sidebar" ? "inspector-sidebar" : "editor";
+};
+
 const getThemePalette = (mode: ThemeMode): ThemePalette => {
     const isDark = mode === "dark";
+    const isInspectorSidebar = getActiveWebviewKind() === "inspector-sidebar";
 
     return {
-        appBg: resolveCssVariable(["--vscode-editor-background"], isDark ? "#0d1117" : "#ffffff"),
+        appBg: resolveCssVariable(
+            isInspectorSidebar
+                ? ["--vscode-sideBar-background", "--vscode-editor-background"]
+                : ["--vscode-editor-background", "--vscode-sideBar-background"],
+            isDark ? "#0d1117" : "#ffffff"
+        ),
         panelBg: resolveCssVariable(
-            ["--vscode-sideBar-background", "--vscode-editor-background"],
+            isInspectorSidebar
+                ? [
+                      "--vscode-sideBar-background",
+                      "--vscode-sideBarSectionHeader-background",
+                      "--vscode-editor-background",
+                  ]
+                : ["--vscode-sideBar-background", "--vscode-editor-background"],
             isDark ? "#0d1117" : "#ffffff"
         ),
         elevatedBg: resolveCssVariable(
-            [
-                "--vscode-editorWidget-background",
-                "--vscode-sideBarSectionHeader-background",
-                "--vscode-sideBar-background",
-            ],
+            isInspectorSidebar
+                ? [
+                      "--vscode-sideBarSectionHeader-background",
+                      "--vscode-editorWidget-background",
+                      "--vscode-sideBar-background",
+                  ]
+                : [
+                      "--vscode-editorWidget-background",
+                      "--vscode-sideBarSectionHeader-background",
+                      "--vscode-sideBar-background",
+                  ],
             isDark ? "#161b22" : "#f6f8fa"
         ),
         inputBg: resolveCssVariable(
@@ -84,7 +110,14 @@ const getThemePalette = (mode: ThemeMode): ThemePalette => {
             isDark ? "#30363d" : "#d0d7de"
         ),
         panelBorder: resolveCssVariable(
-            ["--vscode-sideBar-border", "--vscode-panel-border", "--vscode-editorWidget-border"],
+            isInspectorSidebar
+                ? [
+                      "--vscode-sideBarSectionHeader-border",
+                      "--vscode-sideBar-border",
+                      "--vscode-panel-border",
+                      "--vscode-editorWidget-border",
+                  ]
+                : ["--vscode-sideBar-border", "--vscode-panel-border", "--vscode-editorWidget-border"],
             isDark ? "#30363d" : "#d0d7de"
         ),
         text: resolveCssVariable(["--vscode-foreground"], isDark ? "#e6edf3" : "#1f2328"),

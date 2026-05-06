@@ -89,13 +89,11 @@ export const useAppShellState = () => {
     const theme = useWorkspaceStore((state) => state.settings.theme);
     const language = useWorkspaceStore((state) => state.settings.language);
     const hasDocument = useDocumentStore((state) => state.persistedTree !== null);
-    const inspectorPanelWidth = useSelectionStore((state) => state.inspector.panelWidth);
 
     return {
         theme,
         language,
         hasDocument,
-        inspectorPanelWidth,
     };
 };
 

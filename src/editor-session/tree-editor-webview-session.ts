@@ -24,6 +24,7 @@ import type {
     HostToEditorMessage,
     NodeDef,
 } from "../../webview/shared/message-protocol";
+import type { EditNode } from "../../webview/shared/contracts";
 import { isDocumentVersionNewer } from "../../webview/shared/document-version";
 import { parseWorkdirRelativeJsonPath } from "../../webview/shared/protocol";
 import { stringifyJson } from "../../webview/shared/misc/stringify";
@@ -39,6 +40,7 @@ import {
 } from "../../webview/shared/misc/b3build";
 import type { BuildEnv, CheckScriptModule } from "../../webview/shared/misc/b3build";
 import type { NodeData, TreeData } from "../../webview/shared/misc/b3type";
+import type { InspectorSessionSnapshot } from "../inspector-sidebar-coordinator";
 
 setFs(fs);
 
@@ -51,7 +53,14 @@ export interface ActiveTreeEditorWebview {
     workspaceFsPath: string;
     documentUri: string;
     postMessage: (message: HostToEditorMessage) => Thenable<boolean>;
+    dispatchMessage: (
+        message: EditorToHostMessage,
+        reply?: (message: HostToEditorMessage) => Thenable<boolean>
+    ) => Promise<void>;
 }
+
+type HostMessageSink = (message: HostToEditorMessage) => Thenable<boolean>;
+type MessageSource = "editor" | "external";
 
 interface EditorLiveSettings {
     checkExpr: boolean;
@@ -68,6 +77,11 @@ interface TreeEditorSessionState {
     newerFileVersion: string | null;
     cachedSubtreeRefs: Set<string> | null;
     subtreeRefreshTimer?: ReturnType<typeof setTimeout>;
+    latestAllFiles: string[];
+    latestVarDecls: VarDeclResult;
+    selectedInspectorNode: EditNode | null;
+    inspectorSelectionRevision: number;
+    inspectorContentSyncKind: "update" | "reload";
 }
 
 interface ResolveTreeEditorSessionParams {
@@ -87,6 +101,8 @@ interface ResolveTreeEditorSessionParams {
     onDidChangeDocument(document: TreeEditorDocument): void;
     addActiveWebview(entry: ActiveTreeEditorWebview): void;
     removeActiveWebview(entry: ActiveTreeEditorWebview): void;
+    onInspectorSessionUpdate(snapshot: InspectorSessionSnapshot): void;
+    onInspectorSessionDispose(documentUri: string): void;
 }
 
 function getWorkdir(documentUri: vscode.Uri): vscode.Uri {
@@ -274,6 +290,8 @@ export async function resolveTreeEditorSession({
     onDidChangeDocument,
     addActiveWebview,
     removeActiveWebview,
+    onInspectorSessionUpdate,
+    onInspectorSessionDispose,
 }: ResolveTreeEditorSessionParams): Promise<void> {
     const workspaceFolderUri = getWorkdir(document.uri);
     const projectRootUri = vscode.Uri.file(
@@ -294,6 +312,15 @@ export async function resolveTreeEditorSession({
         fileVersionIsNewer: false,
         newerFileVersion: null,
         cachedSubtreeRefs: null,
+        latestAllFiles: [],
+        latestVarDecls: {
+            usingVars: {},
+            importDecls: [],
+            subtreeDecls: [],
+        },
+        selectedInspectorNode: null,
+        inspectorSelectionRevision: 0,
+        inspectorContentSyncKind: "reload",
     };
 
     configureWebview(webviewPanel.webview, workspaceFolderUri);
@@ -307,10 +334,44 @@ export async function resolveTreeEditorSession({
             defs
         );
 
+    const buildInspectorVarsMessage = (): Extract<HostToEditorMessage, { type: "varDeclLoaded" }> => ({
+        type: "varDeclLoaded",
+        usingVars: Object.values(state.latestVarDecls.usingVars),
+        allFiles: state.latestAllFiles,
+        importDecls: state.latestVarDecls.importDecls,
+        subtreeDecls: state.latestVarDecls.subtreeDecls,
+    });
+
+    const notifyInspectorSessionUpdate = () => {
+        onInspectorSessionUpdate({
+            documentUri: document.uri.toString(),
+            initMessage: {
+                type: "init",
+                content: document.content,
+                filePath: document.uri.fsPath,
+                workdir: projectRootUri.fsPath,
+                nodeDefs: mapDefsForWebview(),
+                checkExpr: state.currentSettings.checkExpr,
+                subtreeEditable: state.currentSettings.subtreeEditable,
+                language: state.currentSettings.language,
+                theme: getVSCodeTheme(),
+                allFiles: state.latestAllFiles,
+                nodeColors: state.currentSettings.nodeColors,
+            },
+            varsMessage: buildInspectorVarsMessage(),
+            selectedNode: state.selectedInspectorNode,
+            selectionRevision: state.inspectorSelectionRevision,
+            contentSyncKind: state.inspectorContentSyncKind,
+        });
+    };
+
     const activeWebviewEntry: ActiveTreeEditorWebview = {
         workspaceFsPath: workspaceFolderUri.fsPath,
         documentUri: document.uri.toString(),
         postMessage,
+        dispatchMessage: async (message, reply = postMessage) => {
+            await dispatchEditorMessage(message, reply, "external");
+        },
     };
     addActiveWebview(activeWebviewEntry);
     let mainDocumentOperationQueue: Promise<unknown> = Promise.resolve();
@@ -381,7 +442,8 @@ export async function resolveTreeEditorSession({
     };
 
     const handleValidateNodeChecksMessage = async (
-        msg: Extract<EditorToHostMessage, { type: "validateNodeChecks" }>
+        msg: Extract<EditorToHostMessage, { type: "validateNodeChecks" }>,
+        reply: HostMessageSink = postMessage
     ) => {
         try {
             const runtimeResult = await createNodeCheckRuntime();
@@ -403,7 +465,7 @@ export async function resolveTreeEditorSession({
                     node: toNodeData(entry.node),
                 })),
             });
-            await postMessage({
+            await reply({
                 type: "validateNodeChecksResult",
                 requestId: msg.requestId,
                 diagnostics: diagnostics
@@ -424,7 +486,7 @@ export async function resolveTreeEditorSession({
                     : undefined,
             });
         } catch (error) {
-            await postMessage({
+            await reply({
                 type: "validateNodeChecksResult",
                 requestId: msg.requestId,
                 diagnostics: [],
@@ -465,6 +527,7 @@ export async function resolveTreeEditorSession({
             nodeDefs: mapDefsForWebview(),
             settings: state.currentSettings,
         });
+        notifyInspectorSessionUpdate();
     };
 
     const invalidateSubtreeRefs = () => {
@@ -547,10 +610,12 @@ export async function resolveTreeEditorSession({
             return false;
         }
 
+        state.inspectorContentSyncKind = "update";
         invalidateSubtreeRefs();
         void refreshTrackedSubtreeRefs();
         updateFileVersionState(normalizedContent);
         onDidChangeDocument(document);
+        notifyInspectorSessionUpdate();
         return true;
     };
 
@@ -595,7 +660,7 @@ export async function resolveTreeEditorSession({
      * Handshake entry point: send immutable bootstrap state first, then follow
      * up with computed var/subtree metadata that depends on project indexing.
      */
-    const handleReadyMessage = async (): Promise<void> => {
+    const handleReadyMessage = async (reply: HostMessageSink = postMessage): Promise<void> => {
         const theme = getVSCodeTheme();
         const content = document.content;
 
@@ -607,7 +672,14 @@ export async function resolveTreeEditorSession({
             refreshTrackedSubtreeRefs(),
         ]);
 
-        await postMessage({
+        state.latestAllFiles = allFiles;
+        state.latestVarDecls = initUsingVars ?? {
+            usingVars: {},
+            importDecls: [],
+            subtreeDecls: [],
+        };
+
+        await reply({
             type: "init",
             content,
             filePath: document.uri.fsPath,
@@ -622,8 +694,10 @@ export async function resolveTreeEditorSession({
         });
 
         if (initUsingVars) {
-            await postVarDeclLoaded(postMessage, initUsingVars);
+            await postVarDeclLoaded(reply, initUsingVars);
         }
+
+        notifyInspectorSessionUpdate();
     };
 
     /**
@@ -631,12 +705,13 @@ export async function resolveTreeEditorSession({
      * change cannot interleave between "apply webview content" and "persist to disk".
      */
     const handleSaveDocumentMessage = async (
-        msg: Extract<EditorToHostMessage, { type: "saveDocument" }>
+        msg: Extract<EditorToHostMessage, { type: "saveDocument" }>,
+        reply: HostMessageSink = postMessage
     ): Promise<void> => {
         await enqueueMainDocumentOperation(async () => {
             const editBlockedMessage = blockEditingForNewerFile();
             if (editBlockedMessage) {
-                await postMessage({
+                await reply({
                     type: "saveDocumentResult",
                     requestId: msg.requestId,
                     success: false,
@@ -659,7 +734,7 @@ export async function resolveTreeEditorSession({
                         `[saveDocument] save failed for ${document.uri.fsPath}; isDirty=${document.isDirty}`
                     );
                 }
-                await postMessage({
+                await reply({
                     type: "saveDocumentResult",
                     requestId: msg.requestId,
                     success,
@@ -676,7 +751,7 @@ export async function resolveTreeEditorSession({
                 getBehavior3OutputChannel().error(
                     `[saveDocument] exception for ${document.uri.fsPath}: ${String(error)}`
                 );
-                await postMessage({
+                await reply({
                     type: "saveDocumentResult",
                     requestId: msg.requestId,
                     success: false,
@@ -687,19 +762,22 @@ export async function resolveTreeEditorSession({
     };
 
     const handleRevertDocumentMessage = async (
-        msg: Extract<EditorToHostMessage, { type: "revertDocument" }>
+        msg: Extract<EditorToHostMessage, { type: "revertDocument" }>,
+        reply: HostMessageSink = postMessage
     ): Promise<void> => {
         await enqueueMainDocumentOperation(async () => {
             const cancellation = new vscode.CancellationTokenSource();
             try {
                 await revertDocument(document, cancellation.token);
-                await postMessage({
+                state.inspectorContentSyncKind = "reload";
+                await reply({
                     type: "revertDocumentResult",
                     requestId: msg.requestId,
                     success: true,
                 } satisfies HostToEditorMessage);
+                notifyInspectorSessionUpdate();
             } catch (error) {
-                await postMessage({
+                await reply({
                     type: "revertDocumentResult",
                     requestId: msg.requestId,
                     success: false,
@@ -737,12 +815,14 @@ export async function resolveTreeEditorSession({
              */
             if (!document.isDirty) {
                 document.updateContent(content, { markSaved: true, markDirty: false });
+                state.inspectorContentSyncKind = "reload";
                 void refreshTrackedSubtreeRefs();
                 updateFileVersionState(content, { showWarning: true });
                 await postMessage({
                     type: "documentReloaded",
                     content,
                 } satisfies HostToEditorMessage);
+                notifyInspectorSessionUpdate();
                 return;
             }
 
@@ -762,17 +842,23 @@ export async function resolveTreeEditorSession({
             parseUsingVarsFromContent(projectIndex, content),
         ]);
 
+        state.latestAllFiles = allFiles;
+
         if (result) {
+            state.latestVarDecls = result;
             await postVarDeclLoaded(postMessage, result, allFiles);
         }
+
+        notifyInspectorSessionUpdate();
     };
 
     const handleReadFileMessage = async (
-        msg: Extract<EditorToHostMessage, { type: "readFile" }>
+        msg: Extract<EditorToHostMessage, { type: "readFile" }>,
+        reply: HostMessageSink = postMessage
     ): Promise<void> => {
         const fileUri = resolvePathInWorkdir(msg.path, projectRootUri);
         if (!fileUri) {
-            await postMessage({
+            await reply({
                 type: "readFileResult",
                 requestId: msg.requestId,
                 content: null,
@@ -796,13 +882,13 @@ export async function resolveTreeEditorSession({
                 }
             }
 
-            await postMessage({
+            await reply({
                 type: "readFileResult",
                 requestId: msg.requestId,
                 content,
             });
         } catch {
-            await postMessage({
+            await reply({
                 type: "readFileResult",
                 requestId: msg.requestId,
                 content: null,
@@ -812,14 +898,15 @@ export async function resolveTreeEditorSession({
     };
 
     const handleSaveSubtreeMessage = async (
-        msg: Extract<EditorToHostMessage, { type: "saveSubtree" }>
+        msg: Extract<EditorToHostMessage, { type: "saveSubtree" }>,
+        reply: HostMessageSink = postMessage
     ): Promise<void> => {
         const fileUri = resolvePathInWorkdir(msg.path, projectRootUri, {
             mustBeJson: true,
         });
         if (!fileUri) {
             const error = "Save path must be a .json file inside the behavior tree work directory.";
-            await postMessage({
+            await reply({
                 type: "saveSubtreeResult",
                 requestId: msg.requestId,
                 success: false,
@@ -832,7 +919,7 @@ export async function resolveTreeEditorSession({
         try {
             const activeFileBlockMessage = getActiveNewerFileEditMessage();
             if (activeFileBlockMessage) {
-                await postMessage({
+                await reply({
                     type: "saveSubtreeResult",
                     requestId: msg.requestId,
                     success: false,
@@ -846,7 +933,7 @@ export async function resolveTreeEditorSession({
 
             const targetFileBlockMessage = await getExistingNewerFileEditMessage(fileUri);
             if (targetFileBlockMessage) {
-                await postMessage({
+                await reply({
                     type: "saveSubtreeResult",
                     requestId: msg.requestId,
                     success: false,
@@ -859,14 +946,14 @@ export async function resolveTreeEditorSession({
             }
 
             await writeDocumentContentToDisk(fileUri, msg.content);
-            await postMessage({
+            await reply({
                 type: "saveSubtreeResult",
                 requestId: msg.requestId,
                 success: true,
             });
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to save subtree: ${error}`);
-            await postMessage({
+            await reply({
                 type: "saveSubtreeResult",
                 requestId: msg.requestId,
                 success: false,
@@ -876,13 +963,14 @@ export async function resolveTreeEditorSession({
     };
 
     const handleSaveSubtreeAsMessage = async (
-        msg: Extract<EditorToHostMessage, { type: "saveSubtreeAs" }>
+        msg: Extract<EditorToHostMessage, { type: "saveSubtreeAs" }>,
+        reply: HostMessageSink = postMessage
     ): Promise<void> => {
         try {
             const activeFileBlockMessage = getActiveNewerFileEditMessage();
             if (activeFileBlockMessage) {
                 vscode.window.showErrorMessage(activeFileBlockMessage);
-                await postMessage({
+                await reply({
                     type: "saveSubtreeAsResult",
                     requestId: msg.requestId,
                     savedPath: null,
@@ -897,7 +985,7 @@ export async function resolveTreeEditorSession({
                 filters: { JSON: ["json"] },
             });
             if (!picked) {
-                await postMessage({
+                await reply({
                     type: "saveSubtreeAsResult",
                     requestId: msg.requestId,
                     savedPath: null,
@@ -909,7 +997,7 @@ export async function resolveTreeEditorSession({
             if (!rel) {
                 const error = "Save location must be inside the behavior tree work directory.";
                 vscode.window.showErrorMessage(error);
-                await postMessage({
+                await reply({
                     type: "saveSubtreeAsResult",
                     requestId: msg.requestId,
                     savedPath: null,
@@ -921,7 +1009,7 @@ export async function resolveTreeEditorSession({
             const targetFileBlockMessage = await getExistingNewerFileEditMessage(picked);
             if (targetFileBlockMessage) {
                 vscode.window.showErrorMessage(targetFileBlockMessage);
-                await postMessage({
+                await reply({
                     type: "saveSubtreeAsResult",
                     requestId: msg.requestId,
                     savedPath: null,
@@ -931,7 +1019,7 @@ export async function resolveTreeEditorSession({
             }
 
             await writeDocumentContentToDisk(picked, msg.content);
-            await postMessage({
+            await reply({
                 type: "saveSubtreeAsResult",
                 requestId: msg.requestId,
                 savedPath: rel,
@@ -939,7 +1027,7 @@ export async function resolveTreeEditorSession({
         } catch (error) {
             const message = String(error);
             vscode.window.showErrorMessage(`Failed to save subtree: ${message}`);
-            await postMessage({
+            await reply({
                 type: "saveSubtreeAsResult",
                 requestId: msg.requestId,
                 savedPath: null,
@@ -967,6 +1055,110 @@ export async function resolveTreeEditorSession({
             default:
                 out.info(msg.message);
                 break;
+        }
+    };
+
+    const handleInspectorSelectionMessage = (
+        msg: Extract<EditorToHostMessage, { type: "reportInspectorSelection" }>
+    ): void => {
+        state.selectedInspectorNode = msg.selectedNode;
+        state.inspectorSelectionRevision += 1;
+        notifyInspectorSessionUpdate();
+    };
+
+    const dispatchEditorMessage = async (
+        msg: EditorToHostMessage,
+        reply: HostMessageSink = postMessage,
+        source: MessageSource = "editor"
+    ): Promise<void> => {
+        switch (msg.type) {
+            case "ready":
+                await handleReadyMessage(reply);
+                return;
+
+            case "update":
+                await enqueueMainDocumentOperation(async () => {
+                    if (blockEditingForNewerFile()) {
+                        return;
+                    }
+                    const changed = applyContentFromWebview(msg.content);
+                    if (changed && source !== "editor") {
+                        await postMessage({
+                            type: "documentUpdated",
+                            content: document.content,
+                        });
+                    }
+                });
+                return;
+
+            case "undo":
+                await postMessage({
+                    type: "executeUndo",
+                });
+                return;
+
+            case "redo":
+                await postMessage({
+                    type: "executeRedo",
+                });
+                return;
+
+            case "focusVariable":
+                if (source !== "editor") {
+                    await postMessage({
+                        type: "focusVariable",
+                        names: msg.names,
+                    });
+                }
+                return;
+
+            case "saveDocument":
+                await handleSaveDocumentMessage(msg, reply);
+                return;
+
+            case "treeSelected":
+                await handleTreeSelectedMessage(msg);
+                return;
+
+            case "reportInspectorSelection":
+                handleInspectorSelectionMessage(msg);
+                return;
+
+            case "revertDocument":
+                await handleRevertDocumentMessage(msg, reply);
+                return;
+
+            case "requestSetting":
+                await refreshSettings({ refreshDefs: true });
+                return;
+
+            case "build":
+                void vscode.commands
+                    .executeCommand("behavior3.build", {
+                        buildScriptDebug: msg.buildScriptDebug,
+                    })
+                    .then(undefined, logAsyncRuntimeError("command:behavior3.build"));
+                return;
+
+            case "validateNodeChecks":
+                await handleValidateNodeChecksMessage(msg, reply);
+                return;
+
+            case "webviewLog":
+                handleWebviewLogMessage(msg);
+                return;
+
+            case "readFile":
+                await handleReadFileMessage(msg, reply);
+                return;
+
+            case "saveSubtree":
+                await handleSaveSubtreeMessage(msg, reply);
+                return;
+
+            case "saveSubtreeAs":
+                await handleSaveSubtreeAsMessage(msg, reply);
+                return;
         }
     };
 
@@ -1026,64 +1218,7 @@ export async function resolveTreeEditorSession({
          */
         webviewPanel.webview.onDidReceiveMessage(async (msg: EditorToHostMessage) => {
             try {
-                switch (msg.type) {
-                    case "ready":
-                        await handleReadyMessage();
-                        break;
-
-                    case "update":
-                        await enqueueMainDocumentOperation(async () => {
-                            if (blockEditingForNewerFile()) {
-                                return;
-                            }
-                            applyContentFromWebview(msg.content);
-                        });
-                        break;
-
-                    case "saveDocument":
-                        await handleSaveDocumentMessage(msg);
-                        break;
-
-                    case "revertDocument":
-                        await handleRevertDocumentMessage(msg);
-                        break;
-
-                    case "treeSelected":
-                        await handleTreeSelectedMessage(msg);
-                        break;
-
-                    case "requestSetting":
-                        await refreshSettings({ refreshDefs: true });
-                        break;
-
-                    case "build":
-                        void vscode.commands
-                            .executeCommand("behavior3.build", {
-                                buildScriptDebug: msg.buildScriptDebug,
-                            })
-                            .then(undefined, logAsyncRuntimeError("command:behavior3.build"));
-                        break;
-
-                    case "validateNodeChecks":
-                        await handleValidateNodeChecksMessage(msg);
-                        break;
-
-                    case "webviewLog":
-                        handleWebviewLogMessage(msg);
-                        break;
-
-                    case "readFile":
-                        await handleReadFileMessage(msg);
-                        break;
-
-                    case "saveSubtree":
-                        await handleSaveSubtreeMessage(msg);
-                        break;
-
-                    case "saveSubtreeAs":
-                        await handleSaveSubtreeAsMessage(msg);
-                        break;
-                }
+                await dispatchEditorMessage(msg, postMessage, "editor");
             } catch (error) {
                 logRuntimeError(`webview message:${msg.type}`, error);
             }
@@ -1117,6 +1252,7 @@ export async function resolveTreeEditorSession({
         state.subtreeRefreshTimer = clearRefreshTimer(state.subtreeRefreshTimer);
         projectIndex.clear();
         removeActiveWebview(activeWebviewEntry);
+        onInspectorSessionDispose(document.uri.toString());
         disposeAll(sessionDisposables);
     });
 }

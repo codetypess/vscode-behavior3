@@ -36,6 +36,7 @@
     "dist/extension.js",
     "dist/webview/",
     "icon.png",
+    "media/icons/icon.svg",
     "package.nls.json",
     "package.nls.zh-cn.json",
     "webview/shared/misc/b3build-model.d.ts",
@@ -71,6 +72,26 @@
         "priority": "option"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "behavior3InspectorContainer",
+          "title": "%viewContainer.inspector.title%",
+          "icon": "media/icons/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "behavior3InspectorContainer": [
+        {
+          "id": "behavior3.inspectorView",
+          "name": "%view.inspector.title%",
+          "icon": "media/icons/icon.svg",
+          "type": "webview",
+          "visibility": "visible"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "behavior3.build",

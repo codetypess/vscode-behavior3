@@ -13,10 +13,17 @@ body {
     background: var(--b3-app-bg);
 }
 
+body[data-webview-kind="inspector-sidebar"] {
+    --b3-inspector-sidebar-min-width: 360px;
+}
+
 body[data-theme="dark"] {
     --b3-app-bg: var(--vscode-editor-background, #0d1117);
     --b3-panel-bg: var(--vscode-sideBar-background, var(--vscode-editor-background, #0d1117));
+    --b3-panel-header-bg: var(--vscode-sideBarSectionHeader-background, var(--b3-panel-bg));
+    --b3-panel-content-bg: var(--b3-panel-bg);
     --b3-panel-border: var(--vscode-sideBar-border, var(--vscode-panel-border, #30363d));
+    --b3-panel-title: var(--vscode-sideBarTitle-foreground, var(--vscode-foreground, #e6edf3));
     --b3-graph-bg: var(--vscode-editor-background, #010409);
     --b3-graph-edge: #a3b1bf;
     --b3-text-muted: var(--vscode-descriptionForeground, #8b949e);
@@ -26,10 +33,7 @@ body[data-theme="dark"] {
         --vscode-list-inactiveSelectionBackground,
         var(--vscode-list-activeSelectionBackground, #388bfd)
     );
-    --b3-search-bg: var(
-        --vscode-editorWidget-background,
-        var(--vscode-input-background, #161b22)
-    );
+    --b3-search-bg: var(--vscode-editorWidget-background, var(--vscode-input-background, #161b22));
     --b3-search-border-accent: var(--vscode-focusBorder, #f78166);
     --b3-search-shadow: #0000005c;
     --b3-override-bar: var(--vscode-badge-background, #d87a16);
@@ -65,7 +69,10 @@ body[data-theme="dark"] {
 body[data-theme="light"] {
     --b3-app-bg: var(--vscode-editor-background, #ffffff);
     --b3-panel-bg: var(--vscode-sideBar-background, var(--vscode-editor-background, #ffffff));
+    --b3-panel-header-bg: var(--vscode-sideBarSectionHeader-background, var(--b3-panel-bg));
+    --b3-panel-content-bg: var(--b3-panel-bg);
     --b3-panel-border: var(--vscode-sideBar-border, var(--vscode-panel-border, #d0d7de));
+    --b3-panel-title: var(--vscode-sideBarTitle-foreground, var(--vscode-foreground, #1f2328));
     --b3-graph-bg: var(--vscode-editor-background, #f6f8fa);
     --b3-graph-edge: #a3b1bf;
     --b3-text-muted: var(--vscode-descriptionForeground, #57606a);
@@ -75,10 +82,7 @@ body[data-theme="light"] {
         --vscode-list-inactiveSelectionBackground,
         var(--vscode-list-activeSelectionBackground, #1f6feb)
     );
-    --b3-search-bg: var(
-        --vscode-editorWidget-background,
-        var(--vscode-input-background, #ffffff)
-    );
+    --b3-search-bg: var(--vscode-editorWidget-background, var(--vscode-input-background, #ffffff));
     --b3-search-border-accent: var(--vscode-focusBorder, #0969da);
     --b3-search-shadow: #1f232826;
     --b3-override-bar: var(--vscode-badge-background, #bc4c00);
@@ -92,7 +96,10 @@ body[data-theme="light"] {
     --b3-node-gray-border: #30363d;
     --b3-node-gray-rail: #30363d;
     --b3-node-gray-text: #666666;
-    --b3-node-id-text: var(--vscode-editorLineNumber-activeForeground, var(--vscode-foreground, #1f2328));
+    --b3-node-id-text: var(
+        --vscode-editorLineNumber-activeForeground,
+        var(--vscode-foreground, #1f2328)
+    );
     --b3-node-id-stroke: #ffffff;
     --b3-node-selection-base: var(--vscode-editor-background, #ffffff);
     --b3-node-selection-strength: 38%;
@@ -111,18 +118,52 @@ body[data-theme="light"] {
     --b3-collapse-text: var(--vscode-descriptionForeground, #57606a);
 }
 
+body[data-webview-kind="inspector-sidebar"][data-theme="dark"] {
+    --b3-app-bg: var(--vscode-sideBar-background, #181818);
+    --b3-panel-bg: var(--vscode-sideBar-background, #181818);
+    --b3-panel-header-bg: var(
+        --vscode-sideBarSectionHeader-background,
+        var(--vscode-sideBar-background, #181818)
+    );
+    --b3-panel-content-bg: var(--vscode-sideBar-background, #181818);
+    --b3-panel-border: var(
+        --vscode-sideBarSectionHeader-border,
+        var(--vscode-sideBar-border, #2b2b2b)
+    );
+    --b3-panel-title: var(--vscode-sideBarTitle-foreground, var(--vscode-foreground, #cccccc));
+}
+
+body[data-webview-kind="inspector-sidebar"][data-theme="light"] {
+    --b3-app-bg: var(--vscode-sideBar-background, #f3f3f3);
+    --b3-panel-bg: var(--vscode-sideBar-background, #f3f3f3);
+    --b3-panel-header-bg: var(
+        --vscode-sideBarSectionHeader-background,
+        var(--vscode-sideBar-background, #f3f3f3)
+    );
+    --b3-panel-content-bg: var(--vscode-sideBar-background, #f3f3f3);
+    --b3-panel-border: var(
+        --vscode-sideBarSectionHeader-border,
+        var(--vscode-sideBar-border, #e5e5e5)
+    );
+    --b3-panel-title: var(--vscode-sideBarTitle-foreground, var(--vscode-foreground, #3c3c3c));
+}
+
 .b3-v2-shell {
     height: 100%;
     background: var(--b3-app-bg);
 }
 
 .b3-v2-body {
+    display: flex;
+    flex-direction: row;
     min-height: 0;
     flex: 1;
     background: var(--b3-app-bg);
 }
 
 .b3-v2-content {
+    flex: 1 1 0;
+    width: 0;
     min-height: 0;
     padding: 0;
     overflow: hidden;
@@ -139,11 +180,69 @@ body[data-theme="light"] {
     height: 100%;
     display: flex;
     flex-direction: column;
+    background: var(--b3-panel-content-bg);
+}
+
+body[data-webview-kind="inspector-sidebar"] .b3-v2-inspector {
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+body[data-webview-kind="inspector-sidebar"] .b3-v2-inspector-header,
+body[data-webview-kind="inspector-sidebar"] .b3-v2-inspector-banner,
+body[data-webview-kind="inspector-sidebar"] .b3-v2-inspector-content,
+body[data-webview-kind="inspector-sidebar"] .b3-v2-inspector-skeleton-content {
+    min-width: var(--b3-inspector-sidebar-min-width);
+}
+
+body[data-webview-kind="inspector-sidebar"]
+    .b3-v2-inspector-form.ant-form:not(.ant-form-inline)
+    .ant-form-item {
+    flex-wrap: nowrap;
+}
+
+body[data-webview-kind="inspector-sidebar"]
+    .b3-v2-inspector-form.ant-form:not(.ant-form-inline)
+    .ant-form-item
+    .ant-form-item-label {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+body[data-webview-kind="inspector-sidebar"] .b3-v2-inspector-form .ant-form-item:last-child {
+    margin-bottom: 0 !important;
+}
+
+body[data-webview-kind="inspector-sidebar"]
+    .b3-v2-inspector-form
+    .b3-v2-section-divider
+    + .ant-form-item,
+body[data-webview-kind="inspector-sidebar"]
+    .b3-v2-inspector-form
+    .b3-v2-section-divider
+    + .b3-v2-list-block,
+body[data-webview-kind="inspector-sidebar"]
+    .b3-v2-inspector-form
+    .b3-v2-section-divider
+    + .b3-v2-override-bar {
+    margin-top: 4px;
+}
+
+.b3-v2-inspector-empty {
+    height: 100%;
+    padding: 20px 16px;
+    text-align: center;
+    background: var(--b3-panel-content-bg);
 }
 
 .b3-v2-inspector-header {
     padding: 12px;
     border-bottom: 1px solid var(--b3-panel-border);
+    background: var(--b3-panel-header-bg);
+}
+
+.b3-v2-inspector-header-row {
+    min-width: 0;
 }
 
 .b3-v2-inspector-banner {
@@ -154,6 +253,7 @@ body[data-theme="light"] {
     font-size: 18px;
     font-weight: 600;
     line-height: 1.35;
+    color: var(--b3-panel-title);
 }
 
 .b3-v2-inspector-content {
@@ -161,6 +261,7 @@ body[data-theme="light"] {
     flex: 1;
     overflow: auto;
     padding: 20px 12px;
+    background: var(--b3-panel-content-bg);
 }
 
 .b3-v2-inspector-skeleton-content {
@@ -296,6 +397,10 @@ body[data-theme="light"] {
     margin-bottom: 5px;
 }
 
+.b3-v2-subtree-path-row {
+    margin-bottom: 6px;
+}
+
 .b3-v2-decl-vars {
     display: flex;
     flex-direction: column;
@@ -313,10 +418,11 @@ body[data-theme="light"] {
 .b3-v2-var-counter {
     display: flex;
     align-items: center;
-    gap: 6px;
-    min-width: 56px;
-    max-width: 56px;
-    padding: 0 10px;
+    justify-content: flex-start;
+    gap: 4px;
+    min-width: 40px;
+    max-width: 40px;
+    padding: 0 6px 0 5px;
     cursor: pointer;
     color: var(--ant-color-text-secondary);
     background: var(--ant-color-fill-tertiary);

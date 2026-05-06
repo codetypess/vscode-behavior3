@@ -158,6 +158,7 @@
   "editor.externalChangeConflict": "External file change detected while the document has unsaved edits.",
   "editor.reloadFromDisk": "Reload",
   "editor.dismissConflict": "Dismiss",
+  "inspector.noActiveDocument": "Open a Behavior3 editor to inspect and edit the active tree.",
 
   "override.resetTitle": "Reset this override?",
 

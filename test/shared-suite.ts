@@ -25,6 +25,7 @@ import {
 } from "../webview/shared/tree";
 import { parseWorkdirRelativeJsonPath } from "../webview/shared/protocol";
 import b3path from "../webview/shared/misc/b3path";
+import { loadRuntimeModule } from "../webview/shared/misc/b3build";
 import type { GraphAdapter } from "../webview/shared/graph-contracts";
 import type { HostAdapter } from "../webview/shared/contracts";
 
@@ -800,7 +801,11 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 connect: () => () => {},
                 sendReady() {},
                 sendUpdate() {},
+                undo() {},
+                redo() {},
+                requestFocusVariable() {},
                 sendTreeSelected() {},
+                sendInspectorSelection() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 async validateNodeChecks() {
@@ -1106,6 +1111,125 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 assert.equal(result.hasError, false);
                 assert.equal(outputTree.custom.helperValue, "imported-helper");
                 assert.deepEqual(runtimeFiles, []);
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+    },
+    {
+        name: "loads TypeScript build scripts concurrently without deleting active runtime modules",
+        async run() {
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-build-concurrent-"));
+            const scriptsDir = path.join(root, "scripts");
+            const buildScriptFile = path.join(scriptsDir, "build.ts");
+            const helperFile = path.join(scriptsDir, "helper.ts");
+            const constantsFile = path.join(scriptsDir, "constants.ts");
+
+            try {
+                fs.mkdirSync(scriptsDir, { recursive: true });
+                fs.writeFileSync(
+                    constantsFile,
+                    ['export const helperValue = "concurrent-helper";', ""].join("\n")
+                );
+                fs.writeFileSync(
+                    helperFile,
+                    [
+                        'import { helperValue } from "./constants.ts";',
+                        "",
+                        "export const value = helperValue;",
+                        "",
+                    ].join("\n")
+                );
+                fs.writeFileSync(
+                    buildScriptFile,
+                    [
+                        'import { value } from "./helper.ts";',
+                        "",
+                        "@behavior3.build",
+                        "export class ConcurrentBuildScript {",
+                        "  static helperValue = value;",
+                        "}",
+                        "",
+                    ].join("\n")
+                );
+
+                for (let round = 0; round < 5; round += 1) {
+                    const modules = await Promise.all(
+                        Array.from({ length: 8 }, () =>
+                            loadRuntimeModule(buildScriptFile, { debug: false })
+                        )
+                    );
+
+                    assert.equal(modules.every(Boolean), true);
+                    for (const moduleExports of modules) {
+                        const buildModule = moduleExports as {
+                            ConcurrentBuildScript?: { helperValue?: string };
+                        } | null;
+                        assert.equal(
+                            buildModule?.ConcurrentBuildScript?.helperValue,
+                            "concurrent-helper"
+                        );
+                    }
+                }
+
+                const runtimeFiles = fs
+                    .readdirSync(scriptsDir)
+                    .filter((file) => file.includes(".runtime.") && file.endsWith(".mjs"));
+
+                assert.deepEqual(runtimeFiles, []);
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+    },
+    {
+        name: "keeps behavior3 decorator global alive across overlapping runtime imports",
+        async run() {
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-decorator-global-"));
+            const scriptsDir = path.join(root, "scripts");
+            const fastScriptFile = path.join(scriptsDir, "fast.ts");
+            const slowScriptFile = path.join(scriptsDir, "slow.ts");
+
+            try {
+                fs.mkdirSync(scriptsDir, { recursive: true });
+                fs.writeFileSync(
+                    fastScriptFile,
+                    [
+                        '@behavior3.check("fast")',
+                        "export class FastChecker {",
+                        "  validate() {}",
+                        "}",
+                        "",
+                    ].join("\n")
+                );
+                fs.writeFileSync(
+                    slowScriptFile,
+                    [
+                        "await new Promise((resolve) => setTimeout(resolve, 25));",
+                        "",
+                        '@behavior3.check("slow")',
+                        "export class SlowChecker {",
+                        "  validate() {}",
+                        "}",
+                        "",
+                    ].join("\n")
+                );
+
+                const [fastModule, slowModule] = await Promise.all([
+                    loadRuntimeModule(fastScriptFile, { debug: false }),
+                    loadRuntimeModule(slowScriptFile, { debug: false }),
+                ]);
+
+                assert.equal(Boolean(fastModule), true);
+                assert.equal(Boolean(slowModule), true);
+                assert.equal(
+                    typeof (fastModule as { FastChecker?: unknown } | null)?.FastChecker,
+                    "function"
+                );
+                assert.equal(
+                    typeof (slowModule as { SlowChecker?: unknown } | null)?.SlowChecker,
+                    "function"
+                );
             } finally {
                 fs.rmSync(root, { recursive: true, force: true });
             }

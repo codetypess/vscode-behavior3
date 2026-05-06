@@ -1,4 +1,3 @@
-import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import {
@@ -6,58 +5,15 @@ import {
     readFileContentFromDisk,
     TreeEditorDocument,
 } from "./editor-session/document-sync";
-import type { HostToEditorMessage } from "../webview/shared/message-protocol";
+import type {
+    EditorToHostMessage,
+    HostToEditorMessage,
+} from "../webview/shared/message-protocol";
 import type { ActiveTreeEditorWebview } from "./editor-session/tree-editor-webview-session";
 import { resolveTreeEditorSession } from "./editor-session/tree-editor-webview-session";
+import { InspectorSidebarCoordinator } from "./inspector-sidebar-coordinator";
+import { configureBehaviorWebview } from "./webview-html";
 import { isDocumentVersionNewer } from "../webview/shared/document-version";
-
-/**
- * Read the Vite-generated HTML for the active webview entry and rewrite all
- * asset references to proper vscode-webview-resource URIs.
- */
-function buildWebviewHtml(
-    webview: vscode.Webview,
-    extensionUri: vscode.Uri,
-    title?: string
-): string {
-    const htmlPath = vscode.Uri.joinPath(extensionUri, "dist", "webview", "index.html");
-    let html = fs.readFileSync(htmlPath.fsPath, "utf-8");
-
-    const webviewRootUri = webview.asWebviewUri(
-        vscode.Uri.joinPath(extensionUri, "dist", "webview")
-    );
-
-    const assetsUri = `${webviewRootUri}/assets`;
-    html = html.replace(/(?:\.\.\/|\.\/)assets\//g, `${assetsUri}/`);
-
-    if (title) {
-        html = html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`);
-    }
-
-    const baseTag = `<base href="${webviewRootUri}/">`;
-
-    const src = webview.cspSource;
-    const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${src} data: blob:; style-src ${src} 'unsafe-inline'; script-src ${src} 'unsafe-inline'; font-src ${src} data:; worker-src blob:; connect-src ${src};">`;
-    html = html.replace("<head>", `<head>\n  ${baseTag}\n  ${csp}`);
-
-    return html;
-}
-
-function configureEditorWebview(
-    webview: vscode.Webview,
-    extensionUri: vscode.Uri,
-    workspaceFolderUri: vscode.Uri
-): void {
-    webview.options = {
-        enableScripts: true,
-        localResourceRoots: [
-            vscode.Uri.joinPath(extensionUri, "dist", "webview"),
-            vscode.Uri.joinPath(extensionUri, "media"),
-            workspaceFolderUri,
-        ],
-    };
-    webview.html = buildWebviewHtml(webview, extensionUri, "Behavior3 Editor");
-}
 
 function getTreeFileVersion(content: string): string | undefined {
     try {
@@ -130,7 +86,25 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         return delivered;
     }
 
-    constructor(private readonly _extensionUri: vscode.Uri) {}
+    public static dispatchMessageToDocument(
+        documentUri: string,
+        message: EditorToHostMessage,
+        reply: (message: HostToEditorMessage) => Thenable<boolean>
+    ): boolean {
+        for (const entry of TreeEditorProvider.activeWebviews) {
+            if (entry.documentUri !== documentUri) {
+                continue;
+            }
+            void entry.dispatchMessage(message, reply);
+            return true;
+        }
+        return false;
+    }
+
+    constructor(
+        private readonly _extensionUri: vscode.Uri,
+        private readonly inspectorCoordinator: InspectorSidebarCoordinator
+    ) {}
 
     private assertCanWriteTreeContent(content: string): void {
         const error = getNewerFileWriteError(content);
@@ -270,7 +244,10 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
             webviewPanel,
             viewType: TreeEditorProvider.viewType,
             configureWebview: (webview, workspaceFolderUri) => {
-                configureEditorWebview(webview, this._extensionUri, workspaceFolderUri);
+                configureBehaviorWebview(webview, this._extensionUri, workspaceFolderUri, {
+                    title: "Behavior3 Editor",
+                    mode: "editor",
+                });
             },
             persistMainDocumentToDisk: (currentDocument, opts) =>
                 this.persistMainDocumentToDisk(currentDocument, opts),
@@ -286,6 +263,12 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
             },
             removeActiveWebview: (entry) => {
                 TreeEditorProvider.activeWebviews.delete(entry);
+            },
+            onInspectorSessionUpdate: (snapshot) => {
+                this.inspectorCoordinator.updateSession(snapshot);
+            },
+            onInspectorSessionDispose: (documentUri) => {
+                this.inspectorCoordinator.removeSession(documentUri);
             },
         });
     }
