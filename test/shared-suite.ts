@@ -17,6 +17,11 @@ import { DocumentSessionState } from "../src/editor-session/document-session-sta
 import { handleNativeWheelZoom } from "../webview/adapters/graph/g6-wheel-zoom";
 import { buildResolvedGraphModel } from "../webview/domain/graph-selectors";
 import { collectResolvedNodeDiagnostics } from "../webview/domain/tree-validation";
+import {
+    formatArgInitialValue,
+    parseArgSubmitValue,
+} from "../webview/features/inspector/inspector-arg-values";
+import { serializePersistedTreeForMainDocumentSave } from "../webview/shared/main-document-save";
 import { reduceDocumentMutation } from "../webview/shared/document-mutation-reducer";
 import {
     normalizeNodeDefCollection,
@@ -146,6 +151,110 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
         },
     },
     {
+        name: "keeps required inspector arg initial values unset",
+        run() {
+            assert.equal(
+                formatArgInitialValue({ name: "text", type: "string", desc: "" }, undefined),
+                undefined
+            );
+            assert.equal(
+                formatArgInitialValue({ name: "expr", type: "expr", desc: "" }, undefined),
+                undefined
+            );
+            assert.equal(
+                formatArgInitialValue({ name: "count", type: "int", desc: "" }, undefined),
+                undefined
+            );
+            assert.equal(
+                formatArgInitialValue({ name: "enabled", type: "bool", desc: "" }, undefined),
+                undefined
+            );
+            assert.equal(
+                formatArgInitialValue(
+                    {
+                        name: "status",
+                        type: "string",
+                        desc: "",
+                        options: [],
+                    },
+                    undefined
+                ),
+                undefined
+            );
+        },
+    },
+    {
+        name: "preserves optional inspector arg unset sentinels",
+        run() {
+            assert.equal(
+                formatArgInitialValue({ name: "text", type: "string?", desc: "" }, undefined),
+                ""
+            );
+            assert.equal(
+                formatArgInitialValue({ name: "enabled", type: "bool?", desc: "" }, undefined),
+                "__unset__"
+            );
+        },
+    },
+    {
+        name: "does not coerce unset required inspector args into serialized values",
+        run() {
+            assert.equal(
+                parseArgSubmitValue({ name: "text", type: "string", desc: "" }, undefined),
+                undefined
+            );
+            assert.equal(
+                parseArgSubmitValue({ name: "expr", type: "expr", desc: "" }, undefined),
+                undefined
+            );
+            assert.equal(
+                parseArgSubmitValue({ name: "count", type: "int", desc: "" }, undefined),
+                undefined
+            );
+            assert.equal(
+                parseArgSubmitValue({ name: "enabled", type: "bool", desc: "" }, undefined),
+                undefined
+            );
+            assert.equal(
+                parseArgSubmitValue(
+                    {
+                        name: "status",
+                        type: "string",
+                        desc: "",
+                        options: [],
+                    },
+                    undefined
+                ),
+                undefined
+            );
+        },
+    },
+    {
+        name: "preserves explicit inspector arg values during serialization",
+        run() {
+            assert.equal(
+                parseArgSubmitValue({ name: "enabled", type: "bool", desc: "" }, false),
+                false
+            );
+            assert.equal(
+                parseArgSubmitValue({ name: "count", type: "int", desc: "" }, 0),
+                0
+            );
+            assert.equal(
+                parseArgSubmitValue(
+                    {
+                        name: "status",
+                        type: "string",
+                        desc: "",
+                        options: [],
+                    },
+                    "RUNNING"
+                ),
+                "RUNNING"
+            );
+        },
+    },
+    {
         name: "replays host document session undo and redo from snapshot history",
         run() {
             const session = new DocumentSessionState({ initialContent: "A" });
@@ -187,6 +296,132 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 alertReload: false,
                 pendingExternalContent: null,
             });
+        },
+    },
+    {
+        name: "replaces current host history snapshot when save normalizes content",
+        run() {
+            const session = new DocumentSessionState({ initialContent: "A" });
+
+            session.applyCommittedSnapshot("B");
+            session.markSaved("B*");
+
+            assert.equal(session.undo(), "A");
+            assert.equal(session.redo(), "B*");
+            assert.deepEqual(session.getSnapshot(), {
+                dirty: false,
+                historyIndex: 1,
+                historyLength: 2,
+                lastSavedSnapshot: "B*",
+                alertReload: false,
+                pendingExternalContent: null,
+            });
+        },
+    },
+    {
+        name: "writes current main-tree display ids during main-document save serialization",
+        async run() {
+            const linkedPath = parseWorkdirRelativeJsonPath("sub/tree.json");
+            assert.ok(linkedPath);
+            const tree: PersistedTreeModel = {
+                version: "2.0.0",
+                name: "main",
+                prefix: "",
+                export: true,
+                group: [],
+                variables: {
+                    imports: [],
+                    locals: [],
+                },
+                custom: {},
+                overrides: {},
+                root: {
+                    uuid: "root",
+                    id: "1",
+                    name: "Sequence",
+                    children: [
+                        {
+                            uuid: "child-1",
+                            id: "",
+                            name: "ActionA",
+                        },
+                        {
+                            uuid: "child-2",
+                            id: "",
+                            name: "LinkNode",
+                            path: linkedPath,
+                        },
+                    ],
+                },
+            };
+
+            const subtree = serializePersistedTree({
+                version: "2.0.0",
+                name: "tree",
+                prefix: "",
+                export: true,
+                group: [],
+                variables: {
+                    imports: [],
+                    locals: [],
+                },
+                custom: {},
+                overrides: {},
+                root: {
+                    uuid: "sub-root",
+                    id: "1",
+                    name: "SubSequence",
+                    children: [
+                        {
+                            uuid: "sub-child",
+                            id: "2",
+                            name: "SubAction",
+                        },
+                    ],
+                },
+            });
+
+            const content = await serializePersistedTreeForMainDocumentSave({
+                tree,
+                nodeDefs: [
+                    {
+                        name: "Sequence",
+                        type: "Composite",
+                        desc: "",
+                        status: ["success"],
+                    },
+                    {
+                        name: "ActionA",
+                        type: "Action",
+                        desc: "",
+                    },
+                    {
+                        name: "LinkNode",
+                        type: "Action",
+                        desc: "",
+                    },
+                    {
+                        name: "SubSequence",
+                        type: "Composite",
+                        desc: "",
+                        status: ["success"],
+                    },
+                    {
+                        name: "SubAction",
+                        type: "Action",
+                        desc: "",
+                    },
+                ],
+                readSubtreeContent: async (path) => {
+                    assert.equal(path, "sub/tree.json");
+                    return subtree;
+                },
+            });
+
+            const savedTree = parsePersistedTreeContent(content, "/tmp/main.json");
+            assert.equal(savedTree.root.children?.[0]?.id, "2");
+            assert.equal(savedTree.root.children?.[1]?.id, "3");
+            assert.equal(savedTree.root.children?.[1]?.children, undefined);
         },
     },
     {
@@ -883,6 +1118,53 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
         },
     },
     {
+        name: "marks graph nodes with missing required args as errors",
+        run() {
+            const graphModel = buildResolvedGraphModel(
+                {
+                    rootKey: "1",
+                    nodeOrder: ["1"],
+                    nodesByInstanceKey: {
+                        "1": {
+                            ref: {
+                                instanceKey: "1",
+                                displayId: "1",
+                                structuralStableId: "root",
+                                sourceStableId: "root",
+                                sourceTreePath: null,
+                                subtreeStack: [],
+                            },
+                            parentKey: null,
+                            childKeys: [],
+                            depth: 0,
+                            renderedIdLabel: "1",
+                            name: "Wait",
+                            args: {},
+                            subtreeNode: false,
+                            subtreeEditable: true,
+                        },
+                    },
+                },
+                [
+                    {
+                        name: "Wait",
+                        type: "Action",
+                        desc: "",
+                        args: [{ name: "time", type: "float", desc: "时间" }],
+                    },
+                ],
+                undefined,
+                {
+                    usingVars: null,
+                    usingGroups: null,
+                    checkExpr: true,
+                }
+            );
+
+            assert.equal(graphModel.nodes[0]?.nodeStyleKind, "Error");
+        },
+    },
+    {
         name: "collects shared validation diagnostics for graph nodes",
         run() {
             const diagnostics = collectResolvedNodeDiagnostics({
@@ -925,6 +1207,83 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 ),
                 true
             );
+        },
+    },
+    {
+        name: "collects required node arg diagnostics for missing values",
+        run() {
+            const diagnostics = collectResolvedNodeDiagnostics({
+                node: {
+                    ref: {
+                        instanceKey: "1",
+                        displayId: "1",
+                        structuralStableId: "root",
+                        sourceStableId: "root",
+                        sourceTreePath: null,
+                        subtreeStack: [],
+                    },
+                    parentKey: null,
+                    childKeys: [],
+                    depth: 0,
+                    renderedIdLabel: "1",
+                    name: "Wait",
+                    args: {},
+                    subtreeNode: false,
+                    subtreeEditable: true,
+                },
+                def: {
+                    name: "Wait",
+                    type: "Action",
+                    desc: "",
+                    args: [{ name: "time", type: "float", desc: "时间" }],
+                },
+                usingVars: null,
+                usingGroups: null,
+                checkExpr: true,
+            });
+
+            assert.equal(
+                diagnostics.some(
+                    (entry) => entry.code === "required-arg" && entry.argName === "time"
+                ),
+                true
+            );
+        },
+    },
+    {
+        name: "does not treat required bool false as missing",
+        run() {
+            const diagnostics = collectResolvedNodeDiagnostics({
+                node: {
+                    ref: {
+                        instanceKey: "1",
+                        displayId: "1",
+                        structuralStableId: "root",
+                        sourceStableId: "root",
+                        sourceTreePath: null,
+                        subtreeStack: [],
+                    },
+                    parentKey: null,
+                    childKeys: [],
+                    depth: 0,
+                    renderedIdLabel: "1",
+                    name: "Flag",
+                    args: { enabled: false },
+                    subtreeNode: false,
+                    subtreeEditable: true,
+                },
+                def: {
+                    name: "Flag",
+                    type: "Action",
+                    desc: "",
+                    args: [{ name: "enabled", type: "bool", desc: "启用" }],
+                },
+                usingVars: null,
+                usingGroups: null,
+                checkExpr: true,
+            });
+
+            assert.equal(diagnostics.some((entry) => entry.code === "required-arg"), false);
         },
     },
     {

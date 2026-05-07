@@ -155,6 +155,7 @@
 - 规范化 `desc`、`prefix`、`export`
 - 校验 import paths
 - 排序 locals 与 import refs
+- Inspector 可按字段或局部列表独立构造 payload；无关字段错误不应阻断本次 intent
 - webview 只发送 intent，宿主仅在值确实变化时提交 mutation
 
 ### `updateNode(payload)`
@@ -163,6 +164,8 @@ webview 在发送 intent 前只补齐 host reducer 需要的上下文：
 
 - payload 会先补齐 `currentNodeSnapshot`
 - 若本次是把 subtree link 改回本地节点，还会补齐 `detachedSubtreeRoot`
+- Inspector 可按单字段或局部提交单元构造本次 payload；无关字段错误不应阻断本次 intent
+- 当节点类型切换引入新的 required args 时，未显式设置的 arg 在首次提交中保持 unset，不应被静默写成占位空值
 - 是否 noop、是否错误、是否提交由宿主 reducer 决定
 
 host reducer 当前分三条路径：
@@ -215,6 +218,13 @@ host reducer 当前分三条路径：
   - `uuid`
   - `id: ""`
   - `name: "unknown"`
+
+### `saveDocument()`
+
+- 主编辑器或侧栏发起保存后，最终都进入 VS Code custom editor 保存生命周期
+- 宿主写盘前会重新解析当前主文档，并用 resolved graph 的主树 display id 回写 persisted `id`
+- 该回写只作用于主树结构节点，不把 subtree 内部实例 id 反写到主文档
+- 保存成功后，宿主当前 history 游标快照同步替换为写盘后的规范化内容
 
 ### `replaceNode()`
 

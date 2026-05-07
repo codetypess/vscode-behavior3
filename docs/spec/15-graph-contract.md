@@ -59,6 +59,7 @@
 - `typeLabel`
 - `icon`
 - `nodeStyleKind`
+- `nodeStyleKind` 的 `Error` 包括 resolution error、共享 validation diagnostic 和 custom checker diagnostic
 - `accentColor`
 - `debug`
 - `disabled`

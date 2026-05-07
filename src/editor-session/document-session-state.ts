@@ -87,6 +87,12 @@ export class DocumentSessionState {
 
     markSaved(snapshot = this.currentSnapshot): void {
         this.currentSnapshot = snapshot;
+        if (this.history.length === 0) {
+            this.history = [snapshot];
+            this.historyIndex = 0;
+        } else {
+            this.history[this.historyIndex] = snapshot;
+        }
         this.lastSavedSnapshot = snapshot;
         this.forceDirty = false;
         this.clearReloadConflict();

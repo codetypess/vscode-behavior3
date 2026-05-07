@@ -32,7 +32,7 @@ const flattenMaterializedTree = (
         const instanceKey = displayId;
         const childKeys = node.children.map((child) => visit(child, instanceKey, depth + 1));
 
-        if (node.sourceTreePath === null) {
+        if (!node.subtreeNode) {
             mainTreeDisplayIdsByStableId[node.structuralStableId] = displayId;
         }
 

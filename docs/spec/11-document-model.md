@@ -224,9 +224,10 @@
 保存路径：
 
 1. webview 发送 `saveDocument` intent
-2. 宿主保存当前 `TreeEditorDocument.content`
-3. 成功后更新宿主 `sessionState.lastSavedSnapshot`
-4. 宿主广播带当前 `selection` 的 `documentSnapshotChanged(syncKind: "reload")`
+2. 宿主在写盘前按当前主树解析结果回写主树节点 `id`
+3. 宿主保存当前规范化后的 `TreeEditorDocument.content`
+4. 成功后更新宿主 `sessionState.lastSavedSnapshot` 与当前 history 游标快照
+5. 宿主广播带当前 `selection` 的 `documentSnapshotChanged(syncKind: "reload")`
 
 ### Undo / Redo
 

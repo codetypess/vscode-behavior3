@@ -135,6 +135,7 @@ Inspector 不只是字段表单，还需要表达：
 - 按 arg 类型渲染为 `Select` / `Switch` / `InputNumber` / `TextArea` 等
 - 表达式型参数校验变量引用与表达式合法性
 - 自定义 node check 结果会映射到对应 arg 校验提示
+- 新切入的 required arg 若当前还没有 committed 值，初始态保持 unset；在用户显式输入前不得静默序列化成 `""`、`false` 或其他占位值
 
 ### Unknown Fallback
 
@@ -190,11 +191,18 @@ Inspector 不只是字段表单，还需要表达：
 
 ## 提交节奏
 
-当前表单提交通常遵循：
+当前 Inspector 提交通常遵循：
 
 - 文本输入：`onBlur`
 - `Switch` / `Select`：立即排队提交
 - 列表增删：立即排队提交
+
+提交粒度规则：
+
+- 每次只提交当前编辑字段，或该字段所属的最小局部列表单元
+- 某个字段的校验错误不会阻断无关字段的提交
+- 非法字段保留本地错误提示，不得静默写入主文档
+- `oneof` 这类显式耦合字段允许继续按局部约束拒绝提交
 
 Sidebar 在执行保存、撤销、重做前，会先 flush 待提交的 Inspector 编辑。
 

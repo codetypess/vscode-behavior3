@@ -30,7 +30,8 @@
 - `ResolvedDocumentGraph`
   - 供搜索、选中、Inspector snapshot 和图模型构建使用
 - `mainTreeDisplayIdsByStableId`
-  - 当前保留为辅助映射，不驱动 persisted `id` 回写
+  - 平时仅作为辅助映射
+  - 主文档保存时会用它回写主树 persisted `id`
 
 ## 术语
 
@@ -170,7 +171,8 @@
 扁平化采用 pre-order 遍历：
 
 - `displayId` / `instanceKey` 也按这个顺序生成
-- `mainTreeDisplayIdsByStableId` 仅记录 `sourceTreePath === null` 的主树节点
+- `mainTreeDisplayIdsByStableId` 记录所有属于主文档结构锚点的节点
+- 带 `path` 的主树锚点也会记录；只有 subtree 内部节点不会记录
 
 ## 降级显示规则
 

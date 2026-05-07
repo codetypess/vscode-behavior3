@@ -33,6 +33,7 @@
 - Tree Inspector 可编辑 `desc`、`prefix`、`export`、`group`
 - 本地变量列表支持新增、删除与字段校验
 - import 引用支持从工作目录 `.json` 列表中选择
+- 某个 local var 或 import 输入非法时，无关 tree 字段仍可独立提交
 - 树级内容变更后，会重新驱动变量声明视图与相关图刷新
 
 ### BB-05 Node Inspector 编辑
@@ -40,6 +41,8 @@
 - Node Inspector 展示节点 id、类型、children、name、desc、debug、disabled、path
 - 已知 nodeDef 走结构化字段编辑；未知节点显示只读原始 JSON 视图
 - 输入/输出槽、表达式参数、oneof 约束、必填项和自定义检查结果会进入表单校验
+- 切换到新 nodeDef 时，未填写的 required arg 保持 unset，不会被静默写成空字符串或 false
+- 某个 arg、slot 或 path 输入非法时，无关节点字段仍可独立提交
 - subtree 内部节点若允许编辑，显示 override 重置条；若不允许编辑，相关字段为只读
 
 ### BB-06 结构编辑与快捷键
@@ -67,6 +70,7 @@
 ### BB-09 保存、回滚与外部文件变化
 
 - 保存时主文档内容先规范化，再交由 VS Code custom editor 生命周期写盘
+- 保存时主树节点会把当前 display id 回写到 persisted `id`
 - 磁盘外部改动到来且当前无未保存更改时，编辑器静默重载
 - 磁盘外部改动到来且当前有未保存更改时，进入 reload conflict 状态
 - 侧栏中的 reload 操作会触发回滚到磁盘版本，而不是在 webview 内直接做文本合并
@@ -87,7 +91,7 @@
 ### BB-12 Build 与节点参数检查
 
 - 触发 build / build debug 后，宿主执行构建流程并返回 `buildResult`
-- 图重建时会按当前节点定义与工作区脚本执行节点参数检查
+- 图重建时会按当前节点定义与工作区脚本执行节点参数检查，包含必填参数缺失
 - 校验失败的节点以错误风格显示，且相关字段在 Inspector 中反馈错误
 
 ### BB-13 新版本文件保护

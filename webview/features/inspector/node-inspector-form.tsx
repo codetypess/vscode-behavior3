@@ -25,7 +25,9 @@ import {
     isVariadic,
 } from "../../shared/misc/b3util";
 import { useRuntime } from "../../app/runtime";
-import type { NodeCheckDiagnostic } from "../../shared/contracts";
+import type { NodeCheckDiagnostic, UpdateNodeInput } from "../../shared/contracts";
+import { isRequiredNodeArgValueMissing } from "../../domain/tree-validation";
+import { formatArgInitialValue, parseArgSubmitValue } from "./inspector-arg-values";
 import {
     OverrideBar,
     SectionDivider,
@@ -33,9 +35,7 @@ import {
     compareJsonValue,
     createInspectorLabelProps,
     filterOptionByLabel,
-    formatArgInitialValue,
-    parseArgSubmitValue,
-    queueSubmit,
+    queueInspectorTask,
     trackPendingInspectorEdit,
     validateExpressionValues,
     validateVariableValue,
@@ -52,6 +52,70 @@ import { useInspectorMode } from "./inspector-mode";
 const { TextArea } = Input;
 
 type SlotFieldName = "inputSlots" | "outputSlots";
+type InspectorFieldTarget = string | Array<string | number>;
+type SelectedNodeState = NonNullable<ReturnType<typeof useNodeInspectorViewState>["selectedNode"]>;
+type NodeInspectorFormValues = ReturnType<typeof createNodeInspectorFormValues>;
+
+const buildCommittedNodeData = (selectedNode: SelectedNodeState): UpdateNodeInput["data"] => ({
+    name: selectedNode.data.name,
+    desc: selectedNode.data.desc,
+    path: selectedNode.data.path,
+    debug: selectedNode.data.debug ? true : undefined,
+    disabled: selectedNode.data.disabled ? true : undefined,
+    input: selectedNode.data.input ? [...selectedNode.data.input] : undefined,
+    output: selectedNode.data.output ? [...selectedNode.data.output] : undefined,
+    args: selectedNode.data.args ? { ...selectedNode.data.args } : undefined,
+});
+
+const parseVisibleArgs = (
+    currentNodeDef: NodeDef | null,
+    values: NodeInspectorFormValues,
+    fallbackArgs: Record<string, unknown> | undefined
+) => {
+    if (!currentNodeDef) {
+        return fallbackArgs;
+    }
+
+    const nextArgs = Object.fromEntries(
+        (currentNodeDef.args ?? [])
+            .map((arg) => [arg.name, parseArgSubmitValue(arg, values.args?.[arg.name])])
+            .filter(([, value]) => value !== undefined)
+    );
+    return Object.keys(nextArgs).length > 0 ? nextArgs : undefined;
+};
+
+const buildScopedSlotArray = (
+    slotDefs: string[] | undefined,
+    committedSlots: string[] | undefined,
+    rawFormSlots: unknown,
+    index: number
+) => {
+    if (!slotDefs?.length) {
+        return committedSlots;
+    }
+
+    const scopedRawSlots = slotDefs.map((_, slotIndex) =>
+        getNodeSlotFormValue(committedSlots, slotIndex, isVariadic(slotDefs, slotIndex))
+    ) as Array<string | string[]>;
+    const formSlots = Array.isArray(rawFormSlots) ? rawFormSlots : [];
+    scopedRawSlots[index] = formSlots[index];
+    return buildNodeSlotArray(slotDefs, scopedRawSlots, committedSlots);
+};
+
+const buildScopedArgs = (
+    committedArgs: Record<string, unknown> | undefined,
+    arg: NodeArg,
+    values: NodeInspectorFormValues
+) => {
+    const nextArgs = { ...(committedArgs ?? {}) };
+    const parsedValue = parseArgSubmitValue(arg, values.args?.[arg.name]);
+    if (parsedValue === undefined) {
+        delete nextArgs[arg.name];
+    } else {
+        nextArgs[arg.name] = parsedValue;
+    }
+    return Object.keys(nextArgs).length > 0 ? nextArgs : undefined;
+};
 
 const NodeArgField: React.FC<{
     form: FormInstance;
@@ -63,6 +127,7 @@ const NodeArgField: React.FC<{
     nodeCheckDiagnostics: NodeCheckDiagnostic[];
     disabled: boolean;
     onCommit: () => void;
+    onQueueCommit: () => void;
 }> = ({
     form,
     arg,
@@ -73,6 +138,7 @@ const NodeArgField: React.FC<{
     nodeCheckDiagnostics,
     disabled,
     onCommit,
+    onQueueCommit,
 }) => {
     const { t } = useTranslation();
     const argsValue = (Form.useWatch("args", form) as Record<string, unknown> | undefined) ?? {};
@@ -86,18 +152,13 @@ const NodeArgField: React.FC<{
     };
 
     const validateField = async (_: unknown, value: unknown) => {
-        const empty =
-            value === undefined ||
-            value === null ||
-            value === "" ||
-            value === "__unset__" ||
-            (Array.isArray(value) && value.length === 0);
+        const empty = isRequiredNodeArgValueMissing(arg, value);
 
         if (empty && !required) {
             return;
         }
 
-        if (empty && required && !isBoolType(type)) {
+        if (empty && required) {
             throw new Error(t("fieldRequired", { field: arg.desc || arg.name }));
         }
 
@@ -162,7 +223,7 @@ const NodeArgField: React.FC<{
                     mode={isNodeArgArray(arg) ? "multiple" : undefined}
                     disabled={disabled}
                     allowClear={!required}
-                    onChange={() => queueSubmit(form)}
+                    onChange={onQueueCommit}
                     onBlur={onCommit}
                     options={options.map((option: { name: string; value: unknown }) => ({
                         label: `${option.name} (${String(option.value)})`,
@@ -204,7 +265,7 @@ const NodeArgField: React.FC<{
                     <Select
                         disabled={disabled}
                         allowClear={false}
-                        onChange={() => queueSubmit(form)}
+                        onChange={onQueueCommit}
                         options={[
                             { label: t("form.unset"), value: "__unset__" },
                             { label: t("form.true"), value: true },
@@ -222,7 +283,7 @@ const NodeArgField: React.FC<{
                 valuePropName="checked"
                 rules={[{ validator: validateField }]}
             >
-                <Switch disabled={disabled} onChange={() => queueSubmit(form)} />
+                <Switch disabled={disabled} onChange={onQueueCommit} />
             </Form.Item>
         );
     }
@@ -268,7 +329,6 @@ const NodeArgField: React.FC<{
 };
 
 const NodeMetaFields: React.FC<{
-    form: FormInstance;
     selectedNode: NonNullable<ReturnType<typeof useNodeInspectorViewState>["selectedNode"]>;
     nodeDefs: NodeDef[];
     nodeDef: NodeDef | null;
@@ -279,9 +339,17 @@ const NodeMetaFields: React.FC<{
     readOnly: boolean;
     canShowOverride: boolean;
     subtreeOriginal: ReturnType<typeof useNodeInspectorViewState>["subtreeOriginal"];
-    onCommit: () => void;
+    onCommitName: () => void;
+    onQueueCommitName: () => void;
+    onCommitDesc: () => void;
+    onQueueCommitDebug: () => void;
+    onQueueCommitDisabled: () => void;
+    onCommitPath: () => void;
+    onQueueCommitPath: () => void;
+    onResetDesc: () => void;
+    onResetDebug: () => void;
+    onResetDisabled: () => void;
 }> = ({
-    form,
     selectedNode,
     nodeDefs,
     nodeDef,
@@ -292,13 +360,18 @@ const NodeMetaFields: React.FC<{
     readOnly,
     canShowOverride,
     subtreeOriginal,
-    onCommit,
+    onCommitName,
+    onQueueCommitName,
+    onCommitDesc,
+    onQueueCommitDebug,
+    onQueueCommitDisabled,
+    onCommitPath,
+    onQueueCommitPath,
+    onResetDesc,
+    onResetDebug,
+    onResetDisabled,
 }) => {
     const { t } = useTranslation();
-    const resetField = (name: string, value: unknown) => {
-        form.setFieldValue(name, value);
-        queueSubmit(form);
-    };
     const formatResolutionError = () => {
         switch (selectedNode.resolutionError) {
             case "missing-subtree":
@@ -403,8 +476,8 @@ const NodeMetaFields: React.FC<{
                         value: entry.name,
                     }))}
                     filterOption={filterOptionByLabel}
-                    onBlur={onCommit}
-                    onSelect={() => queueSubmit(form)}
+                    onBlur={onCommitName}
+                    onSelect={onQueueCommitName}
                 />
             </Form.Item>
 
@@ -413,13 +486,13 @@ const NodeMetaFields: React.FC<{
                     canShowOverride &&
                     (selectedNode.data.desc ?? "") !== (subtreeOriginal?.desc ?? "")
                 }
-                onReset={() => resetField("desc", subtreeOriginal?.desc ?? "")}
+                onReset={onResetDesc}
             >
                 <Form.Item {...createInspectorLabelProps(t("node.desc"))} name="desc">
                     <TextArea
                         autoSize={{ minRows: 1 }}
                         disabled={readOnly || fieldEditDisabled}
-                        onBlur={onCommit}
+                        onBlur={onCommitDesc}
                     />
                 </Form.Item>
             </OverrideBar>
@@ -429,7 +502,7 @@ const NodeMetaFields: React.FC<{
                     canShowOverride &&
                     Boolean(selectedNode.data.debug) !== Boolean(subtreeOriginal?.debug)
                 }
-                onReset={() => resetField("debug", Boolean(subtreeOriginal?.debug))}
+                onReset={onResetDebug}
             >
                 <Form.Item
                     {...createInspectorLabelProps(t("node.debug"))}
@@ -438,7 +511,7 @@ const NodeMetaFields: React.FC<{
                 >
                     <Switch
                         disabled={readOnly || (fieldEditDisabled && !selectedNode.data.path)}
-                        onChange={() => queueSubmit(form)}
+                        onChange={onQueueCommitDebug}
                     />
                 </Form.Item>
             </OverrideBar>
@@ -448,7 +521,7 @@ const NodeMetaFields: React.FC<{
                     canShowOverride &&
                     Boolean(selectedNode.data.disabled) !== Boolean(subtreeOriginal?.disabled)
                 }
-                onReset={() => resetField("disabled", Boolean(subtreeOriginal?.disabled))}
+                onReset={onResetDisabled}
             >
                 <Form.Item
                     {...createInspectorLabelProps(t("node.disabled"))}
@@ -457,7 +530,7 @@ const NodeMetaFields: React.FC<{
                 >
                     <Switch
                         disabled={readOnly || (fieldEditDisabled && !selectedNode.data.path)}
-                        onChange={() => queueSubmit(form)}
+                        onChange={onQueueCommitDisabled}
                     />
                 </Form.Item>
             </OverrideBar>
@@ -480,8 +553,8 @@ const NodeMetaFields: React.FC<{
                     disabled={readOnly || fieldEditDisabled || selectedNode.subtreeNode}
                     options={allFiles.map((path) => ({ label: path, value: path }))}
                     filterOption={filterOptionByLabel}
-                    onBlur={onCommit}
-                    onSelect={() => queueSubmit(form)}
+                    onBlur={onCommitPath}
+                    onSelect={onQueueCommitPath}
                 />
             </Form.Item>
 
@@ -504,6 +577,7 @@ const NodeVariableField: React.FC<{
     isOverridden: (index: number, variadic?: boolean) => boolean;
     onReset: (index: number, variadic?: boolean) => void;
     onCommit: () => void;
+    onQueueCommit: () => void;
     getRelatedArg?: (index: number) => NodeArg | null;
 }> = ({
     form,
@@ -517,6 +591,7 @@ const NodeVariableField: React.FC<{
     isOverridden,
     onReset,
     onCommit,
+    onQueueCommit,
     getRelatedArg,
 }) => {
     const { t } = useTranslation();
@@ -568,7 +643,7 @@ const NodeVariableField: React.FC<{
                                             className="b3-inline-remove"
                                             onClick={() => {
                                                 remove(field.name);
-                                                queueSubmit(form);
+                                                onQueueCommit();
                                             }}
                                         />
                                     </Flex>
@@ -630,7 +705,8 @@ const NodeVariableSection: React.FC<{
     fieldEditDisabled: boolean;
     isOverridden: (index: number, variadic?: boolean) => boolean;
     onReset: (index: number, variadic?: boolean) => void;
-    onCommit: () => void;
+    onCommit: (index: number, variadic?: boolean) => void;
+    onQueueCommit: (index: number, variadic?: boolean) => void;
     getRelatedArg?: (index: number) => NodeArg | null;
 }> = ({
     form,
@@ -643,6 +719,7 @@ const NodeVariableSection: React.FC<{
     isOverridden,
     onReset,
     onCommit,
+    onQueueCommit,
     getRelatedArg,
 }) => {
     if (!slotDefs?.length) {
@@ -665,7 +742,8 @@ const NodeVariableSection: React.FC<{
                     fieldEditDisabled={fieldEditDisabled}
                     isOverridden={isOverridden}
                     onReset={onReset}
-                    onCommit={onCommit}
+                    onCommit={() => onCommit(index, isVariadic(slotDefs, index))}
+                    onQueueCommit={() => onQueueCommit(index, isVariadic(slotDefs, index))}
                     getRelatedArg={getRelatedArg}
                 />
             ))}
@@ -684,7 +762,8 @@ const NodeStructuredArgsSection: React.FC<{
     fieldEditDisabled: boolean;
     isOverridden: (argName: string) => boolean;
     onReset: (arg: NodeArg) => void;
-    onCommit: () => void;
+    onCommit: (arg: NodeArg) => void;
+    onQueueCommit: (arg: NodeArg) => void;
 }> = ({
     form,
     nodeDef,
@@ -697,6 +776,7 @@ const NodeStructuredArgsSection: React.FC<{
     isOverridden,
     onReset,
     onCommit,
+    onQueueCommit,
 }) => {
     const { t } = useTranslation();
 
@@ -722,7 +802,8 @@ const NodeStructuredArgsSection: React.FC<{
                         checkExpr={checkExpr}
                         nodeCheckDiagnostics={nodeCheckDiagnostics}
                         disabled={fieldEditDisabled}
-                        onCommit={onCommit}
+                        onCommit={() => onCommit(arg)}
+                        onQueueCommit={() => onQueueCommit(arg)}
                     />
                 </OverrideBar>
             ))}
@@ -807,11 +888,93 @@ export const NodeInspectorForm: React.FC = () => {
         return null;
     }
 
-    const submitNodeForm = () => {
+    const commitNodeMutation = async (
+        fields: InspectorFieldTarget[],
+        buildData: (values: NodeInspectorFormValues) => UpdateNodeInput["data"]
+    ) => {
         if (readOnly) {
             return;
         }
-        void form.submit();
+
+        try {
+            await form.validateFields(fields as never, { recursive: true });
+        } catch {
+            return;
+        }
+
+        const values = form.getFieldsValue(true) as NodeInspectorFormValues;
+        try {
+            trackPendingInspectorEdit(
+                runtime.controller.updateNode({
+                    target: selectedNode.ref,
+                    data: buildData(values),
+                })
+            );
+        } catch (error) {
+            runtime.hostAdapter.log("warn", `[v2] node form submit failed: ${String(error)}`);
+        }
+    };
+
+    const queueNodeMutation = (
+        fields: InspectorFieldTarget[],
+        buildData: (values: NodeInspectorFormValues) => UpdateNodeInput["data"]
+    ) => {
+        queueInspectorTask(() => {
+            void commitNodeMutation(fields, buildData);
+        });
+    };
+
+    const commitName = () => {
+        queueNodeMutation(["name", "inputSlots", "outputSlots", "args"], (values) => {
+            const nextName = String(values.name ?? selectedNode.data.name).trim() || selectedNode.data.name;
+            const currentNodeDef = nodeDefs.find((entry) => entry.name === nextName) ?? null;
+            return {
+                ...buildCommittedNodeData(selectedNode),
+                name: nextName,
+                input: buildNodeSlotArray(
+                    currentNodeDef?.input,
+                    values.inputSlots,
+                    selectedNode.data.input
+                ),
+                output: buildNodeSlotArray(
+                    currentNodeDef?.output,
+                    values.outputSlots,
+                    selectedNode.data.output
+                ),
+                args: parseVisibleArgs(currentNodeDef, values, selectedNode.data.args),
+            };
+        });
+    };
+
+    const commitDesc = () => {
+        queueNodeMutation(["desc"], (values) => ({
+            ...buildCommittedNodeData(selectedNode),
+            desc: values.desc?.trim() || undefined,
+        }));
+    };
+
+    const commitDebug = () => {
+        queueNodeMutation(["debug"], (values) => ({
+            ...buildCommittedNodeData(selectedNode),
+            debug: values.debug ? true : undefined,
+        }));
+    };
+
+    const commitDisabled = () => {
+        queueNodeMutation(["disabled"], (values) => ({
+            ...buildCommittedNodeData(selectedNode),
+            disabled: values.disabled ? true : undefined,
+        }));
+    };
+
+    const commitPath = () => {
+        queueNodeMutation(["path"], (values) => ({
+            ...buildCommittedNodeData(selectedNode),
+            path:
+                selectedNode.subtreeNode || fieldEditDisabled
+                    ? selectedNode.data.path
+                    : values.path?.trim() || undefined,
+        }));
     };
 
     const isSlotOverridden = (
@@ -842,7 +1005,35 @@ export const NodeInspectorForm: React.FC = () => {
             [fieldName, index],
             getNodeSlotFormValue(originalSlots, index, variadic)
         );
-        queueSubmit(form);
+        const commitSlot =
+            fieldName === "inputSlots"
+                ? () => {
+                      const relatedArg = relatedArgForInput(index);
+                      queueNodeMutation(
+                          relatedArg ? ([[fieldName, index], ["args", relatedArg.name]] as InspectorFieldTarget[]) : [[fieldName, index]],
+                          (values) => ({
+                              ...buildCommittedNodeData(selectedNode),
+                              input: buildScopedSlotArray(
+                                  nodeDef?.input,
+                                  selectedNode.data.input,
+                                  values.inputSlots,
+                                  index
+                              ),
+                          })
+                      );
+                  }
+                : () => {
+                      queueNodeMutation([[fieldName, index]], (values) => ({
+                          ...buildCommittedNodeData(selectedNode),
+                          output: buildScopedSlotArray(
+                              nodeDef?.output,
+                              selectedNode.data.output,
+                              values.outputSlots,
+                              index
+                          ),
+                      }));
+                  };
+        commitSlot();
     };
 
     const isInputOverridden = (index: number, variadic = false) =>
@@ -866,7 +1057,10 @@ export const NodeInspectorForm: React.FC = () => {
             ["args", arg.name],
             formatArgInitialValue(arg, subtreeOriginal?.args?.[arg.name])
         );
-        queueSubmit(form);
+        queueNodeMutation(["args", arg.name], (values) => ({
+            ...buildCommittedNodeData(selectedNode),
+            args: buildScopedArgs(selectedNode.data.args, arg, values),
+        }));
     };
 
     const relatedArgForInput = (index: number) => {
@@ -875,6 +1069,51 @@ export const NodeInspectorForm: React.FC = () => {
         }
         const slotName = cleanSlotLabel(nodeDef.input?.[index] ?? "");
         return nodeDef.args?.find((arg) => arg.oneof === slotName) ?? null;
+    };
+
+    const commitInputField = (index: number) => {
+        const relatedArg = relatedArgForInput(index);
+        queueNodeMutation(
+            relatedArg ? ([["inputSlots", index], ["args", relatedArg.name]] as InspectorFieldTarget[]) : [["inputSlots", index]],
+            (values) => ({
+                ...buildCommittedNodeData(selectedNode),
+                input: buildScopedSlotArray(
+                    nodeDef?.input,
+                    selectedNode.data.input,
+                    values.inputSlots,
+                    index
+                ),
+            })
+        );
+    };
+
+    const commitOutputField = (index: number) => {
+        queueNodeMutation([["outputSlots", index]], (values) => ({
+            ...buildCommittedNodeData(selectedNode),
+            output: buildScopedSlotArray(
+                nodeDef?.output,
+                selectedNode.data.output,
+                values.outputSlots,
+                index
+            ),
+        }));
+    };
+
+    const commitArgField = (arg: NodeArg) => {
+        const fields: InspectorFieldTarget[] = [["args", arg.name]];
+        if (arg.oneof && nodeDef?.input) {
+            const relatedInputIndex = nodeDef.input.findIndex(
+                (input) => cleanSlotLabel(input) === arg.oneof
+            );
+            if (relatedInputIndex >= 0) {
+                fields.push(["inputSlots", relatedInputIndex]);
+            }
+        }
+
+        queueNodeMutation(fields, (values) => ({
+            ...buildCommittedNodeData(selectedNode),
+            args: buildScopedArgs(selectedNode.data.args, arg, values),
+        }));
     };
 
     return (
@@ -887,67 +1126,8 @@ export const NodeInspectorForm: React.FC = () => {
                 wrapperCol={{ flex: "1 1 0%", xs: { flex: "1 1 0%" } }}
                 labelAlign="right"
                 requiredMark={false}
-                onFinish={(values) => {
-                    if (readOnly) {
-                        return;
-                    }
-                    try {
-                        const currentNodeDef =
-                            nodeDefs.find(
-                                (entry) => entry.name === String(values.name ?? "").trim()
-                            ) ?? null;
-                        const args = currentNodeDef
-                            ? (() => {
-                                  const nextArgs = Object.fromEntries(
-                                      (currentNodeDef.args ?? [])
-                                          .map((arg) => [
-                                              arg.name,
-                                              parseArgSubmitValue(arg, values.args?.[arg.name]),
-                                          ])
-                                          .filter(([, value]) => value !== undefined)
-                                  );
-                                  return Object.keys(nextArgs).length > 0 ? nextArgs : undefined;
-                              })()
-                            : selectedNode.data.args;
-
-                        trackPendingInspectorEdit(
-                            runtime.controller.updateNode({
-                                target: selectedNode.ref,
-                                data: {
-                                    name:
-                                        String(values.name ?? selectedNode.data.name).trim() ||
-                                        selectedNode.data.name,
-                                    desc: values.desc?.trim() || undefined,
-                                    path:
-                                        selectedNode.subtreeNode || fieldEditDisabled
-                                            ? selectedNode.data.path
-                                            : values.path?.trim() || undefined,
-                                    debug: values.debug ? true : undefined,
-                                    disabled: values.disabled ? true : undefined,
-                                    input: buildNodeSlotArray(
-                                        currentNodeDef?.input,
-                                        values.inputSlots,
-                                        selectedNode.data.input
-                                    ),
-                                    output: buildNodeSlotArray(
-                                        currentNodeDef?.output,
-                                        values.outputSlots,
-                                        selectedNode.data.output
-                                    ),
-                                    args,
-                                },
-                            })
-                        );
-                    } catch (error) {
-                        runtime.hostAdapter.log(
-                            "warn",
-                            `[v2] node form submit failed: ${String(error)}`
-                        );
-                    }
-                }}
             >
                 <NodeMetaFields
-                    form={form}
                     selectedNode={selectedNode}
                     nodeDefs={nodeDefs}
                     nodeDef={nodeDef}
@@ -958,7 +1138,25 @@ export const NodeInspectorForm: React.FC = () => {
                     readOnly={readOnly}
                     canShowOverride={canShowOverride}
                     subtreeOriginal={subtreeOriginal}
-                    onCommit={submitNodeForm}
+                    onCommitName={commitName}
+                    onQueueCommitName={commitName}
+                    onCommitDesc={commitDesc}
+                    onQueueCommitDebug={commitDebug}
+                    onQueueCommitDisabled={commitDisabled}
+                    onCommitPath={commitPath}
+                    onQueueCommitPath={commitPath}
+                    onResetDesc={() => {
+                        form.setFieldValue("desc", subtreeOriginal?.desc ?? "");
+                        commitDesc();
+                    }}
+                    onResetDebug={() => {
+                        form.setFieldValue("debug", Boolean(subtreeOriginal?.debug));
+                        commitDebug();
+                    }}
+                    onResetDisabled={() => {
+                        form.setFieldValue("disabled", Boolean(subtreeOriginal?.disabled));
+                        commitDisabled();
+                    }}
                 />
 
                 <NodeVariableSection
@@ -971,7 +1169,8 @@ export const NodeInspectorForm: React.FC = () => {
                     fieldEditDisabled={readOnly || fieldEditDisabled}
                     isOverridden={isInputOverridden}
                     onReset={resetInputField}
-                    onCommit={submitNodeForm}
+                    onCommit={commitInputField}
+                    onQueueCommit={commitInputField}
                     getRelatedArg={relatedArgForInput}
                 />
 
@@ -987,7 +1186,8 @@ export const NodeInspectorForm: React.FC = () => {
                         fieldEditDisabled={readOnly || fieldEditDisabled}
                         isOverridden={isArgOverridden}
                         onReset={resetArgField}
-                        onCommit={submitNodeForm}
+                        onCommit={commitArgField}
+                        onQueueCommit={commitArgField}
                     />
                 ) : (
                     <NodeRawJsonSection visible={shouldShowRawNodeJson} />
@@ -1003,7 +1203,8 @@ export const NodeInspectorForm: React.FC = () => {
                     fieldEditDisabled={readOnly || fieldEditDisabled}
                     isOverridden={isOutputOverridden}
                     onReset={resetOutputField}
-                    onCommit={submitNodeForm}
+                    onCommit={commitOutputField}
+                    onQueueCommit={commitOutputField}
                 />
             </Form>
         </div>

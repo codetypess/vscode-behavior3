@@ -25,8 +25,8 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 11 份 work-item spec
-- 0 份登记中的 active work-item spec
+- 12 份 work-item spec
+- 1 份登记中的 active work-item spec
 - 11 份登记中的 done work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
@@ -216,6 +216,10 @@ Scope: <short boundary>
 新增 work-item 时，请继续按以下格式补充：
 
 - `your-work-item-slug.md` - `Draft` - 一句话范围说明
+- `main-document-save-display-id-writeback.md` - `Implementing` - 在主文档保存时把当前主树 display id 回写到 persisted `id`
+- `inspector-required-arg-unset-initial-state.md` - `Verifying` - 让必填节点参数在首次出现时保持 unset，而不是静默写成空值
+- `node-required-arg-error-state.md` - `Verifying` - 让节点必填参数缺失时同步进入 graph Error 风格
+- `inspector-independent-field-commit.md` - `Verifying` - 将 Inspector 从整表校验提交改为字段级独立提交
 
 ## Done Work Items
 

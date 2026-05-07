@@ -254,6 +254,8 @@ const formatBuildDiagnostic = (diagnostic: TreeValidationDiagnostic): string => 
             return `expr '${diagnostic.expression}' is not valid`;
         case "group-not-enabled":
             return `node group '${diagnostic.groups.join(", ")}' is not enabled`;
+        case "required-arg":
+            return `arg field '${diagnostic.label}' is required`;
         case "required-input":
             return `intput field '${diagnostic.label}' is required`;
         case "required-output":

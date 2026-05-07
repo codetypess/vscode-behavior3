@@ -1,16 +1,9 @@
 import { AimOutlined, MinusCircleOutlined } from "@ant-design/icons";
 import { Divider, Flex, Input, Popconfirm, Space } from "antd";
-import type { FormInstance } from "antd/es/form";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    hasArgOptions,
-    isBoolType,
     isExprType,
-    isFloatType,
-    isIntType,
-    isJsonType,
-    type NodeArg,
     type NodeDef,
     type VarDecl,
 } from "../../shared/misc/b3type";
@@ -18,8 +11,6 @@ import {
     dfs,
     getNodeArgRawType,
     hasDeclaredVars,
-    isNodeArgArray,
-    isNodeArgOptional,
     isVariadic,
     parseExpr,
 } from "../../shared/misc/b3util";
@@ -48,9 +39,9 @@ type VariableUsageNode = {
     children?: VariableUsageNode[];
 };
 
-export const queueSubmit = (form: FormInstance) => {
+export const queueInspectorTask = (task: () => void) => {
     window.setTimeout(() => {
-        void form.submit();
+        task();
     }, 0);
 };
 
@@ -223,87 +214,6 @@ export const formatChildrenLabel = (nodeDef: NodeDef | null) => {
     return String(nodeDef.children);
 };
 
-export const formatArgInitialValue = (arg: NodeArg, value: unknown) => {
-    const type = getNodeArgRawType(arg);
-
-    if (isNodeArgArray(arg)) {
-        if (hasArgOptions(arg)) {
-            return Array.isArray(value) ? value : [];
-        }
-        return value === undefined ? "" : JSON.stringify(value, null, 2);
-    }
-
-    if (hasArgOptions(arg)) {
-        return value ?? (isNodeArgOptional(arg) ? "__unset__" : undefined);
-    }
-
-    if (isBoolType(type)) {
-        if (value === undefined && isNodeArgOptional(arg)) {
-            return "__unset__";
-        }
-        return value ?? false;
-    }
-
-    if (isJsonType(type)) {
-        return value === undefined ? "" : JSON.stringify(value, null, 2);
-    }
-
-    return value ?? "";
-};
-
-export const parseArgSubmitValue = (arg: NodeArg, raw: unknown): unknown => {
-    const type = getNodeArgRawType(arg);
-
-    if (isNodeArgArray(arg)) {
-        if (hasArgOptions(arg)) {
-            const values = Array.isArray(raw) ? raw : [];
-            return values.length === 0 && isNodeArgOptional(arg) ? undefined : values;
-        }
-
-        const text = String(raw ?? "").trim();
-        if (!text) {
-            return isNodeArgOptional(arg) ? undefined : [];
-        }
-        const parsed = JSON.parse(text);
-        if (!Array.isArray(parsed)) {
-            throw new Error(i18n.t("validation.jsonArray", { name: arg.name }));
-        }
-        return parsed;
-    }
-
-    if (hasArgOptions(arg)) {
-        return raw === "__unset__" ? undefined : raw;
-    }
-
-    if (isBoolType(type)) {
-        if (raw === "__unset__") {
-            return undefined;
-        }
-        return Boolean(raw);
-    }
-
-    if (isIntType(type) || isFloatType(type)) {
-        if (raw === "" || raw === undefined || raw === null) {
-            return isNodeArgOptional(arg) ? undefined : raw;
-        }
-        return Number(raw);
-    }
-
-    if (isJsonType(type)) {
-        const text = String(raw ?? "").trim();
-        if (!text) {
-            return isNodeArgOptional(arg) ? undefined : {};
-        }
-        return JSON.parse(text);
-    }
-
-    const text = String(raw ?? "");
-    if (!text.trim() && isNodeArgOptional(arg)) {
-        return undefined;
-    }
-    return text;
-};
-
 export const compareJsonValue = (left: unknown, right: unknown) =>
     JSON.stringify(left) === JSON.stringify(right);
 
@@ -317,6 +227,8 @@ const formatValidationDiagnostic = (diagnostic: TreeValidationDiagnostic): strin
             return i18n.t("node.invalidExpression");
         case "group-not-enabled":
             return i18n.t("node.groupNotEnabled", { group: diagnostic.groups.join(", ") });
+        case "required-arg":
+            return i18n.t("fieldRequired", { field: diagnostic.label });
         case "required-input":
         case "required-output":
             return i18n.t("fieldRequired", { field: diagnostic.label });

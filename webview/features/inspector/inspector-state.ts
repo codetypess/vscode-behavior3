@@ -4,11 +4,11 @@ import { useMemo } from "react";
 import { useNodeInspectorState, useTreeInspectorState } from "../../app/runtime";
 import type { NodeDef } from "../../shared/misc/b3type";
 import { isVariadic } from "../../shared/misc/b3util";
+import { formatArgInitialValue } from "./inspector-arg-values";
 import {
     buildVariableUsageCount,
     createNodeDefMap,
     createVariableOptions,
-    formatArgInitialValue,
     formatChildrenLabel,
     type VariableRowValue,
 } from "./inspector-shared";

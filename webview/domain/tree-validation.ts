@@ -1,5 +1,12 @@
 import { ExpressionEvaluator } from "behavior3";
-import { isExprType, keyWords, type NodeDef, type VarDecl } from "../shared/misc/b3type";
+import {
+    isBoolType,
+    isExprType,
+    keyWords,
+    type NodeArg,
+    type NodeDef,
+    type VarDecl,
+} from "../shared/misc/b3type";
 import type { ResolvedNodeModel } from "../shared/contracts";
 
 export type TreeValidationDiagnostic =
@@ -8,6 +15,7 @@ export type TreeValidationDiagnostic =
     | { code: "invalid-variable-name"; field: "input" | "output"; variable: string }
     | { code: "undefined-variable"; field: "input" | "output" | "args"; variable: string }
     | { code: "invalid-expression"; field: "args"; expression: string }
+    | { code: "required-arg"; argName: string; label: string }
     | { code: "required-input"; index: number; label: string }
     | { code: "required-output"; index: number; label: string }
     | { code: "custom-arg-check"; argName: string; checker: string; message: string }
@@ -94,6 +102,30 @@ const isRequiredSlotMissing = (
     return !isVariadicSlot(slots ?? [], index) && !label.includes("?") && !(values?.[index] ?? "");
 };
 
+export const isRequiredNodeArgValueMissing = (arg: NodeArg, value: unknown): boolean => {
+    if (arg.type.includes("?")) {
+        return false;
+    }
+
+    if (isBoolType(arg.type)) {
+        return value === undefined || value === null || value === "__unset__";
+    }
+
+    if (arg.type.includes("[]")) {
+        return !Array.isArray(value) || value.length === 0;
+    }
+
+    if (value === undefined || value === null) {
+        return true;
+    }
+
+    if (typeof value === "string") {
+        return value.trim().length === 0;
+    }
+
+    return false;
+};
+
 export const collectResolvedNodeDiagnostics = (params: {
     node: ResolvedNodeModel;
     def: NodeDef | null | undefined;
@@ -136,6 +168,14 @@ export const collectResolvedNodeDiagnostics = (params: {
 
     for (const arg of def.args ?? []) {
         const rawValue = node.args?.[arg.name];
+        if (isRequiredNodeArgValueMissing(arg, rawValue)) {
+            diagnostics.push({
+                code: "required-arg",
+                argName: arg.name,
+                label: arg.desc || arg.name,
+            });
+            continue;
+        }
         if (!isExprType(arg.type) || !rawValue) {
             continue;
         }

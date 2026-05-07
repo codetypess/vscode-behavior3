@@ -12,8 +12,8 @@ export class SampleBuild {
 
   onProcessNode(node: NodeData, errors: string[]) {
     if (shouldReportWaitNode(node) && !errors.length) {
-      errors.push(formatProcessedNode(node));
-      this.env.logger.info("processed node:", node.id, node.name);
+      // errors.push(formatProcessedNode(node));
+      // this.env.logger.info("processed node:", node.id, node.name);
     }
     return node;
   }

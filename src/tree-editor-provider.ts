@@ -5,6 +5,8 @@ import {
     readFileContentFromDisk,
     TreeEditorDocument,
 } from "./editor-session/document-sync";
+import { serializePersistedTreeForMainDocumentSave } from "../webview/shared/main-document-save";
+import { parsePersistedTreeContent } from "../webview/shared/tree";
 import type { HostSelectionState } from "../webview/shared/contracts";
 import type {
     EditorToHostMessage,
@@ -15,6 +17,7 @@ import { resolveTreeEditorSession } from "./editor-session/tree-editor-webview-s
 import { InspectorSidebarCoordinator } from "./inspector-sidebar-coordinator";
 import { configureBehaviorWebview } from "./webview-html";
 import { isDocumentVersionNewer } from "../webview/shared/document-version";
+import { getBehaviorProjectRootFsPath, resolveNodeDefs } from "./setting-resolver";
 
 function getTreeFileVersion(content: string): string | undefined {
     try {
@@ -131,14 +134,45 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         return normalizedContent;
     }
 
+    private async buildMainDocumentSaveContent(document: TreeEditorDocument): Promise<string> {
+        try {
+            const tree = parsePersistedTreeContent(document.content, document.uri.fsPath);
+            const workspaceFolderUri = vscode.workspace.getWorkspaceFolder(document.uri)?.uri;
+            const nodeDefs = workspaceFolderUri
+                ? await resolveNodeDefs(workspaceFolderUri, document.uri)
+                : [];
+            const projectRootFsPath = workspaceFolderUri
+                ? getBehaviorProjectRootFsPath(document.uri, workspaceFolderUri)
+                : path.dirname(document.uri.fsPath);
+
+            return await serializePersistedTreeForMainDocumentSave({
+                tree,
+                nodeDefs,
+                readSubtreeContent: async (relativePath) => {
+                    const subtreeUri = vscode.Uri.file(
+                        path.join(projectRootFsPath, relativePath)
+                    );
+                    try {
+                        return await readFileContentFromDisk(subtreeUri);
+                    } catch {
+                        return null;
+                    }
+                },
+            });
+        } catch {
+            return normalizeTreeContentForWrite(document.content, document.uri.fsPath);
+        }
+    }
+
     private async persistMainDocumentToDisk(
         document: TreeEditorDocument,
         opts?: { notifyReload?: boolean }
     ): Promise<string> {
-        this.assertCanWriteTreeContent(document.content);
+        const saveContent = await this.buildMainDocumentSaveContent(document);
+        this.assertCanWriteTreeContent(saveContent);
         const normalizedContent = await this.writeDocumentContentToDisk(
             document.uri,
-            document.content
+            saveContent
         );
         document.markSaved(normalizedContent);
         document.sessionState.markSaved(normalizedContent);
@@ -204,7 +238,8 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         destination: vscode.Uri,
         _cancellation: vscode.CancellationToken
     ): Promise<void> {
-        this.assertCanWriteTreeContent(document.content);
+        const saveContent = await this.buildMainDocumentSaveContent(document);
+        this.assertCanWriteTreeContent(saveContent);
         let existingContent: string | null = null;
         try {
             existingContent = await readFileContentFromDisk(destination);
@@ -214,7 +249,7 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         if (existingContent !== null) {
             this.assertCanWriteTreeContent(existingContent);
         }
-        await this.writeDocumentContentToDisk(destination, document.content);
+        await this.writeDocumentContentToDisk(destination, saveContent);
     }
 
     async revertCustomDocument(

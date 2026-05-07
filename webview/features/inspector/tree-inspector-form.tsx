@@ -4,6 +4,7 @@ import type { FormInstance } from "antd/es/form";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useRuntime } from "../../app/runtime";
+import type { UpdateTreeMetaInput } from "../../shared/contracts";
 import { isValidVariableName } from "../../shared/misc/b3util";
 import {
     SectionDivider,
@@ -11,12 +12,11 @@ import {
     type VariableRowValue,
     createInspectorLabelProps,
     filterOptionByLabel,
-    queueSubmit,
+    queueInspectorTask,
     trackPendingInspectorEdit,
 } from "./inspector-shared";
 import {
     createTreeInspectorFormValues,
-    createTreeMetaPayload,
     useTreeInspectorViewState,
 } from "./inspector-state";
 import { useInspectorMode } from "./inspector-mode";
@@ -24,14 +24,12 @@ import { useInspectorMode } from "./inspector-mode";
 const { TextArea } = Input;
 
 const TreeMetaFields: React.FC<{
-    form: FormInstance;
     groupDefs: string[];
     readOnly: boolean;
-}> = ({ form, groupDefs, readOnly }) => {
+    commitFields: (fields: string[]) => void;
+    queueCommitFields: (fields: string[]) => void;
+}> = ({ groupDefs, readOnly, commitFields, queueCommitFields }) => {
     const { t } = useTranslation();
-    const submitTreeForm = () => {
-        void form.submit();
-    };
 
     return (
         <>
@@ -39,17 +37,21 @@ const TreeMetaFields: React.FC<{
                 <Input disabled />
             </Form.Item>
             <Form.Item {...createInspectorLabelProps(t("tree.desc"))} name="desc">
-                <TextArea autoSize={{ minRows: 1 }} disabled={readOnly} onBlur={submitTreeForm} />
+                <TextArea
+                    autoSize={{ minRows: 1 }}
+                    disabled={readOnly}
+                    onBlur={() => commitFields(["desc"])}
+                />
             </Form.Item>
             <Form.Item {...createInspectorLabelProps(t("tree.prefix"))} name="prefix">
-                <Input disabled={readOnly} onBlur={submitTreeForm} />
+                <Input disabled={readOnly} onBlur={() => commitFields(["prefix"])} />
             </Form.Item>
             <Form.Item
                 {...createInspectorLabelProps(t("tree.export"))}
                 name="export"
                 valuePropName="checked"
             >
-                <Switch disabled={readOnly} onChange={() => queueSubmit(form)} />
+                <Switch disabled={readOnly} onChange={() => queueCommitFields(["export"])} />
             </Form.Item>
 
             {groupDefs.length > 0 ? (
@@ -64,7 +66,7 @@ const TreeMetaFields: React.FC<{
                                 label: group,
                                 value: group,
                             }))}
-                            onChange={() => queueSubmit(form)}
+                            onChange={() => queueCommitFields(["group"])}
                         />
                     </Form.Item>
                 </>
@@ -74,14 +76,12 @@ const TreeMetaFields: React.FC<{
 };
 
 const LocalVariablesSection: React.FC<{
-    form: FormInstance;
     onFocusVariable: (name: string) => void;
     readOnly: boolean;
-}> = ({ form, onFocusVariable, readOnly }) => {
+    commitVars: () => void;
+    queueCommitVars: () => void;
+}> = ({ onFocusVariable, readOnly, commitVars, queueCommitVars }) => {
     const { t } = useTranslation();
-    const submitTreeForm = () => {
-        void form.submit();
-    };
 
     return (
         <>
@@ -112,10 +112,10 @@ const LocalVariablesSection: React.FC<{
                             >
                                 <VariableDeclRow
                                     disabled={readOnly}
-                                    onSubmit={submitTreeForm}
+                                    onSubmit={queueCommitVars}
                                     onRemove={() => {
                                         remove(field.name);
-                                        queueSubmit(form);
+                                        queueCommitVars();
                                     }}
                                     onFocusVariable={readOnly ? undefined : onFocusVariable}
                                 />
@@ -187,17 +187,23 @@ const SubtreeVariablesSection: React.FC<{
 };
 
 const ImportRefsSection: React.FC<{
-    form: FormInstance;
     allFiles: string[];
     currentImportRefs: Array<{ path?: string }>;
     importDeclByPath: Map<string, VariableRowValue[]>;
     onFocusVariable: (name: string) => void;
     readOnly: boolean;
-}> = ({ form, allFiles, currentImportRefs, importDeclByPath, onFocusVariable, readOnly }) => {
+    commitImportRefs: () => void;
+    queueCommitImportRefs: () => void;
+}> = ({
+    allFiles,
+    currentImportRefs,
+    importDeclByPath,
+    onFocusVariable,
+    readOnly,
+    commitImportRefs,
+    queueCommitImportRefs,
+}) => {
     const { t } = useTranslation();
-    const submitTreeForm = () => {
-        void form.submit();
-    };
 
     return (
         <>
@@ -225,8 +231,8 @@ const ImportRefsSection: React.FC<{
                                                     value: path,
                                                 }))}
                                                 filterOption={filterOptionByLabel}
-                                                onBlur={submitTreeForm}
-                                                onSelect={() => queueSubmit(form)}
+                                                onBlur={commitImportRefs}
+                                                onSelect={queueCommitImportRefs}
                                             />
                                         </Form.Item>
                                         {readOnly ? null : (
@@ -234,7 +240,7 @@ const ImportRefsSection: React.FC<{
                                                 className="b3-inline-remove-compact"
                                                 onClick={() => {
                                                     remove(field.name);
-                                                    queueSubmit(form);
+                                                    queueCommitImportRefs();
                                                 }}
                                             />
                                         )}
@@ -311,6 +317,70 @@ export const TreeInspectorForm: React.FC = () => {
         void runtime.controller.openSubtreePath(path);
     };
 
+    const buildCommittedTreePayload = (): UpdateTreeMetaInput => ({
+        desc: document.desc,
+        prefix: document.prefix ?? "",
+        export: document.export !== false,
+        group: [...document.group],
+        variables: {
+            imports: [...document.variables.imports],
+            locals: document.variables.locals.map((variable) => ({ ...variable })),
+        },
+    });
+
+    const commitTreeFields = async (fields: string[]) => {
+        if (readOnly) {
+            return;
+        }
+
+        try {
+            await form.validateFields(fields, { recursive: true });
+        } catch {
+            return;
+        }
+
+        const values = form.getFieldsValue(true);
+        const payload = buildCommittedTreePayload();
+
+        switch (fields[0]) {
+            case "desc":
+                payload.desc = values.desc?.trim() || undefined;
+                break;
+            case "prefix":
+                payload.prefix = values.prefix ?? "";
+                break;
+            case "export":
+                payload.export = values.export !== false;
+                break;
+            case "group":
+                payload.group = values.group ?? [];
+                break;
+            case "vars":
+                payload.variables.locals = (values.vars ?? [])
+                    .filter((entry: VariableRowValue) => entry.name?.trim())
+                    .map((entry: VariableRowValue) => ({
+                        name: entry.name.trim(),
+                        desc: entry.desc.trim(),
+                    }));
+                break;
+            case "importRefs":
+                payload.variables.imports = (values.importRefs ?? [])
+                    .map((entry: { path?: string }) => entry.path?.trim())
+                    .filter((entry: string | undefined): entry is string => Boolean(entry));
+                break;
+            default:
+                return;
+        }
+
+        trackPendingInspectorEdit(runtime.controller.updateTreeMeta(payload));
+    };
+
+    const queueCommitTreeFields = (fields: string[]) => {
+        queueInspectorTask(() => {
+            void commitTreeFields(fields);
+        });
+    };
+
     return (
         <div className="b3-inspector-content">
             <Form
@@ -320,20 +390,18 @@ export const TreeInspectorForm: React.FC = () => {
                 wrapperCol={{ flex: "1 1 0%", xs: { flex: "1 1 0%" } }}
                 labelAlign="right"
                 requiredMark={false}
-                onFinish={(values) => {
-                    if (readOnly) {
-                        return;
-                    }
-                    trackPendingInspectorEdit(
-                        runtime.controller.updateTreeMeta(createTreeMetaPayload(values))
-                    );
-                }}
             >
-                <TreeMetaFields form={form} groupDefs={groupDefs} readOnly={readOnly} />
+                <TreeMetaFields
+                    groupDefs={groupDefs}
+                    readOnly={readOnly}
+                    commitFields={commitTreeFields}
+                    queueCommitFields={queueCommitTreeFields}
+                />
                 <LocalVariablesSection
-                    form={form}
                     onFocusVariable={focusVariable}
                     readOnly={readOnly}
+                    commitVars={() => void commitTreeFields(["vars"])}
+                    queueCommitVars={() => queueCommitTreeFields(["vars"])}
                 />
                 <SubtreeVariablesSection
                     rows={subtreeRows}
@@ -342,12 +410,13 @@ export const TreeInspectorForm: React.FC = () => {
                     readOnly={readOnly}
                 />
                 <ImportRefsSection
-                    form={form}
                     allFiles={allFiles}
                     currentImportRefs={currentImportRefs}
                     importDeclByPath={importDeclByPath}
                     onFocusVariable={focusVariable}
                     readOnly={readOnly}
+                    commitImportRefs={() => void commitTreeFields(["importRefs"])}
+                    queueCommitImportRefs={() => queueCommitTreeFields(["importRefs"])}
                 />
             </Form>
         </div>
