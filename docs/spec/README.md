@@ -221,6 +221,7 @@ Scope: <short boundary>
 - `inspector-required-arg-unset-initial-state.md` - `Verifying` - 让必填节点参数在首次出现时保持 unset，而不是静默写成空值
 - `node-required-arg-error-state.md` - `Verifying` - 让节点必填参数缺失时同步进入 graph Error 风格
 - `inspector-independent-field-commit.md` - `Verifying` - 将 Inspector 从整表校验提交改为字段级独立提交
+- `graph-resize-viewport-stability.md` - `Verifying` - 调整 inspector 宽度时保持已缩放画布的 viewport 稳定，不让节点整体漂移
 
 ## Done Work Items
 

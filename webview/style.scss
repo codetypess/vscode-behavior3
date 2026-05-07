@@ -14,7 +14,8 @@ body {
 }
 
 body[data-webview-kind="inspector-sidebar"] {
-    --b3-inspector-sidebar-min-width: 360px;
+    --b3-inspector-sidebar-min-width: 300px;
+    --b3-inspector-form-label-width: 110px;
 }
 
 body[data-theme="dark"] {
@@ -277,7 +278,7 @@ body[data-webview-kind="inspector-sidebar"]
 
 .b3-inspector-skeleton-row {
     display: grid;
-    grid-template-columns: 110px minmax(0, 1fr);
+    grid-template-columns: var(--b3-inspector-form-label-width, 110px) minmax(0, 1fr);
     column-gap: 8px;
     align-items: center;
 }
@@ -304,9 +305,9 @@ body[data-webview-kind="inspector-sidebar"]
 }
 
 .b3-inspector-form .ant-form-item-label {
-    min-width: 110px;
-    max-width: 110px;
-    flex: 0 0 110px;
+    min-width: var(--b3-inspector-form-label-width, 110px);
+    max-width: var(--b3-inspector-form-label-width, 110px);
+    flex: 0 0 var(--b3-inspector-form-label-width, 110px);
     padding-right: 0;
 }
 

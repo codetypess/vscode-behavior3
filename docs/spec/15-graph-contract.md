@@ -105,6 +105,7 @@
 
 - 视口状态由 graph adapter 自己维护
 - rebuild render 时尽量保持既有视口与中心锚点稳定
+- container resize 时也应保持既有 viewport，并在需要时补偿视觉锚点，避免缩放后的内容整体漂移
 - `focusNode` 会聚焦到目标节点并刷新当前视口缓存
 
 ## Outbound Contract

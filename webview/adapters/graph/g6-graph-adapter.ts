@@ -581,11 +581,14 @@ export class G6GraphAdapter implements GraphAdapter {
         }
     }
 
-    private scheduleResizeViewportRestore(viewport: GraphViewport) {
+    private scheduleResizeViewportRestore(viewport: GraphViewport, anchor: ViewportAnchor | null) {
         this.cancelPendingResizeRestore();
         this.resizeRestoreFrame = window.requestAnimationFrame(() => {
             this.resizeRestoreFrame = null;
-            void this.applyViewport(viewport);
+            void (async () => {
+                await this.applyViewport(viewport);
+                await this.applyAnchorViewportCompensation(anchor);
+            })();
         });
     }
 
@@ -860,11 +863,14 @@ export class G6GraphAdapter implements GraphAdapter {
             }
 
             const viewport = { ...this.viewport };
+            // G6 can shift zoomed content during container resize, so keep both the requested
+            // viewport and a visible anchor stable across the resize.
+            const anchor = this.readViewportCenterAnchor();
             const width = Math.max(1, Math.round(entry.contentRect.width));
             const height = Math.max(1, Math.round(entry.contentRect.height));
             this.graph.resize(width, height);
             this.viewport = { ...viewport };
-            this.scheduleResizeViewportRestore(viewport);
+            this.scheduleResizeViewportRestore(viewport, anchor);
         });
         this.resizeObserver.observe(container);
 
