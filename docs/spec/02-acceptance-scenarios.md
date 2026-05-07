@@ -71,6 +71,7 @@
 
 - 保存时主文档内容先规范化，再交由 VS Code custom editor 生命周期写盘
 - 保存时主树节点会把当前 display id 回写到 persisted `id`
+- 保存写回的叶子节点若没有内联子节点，结果省略空 `children` 字段
 - 磁盘外部改动到来且当前无未保存更改时，编辑器静默重载
 - 磁盘外部改动到来且当前有未保存更改时，进入 reload conflict 状态
 - 侧栏中的 reload 操作会触发回滚到磁盘版本，而不是在 webview 内直接做文本合并

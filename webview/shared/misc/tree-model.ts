@@ -64,7 +64,7 @@ export const createNode = (data: NodeData, includeChildren: boolean = true): Nod
         }
     }
 
-    if (data.children && !isSubtreeRoot(data) && includeChildren) {
+    if (data.children?.length && !isSubtreeRoot(data) && includeChildren) {
         node.children = [];
         for (const child of data.children) {
             node.children.push(createNode(child));

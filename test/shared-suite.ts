@@ -387,12 +387,14 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                             uuid: "child-1",
                             id: "",
                             name: "ActionA",
+                            children: [],
                         },
                         {
                             uuid: "child-2",
                             id: "",
                             name: "LinkNode",
                             path: linkedPath,
+                            children: [],
                         },
                     ],
                 },
@@ -460,11 +462,62 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                     return subtree;
                 },
             });
+            const savedJson = JSON.parse(content) as {
+                root: {
+                    children?: Array<{
+                        children?: unknown[];
+                    }>;
+                };
+            };
 
             const savedTree = parsePersistedTreeContent(content, "/tmp/main.json");
             assert.equal(savedTree.root.children?.[0]?.id, "2");
             assert.equal(savedTree.root.children?.[1]?.id, "3");
+            assert.equal(savedJson.root.children?.[0]?.children, undefined);
             assert.equal(savedTree.root.children?.[1]?.children, undefined);
+        },
+    },
+    {
+        name: "omits empty children arrays during persisted tree serialization",
+        run() {
+            const tree = createTestTree();
+            tree.root.children = [
+                {
+                    uuid: "leaf",
+                    id: "2",
+                    name: "LeafAction",
+                    children: [],
+                },
+                {
+                    uuid: "branch",
+                    id: "3",
+                    name: "Sequence",
+                    children: [
+                        {
+                            uuid: "grandchild",
+                            id: "4",
+                            name: "NestedAction",
+                            children: [],
+                        },
+                    ],
+                },
+            ];
+
+            const serializedTree = JSON.parse(serializePersistedTree(tree)) as {
+                root: {
+                    children?: Array<{
+                        children?: unknown[];
+                    }>;
+                };
+            };
+            const branchChildren = serializedTree.root.children?.[1]?.children as
+                | Array<{ children?: unknown[] }>
+                | undefined;
+
+            assert.equal(Array.isArray(serializedTree.root.children), true);
+            assert.equal(serializedTree.root.children?.[0]?.children, undefined);
+            assert.equal(Array.isArray(serializedTree.root.children?.[1]?.children), true);
+            assert.equal(branchChildren?.[0]?.children, undefined);
         },
     },
     {
