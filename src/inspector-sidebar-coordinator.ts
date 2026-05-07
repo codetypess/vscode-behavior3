@@ -1,5 +1,9 @@
 import * as vscode from "vscode";
-import type { HostDocumentSessionState, HostDocumentSnapshot } from "../webview/shared/contracts";
+import type {
+    HostDocumentSessionState,
+    HostDocumentSnapshot,
+    HostSelectionState,
+} from "../webview/shared/contracts";
 import type { EditorToHostMessage, HostToEditorMessage } from "../webview/shared/message-protocol";
 import { InspectorSidebarProvider } from "./inspector-sidebar-provider";
 
@@ -16,6 +20,27 @@ export interface InspectorSessionSnapshot {
 
 const isJsonEqual = (left: unknown, right: unknown) =>
     JSON.stringify(left) === JSON.stringify(right);
+
+const buildReloadDocumentSnapshot = (
+    content: string,
+    documentSession: HostDocumentSessionState,
+    selection: HostSelectionState
+): HostDocumentSnapshot => ({
+    content,
+    documentSession,
+    selection,
+    syncKind: "reload",
+});
+
+const stripSnapshotTransportFields = (
+    initMessage: InspectorSessionSnapshot["initMessage"]
+): Omit<InspectorSessionSnapshot["initMessage"], "content" | "documentSession" | "selection"> => {
+    const { content, documentSession, selection, ...rest } = initMessage;
+    void content;
+    void documentSession;
+    void selection;
+    return rest;
+};
 
 export class InspectorSidebarCoordinator {
     private readonly sessionSnapshots = new Map<string, InspectorSessionSnapshot>();
@@ -122,20 +147,20 @@ export class InspectorSidebarCoordinator {
     ): void {
         const snapshot = this.sessionSnapshots.get(documentUri);
         if (snapshot) {
-            this.sessionSnapshots.set(documentUri, {
+            const nextSnapshot: InspectorSessionSnapshot = {
                 ...snapshot,
                 initMessage: {
                     ...snapshot.initMessage,
                     content,
                     documentSession,
                 },
-                documentSnapshot: {
+                documentSnapshot: buildReloadDocumentSnapshot(
                     content,
                     documentSession,
-                    selection: snapshot.documentSnapshot.selection,
-                    syncKind: "reload",
-                },
-            });
+                    snapshot.documentSnapshot.selection
+                ),
+            };
+            this.sessionSnapshots.set(documentUri, nextSnapshot);
         }
 
         if (documentUri !== this.activeDocumentUri || !this.viewReady) {
@@ -147,12 +172,11 @@ export class InspectorSidebarCoordinator {
 
         void this.postMessage({
             type: "documentSnapshotChanged",
-            snapshot: {
+            snapshot: buildReloadDocumentSnapshot(
                 content,
                 documentSession,
-                selection: snapshot.documentSnapshot.selection,
-                syncKind: "reload",
-            },
+                snapshot.documentSnapshot.selection
+            ),
         });
     }
 
@@ -190,24 +214,8 @@ export class InspectorSidebarCoordinator {
         previous: InspectorSessionSnapshot,
         next: InspectorSessionSnapshot
     ): boolean {
-        const {
-            content: prevContent,
-            documentSession: prevDocumentSession,
-            selection: prevSelection,
-            ...prevInitWithoutContent
-        } = previous.initMessage;
-        const {
-            content: nextContent,
-            documentSession: nextDocumentSession,
-            selection: nextSelection,
-            ...nextInitWithoutContent
-        } = next.initMessage;
-        void prevContent;
-        void nextContent;
-        void prevDocumentSession;
-        void nextDocumentSession;
-        void prevSelection;
-        void nextSelection;
+        const prevInitWithoutContent = stripSnapshotTransportFields(previous.initMessage);
+        const nextInitWithoutContent = stripSnapshotTransportFields(next.initMessage);
         return isJsonEqual(prevInitWithoutContent, nextInitWithoutContent);
     }
 
