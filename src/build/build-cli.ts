@@ -1,6 +1,10 @@
 import * as fs from "fs";
 import * as path from "path";
-import { buildProjectWithContext } from "../../webview/shared/misc/b3build";
+import {
+    batchProcessProjectWithContext,
+    buildProjectWithContext,
+    type BatchProcessProjectResult,
+} from "../../webview/shared/misc/b3build";
 import { getLogger, setLogger, type Logger } from "../../webview/shared/misc/logger";
 import { createBuildProjectContext } from "../../webview/shared/misc/b3util";
 import { setFs } from "../../webview/shared/misc/b3fs";
@@ -11,10 +15,13 @@ import {
 
 setFs(fs);
 
-export interface BehaviorBuildPaths {
+export interface BehaviorProjectPaths {
     workspaceFile: string;
     settingFile: string;
     workdir: string;
+}
+
+export interface BehaviorBuildPaths extends BehaviorProjectPaths {
     outputDir: string;
 }
 
@@ -34,6 +41,23 @@ export interface BehaviorBuildProjectResult {
     paths: BehaviorBuildPaths;
 }
 
+export interface BehaviorBatchProcessOptions {
+    scriptFile: string;
+    projectPath?: string;
+    workspaceFile?: string;
+    settingFile?: string;
+    workspaceRoot?: string;
+    checkExpr?: boolean;
+    buildScriptDebug?: boolean;
+    logger?: Logger;
+}
+
+export interface BehaviorBatchProcessResult {
+    hasError: boolean;
+    paths: BehaviorProjectPaths;
+    summary: BatchProcessProjectResult;
+}
+
 const normalizePosixPath = (filePath: string) => filePath.replace(/\\/g, "/");
 
 const ensureExistingFile = (filePath: string, suffix: string, label: string): string => {
@@ -47,12 +71,26 @@ const ensureExistingFile = (filePath: string, suffix: string, label: string): st
     return resolved;
 };
 
-export const resolveBehaviorBuildPaths = (
-    options: BehaviorBuildProjectOptions
-): BehaviorBuildPaths => {
+const ensureExistingScriptFile = (filePath: string, label: string): string => {
+    const resolved = path.resolve(filePath);
+    const ext = path.extname(resolved).toLowerCase();
+    if (![".ts", ".mts", ".js", ".mjs"].includes(ext)) {
+        throw new Error(`${label} must point to a .ts, .mts, .js, or .mjs file.`);
+    }
+    if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) {
+        throw new Error(`${label} does not exist: ${resolved}`);
+    }
+    return resolved;
+};
+
+const resolveBehaviorProjectPaths = (
+    options: Pick<
+        BehaviorBuildProjectOptions,
+        "projectPath" | "workspaceFile" | "settingFile" | "workspaceRoot"
+    >
+): BehaviorProjectPaths => {
     const projectPath = path.resolve(options.projectPath ?? process.cwd());
     const workspaceRoot = options.workspaceRoot ? path.resolve(options.workspaceRoot) : undefined;
-    const outputDir = path.resolve(options.outputDir);
 
     const workspaceFile = options.workspaceFile
         ? ensureExistingFile(options.workspaceFile, ".b3-workspace", "workspaceFile")
@@ -82,6 +120,15 @@ export const resolveBehaviorBuildPaths = (
         workspaceFile,
         settingFile,
         workdir: path.dirname(workspaceFile),
+    };
+};
+
+export const resolveBehaviorBuildPaths = (
+    options: BehaviorBuildProjectOptions
+): BehaviorBuildPaths => {
+    const outputDir = path.resolve(options.outputDir);
+    return {
+        ...resolveBehaviorProjectPaths(options),
         outputDir,
     };
 };
@@ -114,6 +161,43 @@ export const buildBehaviorProject = async (
         return {
             hasError,
             paths,
+        };
+    } finally {
+        if (previousLogger) {
+            setLogger(previousLogger);
+        }
+    }
+};
+
+export const batchProcessBehaviorProject = async (
+    options: BehaviorBatchProcessOptions
+): Promise<BehaviorBatchProcessResult> => {
+    const paths = resolveBehaviorProjectPaths(options);
+    const scriptFile = ensureExistingScriptFile(options.scriptFile, "scriptFile");
+    const previousLogger = options.logger ? getLogger() : null;
+
+    if (options.logger) {
+        setLogger(options.logger);
+    }
+
+    try {
+        const buildContext = createBuildProjectContext({
+            workdir: normalizePosixPath(paths.workdir),
+            settingFile: normalizePosixPath(paths.settingFile),
+            checkExpr: options.checkExpr ?? true,
+            buildScriptDebug: options.buildScriptDebug,
+            alertError: () => {},
+        });
+        const summary = await batchProcessProjectWithContext(
+            normalizePosixPath(paths.workspaceFile),
+            normalizePosixPath(scriptFile),
+            buildContext
+        );
+
+        return {
+            hasError: summary.hasError,
+            paths,
+            summary,
         };
     } finally {
         if (previousLogger) {

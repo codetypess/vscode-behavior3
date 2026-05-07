@@ -4,7 +4,7 @@ import type { BuildEnv, BuildScript, NodeArgChecker, NodeArgCheckResult } from "
 import { logger } from "./logger";
 import b3path from "./b3path";
 import { stringifyJson } from "./stringify";
-import { readWorkspace } from "./util";
+import { readTreeFromFile, readWorkspace, writeTree } from "./util";
 import { loadSubtreeSourceCache } from "../subtree-source-cache";
 import { materializePersistedTree, type MaterializedTreeNode } from "../tree-materializer";
 import { parsePersistedTreeContent } from "../tree";
@@ -98,6 +98,16 @@ interface BuildContext {
     refreshVarDecl(root: NodeData, group: string[], declare: FileVarDecl): boolean;
     checkNodeData(data: NodeData | null | undefined, printer: (message: string) => void): boolean;
     setCheckExpr(check: boolean): void;
+}
+
+export interface BatchProcessProjectResult {
+    hasError: boolean;
+    totalFiles: number;
+    stagedWriteFiles: number;
+    writtenFiles: number;
+    unchangedFiles: number;
+    skippedFiles: number;
+    failedFiles: number;
 }
 
 const hasBatchHookMethod = (obj: unknown): obj is BuildScript => {
@@ -1326,4 +1336,192 @@ export const buildProjectWithContext = async (
     buildRuntime.buildScript?.onComplete?.(hasError ? "failure" : "success");
     flushDeferredRuntimeModuleCleanup();
     return hasError;
+};
+
+export const batchProcessProjectWithContext = async (
+    project: string,
+    scriptPath: string,
+    context: BuildContext
+): Promise<BatchProcessProjectResult> => {
+    /**
+     * Source batch processing rewrites persisted tree files in place, so it
+     * stages all validated writes before touching disk.
+     */
+    if (hasFs()) {
+        syncFilesFromDiskWithContext(context.files, context.parsedVarDecl, context.workdir);
+    }
+
+    let hasError = false;
+    let totalFiles = 0;
+    let unchangedFiles = 0;
+    let skippedFiles = 0;
+    let failedFiles = 0;
+    let writtenFiles = 0;
+    const settings = readWorkspace(project).settings;
+    const checkScriptSetting = settings.checkScripts ?? [];
+    const allErrors: string[] = [];
+    const stagedWrites: Array<{ path: string; tree: TreeData; content: string }> = [];
+
+    context.setCheckExpr(context.checkExprOverride ?? settings.checkExpr ?? true);
+
+    let buildScriptModule: unknown;
+    try {
+        buildScriptModule = await loadRuntimeModule(scriptPath, {
+            debug: context.buildScriptDebug,
+        });
+    } catch {
+        logger.error(`'${scriptPath}' is not a valid batch script`);
+    }
+
+    const checkScriptModules: CheckScriptModule[] = [];
+    const checkScriptPaths = resolveCheckScriptPaths(context.workdir, checkScriptSetting);
+    for (const pattern of checkScriptPaths.missingPatterns) {
+        logger.error(`checkScripts pattern matched no files: ${pattern}`);
+        hasError = true;
+    }
+    for (const checkScriptPath of checkScriptPaths.paths) {
+        const moduleExports = await loadRuntimeModule(checkScriptPath, {
+            debug: context.buildScriptDebug,
+        });
+        if (!moduleExports) {
+            logger.error(`'${checkScriptPath}' is not a valid check script`);
+            hasError = true;
+            continue;
+        }
+        checkScriptModules.push({ path: checkScriptPath, moduleExports });
+    }
+
+    const scriptEnv: BuildEnv = {
+        fs: getFs(),
+        path: b3path,
+        workdir: context.workdir,
+        nodeDefs: context.nodeDefs,
+        logger,
+    };
+    const buildRuntime = createBuildScriptRuntimeWithCheckModules(
+        buildScriptModule,
+        checkScriptModules,
+        scriptEnv
+    );
+    if (!buildScriptModule || buildRuntime.hasError || !buildRuntime.buildScript) {
+        hasError = true;
+    }
+
+    try {
+        if (!hasError || buildRuntime.buildScript) {
+            for (const candidatePath of b3path.lsdir(b3path.dirname(project), true)) {
+                if (!isBehaviorTreeJsonPath(candidatePath)) {
+                    continue;
+                }
+
+                totalFiles += 1;
+                const treeName = b3path.basenameWithoutExt(candidatePath);
+                const originalTree = readTreeFromFile(candidatePath);
+                const originalContent = writeTree(originalTree, treeName);
+                const errors: string[] = [];
+                let tree: TreeData | null = originalTree;
+
+                try {
+                    tree = processBatchTree(tree, candidatePath, buildRuntime.buildScript!, errors);
+                } catch (error) {
+                    errors.push(`batch script failed: ${formatRuntimeError(error)}`);
+                }
+
+                if (!tree) {
+                    logger.log("skip:", candidatePath);
+                    skippedFiles += 1;
+                    continue;
+                }
+
+                const declare: FileVarDecl = {
+                    import: tree.variables.imports.map((importPath) => ({
+                        path: importPath,
+                        vars: [],
+                        depends: [],
+                    })),
+                    vars: tree.variables.locals.map((variable) => ({
+                        name: variable.name,
+                        desc: variable.desc,
+                    })),
+                    subtree: [],
+                };
+                context.refreshVarDecl(tree.root, tree.group, declare);
+                if (!context.checkNodeData(tree.root, (message) => errors.push(message))) {
+                    hasError = true;
+                }
+                const checkDiagnostics = collectNodeArgCheckDiagnostics({
+                    tree,
+                    treePath: candidatePath,
+                    env: scriptEnv,
+                    checkers: buildRuntime.nodeArgCheckers,
+                });
+                if (checkDiagnostics.length) {
+                    hasError = true;
+                    checkDiagnostics.forEach((diagnostic) =>
+                        errors.push(formatNodeArgCheckBuildDiagnostic(diagnostic))
+                    );
+                }
+
+                if (errors.length) {
+                    hasError = true;
+                    failedFiles += 1;
+                    allErrors.push(`${candidatePath}:`);
+                    errors.forEach((message) => allErrors.push(`  ${message}`));
+                    continue;
+                }
+
+                const nextContent = writeTree(tree, treeName);
+                if (nextContent === originalContent) {
+                    unchangedFiles += 1;
+                    continue;
+                }
+
+                stagedWrites.push({
+                    path: candidatePath,
+                    tree,
+                    content: nextContent,
+                });
+            }
+        }
+
+        if (!hasError) {
+            for (const staged of stagedWrites) {
+                try {
+                    buildRuntime.buildScript?.onWriteFile?.(staged.path, staged.tree);
+                } catch (error) {
+                    hasError = true;
+                    failedFiles += 1;
+                    allErrors.push(`${staged.path}:`);
+                    allErrors.push(`  onWriteFile failed: ${formatRuntimeError(error)}`);
+                    break;
+                }
+            }
+        }
+
+        if (!hasError) {
+            for (const staged of stagedWrites) {
+                logger.log("write:", staged.path);
+                getFs().writeFileSync(staged.path, staged.content, "utf-8");
+            }
+            writtenFiles = stagedWrites.length;
+        }
+    } finally {
+        allErrors.forEach((message) => logger.error(message));
+        try {
+            buildRuntime.buildScript?.onComplete?.(hasError ? "failure" : "success");
+        } catch (error) {
+            logger.error("batch script onComplete failed", error);
+        }
+        flushDeferredRuntimeModuleCleanup();
+    }
+
+    return {
+        hasError,
+        totalFiles,
+        stagedWriteFiles: stagedWrites.length,
+        writtenFiles,
+        unchangedFiles,
+        skippedFiles,
+        failedFiles,
+    };
 };

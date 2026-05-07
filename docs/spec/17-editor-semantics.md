@@ -260,6 +260,18 @@ host reducer 当前分三条路径：
 - 只是把 build 请求交给宿主
 - 结果通过 `buildResult` 回推
 
+### `behavior3.batchProcess`
+
+- 这是 extension-host 项目命令，不经过 editor `EditorCommand` catalog
+- 选择一次性批处理脚本后，对当前 project 的 persisted tree 源文件做批量处理
+- 仅当整次批处理通过校验时才统一写回源文件，避免部分写盘
+
+### `behavior3.runBatchProcessScript`
+
+- 这是 extension-host 项目命令，不经过 editor `EditorCommand` catalog
+- 直接把当前选择的 `.ts` / `.mts` / `.js` / `.mjs` 文件当成批处理脚本执行
+- 与 `behavior3.batchProcess` 共享同一套项目解析、校验和统一写回语义
+
 ## Subtree 相关命令
 
 ### `openSubtreePath(path)`

@@ -27,6 +27,9 @@
         "children": [
         ],
         "id": "3",
+        "input": [
+          ""
+        ],
         "name": "Wait",
         "uuid": "cpFihEvrHz"
       }

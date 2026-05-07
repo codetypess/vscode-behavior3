@@ -48,6 +48,9 @@
             "children": [
             ],
             "id": "5",
+            "input": [
+              ""
+            ],
             "name": "Wait",
             "uuid": "ZP30cnDzoB"
           }

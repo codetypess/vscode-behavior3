@@ -186,6 +186,12 @@ For compatibility, supported script files may still export a class via named
 For TypeScript authoring hints, import build script types from
 `vscode-behavior3/build`. See `sample/scripts/build.ts` for a complete example.
 
+### Project Batch Processing
+
+Use `Batch Process Behavior Trees` to pick a script on demand and apply it to
+every behavior tree source file in the current project. The script can be
+TypeScript with local `import` statements, just like build scripts.
+
 ## Extension Settings
 
 | Setting               | Type    | Default  | Description                                                      |

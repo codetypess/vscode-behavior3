@@ -25,9 +25,9 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 10 份 work-item spec
+- 11 份 work-item spec
 - 0 份登记中的 active work-item spec
-- 10 份登记中的 done work-item spec
+- 11 份登记中的 done work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
 目录判断规则：
@@ -229,3 +229,4 @@ Scope: <short boundary>
 - `selection-snapshot-single-authority.md` - `Done` - 移除公开 `nextSelection` 协议面，让共享选中只通过 host snapshot `selection` 收敛
 - `selection-visual-hint-host-authority.md` - `Done` - 收掉 editor 普通选中的 optimistic `selectionStore` authority，仅保留 graph-only 本地 hint
 - `sidebar-host-single-source.md` - `Done` - 将主文档 authority 收口到 extension-host document/session 与统一 snapshot fanout
+- `project-batch-process-command.md` - `Done` - 新增扩展宿主批处理命令，选择 TS/JS 脚本后对项目行为树源文件做校验后批量回写

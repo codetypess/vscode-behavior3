@@ -102,6 +102,8 @@
 - `saveDocument()`
 - `revertDocument()`
 - `buildDocument(opts?)`
+- `batchProcessProject(scriptPath)`
+- `runBatchProcessScript(scriptPath)`
 - `openSubtreePath(path)`
 - `openSelectedSubtree()`
 - `saveSelectedAsSubtree()`
@@ -110,6 +112,8 @@
 
 - 将文档操作映射到 host request / VS Code command
 - 管理 subtree 打开与另存路径
+- 项目级批处理由 extension-host 直接发起，复用 build script runtime，但写回 persisted tree 源文件而不是 build 输出目录
+- `runBatchProcessScript(scriptPath)` 是同一批处理运行时的直接脚本入口，不再弹脚本选择框
 
 ## Controller Runtime 共享流程
 

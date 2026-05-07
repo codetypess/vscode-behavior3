@@ -5,6 +5,7 @@ import { Context, Node, NodeDef } from "behavior3";
 import { stringifyJson } from "../webview/shared/misc/stringify";
 import { writeTree } from "../webview/shared/misc/util";
 import { composeLoggers, createConsoleLogger, setLogger } from "../webview/shared/misc/logger";
+import { runBatchProcess, runBatchProcessScript } from "./build/run-batch-process";
 import { runBuild } from "./build/run-build";
 import { InspectorSidebarCoordinator } from "./inspector-sidebar-coordinator";
 import { InspectorSidebarProvider } from "./inspector-sidebar-provider";
@@ -116,6 +117,19 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand("behavior3.buildDebug", async () => {
             await runBuild(context, { buildScriptDebug: true });
         })
+    );
+    context.subscriptions.push(
+        vscode.commands.registerCommand("behavior3.batchProcess", async (uri?: vscode.Uri) => {
+            await runBatchProcess(context, uri);
+        })
+    );
+    context.subscriptions.push(
+        vscode.commands.registerCommand(
+            "behavior3.runBatchProcessScript",
+            async (uri?: vscode.Uri) => {
+                await runBatchProcessScript(context, uri);
+            }
+        )
     );
 
     /** Switch between the Behavior3 webview editor and the built-in text (JSON) editor for the same file. */

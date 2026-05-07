@@ -92,6 +92,12 @@
         }
       ]
     },
+    "submenus": [
+      {
+        "id": "behavior3.explorer",
+        "label": "%submenu.explorer.label%"
+      }
+    ],
     "commands": [
       {
         "command": "behavior3.build",
@@ -106,18 +112,28 @@
         "icon": "$(debug-alt)"
       },
       {
+        "command": "behavior3.batchProcess",
+        "title": "%command.batchProcess.title%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "behavior3.runBatchProcessScript",
+        "title": "%command.runBatchProcessScript.title%",
+        "category": "%command.category%"
+      },
+      {
         "command": "behavior3.createProject",
         "title": "%command.createProject.title%",
         "category": "%command.category%"
       },
       {
-        "command": "behavior3.openSettings",
-        "title": "%command.openSettings.title%",
+        "command": "behavior3.createTree",
+        "title": "%command.createTree.title%",
         "category": "%command.category%"
       },
       {
-        "command": "behavior3.createTree",
-        "title": "%command.createTree.title%",
+        "command": "behavior3.openSettings",
+        "title": "%command.openSettings.title%",
         "category": "%command.category%"
       },
       {
@@ -167,14 +183,36 @@
       ],
       "explorer/context": [
         {
+          "submenu": "behavior3.explorer",
+          "when": "explorerResourceIsFolder || resourceExtname == .json || resourceExtname == .ts || resourceExtname == .mts || resourceExtname == .js || resourceExtname == .mjs",
+          "group": "navigation@45"
+        }
+      ],
+      "behavior3.explorer": [
+        {
+          "command": "behavior3.createProject",
+          "when": "explorerResourceIsFolder",
+          "group": "1_create@1"
+        },
+        {
+          "command": "behavior3.batchProcess",
+          "when": "explorerResourceIsFolder",
+          "group": "1_create@2"
+        },
+        {
           "command": "behavior3.createTree",
           "when": "explorerResourceIsFolder",
-          "group": "navigation@45"
+          "group": "1_create@3"
+        },
+        {
+          "command": "behavior3.runBatchProcessScript",
+          "when": "(resourceExtname == .ts || resourceExtname == .mts || resourceExtname == .js || resourceExtname == .mjs) && !explorerResourceIsFolder",
+          "group": "2_run@1"
         },
         {
           "command": "behavior3.openWithEditor",
           "when": "resourceExtname == .json && !explorerResourceIsFolder",
-          "group": "navigation@45"
+          "group": "3_open@1"
         }
       ]
     },

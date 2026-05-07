@@ -8,7 +8,11 @@ import { createDocumentStore, showDocumentReloadConflict } from "../webview/stor
 import { createGraphUiStore } from "../webview/stores/graph-ui-store";
 import { createSelectionStore } from "../webview/stores/selection-store";
 import { createWorkspaceStore } from "../webview/stores/workspace-store";
-import { buildBehaviorProject, resolveBehaviorBuildPaths } from "../src/build/build-cli";
+import {
+    batchProcessBehaviorProject,
+    buildBehaviorProject,
+    resolveBehaviorBuildPaths,
+} from "../src/build/build-cli";
 import { DocumentSessionState } from "../src/editor-session/document-session-state";
 import { handleNativeWheelZoom } from "../webview/adapters/graph/g6-wheel-zoom";
 import { buildResolvedGraphModel } from "../webview/domain/graph-selectors";
@@ -3129,6 +3133,174 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 assert.equal(result.hasError, false);
                 assert.equal(outputTree.custom.helperValue, "imported-helper");
                 assert.deepEqual(runtimeFiles, []);
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+    },
+    {
+        name: "batch processes source trees with TypeScript imports and rewrites files in place",
+        async run() {
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-batch-ts-import-"));
+            const scriptsDir = path.join(root, "scripts");
+            const workspaceFile = path.join(root, "workspace.b3-workspace");
+            const settingFile = path.join(root, "node-config.b3-setting");
+            const mainTreeFile = path.join(root, "main.json");
+            const nestedTreeFile = path.join(root, "trees", "secondary.json");
+            const buildScriptFile = path.join(scriptsDir, "batch.ts");
+            const helperFile = path.join(scriptsDir, "helper.ts");
+            const constantsFile = path.join(scriptsDir, "constants.ts");
+
+            try {
+                fs.mkdirSync(path.dirname(nestedTreeFile), { recursive: true });
+                fs.mkdirSync(scriptsDir, { recursive: true });
+                fs.writeFileSync(workspaceFile, JSON.stringify({ settings: {} }));
+                fs.writeFileSync(
+                    settingFile,
+                    JSON.stringify([
+                        {
+                            name: "Sequence",
+                            type: "Composite",
+                            desc: "",
+                            children: -1,
+                        },
+                    ])
+                );
+
+                const mainTree = createTestTree();
+                mainTree.name = "main";
+                const nestedTree = createTestTree();
+                nestedTree.name = "secondary";
+                fs.writeFileSync(mainTreeFile, JSON.stringify(mainTree));
+                fs.writeFileSync(nestedTreeFile, JSON.stringify(nestedTree));
+
+                fs.writeFileSync(
+                    constantsFile,
+                    ['export const migratedBy = "batch-import";', ""].join("\n")
+                );
+                fs.writeFileSync(
+                    helperFile,
+                    [
+                        'import { migratedBy } from "./constants.ts";',
+                        "",
+                        "export function markTree(tree, treePath) {",
+                        "  tree.custom = { ...(tree.custom ?? {}), migratedBy, treePath };",
+                        "}",
+                        "",
+                    ].join("\n")
+                );
+                fs.writeFileSync(
+                    buildScriptFile,
+                    [
+                        'import { markTree } from "./helper.ts";',
+                        "",
+                        "@behavior3.build",
+                        "export class BatchProcessScript {",
+                        "  onProcessTree(tree, treePath) {",
+                        "    markTree(tree, treePath);",
+                        "    return tree;",
+                        "  }",
+                        "}",
+                        "",
+                    ].join("\n")
+                );
+
+                const result = await batchProcessBehaviorProject({
+                    workspaceFile,
+                    settingFile,
+                    scriptFile: buildScriptFile,
+                });
+                const mainTreeOutput = JSON.parse(fs.readFileSync(mainTreeFile, "utf-8"));
+                const nestedTreeOutput = JSON.parse(fs.readFileSync(nestedTreeFile, "utf-8"));
+                const runtimeFiles = fs
+                    .readdirSync(scriptsDir)
+                    .filter((file) => file.includes(".runtime.") && file.endsWith(".mjs"));
+
+                assert.equal(result.hasError, false);
+                assert.equal(result.summary.totalFiles, 2);
+                assert.equal(result.summary.writtenFiles, 2);
+                assert.equal(result.summary.stagedWriteFiles, 2);
+                assert.equal(result.summary.unchangedFiles, 0);
+                assert.equal(result.summary.skippedFiles, 0);
+                assert.equal(result.summary.failedFiles, 0);
+                assert.equal(mainTreeOutput.custom.migratedBy, "batch-import");
+                assert.equal(nestedTreeOutput.custom.migratedBy, "batch-import");
+                assert.equal(Array.isArray(runtimeFiles), true);
+                assert.deepEqual(runtimeFiles, []);
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+    },
+    {
+        name: "aborts batch source rewrites when any transformed tree fails validation",
+        async run() {
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-batch-abort-"));
+            const workspaceFile = path.join(root, "workspace.b3-workspace");
+            const settingFile = path.join(root, "node-config.b3-setting");
+            const goodTreeFile = path.join(root, "good.json");
+            const badTreeFile = path.join(root, "bad.json");
+            const buildScriptFile = path.join(root, "batch.ts");
+
+            try {
+                fs.writeFileSync(workspaceFile, JSON.stringify({ settings: {} }));
+                fs.writeFileSync(
+                    settingFile,
+                    JSON.stringify([
+                        {
+                            name: "Sequence",
+                            type: "Composite",
+                            desc: "",
+                            children: -1,
+                        },
+                    ])
+                );
+
+                const goodTree = createTestTree();
+                goodTree.name = "good";
+                const badTree = createTestTree();
+                badTree.name = "bad";
+                fs.writeFileSync(goodTreeFile, JSON.stringify(goodTree));
+                fs.writeFileSync(badTreeFile, JSON.stringify(badTree));
+
+                const goodBefore = fs.readFileSync(goodTreeFile, "utf-8");
+                const badBefore = fs.readFileSync(badTreeFile, "utf-8");
+                fs.writeFileSync(
+                    buildScriptFile,
+                    [
+                        "@behavior3.build",
+                        "export class InvalidBatchScript {",
+                        "  onProcessTree(tree, treePath) {",
+                        "    tree.custom = { ...(tree.custom ?? {}), touched: true };",
+                        "    if (treePath.endsWith('/bad.json') || treePath.endsWith('\\\\bad.json')) {",
+                        '      tree.root.name = "MissingNode";',
+                        "    }",
+                        "    return tree;",
+                        "  }",
+                        "}",
+                        "",
+                    ].join("\n")
+                );
+
+                const result = await batchProcessBehaviorProject({
+                    workspaceFile,
+                    settingFile,
+                    scriptFile: buildScriptFile,
+                });
+                const goodAfter = fs.readFileSync(goodTreeFile, "utf-8");
+                const badAfter = fs.readFileSync(badTreeFile, "utf-8");
+                const parsedGood = JSON.parse(goodAfter);
+                const parsedBad = JSON.parse(badAfter);
+
+                assert.equal(result.hasError, true);
+                assert.equal(result.summary.totalFiles, 2);
+                assert.equal(result.summary.writtenFiles, 0);
+                assert.equal(result.summary.stagedWriteFiles, 1);
+                assert.equal(result.summary.failedFiles, 1);
+                assert.equal(goodAfter, goodBefore);
+                assert.equal(badAfter, badBefore);
+                assert.equal(parsedGood.custom.touched, undefined);
+                assert.equal(parsedBad.custom.touched, undefined);
             } finally {
                 fs.rmSync(root, { recursive: true, force: true });
             }
