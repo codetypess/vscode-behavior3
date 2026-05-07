@@ -155,14 +155,17 @@
 - 规范化 `desc`、`prefix`、`export`
 - 校验 import paths
 - 排序 locals 与 import refs
-- 仅在值确实变化时提交 mutation
+- webview 只发送 intent，宿主仅在值确实变化时提交 mutation
 
 ### `updateNode(payload)`
 
-当前分三条路径：
+webview 在发送 intent 前只补齐 host reducer 需要的上下文：
 
 - payload 会先补齐 `currentNodeSnapshot`
 - 若本次是把 subtree link 改回本地节点，还会补齐 `detachedSubtreeRoot`
+- 是否 noop、是否错误、是否提交由宿主 reducer 决定
+
+host reducer 当前分三条路径：
 
 #### A. 主树普通节点
 

@@ -97,7 +97,7 @@
 
 这意味着：
 
-- webview 内以 `persistedTree` 作为当前 reducer 的结构化编辑镜像
+- webview 内以 `persistedTree` 作为 host snapshot 的结构化 projection，用于 graph/Inspector 渲染与 intent payload context
 - 宿主侧以 `content` 为磁盘写入真源
 - 宿主 session 负责 save/undo/redo/dirty，以及已迁入 host 的 sidebar/canvas mutation intent 的权威提交状态
 - 二者必须通过规范化序列化保持同步

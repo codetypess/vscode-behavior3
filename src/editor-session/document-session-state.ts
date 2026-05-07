@@ -14,8 +14,8 @@ interface CreateDocumentSessionStateOptions {
 
 /**
  * Host-side authoritative metadata for the main-document session.
- * The current phase still lets webviews execute most reducers locally, but
- * save/dirty/history/conflict truth now converges here first.
+ * Webviews project this state locally, but save/dirty/history/conflict truth
+ * and committed main-document mutations converge through the host session.
  */
 export class DocumentSessionState {
     private currentSnapshot: string;

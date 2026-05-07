@@ -51,7 +51,7 @@ Shared Layer
 - 维护主文档 `sessionState` 的 dirty、history、save/reload conflict 元数据
 - 串行化主文档 save、revert、external reload、sidebar proxy mutation
 - 执行 save、undo、redo 这类主文档 intent，并把权威结果广播回 webview
-- 对 sidebar 的 `updateTreeMeta` / `updateNode` 运行 host-first shared reducer；`updateNode` 所需节点快照由 intent 显式携带，只在必要时回退到主编辑器兼容执行链
+- 对 editor / sidebar 的 `updateTreeMeta` / `updateNode` 运行 host-first shared reducer；`updateNode` 所需节点快照由 intent 显式携带，不再回退到主编辑器兼容执行链
 - 维护当前共享 tree/node 选中，并把它折叠进 `init` / `documentSnapshotChanged`
 - 监听主文件、subtree 文件、setting 文件、workspace 文件、VS Code 配置与主题变化
 - 解析 nodeDefs、工作目录、变量声明、可见文件列表
@@ -65,9 +65,9 @@ Shared Layer
 - 持有结构化文档状态、工作区状态、host-projected selection authority 与本地 graph UI state
 - 解析 `persistedTree + subtreeSources + nodeDefs` 为 resolved graph
 - 将 resolved graph 投影到 G6 画布模型
-- 执行当前仍留在 webview 的树级和节点级编辑命令
+- 执行本地 UI / graph / Inspector projection 命令；主文档编辑命令只组装 intent 与必要 payload context
 - 把 save、undo、redo 作为用户 intent 发给宿主，再消费宿主回推的权威 session/content
-- sidebar 的 `updateTreeMeta` / `updateNode` 也只发送 intent，不再先在本地提交主文档状态
+- editor / sidebar 的 `updateTreeMeta` / `updateNode` 都只发送 intent，不再先在本地 reducer 判定提交结果或提交主文档状态
 - 管理 selection restore、search、variable focus、graph-only selection hint，以及宿主回推 document/session/selection snapshot 的本地 projection 刷新逻辑
 
 ### Shared Layer
@@ -117,14 +117,14 @@ Shared Layer
 3. extension-host 计算变量与文件列表后补发 `varDeclLoaded`
 4. webview 初始化 stores，构建 resolved graph，渲染 G6
 
-### 本地编辑
+### 本地交互与投影
 
 1. 用户在图或 Inspector 中触发命令
-2. controller 修改 `persistedTree` 或 `overrides`
-3. runtime 同步 reachable subtree cache
-4. runtime 重建 resolved graph 与 graph view model
-5. runtime 仅维护当前渲染与表单所需 projection，不再承担主文档 mutation 提交职责
-6. runtime 只更新本地 graph / Inspector projection；变量声明视图由宿主直接基于已提交 snapshot 刷新
+2. controller 对主文档编辑只组装 `mutateDocument` intent 与必要 payload context
+3. extension-host session reduce、提交并 fanout 权威 snapshot
+4. runtime 消费 snapshot，更新 `persistedTree` projection
+5. runtime 同步 reachable subtree cache，重建 resolved graph 与 graph view model
+6. runtime 只维护本地 graph / Inspector projection；变量声明视图由宿主直接基于已提交 snapshot 刷新
 
 说明：
 
@@ -140,7 +140,7 @@ Shared Layer
 ### Host-First Mutation Intent
 
 1. Inspector Sidebar 或主编辑器 canvas 发送 `mutateDocument`
-2. active editor session 先尝试在 host 侧直接 reduce 并提交权威 snapshot
+2. extension-host document session 在 host 侧直接 reduce 并提交权威 snapshot
 3. host 若无法提交，则直接返回权威错误，而不是转回主编辑器执行
 4. 普通 tree/node 选中通过 `selectTree` / `selectNode` 先进入 host；editor 可保留 graph-only 本地视觉 hint，但 `selectionStore` 的共享选中 projection 只由 committed `documentSnapshotChanged.selection` 更新
 5. 结构命令在 host 内部可先产出 reducer `nextSelection`，但对外只通过 committed `documentSnapshotChanged.selection` 更新 editor / sidebar projection

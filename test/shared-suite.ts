@@ -2500,6 +2500,165 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
         },
     },
     {
+        name: "forwards noop editor mutation intents to host without local reducer preflight",
+        async run() {
+            const documentStore = createDocumentStore();
+            const workspaceStore = createWorkspaceStore();
+            const selectionStore = createSelectionStore();
+            const graphUiStore = createGraphUiStore();
+            const appHooks = createAppHooksStore();
+            appHooks.bind({
+                message: {
+                    success() {},
+                    error() {},
+                } as any,
+                notification: {} as any,
+                modal: {} as any,
+            });
+
+            const mutations: DocumentMutation[] = [];
+            let selectedNodeTarget: NodeInstanceRef | null = null;
+            const hostAdapter: HostAdapter = {
+                connect: () => () => {},
+                sendReady() {},
+                undo() {},
+                redo() {},
+                async mutateDocument(mutation) {
+                    mutations.push(mutation);
+                    return { success: true };
+                },
+                selectTree() {},
+                selectNode(target) {
+                    selectedNodeTarget = target;
+                },
+                requestFocusVariable() {},
+                sendRequestSetting() {},
+                sendBuild() {},
+                async validateNodeChecks() {
+                    return { diagnostics: [] };
+                },
+                async saveDocument() {
+                    return { success: true };
+                },
+                async revertDocument() {
+                    return { success: true };
+                },
+                async readFile() {
+                    return { content: "{}" };
+                },
+                async saveSubtree() {
+                    return { success: true };
+                },
+                async saveSubtreeAs() {
+                    return { savedPath: null };
+                },
+                log() {},
+            };
+            const graphAdapter: GraphAdapter = {
+                async mount() {},
+                unmount() {},
+                async render() {},
+                async applySelection() {},
+                async applyHighlights() {},
+                async applySearch() {},
+                async focusNode() {},
+                async restoreViewport() {},
+                getViewport: () => ({ zoom: 1, x: 0, y: 0 }),
+            };
+            const controller = createEditorController({
+                documentStore,
+                workspaceStore,
+                selectionStore,
+                graphUiStore,
+                hostAdapter,
+                graphAdapter,
+                appHooks,
+            });
+
+            const tree = createTestTree();
+            const content = serializePersistedTree(tree);
+            await controller.initFromHost({
+                filePath: "/tmp/main.json",
+                workdir: "/tmp",
+                content,
+                nodeDefs: [
+                    {
+                        name: "Sequence",
+                        type: "Composite",
+                        desc: "",
+                        status: ["success"],
+                    },
+                ],
+                allFiles: [],
+                settings: {
+                    checkExpr: true,
+                    subtreeEditable: true,
+                    language: "en",
+                    theme: "light",
+                },
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: content,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: { kind: "tree" },
+            });
+
+            await controller.updateTreeMeta({
+                prefix: "",
+                export: true,
+                group: [],
+                variables: {
+                    imports: [],
+                    locals: [],
+                },
+            });
+
+            await controller.selectNode("1");
+            assert.ok(selectedNodeTarget);
+            await controller.applyDocumentSnapshot({
+                content,
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: content,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: {
+                    kind: "node",
+                    ref: selectedNodeTarget,
+                },
+                syncKind: "update",
+            });
+
+            const target = selectionStore.getState().selectedNodeRef;
+            assert.ok(target);
+            await controller.updateNode({
+                target,
+                data: {
+                    name: "Sequence",
+                },
+            });
+
+            assert.deepEqual(
+                mutations.map((mutation) => mutation.type),
+                ["updateTreeMeta", "updateNode"]
+            );
+            const updateNodeMutation = mutations[1];
+            assert.equal(updateNodeMutation?.type, "updateNode");
+            if (updateNodeMutation?.type !== "updateNode") {
+                return;
+            }
+            assert.equal(updateNodeMutation.payload.currentNodeSnapshot?.data.uuid, "root");
+            assert.equal(updateNodeMutation.payload.currentNodeSnapshot?.subtreeNode, false);
+        },
+    },
+    {
         name: "applies host document snapshots and host selection through controller projection",
         async run() {
             const documentStore = createDocumentStore();

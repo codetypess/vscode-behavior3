@@ -4,17 +4,10 @@ import type {
     DocumentMutation,
     DocumentMutationResponse,
     EditorCommand,
-    PersistedTreeModel,
     ResolvedNodeModel,
     UpdateNodeInput,
     UpdateTreeMetaInput,
 } from "../shared/contracts";
-import {
-    type DocumentMutationReducerError,
-    type ReducibleDocumentMutation,
-    formatDocumentMutationReducerError,
-    reduceDocumentMutation,
-} from "../shared/document-mutation-reducer";
 import { stringifyJson } from "../shared/misc/stringify";
 import { parseWorkdirRelativeJsonPath } from "../shared/protocol";
 import { clonePersistedNode } from "../shared/tree";
@@ -33,9 +26,6 @@ type MutationCommandKeys =
     | "openSelectedSubtree"
     | "saveSelectedAsSubtree";
 
-const getLanguage = (runtime: ControllerRuntime) =>
-    runtime.deps.workspaceStore.getState().settings.language;
-
 const forwardDocumentMutation = async (
     runtime: ControllerRuntime,
     mutation: DocumentMutation
@@ -46,18 +36,6 @@ const forwardDocumentMutation = async (
         return response;
     }
     return response;
-};
-
-const notifyDocumentMutationError = (
-    runtime: ControllerRuntime,
-    error: DocumentMutationReducerError
-): void => {
-    if (error.code === "invalid-json-path") {
-        runtime.notifyError(i18n.t("validation.invalidJsonPath", { path: error.path }));
-        return;
-    }
-
-    runtime.notifyError(formatDocumentMutationReducerError(error, getLanguage(runtime)));
 };
 
 const buildUpdateNodePayload = (
@@ -93,26 +71,17 @@ const getResolvedNodeByInstanceKey = (
     instanceKey: string
 ): ResolvedNodeModel | null => runtime.getResolvedGraph()?.nodesByInstanceKey[instanceKey] ?? null;
 
-const resolveDropContext = (
-    runtime: ControllerRuntime,
-    intent: DropIntent
-):
-    | {
-          currentTree: PersistedTreeModel;
-          sourceResolved: ResolvedNodeModel;
-          targetResolved: ResolvedNodeModel;
-      }
-    | null => {
+const canForwardDropIntent = (runtime: ControllerRuntime, intent: DropIntent): boolean => {
     const currentTree = runtime.deps.documentStore.getState().persistedTree;
     const sourceResolved = getResolvedNodeByInstanceKey(runtime, intent.source.instanceKey);
     const targetResolved = getResolvedNodeByInstanceKey(runtime, intent.target.instanceKey);
 
     if (!currentTree || !sourceResolved || !targetResolved) {
-        return null;
+        return false;
     }
 
     if (intent.source.instanceKey === intent.target.instanceKey) {
-        return null;
+        return false;
     }
 
     if (sourceResolved.subtreeNode) {
@@ -151,11 +120,7 @@ const resolveDropContext = (
         throw new Error(i18n.t("node.moveIntoDescendantDenied"));
     }
 
-    return {
-        currentTree,
-        sourceResolved,
-        targetResolved,
-    };
+    return true;
 };
 
 export const createMutationCommands = (
@@ -182,61 +147,24 @@ export const createMutationCommands = (
             if (!tree) {
                 return;
             }
-            const mutation: ReducibleDocumentMutation = { type: "updateTreeMeta", payload };
-            const result = reduceDocumentMutation(mutation, {
-                tree,
-                nodeDefs: deps.workspaceStore.getState().nodeDefs,
-            });
 
-            if (result.status === "error") {
-                notifyDocumentMutationError(runtime, result.error);
-                return;
-            }
-
-            if (result.status === "noop") {
-                return;
-            }
-
-            await forwardDocumentMutation(runtime, mutation);
+            await forwardDocumentMutation(runtime, { type: "updateTreeMeta", payload });
         },
 
         async updateNode(payload: UpdateNodeInput) {
             const currentTree = deps.documentStore.getState().persistedTree;
-            const selectedSnapshot = deps.selectionStore.getState().selectedNodeSnapshot;
             if (!currentTree) {
                 return;
             }
 
-            const mutation: ReducibleDocumentMutation = {
+            await forwardDocumentMutation(runtime, {
                 type: "updateNode",
                 payload: buildUpdateNodePayload(runtime, payload),
-            };
-            const result = reduceDocumentMutation(mutation, {
-                tree: currentTree,
-                nodeDefs: deps.workspaceStore.getState().nodeDefs,
-                selectedNode: selectedSnapshot,
             });
-
-            if (result.status === "error") {
-                if (result.error.code === "missing-target-node") {
-                    await forwardDocumentMutation(runtime, mutation);
-                    return;
-                }
-
-                notifyDocumentMutationError(runtime, result.error);
-                return;
-            }
-
-            if (result.status === "noop") {
-                return;
-            }
-
-            await forwardDocumentMutation(runtime, mutation);
         },
 
         async performDrop(intent: DropIntent) {
-            const dropContext = resolveDropContext(runtime, intent);
-            if (!dropContext) {
+            if (!canForwardDropIntent(runtime, intent)) {
                 return;
             }
 

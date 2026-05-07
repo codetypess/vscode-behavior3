@@ -8,6 +8,7 @@ import type {
     HostDocumentSnapshot,
     HostDocumentSessionState,
     HostSelectionState,
+    NodeCheckDiagnostic,
     NodeCheckValidationNode,
     NodeInstanceRef,
 } from "./contracts";
@@ -78,12 +79,7 @@ export type HostToEditorMessage =
     | {
           type: "validateNodeChecksResult";
           requestId: string;
-          diagnostics: Array<{
-              instanceKey: string;
-              argName: string;
-              checker: string;
-              message: string;
-          }>;
+          diagnostics: NodeCheckDiagnostic[];
           error?: string;
       }
     | { type: "readFileResult"; requestId: string; content: string | null }

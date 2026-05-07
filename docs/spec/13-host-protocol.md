@@ -217,6 +217,7 @@
 - 该快照来自当前发起 webview 的选中节点投影，包含 host reducer 需要的当前节点数据、subtree 标记和 `subtreeOriginal`
 - `updateNode` 在“解绑 subtree 引用为本地节点”时可以携带 `detachedSubtreeRoot`
 - `detachedSubtreeRoot` 由当前 webview runtime 提供，供 host reducer 直接提交
+- webview 只负责组装 intent payload；是否 noop、是否错误、是否提交都由 host session 的 reducer 结果决定
 - 真正的共享 selection authority 在 `init.selection` / `documentSnapshotChanged.selection`
 - reducer `nextSelection` 及其 helper 类型只用于 host 在提交时更新自身 `sharedSelection`
 - `mutateDocumentResult` 只承担成功/失败应答，不再承载共享选中结果
