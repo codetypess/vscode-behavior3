@@ -2,7 +2,6 @@ import { computeNodeOverride } from "./misc/b3util";
 import { generateUuid } from "./stable-id";
 import type {
     DocumentMutation,
-    DocumentMutationSelection,
     EditNode,
     NodeDef,
     PersistedNodeModel,
@@ -11,6 +10,11 @@ import type {
 } from "./contracts";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
 import { clonePersistedNode, clonePersistedTree, findPersistedNodeByStableId } from "./tree";
+
+// Internal reducer follow-up selection consumed by the host session only.
+export type DocumentMutationSelection =
+    | { kind: "tree" }
+    | { kind: "node"; structuralStableId: string };
 
 export type DocumentMutationReducerError =
     | { code: "invalid-json-path"; path: string }

@@ -180,7 +180,7 @@
 说明：
 
 - `selection` 是 committed fanout 时唯一公开的共享选中权威结果
-- reducer `nextSelection` 只保留在 host session 内部，不属于稳定对外协议
+- reducer `nextSelection` 及其 helper 类型只保留在 host session / reducer 内部，不属于稳定对外协议或 public contracts
 - snapshot 不承载 variable focus；reload/save/undo/redo/webview re-init 都不能从 snapshot 恢复变量高亮
 
 ### NodeInstanceRef
@@ -218,7 +218,7 @@
 - `updateNode` 在“解绑 subtree 引用为本地节点”时可以携带 `detachedSubtreeRoot`
 - `detachedSubtreeRoot` 由当前 webview runtime 提供，供 host reducer 直接提交
 - 真正的共享 selection authority 在 `init.selection` / `documentSnapshotChanged.selection`
-- reducer `nextSelection` 只用于 host 在提交时更新自身 `sharedSelection`
+- reducer `nextSelection` 及其 helper 类型只用于 host 在提交时更新自身 `sharedSelection`
 - `mutateDocumentResult` 只承担成功/失败应答，不再承载共享选中结果
 
 ## 会话规则

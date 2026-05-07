@@ -25,11 +25,11 @@ import type {
     NodeDef,
 } from "../../webview/shared/message-protocol";
 import type {
-    DocumentMutationSelection,
     HostSelectionState,
     NodeInstanceRef,
 } from "../../webview/shared/contracts";
 import {
+    type DocumentMutationSelection,
     formatDocumentMutationReducerError,
     isReducibleDocumentMutation,
     reduceDocumentMutation,

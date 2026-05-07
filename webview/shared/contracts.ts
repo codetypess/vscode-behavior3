@@ -219,10 +219,6 @@ export interface SaveSelectedAsSubtreeInput {
     suggestedBaseName: string;
 }
 
-export type DocumentMutationSelection =
-    | { kind: "tree" }
-    | { kind: "node"; structuralStableId: string };
-
 export interface ReadFileResponse {
     content: string | null;
 }
