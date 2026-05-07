@@ -1,13 +1,16 @@
 import {
     hasArgOptions,
     isBoolType,
+    isExprType,
     isFloatType,
     isIntType,
     isJsonType,
     type NodeArg,
+    type VarDecl,
 } from "../../shared/misc/b3type";
 import { getNodeArgRawType, isNodeArgArray, isNodeArgOptional } from "../../shared/misc/b3util";
 import i18n from "../../shared/misc/i18n";
+import { validateExpressionValues } from "./inspector-shared";
 
 export const formatArgInitialValue = (arg: NodeArg, value: unknown) => {
     const type = getNodeArgRawType(arg);
@@ -106,4 +109,65 @@ export const parseArgSubmitValue = (arg: NodeArg, raw: unknown): unknown => {
         return undefined;
     }
     return text;
+};
+
+export const validateInspectorArgValue = (params: {
+    arg: NodeArg;
+    rawValue: unknown;
+    usingVars: Record<string, VarDecl> | null;
+    checkExpr: boolean;
+}): string | null => {
+    const { arg, rawValue, usingVars, checkExpr } = params;
+    const type = getNodeArgRawType(arg);
+    const parsedValue = parseArgSubmitValue(arg, rawValue);
+
+    if (parsedValue === undefined) {
+        return null;
+    }
+
+    const integerError = i18n.t("validation.integer", { field: arg.desc || arg.name });
+    const numberError = i18n.t("validation.number", { field: arg.desc || arg.name });
+
+    if (isNodeArgArray(arg)) {
+        if (!Array.isArray(parsedValue)) {
+            return i18n.t("validation.jsonArray", { name: arg.name });
+        }
+
+        if (isIntType(type)) {
+            return parsedValue.every((entry) => Number.isInteger(entry)) ? null : integerError;
+        }
+
+        if (isFloatType(type)) {
+            return parsedValue.every(
+                (entry) => typeof entry === "number" && Number.isFinite(entry)
+            )
+                ? null
+                : numberError;
+        }
+
+        if (isExprType(type)) {
+            const exprValues = parsedValue.filter((entry): entry is string => typeof entry === "string");
+            if (exprValues.length !== parsedValue.length) {
+                return i18n.t("validation.invalidValue");
+            }
+            return validateExpressionValues(exprValues, usingVars, checkExpr);
+        }
+
+        return null;
+    }
+
+    if (isIntType(type)) {
+        return Number.isInteger(parsedValue) ? null : integerError;
+    }
+
+    if (isFloatType(type)) {
+        return typeof parsedValue === "number" && Number.isFinite(parsedValue) ? null : numberError;
+    }
+
+    if (isExprType(type)) {
+        const exprValues = typeof parsedValue === "string" ? [parsedValue] : [];
+        return validateExpressionValues(exprValues, usingVars, checkExpr);
+    }
+
+    return null;
 };

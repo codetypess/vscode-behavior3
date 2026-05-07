@@ -20,6 +20,7 @@ import { collectResolvedNodeDiagnostics } from "../webview/domain/tree-validatio
 import {
     formatArgInitialValue,
     parseArgSubmitValue,
+    validateInspectorArgValue,
 } from "../webview/features/inspector/inspector-arg-values";
 import { serializePersistedTreeForMainDocumentSave } from "../webview/shared/main-document-save";
 import { reduceDocumentMutation } from "../webview/shared/document-mutation-reducer";
@@ -252,6 +253,48 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 ),
                 "RUNNING"
             );
+        },
+    },
+    {
+        name: "accepts valid integer array inspector args",
+        run() {
+            assert.equal(
+                validateInspectorArgValue({
+                    arg: { name: "option", type: "int[]?", desc: "选项" },
+                    rawValue: "[1,2]",
+                    usingVars: null,
+                    checkExpr: true,
+                }),
+                null
+            );
+        },
+    },
+    {
+        name: "accepts valid float array inspector args",
+        run() {
+            assert.equal(
+                validateInspectorArgValue({
+                    arg: { name: "weights", type: "float[]?", desc: "权重" },
+                    rawValue: "[1,2.5]",
+                    usingVars: null,
+                    checkExpr: true,
+                }),
+                null
+            );
+        },
+    },
+    {
+        name: "rejects invalid integer array inspector args",
+        run() {
+            const error = validateInspectorArgValue({
+                arg: { name: "option", type: "int[]?", desc: "选项" },
+                rawValue: "[1,2.5]",
+                usingVars: null,
+                checkExpr: true,
+            });
+            assert.equal(typeof error, "string");
+            assert.match(error ?? "", /选项/);
+            assert.match(error ?? "", /integer|整数/);
         },
     },
     {

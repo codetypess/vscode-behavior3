@@ -27,7 +27,11 @@ import {
 import { useRuntime } from "../../app/runtime";
 import type { NodeCheckDiagnostic, UpdateNodeInput } from "../../shared/contracts";
 import { isRequiredNodeArgValueMissing } from "../../domain/tree-validation";
-import { formatArgInitialValue, parseArgSubmitValue } from "./inspector-arg-values";
+import {
+    formatArgInitialValue,
+    parseArgSubmitValue,
+    validateInspectorArgValue,
+} from "./inspector-arg-values";
 import {
     OverrideBar,
     SectionDivider,
@@ -37,7 +41,6 @@ import {
     filterOptionByLabel,
     queueInspectorTask,
     trackPendingInspectorEdit,
-    validateExpressionValues,
     validateVariableValue,
     type VariableOption,
 } from "./inspector-shared";
@@ -168,28 +171,14 @@ const NodeArgField: React.FC<{
             parsedValue = parseArgSubmitValue(arg, value);
         }
 
-        if (isIntType(type) && value !== undefined && value !== "") {
-            if (!Number.isInteger(Number(value))) {
-                throw new Error(t("validation.integer", { field: arg.desc || arg.name }));
-            }
-        }
-
-        if (isFloatType(type) && value !== undefined && value !== "") {
-            if (!Number.isFinite(Number(value))) {
-                throw new Error(t("validation.number", { field: arg.desc || arg.name }));
-            }
-        }
-
-        if (isExprType(type)) {
-            const exprValues = Array.isArray(parsedValue)
-                ? parsedValue.filter((entry): entry is string => typeof entry === "string")
-                : typeof parsedValue === "string"
-                  ? [parsedValue]
-                  : [];
-            const error = validateExpressionValues(exprValues, usingVars, checkExpr);
-            if (error) {
-                throw new Error(error);
-            }
+        const validationError = validateInspectorArgValue({
+            arg,
+            rawValue: value,
+            usingVars,
+            checkExpr,
+        });
+        if (validationError) {
+            throw new Error(validationError);
         }
 
         if (arg.oneof) {
