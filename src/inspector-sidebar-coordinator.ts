@@ -5,6 +5,7 @@ import type {
     HostSelectionState,
 } from "../webview/shared/contracts";
 import type { EditorToHostMessage, HostToEditorMessage } from "../webview/shared/message-protocol";
+import { isJsonEqual } from "../webview/shared/equality";
 import { InspectorSidebarProvider } from "./inspector-sidebar-provider";
 
 type InitMessage = Extract<HostToEditorMessage, { type: "init" }>;
@@ -17,9 +18,6 @@ export interface InspectorSessionSnapshot {
     documentSnapshot: HostDocumentSnapshot;
     selectionRevision: number;
 }
-
-const isJsonEqual = (left: unknown, right: unknown) =>
-    JSON.stringify(left) === JSON.stringify(right);
 
 const buildReloadDocumentSnapshot = (
     content: string,

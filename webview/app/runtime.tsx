@@ -9,6 +9,7 @@ import { createGraphUiStore } from "../stores/graph-ui-store";
 import { createSelectionStore } from "../stores/selection-store";
 import { createWorkspaceStore } from "../stores/workspace-store";
 import { createAppHooksStore, type AppHooksStore } from "../shared/misc/hooks";
+import { detectWebviewKind, type WebviewKind } from "../shared/webview-kind";
 import type {
     DocumentState,
     EditorCommand,
@@ -19,6 +20,7 @@ import type {
 import type { GraphAdapter } from "../shared/graph-contracts";
 
 export interface EditorRuntime {
+    webviewKind: WebviewKind;
     documentStore: StoreApi<DocumentState>;
     workspaceStore: StoreApi<WorkspaceState>;
     selectionStore: StoreApi<SelectionState>;
@@ -29,7 +31,7 @@ export interface EditorRuntime {
     appHooks: AppHooksStore;
 }
 
-export const createEditorRuntime = (): EditorRuntime => {
+export const createEditorRuntime = (webviewKind: WebviewKind = detectWebviewKind()): EditorRuntime => {
     const documentStore = createDocumentStore();
     const workspaceStore = createWorkspaceStore();
     const selectionStore = createSelectionStore();
@@ -48,6 +50,7 @@ export const createEditorRuntime = (): EditorRuntime => {
     });
 
     return {
+        webviewKind,
         documentStore,
         workspaceStore,
         selectionStore,
@@ -75,6 +78,8 @@ export const useRuntime = (): EditorRuntime => {
     }
     return runtime;
 };
+
+export const useWebviewKind = (): WebviewKind => useRuntime().webviewKind;
 
 export const useDocumentStore = <T,>(selector: (state: DocumentState) => T): T => {
     const runtime = useRuntime();
@@ -109,6 +114,7 @@ export const useAppShellState = () => {
 };
 
 export const useAppThemeState = () => {
+    const { webviewKind } = useRuntime();
     const theme = useWorkspaceStore((state) => state.settings.theme);
     const language = useWorkspaceStore((state) => state.settings.language);
     const themeVersion = useWorkspaceStore((state) => state.themeVersion);
@@ -117,6 +123,7 @@ export const useAppThemeState = () => {
         theme,
         language,
         themeVersion,
+        webviewKind,
     };
 };
 

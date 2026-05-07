@@ -39,6 +39,7 @@ import {
 } from "../domain/graph-selectors";
 import { resolveDocumentGraph } from "../domain/resolve-graph";
 import { createInitialGraphUiState, patchGraphUiSearchState } from "../stores/graph-ui-store";
+import { isJsonEqual } from "../shared/equality";
 
 /**
  * Shared controller runtime for the webview editor.
@@ -103,8 +104,7 @@ export interface ControllerRuntime {
 export const cloneVars = <T extends { name: string; desc: string }>(entries: T[]): T[] =>
     entries.map((entry) => ({ ...entry }));
 
-export const isJsonEqual = (left: unknown, right: unknown): boolean =>
-    JSON.stringify(left) === JSON.stringify(right);
+export { isJsonEqual };
 
 export const buildUsingGroups = (groupNames: string[]): Record<string, boolean> | null => {
     if (groupNames.length === 0) {

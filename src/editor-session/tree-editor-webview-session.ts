@@ -7,9 +7,23 @@ import {
     TreeEditorDocument,
 } from "./document-sync";
 import { getBehavior3OutputChannel } from "../output-channel";
-import { formatConsoleArgs } from "../output-channel";
 import { mapNodeDefsIconsForWebview } from "../node-def-icons";
 import { ProjectIndex, type VarDeclResult } from "./project-index";
+import { getNewerVersionMessage, getTreeFileVersion } from "./session-file-version";
+import {
+    createBuildScriptLogger,
+    logAsyncRuntimeError,
+    logRuntimeError,
+} from "./session-logging";
+import { createSerialOperationQueue } from "./operation-queue";
+import {
+    getWorkdir,
+    readWorkspaceFileContent,
+    resolvePathInWorkdir,
+    uriToWorkdirRelative,
+} from "./session-paths";
+import { buildPendingSelectionRef } from "./session-selection";
+import { getEditorLanguage, getVSCodeTheme, type EditorLanguage } from "./session-settings";
 import {
     findB3WorkspacePath,
     getBehaviorProjectRootFsPath,
@@ -24,10 +38,7 @@ import type {
     HostToEditorMessage,
     NodeDef,
 } from "../../webview/shared/message-protocol";
-import type {
-    HostSelectionState,
-    NodeInstanceRef,
-} from "../../webview/shared/contracts";
+import type { HostSelectionState } from "../../webview/shared/contracts";
 import {
     type DocumentMutationSelection,
     formatDocumentMutationReducerError,
@@ -48,6 +59,7 @@ import {
     parsePersistedTreeContent,
     serializePersistedTree,
 } from "../../webview/shared/tree";
+import { isJsonEqual } from "../../webview/shared/equality";
 import b3path from "../../webview/shared/misc/b3path";
 import { setFs } from "../../webview/shared/misc/b3fs";
 import {
@@ -84,7 +96,7 @@ type MessageSource = "editor" | "external";
 interface EditorLiveSettings {
     checkExpr: boolean;
     subtreeEditable: boolean;
-    language: "zh" | "en";
+    language: EditorLanguage;
     nodeColors?: Record<string, string>;
 }
 
@@ -120,14 +132,6 @@ interface ResolveTreeEditorSessionParams {
     onInspectorSessionDispose(documentUri: string): void;
 }
 
-function getWorkdir(documentUri: vscode.Uri): vscode.Uri {
-    const workspaceFolder = vscode.workspace.getWorkspaceFolder(documentUri);
-    if (workspaceFolder) {
-        return workspaceFolder.uri;
-    }
-    return vscode.Uri.file(path.dirname(documentUri.fsPath));
-}
-
 function createLiveSettingsResolver(
     workspaceFolderUri: vscode.Uri,
     documentUri: vscode.Uri
@@ -141,31 +145,6 @@ function createLiveSettingsResolver(
             nodeColors: await resolveWorkspaceNodeColors(workspaceFolderUri, documentUri),
         };
     };
-}
-
-function getTreeFileVersion(content: string): string | undefined {
-    try {
-        const fileData = JSON.parse(content) as { version?: unknown };
-        return typeof fileData.version === "string" ? fileData.version : undefined;
-    } catch {
-        return undefined;
-    }
-}
-
-function getNewerVersionMessage(
-    language: EditorLiveSettings["language"],
-    fileVersion: string,
-    mode: "warn" | "edit"
-): string {
-    if (mode === "warn") {
-        return language === "zh"
-            ? `此文件由新版本 Behavior3(${fileVersion}) 创建，请升级到最新版本。`
-            : `This file is created by a newer version of Behavior3(${fileVersion}), please upgrade to the latest version.`;
-    }
-
-    return language === "zh"
-        ? `此文件由新版本 Behavior3(${fileVersion}) 创建，请升级到最新版本后再编辑。`
-        : `This file is created by a newer version of Behavior3(${fileVersion}). Please upgrade to the latest version.`;
 }
 
 async function parseUsingVarsFromContent(
@@ -193,19 +172,6 @@ function postVarDeclLoaded(
     });
 }
 
-async function readWorkspaceFileContent(fileUri: vscode.Uri): Promise<string> {
-    const openDoc = vscode.workspace.textDocuments.find(
-        (doc) => doc.uri.fsPath === fileUri.fsPath || doc.uri.toString() === fileUri.toString()
-    );
-
-    if (openDoc) {
-        return openDoc.getText();
-    }
-
-    const raw = await vscode.workspace.fs.readFile(fileUri);
-    return Buffer.from(raw).toString("utf-8");
-}
-
 function clearRefreshTimer(timer: ReturnType<typeof setTimeout> | undefined): undefined {
     if (timer) {
         clearTimeout(timer);
@@ -213,95 +179,10 @@ function clearRefreshTimer(timer: ReturnType<typeof setTimeout> | undefined): un
     return undefined;
 }
 
-const isJsonEqual = (left: unknown, right: unknown): boolean =>
-    JSON.stringify(left) === JSON.stringify(right);
-
-const buildPendingSelectionRef = (structuralStableId: string): NodeInstanceRef => ({
-    instanceKey: structuralStableId,
-    displayId: "",
-    structuralStableId,
-    sourceStableId: structuralStableId,
-    sourceTreePath: null,
-    subtreeStack: [],
-});
-
 function disposeAll(disposables: vscode.Disposable[]): void {
     for (const disposable of disposables) {
         disposable.dispose();
     }
-}
-
-function uriToWorkdirRelative(uri: vscode.Uri, workdir: vscode.Uri): string | undefined {
-    if (uri.scheme !== "file") return undefined;
-    const rel = path.relative(workdir.fsPath, uri.fsPath).replace(/\\/g, "/");
-    if (rel.startsWith("..") || path.isAbsolute(rel)) return undefined;
-    return parseWorkdirRelativeJsonPath(rel) ?? undefined;
-}
-
-function resolvePathInWorkdir(
-    inputPath: string,
-    workdir: vscode.Uri,
-    options?: { mustBeJson?: boolean }
-): vscode.Uri | undefined {
-    const parsedPath = parseWorkdirRelativeJsonPath(inputPath);
-    if (!parsedPath) {
-        return undefined;
-    }
-    const candidate = path.join(workdir.fsPath, parsedPath);
-    if (options?.mustBeJson && path.extname(candidate).toLowerCase() !== ".json") {
-        return undefined;
-    }
-    const rel = path.relative(workdir.fsPath, candidate).replace(/\\/g, "/");
-    if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
-        return undefined;
-    }
-    return vscode.Uri.file(candidate);
-}
-
-function getVSCodeTheme(): "dark" | "light" {
-    const kind = vscode.window.activeColorTheme.kind;
-    return kind === vscode.ColorThemeKind.Light || kind === vscode.ColorThemeKind.HighContrastLight
-        ? "light"
-        : "dark";
-}
-
-function getEditorLanguage(setting: string): "zh" | "en" {
-    if (setting === "zh" || setting === "en") {
-        return setting;
-    }
-    const envLanguage = vscode.env.language.toLowerCase();
-    return envLanguage.startsWith("zh") ? "zh" : "en";
-}
-
-function formatRuntimeError(error: unknown): string {
-    if (error instanceof Error) {
-        return error.stack ?? error.message;
-    }
-    return String(error);
-}
-
-function logRuntimeError(scope: string, error: unknown): void {
-    getBehavior3OutputChannel().error(`[${scope}] ${formatRuntimeError(error)}`);
-}
-
-function logAsyncRuntimeError(scope: string): (error: unknown) => void {
-    return (error) => logRuntimeError(scope, error);
-}
-
-function createBuildScriptLogger(): BuildEnv["logger"] {
-    const write =
-        (level: "debug" | "info" | "warn" | "error") =>
-        (...args: unknown[]) => {
-            getBehavior3OutputChannel()[level](formatConsoleArgs(args));
-        };
-
-    return {
-        log: write("info"),
-        debug: write("debug"),
-        info: write("info"),
-        warn: write("warn"),
-        error: write("error"),
-    };
 }
 
 const toNodeData = (node: unknown): NodeData => node as NodeData;
@@ -458,7 +339,7 @@ export async function resolveTreeEditorSession({
         },
     };
     addActiveWebview(activeWebviewEntry);
-    let mainDocumentOperationQueue: Promise<unknown> = Promise.resolve();
+    const enqueueMainDocumentOperation = createSerialOperationQueue();
     const createNodeCheckRuntime = async () => {
         const workspaceFile = findB3WorkspacePath(document.uri, workspaceFolderUri);
         if (!workspaceFile) {
@@ -575,20 +456,6 @@ export async function resolveTreeEditorSession({
                 error: String(error),
             });
         }
-    };
-
-    /**
-     * Main-document writes, reloads, and revert/save flows all funnel through a
-     * single queue so watcher callbacks and webview messages cannot race each
-     * other and leave the in-memory document in an impossible state.
-     */
-    const enqueueMainDocumentOperation = <T>(operation: () => Promise<T> | T): Promise<T> => {
-        const task = mainDocumentOperationQueue.then(operation, operation);
-        mainDocumentOperationQueue = task.then(
-            () => undefined,
-            () => undefined
-        );
-        return task;
     };
 
     const refreshSettings = async ({

@@ -7,6 +7,7 @@ import { applyDocumentTheme } from "../shared/theme-mode";
 import { getThemeConfig } from "../shared/misc/theme";
 import { setI18nLanguage } from "../shared/misc/i18n";
 import { isMacos } from "../shared/misc/keys";
+import { isJsonEqual } from "../shared/equality";
 import type {
     HostEvent,
     HostInitPayload,
@@ -19,10 +20,10 @@ import { createInitialSelectionState } from "../stores/selection-store";
 import { createInitialWorkspaceState } from "../stores/workspace-store";
 import { InspectorPane } from "../features/inspector/inspector-pane";
 import { InspectorModeProvider } from "../features/inspector/inspector-mode";
-import { flushPendingInspectorEdits } from "../features/inspector/inspector-shared";
+import { flushPendingInspectorEdits } from "../features/inspector/inspector-commit-queue";
 import {
     RuntimeProvider,
-    createEditorRuntime,
+    type EditorRuntime,
     useAppThemeState,
     useDocumentStore,
     useRuntime,
@@ -30,7 +31,7 @@ import {
 } from "./runtime";
 import { GlobalHooksBridge } from "./global-hooks-bridge";
 
-const resetSidebarContext = (runtime: ReturnType<typeof createEditorRuntime>) => {
+const resetSidebarContext = (runtime: EditorRuntime) => {
     runtime.documentStore.setState(() => createInitialDocumentState());
     runtime.selectionStore.setState(() => createInitialSelectionState());
     runtime.graphUiStore.setState(() => createInitialGraphUiState());
@@ -49,7 +50,7 @@ const blurActiveSidebarElement = () => {
 };
 
 const applySidebarInit = async (
-    runtime: ReturnType<typeof createEditorRuntime>,
+    runtime: EditorRuntime,
     payload: HostInitPayload
 ) => {
     await setI18nLanguage(payload.settings.language);
@@ -57,7 +58,7 @@ const applySidebarInit = async (
 };
 
 const applySidebarVars = (
-    runtime: ReturnType<typeof createEditorRuntime>,
+    runtime: EditorRuntime,
     payload: HostVarsPayload
 ) => {
     runtime.workspaceStore.setState((state) => ({
@@ -70,13 +71,13 @@ const applySidebarVars = (
 };
 
 const buildCurrentHostSelection = (
-    runtime: ReturnType<typeof createEditorRuntime>
+    runtime: EditorRuntime
 ): HostSelectionState => {
     const { selectedNodeRef } = runtime.selectionStore.getState();
     return selectedNodeRef ? { kind: "node", ref: selectedNodeRef } : { kind: "tree" };
 };
 
-const queueSidebarSelectionBlur = (runtime: ReturnType<typeof createEditorRuntime>) => {
+const queueSidebarSelectionBlur = (runtime: EditorRuntime) => {
     runtime.graphUiStore.setState((state) => ({
         ...state,
         activeVariableNames: [],
@@ -91,9 +92,9 @@ const queueSidebarSelectionBlur = (runtime: ReturnType<typeof createEditorRuntim
 };
 
 const hasIncomingSelectionChange = (
-    runtime: ReturnType<typeof createEditorRuntime>,
+    runtime: EditorRuntime,
     selection: HostSelectionState
-) => JSON.stringify(buildCurrentHostSelection(runtime)) !== JSON.stringify(selection);
+) => !isJsonEqual(buildCurrentHostSelection(runtime), selection);
 
 const isEditableTarget = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) {
@@ -265,12 +266,12 @@ const SidebarShell: React.FC = () => {
 };
 
 const SidebarAppFrame: React.FC = () => {
-    const { theme, language, themeVersion } = useAppThemeState();
+    const { theme, language, themeVersion, webviewKind } = useAppThemeState();
 
     return (
         <ConfigProvider
             locale={getAntdLocale(language)}
-            theme={getThemeConfig(theme, themeVersion)}
+            theme={getThemeConfig(theme, themeVersion, webviewKind)}
         >
             <AntdApp style={{ height: "100%" }}>
                 <GlobalHooksBridge />
@@ -281,9 +282,7 @@ const SidebarAppFrame: React.FC = () => {
     );
 };
 
-const runtime = createEditorRuntime();
-
-export const InspectorSidebarApp: React.FC = () => {
+export const InspectorSidebarApp: React.FC<{ runtime: EditorRuntime }> = ({ runtime }) => {
     return (
         <React.StrictMode>
             <RuntimeProvider runtime={runtime}>

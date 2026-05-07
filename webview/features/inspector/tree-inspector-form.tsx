@@ -3,8 +3,7 @@ import { AutoComplete, Button, Flex, Form, Input, Select, Switch } from "antd";
 import type { FormInstance } from "antd/es/form";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useRuntime } from "../../app/runtime";
-import type { UpdateTreeMetaInput } from "../../shared/contracts";
+import { useRuntime, useWebviewKind } from "../../app/runtime";
 import { isValidVariableName } from "../../shared/misc/b3util";
 import {
     SectionDivider,
@@ -12,10 +11,10 @@ import {
     type VariableRowValue,
     createInspectorLabelProps,
     filterOptionByLabel,
-    queueInspectorTask,
-    trackPendingInspectorEdit,
 } from "./inspector-shared";
+import { queueInspectorTask, trackPendingInspectorEdit } from "./inspector-commit-queue";
 import {
+    createTreeMetaPayload,
     createTreeInspectorFormValues,
     useTreeInspectorViewState,
 } from "./inspector-state";
@@ -281,6 +280,7 @@ const ImportRefsSection: React.FC<{
 
 export const TreeInspectorForm: React.FC = () => {
     const runtime = useRuntime();
+    const webviewKind = useWebviewKind();
     const { readOnly } = useInspectorMode();
     const [form] = Form.useForm();
     const {
@@ -306,7 +306,7 @@ export const TreeInspectorForm: React.FC = () => {
     }
 
     const focusVariable = (name: string) => {
-        if (window.__B3_WEBVIEW_KIND__ === "inspector-sidebar") {
+        if (webviewKind === "inspector-sidebar") {
             runtime.hostAdapter.requestFocusVariable([name]);
             return;
         }
@@ -316,17 +316,6 @@ export const TreeInspectorForm: React.FC = () => {
     const openSubtree = (path: string) => {
         void runtime.controller.openSubtreePath(path);
     };
-
-    const buildCommittedTreePayload = (): UpdateTreeMetaInput => ({
-        desc: document.desc,
-        prefix: document.prefix ?? "",
-        export: document.export !== false,
-        group: [...document.group],
-        variables: {
-            imports: [...document.variables.imports],
-            locals: document.variables.locals.map((variable) => ({ ...variable })),
-        },
-    });
 
     const commitTreeFields = async (fields: string[]) => {
         if (readOnly) {
@@ -340,7 +329,7 @@ export const TreeInspectorForm: React.FC = () => {
         }
 
         const values = form.getFieldsValue(true);
-        const payload = buildCommittedTreePayload();
+        const payload = createTreeMetaPayload(createTreeInspectorFormValues(document, variableUsageCount));
 
         switch (fields[0]) {
             case "desc":

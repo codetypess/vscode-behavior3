@@ -1,7 +1,7 @@
 import { ThemeConfig, theme } from "antd";
+import type { WebviewKind } from "../webview-kind";
 
 type ThemeMode = "dark" | "light";
-type WebviewKind = "editor" | "inspector-sidebar";
 
 type ThemePalette = {
     appBg: string;
@@ -55,16 +55,9 @@ const resolveCssVariable = (names: string[], fallback: string): string => {
     return fallback;
 };
 
-const getActiveWebviewKind = (): WebviewKind => {
-    if (typeof window === "undefined") {
-        return "editor";
-    }
-    return window.__B3_WEBVIEW_KIND__ === "inspector-sidebar" ? "inspector-sidebar" : "editor";
-};
-
-const getThemePalette = (mode: ThemeMode): ThemePalette => {
+const getThemePalette = (mode: ThemeMode, webviewKind: WebviewKind): ThemePalette => {
     const isDark = mode === "dark";
-    const isInspectorSidebar = getActiveWebviewKind() === "inspector-sidebar";
+    const isInspectorSidebar = webviewKind === "inspector-sidebar";
 
     return {
         appBg: resolveCssVariable(
@@ -186,8 +179,8 @@ const getThemePalette = (mode: ThemeMode): ThemePalette => {
 
 const getInputShadow = (color: string) => `0 0 0 1px ${color}`;
 
-const buildThemeConfig = (mode: ThemeMode): ThemeConfig => {
-    const palette = getThemePalette(mode);
+const buildThemeConfig = (mode: ThemeMode, webviewKind: WebviewKind): ThemeConfig => {
+    const palette = getThemePalette(mode, webviewKind);
 
     return {
         cssVar: {},
@@ -300,6 +293,10 @@ const buildThemeConfig = (mode: ThemeMode): ThemeConfig => {
     };
 };
 
-export const getThemeConfig = (mode: ThemeMode, _themeVersion = 0): ThemeConfig => {
-    return buildThemeConfig(mode);
+export const getThemeConfig = (
+    mode: ThemeMode,
+    _themeVersion = 0,
+    webviewKind: WebviewKind = "editor"
+): ThemeConfig => {
+    return buildThemeConfig(mode, webviewKind);
 };

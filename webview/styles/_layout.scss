@@ -1,0 +1,28 @@
+.b3-shell {
+    height: 100%;
+    background: var(--b3-app-bg);
+}
+
+.b3-body {
+    display: flex;
+    flex-direction: row;
+    min-height: 0;
+    flex: 1;
+    background: var(--b3-app-bg);
+}
+
+.b3-content {
+    flex: 1 1 0;
+    width: 0;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+    background: var(--b3-graph-bg);
+}
+
+.b3-sider {
+    border-left: 1px solid var(--b3-panel-border);
+    overflow: hidden;
+    background: var(--b3-panel-bg);
+}
+

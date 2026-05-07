@@ -6,7 +6,7 @@
 
 ## 总规则
 
-### Rule 1. 所有主文档写入都走 `EditorCommand`
+### Rule 1. 所有主文档写入都先由 `EditorCommand` 表达 intent，再由 host 提交
 
 无论变更来自：
 
@@ -15,7 +15,7 @@
 - 快捷键
 - 宿主代理 mutation
 
-最终都必须落到主编辑器 runtime 的 `EditorCommand`。
+在 webview 内都必须先落到 `EditorCommand` catalog，随后通过 `HostAdapter` 进入 extension-host session。真正的主文档提交、dirty/history 推进与 committed snapshot fanout 都由 host session 完成。
 
 ### Rule 2. “改树”和“改视觉状态”要分开
 
@@ -30,7 +30,7 @@
 ### Rule 4. Inspector Sidebar 是代理而不是第二套写模型
 
 - 侧栏可以发起 mutation/save/undo/redo
-- 真正执行这些动作的是当前激活主编辑器或宿主 custom editor 生命周期
+- 真正执行这些动作的是当前激活 custom editor 对应的 extension-host session 与 VS Code custom editor 生命周期
 
 ## 共享内部流程
 

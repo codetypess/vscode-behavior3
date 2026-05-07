@@ -118,12 +118,12 @@ const AppShell: React.FC = () => {
 };
 
 export const App: React.FC = () => {
-    const { theme, language, themeVersion } = useAppThemeState();
+    const { theme, language, themeVersion, webviewKind } = useAppThemeState();
 
     return (
         <ConfigProvider
             locale={getAntdLocale(language)}
-            theme={getThemeConfig(theme, themeVersion)}
+            theme={getThemeConfig(theme, themeVersion, webviewKind)}
         >
             <AntdApp style={{ height: "100%" }}>
                 <GlobalHooksBridge />

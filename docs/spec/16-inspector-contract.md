@@ -17,8 +17,8 @@
 侧栏中的树/节点编辑不会直接改 `persistedTree`，而是通过：
 
 1. `mutateDocument`
-2. 宿主转发到当前激活主编辑器
-3. 主编辑器执行真实 mutation
+2. 宿主定位当前激活主编辑器对应的 extension-host session
+3. host session 执行真实 mutation 并提交权威文档状态
 4. 宿主再把结果与最新上下文回传侧栏
 
 ### Principle 3. Inspector 既展示结构，也展示校验与降级信息
@@ -77,7 +77,7 @@ Inspector 不只是字段表单，还需要表达：
 - 支持新增、删除
 - `name` 必须是合法变量名
 - `desc` 必填
-- 提交后进入 `updateTreeMeta`
+- 提交后进入 `updateTreeMeta` intent，由 host session 决定是否提交
 
 ### Subtree Decls
 
@@ -165,7 +165,7 @@ Inspector 不只是字段表单，还需要表达：
 ### 语义
 
 - reset 后提交新的 node 数据
-- controller 会重新计算 override diff
+- host reducer 会重新计算 override diff
 - 若 diff 为空，则从主文档 `overrides` 中删除
 
 ## 可编辑性规则

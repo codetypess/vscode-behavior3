@@ -39,15 +39,19 @@ import {
     compareJsonValue,
     createInspectorLabelProps,
     filterOptionByLabel,
-    queueInspectorTask,
-    trackPendingInspectorEdit,
     validateVariableValue,
     type VariableOption,
 } from "./inspector-shared";
+import { queueInspectorTask, trackPendingInspectorEdit } from "./inspector-commit-queue";
 import {
+    buildCommittedNodeData,
     buildNodeSlotArray,
+    buildScopedArgs,
+    buildScopedSlotArray,
     createNodeInspectorFormValues,
     getNodeSlotFormValue,
+    parseVisibleArgs,
+    type NodeInspectorFormValues,
     useNodeInspectorViewState,
 } from "./inspector-state";
 import { useInspectorMode } from "./inspector-mode";
@@ -56,69 +60,6 @@ const { TextArea } = Input;
 
 type SlotFieldName = "inputSlots" | "outputSlots";
 type InspectorFieldTarget = string | Array<string | number>;
-type SelectedNodeState = NonNullable<ReturnType<typeof useNodeInspectorViewState>["selectedNode"]>;
-type NodeInspectorFormValues = ReturnType<typeof createNodeInspectorFormValues>;
-
-const buildCommittedNodeData = (selectedNode: SelectedNodeState): UpdateNodeInput["data"] => ({
-    name: selectedNode.data.name,
-    desc: selectedNode.data.desc,
-    path: selectedNode.data.path,
-    debug: selectedNode.data.debug ? true : undefined,
-    disabled: selectedNode.data.disabled ? true : undefined,
-    input: selectedNode.data.input ? [...selectedNode.data.input] : undefined,
-    output: selectedNode.data.output ? [...selectedNode.data.output] : undefined,
-    args: selectedNode.data.args ? { ...selectedNode.data.args } : undefined,
-});
-
-const parseVisibleArgs = (
-    currentNodeDef: NodeDef | null,
-    values: NodeInspectorFormValues,
-    fallbackArgs: Record<string, unknown> | undefined
-) => {
-    if (!currentNodeDef) {
-        return fallbackArgs;
-    }
-
-    const nextArgs = Object.fromEntries(
-        (currentNodeDef.args ?? [])
-            .map((arg) => [arg.name, parseArgSubmitValue(arg, values.args?.[arg.name])])
-            .filter(([, value]) => value !== undefined)
-    );
-    return Object.keys(nextArgs).length > 0 ? nextArgs : undefined;
-};
-
-const buildScopedSlotArray = (
-    slotDefs: string[] | undefined,
-    committedSlots: string[] | undefined,
-    rawFormSlots: unknown,
-    index: number
-) => {
-    if (!slotDefs?.length) {
-        return committedSlots;
-    }
-
-    const scopedRawSlots = slotDefs.map((_, slotIndex) =>
-        getNodeSlotFormValue(committedSlots, slotIndex, isVariadic(slotDefs, slotIndex))
-    ) as Array<string | string[]>;
-    const formSlots = Array.isArray(rawFormSlots) ? rawFormSlots : [];
-    scopedRawSlots[index] = formSlots[index];
-    return buildNodeSlotArray(slotDefs, scopedRawSlots, committedSlots);
-};
-
-const buildScopedArgs = (
-    committedArgs: Record<string, unknown> | undefined,
-    arg: NodeArg,
-    values: NodeInspectorFormValues
-) => {
-    const nextArgs = { ...(committedArgs ?? {}) };
-    const parsedValue = parseArgSubmitValue(arg, values.args?.[arg.name]);
-    if (parsedValue === undefined) {
-        delete nextArgs[arg.name];
-    } else {
-        nextArgs[arg.name] = parsedValue;
-    }
-    return Object.keys(nextArgs).length > 0 ? nextArgs : undefined;
-};
 
 const NodeArgField: React.FC<{
     form: FormInstance;

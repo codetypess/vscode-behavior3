@@ -25,9 +25,9 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 13 份 work-item spec
-- 2 份登记中的 active work-item spec
-- 11 份登记中的 done work-item spec
+- 18 份 work-item spec
+- 6 份登记中的 active work-item spec
+- 12 份登记中的 done work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
 目录判断规则：
@@ -225,6 +225,7 @@ Scope: <short boundary>
 
 ## Done Work Items
 
+- `architecture-maintainability-refactor.md` - `Done` - 架构、运行时、Inspector 和样式的保持行为不变的可维护性清理
 - `baseline-spec-sync-current-code.md` - `Done` - 按当前实现回写编号基线 spec
 - `document-mutation-selection-internal.md` - `Done` - 将 reducer `nextSelection` helper type 从 public contracts 收口到 host/reducer 内部边界
 - `host-webview-migration-semantics.md` - `Done` - 统一 host/webview/sidebar 迁移后的语义、实现和规范表述

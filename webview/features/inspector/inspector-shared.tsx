@@ -20,6 +20,7 @@ import {
     validateVariableReference,
     type TreeValidationDiagnostic,
 } from "../../domain/tree-validation";
+import { isJsonEqual } from "../../shared/equality";
 import { useInspectorMode } from "./inspector-mode";
 
 export type VariableOption = {
@@ -37,44 +38,6 @@ type VariableUsageNode = {
     input?: string[];
     output?: string[];
     children?: VariableUsageNode[];
-};
-
-export const queueInspectorTask = (task: () => void) => {
-    window.setTimeout(() => {
-        task();
-    }, 0);
-};
-
-const pendingInspectorEdits = new Set<Promise<unknown>>();
-
-export const trackPendingInspectorEdit = (promise: Promise<unknown>): void => {
-    const tracked = promise
-        .catch(() => undefined)
-        .finally(() => {
-            pendingInspectorEdits.delete(tracked);
-        });
-    pendingInspectorEdits.add(tracked);
-};
-
-const waitForPendingInspectorEdits = async (): Promise<void> => {
-    while (pendingInspectorEdits.size > 0) {
-        await Promise.allSettled([...pendingInspectorEdits]);
-    }
-};
-
-export const flushPendingInspectorEdits = async (): Promise<void> => {
-    const active = document.activeElement;
-    if (active instanceof HTMLElement && active !== document.body) {
-        active.blur();
-    }
-
-    await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, 0);
-    });
-    await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, 0);
-    });
-    await waitForPendingInspectorEdits();
 };
 
 export const cleanSlotLabel = (value: string) => value.replace(/\?$/, "").replace(/\.\.\.$/, "");
@@ -214,8 +177,7 @@ export const formatChildrenLabel = (nodeDef: NodeDef | null) => {
     return String(nodeDef.children);
 };
 
-export const compareJsonValue = (left: unknown, right: unknown) =>
-    JSON.stringify(left) === JSON.stringify(right);
+export const compareJsonValue = isJsonEqual;
 
 const formatValidationDiagnostic = (diagnostic: TreeValidationDiagnostic): string => {
     switch (diagnostic.code) {

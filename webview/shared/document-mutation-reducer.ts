@@ -8,6 +8,7 @@ import type {
     PersistedTreeModel,
     UpdateNodeInput,
 } from "./contracts";
+import { isJsonEqual } from "./equality";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
 import { clonePersistedNode, clonePersistedTree, findPersistedNodeByStableId } from "./tree";
 
@@ -57,9 +58,6 @@ interface DocumentMutationReducerContext {
     nodeDefs: NodeDef[];
     selectedNode?: EditNode | null;
 }
-
-const isJsonEqual = (left: unknown, right: unknown): boolean =>
-    JSON.stringify(left) === JSON.stringify(right);
 
 const cloneVars = <T extends { name: string }>(entries: T[]): T[] =>
     entries.map((entry) => ({ ...entry }));

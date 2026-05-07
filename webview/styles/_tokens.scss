@@ -1,0 +1,151 @@
+html,
+body,
+#root {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    overflow: hidden;
+    color: var(--ant-color-text);
+    background: var(--b3-app-bg);
+}
+
+body[data-webview-kind="inspector-sidebar"] {
+    --b3-inspector-sidebar-min-width: 300px;
+    --b3-inspector-form-label-width: 110px;
+}
+
+body[data-theme="dark"] {
+    --b3-app-bg: var(--vscode-editor-background, #0d1117);
+    --b3-panel-bg: var(--vscode-sideBar-background, var(--vscode-editor-background, #0d1117));
+    --b3-panel-header-bg: var(--vscode-sideBarSectionHeader-background, var(--b3-panel-bg));
+    --b3-panel-content-bg: var(--b3-panel-bg);
+    --b3-panel-border: var(--vscode-sideBar-border, var(--vscode-panel-border, #30363d));
+    --b3-panel-title: var(--vscode-sideBarTitle-foreground, var(--vscode-foreground, #e6edf3));
+    --b3-graph-bg: var(--vscode-editor-background, #010409);
+    --b3-graph-edge: #a3b1bf;
+    --b3-text-muted: var(--vscode-descriptionForeground, #8b949e);
+    --b3-filter-hover-bg: var(--vscode-list-hoverBackground, #30363d);
+    --b3-filter-selected-bg: var(--vscode-list-activeSelectionBackground, #2f81f7);
+    --b3-filter-selected-hover-bg: var(
+        --vscode-list-inactiveSelectionBackground,
+        var(--vscode-list-activeSelectionBackground, #388bfd)
+    );
+    --b3-search-bg: var(--vscode-editorWidget-background, var(--vscode-input-background, #161b22));
+    --b3-search-border-accent: var(--vscode-focusBorder, #f78166);
+    --b3-search-shadow: #0000005c;
+    --b3-override-bar: var(--vscode-badge-background, #d87a16);
+    --b3-node-content-bg: #ffffff;
+    --b3-node-text: #111827;
+    --b3-node-muted: #4b5563;
+    --b3-node-divider: #666666;
+    --b3-node-highlight-bg: #0d1117;
+    --b3-node-highlight-text: #ffffff;
+    --b3-node-gray-fill: #0d1117;
+    --b3-node-gray-border: #30363d;
+    --b3-node-gray-rail: #30363d;
+    --b3-node-gray-text: #666666;
+    --b3-node-id-text: var(--vscode-editorLineNumber-activeForeground, #ffffff);
+    --b3-node-id-stroke: #000000;
+    --b3-node-selection-base: var(--vscode-editor-background, #24303d);
+    --b3-node-selection-strength: 58%;
+    --b3-node-focus-ring: rgba(255, 171, 0, 0.22);
+    --b3-node-focus-color: var(--vscode-focusBorder, #ffab00);
+    --b3-node-focus-opacity: 0.45;
+    --b3-node-variable-hover-bg: var(--vscode-list-hoverBackground, rgba(23, 105, 221, 0.08));
+    --b3-node-variable-active-hover-bg: rgba(255, 255, 255, 0.14);
+    --b3-subtree-outline: var(--vscode-descriptionForeground, var(--vscode-panel-border, #a5b1be));
+    --b3-warning-text: var(--vscode-errorForeground, #b42318);
+    --b3-drop-before: var(--vscode-editorWarning-foreground, #faad14);
+    --b3-drop-child: var(--vscode-errorForeground, #ff4d4f);
+    --b3-drag-source: var(--vscode-list-dropBackground, #ffa500);
+    --b3-collapse-bg: var(--vscode-editorWidget-background, #ffffff);
+    --b3-collapse-border: var(--vscode-panel-border, #666666);
+    --b3-collapse-text: var(--vscode-descriptionForeground, #666666);
+}
+
+body[data-theme="light"] {
+    --b3-app-bg: var(--vscode-editor-background, #ffffff);
+    --b3-panel-bg: var(--vscode-sideBar-background, var(--vscode-editor-background, #ffffff));
+    --b3-panel-header-bg: var(--vscode-sideBarSectionHeader-background, var(--b3-panel-bg));
+    --b3-panel-content-bg: var(--b3-panel-bg);
+    --b3-panel-border: var(--vscode-sideBar-border, var(--vscode-panel-border, #d0d7de));
+    --b3-panel-title: var(--vscode-sideBarTitle-foreground, var(--vscode-foreground, #1f2328));
+    --b3-graph-bg: var(--vscode-editor-background, #f6f8fa);
+    --b3-graph-edge: #a3b1bf;
+    --b3-text-muted: var(--vscode-descriptionForeground, #57606a);
+    --b3-filter-hover-bg: var(--vscode-list-hoverBackground, #eaeef2);
+    --b3-filter-selected-bg: var(--vscode-list-activeSelectionBackground, #0969da);
+    --b3-filter-selected-hover-bg: var(
+        --vscode-list-inactiveSelectionBackground,
+        var(--vscode-list-activeSelectionBackground, #1f6feb)
+    );
+    --b3-search-bg: var(--vscode-editorWidget-background, var(--vscode-input-background, #ffffff));
+    --b3-search-border-accent: var(--vscode-focusBorder, #0969da);
+    --b3-search-shadow: #1f232826;
+    --b3-override-bar: var(--vscode-badge-background, #bc4c00);
+    --b3-node-content-bg: #ffffff;
+    --b3-node-text: #111827;
+    --b3-node-muted: #4b5563;
+    --b3-node-divider: #666666;
+    --b3-node-highlight-bg: #0d1117;
+    --b3-node-highlight-text: #ffffff;
+    --b3-node-gray-fill: #0d1117;
+    --b3-node-gray-border: #30363d;
+    --b3-node-gray-rail: #30363d;
+    --b3-node-gray-text: #666666;
+    --b3-node-id-text: var(
+        --vscode-editorLineNumber-activeForeground,
+        var(--vscode-foreground, #1f2328)
+    );
+    --b3-node-id-stroke: #ffffff;
+    --b3-node-selection-base: var(--vscode-editor-background, #ffffff);
+    --b3-node-selection-strength: 38%;
+    --b3-node-focus-ring: rgba(191, 135, 0, 0.28);
+    --b3-node-focus-color: var(--vscode-focusBorder, #9a6700);
+    --b3-node-focus-opacity: 0.5;
+    --b3-node-variable-hover-bg: var(--vscode-list-hoverBackground, rgba(9, 105, 218, 0.1));
+    --b3-node-variable-active-hover-bg: rgba(255, 255, 255, 0.18);
+    --b3-subtree-outline: var(--vscode-descriptionForeground, var(--vscode-panel-border, #6e7781));
+    --b3-warning-text: var(--vscode-errorForeground, #cf222e);
+    --b3-drop-before: var(--vscode-editorWarning-foreground, #9a6700);
+    --b3-drop-child: var(--vscode-errorForeground, #cf222e);
+    --b3-drag-source: var(--vscode-list-dropBackground, #fb8500);
+    --b3-collapse-bg: var(--vscode-editorWidget-background, #ffffff);
+    --b3-collapse-border: var(--vscode-panel-border, #8c959f);
+    --b3-collapse-text: var(--vscode-descriptionForeground, #57606a);
+}
+
+body[data-webview-kind="inspector-sidebar"][data-theme="dark"] {
+    --b3-app-bg: var(--vscode-sideBar-background, #181818);
+    --b3-panel-bg: var(--vscode-sideBar-background, #181818);
+    --b3-panel-header-bg: var(
+        --vscode-sideBarSectionHeader-background,
+        var(--vscode-sideBar-background, #181818)
+    );
+    --b3-panel-content-bg: var(--vscode-sideBar-background, #181818);
+    --b3-panel-border: var(
+        --vscode-sideBarSectionHeader-border,
+        var(--vscode-sideBar-border, #2b2b2b)
+    );
+    --b3-panel-title: var(--vscode-sideBarTitle-foreground, var(--vscode-foreground, #cccccc));
+}
+
+body[data-webview-kind="inspector-sidebar"][data-theme="light"] {
+    --b3-app-bg: var(--vscode-sideBar-background, #f3f3f3);
+    --b3-panel-bg: var(--vscode-sideBar-background, #f3f3f3);
+    --b3-panel-header-bg: var(
+        --vscode-sideBarSectionHeader-background,
+        var(--vscode-sideBar-background, #f3f3f3)
+    );
+    --b3-panel-content-bg: var(--vscode-sideBar-background, #f3f3f3);
+    --b3-panel-border: var(
+        --vscode-sideBarSectionHeader-border,
+        var(--vscode-sideBar-border, #e5e5e5)
+    );
+    --b3-panel-title: var(--vscode-sideBarTitle-foreground, var(--vscode-foreground, #3c3c3c));
+}
+

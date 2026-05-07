@@ -2,9 +2,10 @@ import { Form } from "antd";
 import type { FormInstance } from "antd/es/form";
 import { useMemo } from "react";
 import { useNodeInspectorState, useTreeInspectorState } from "../../app/runtime";
-import type { NodeDef } from "../../shared/misc/b3type";
+import type { EditNode, UpdateNodeInput, UpdateTreeMetaInput } from "../../shared/contracts";
+import type { NodeArg, NodeDef } from "../../shared/misc/b3type";
 import { isVariadic } from "../../shared/misc/b3util";
-import { formatArgInitialValue } from "./inspector-arg-values";
+import { formatArgInitialValue, parseArgSubmitValue } from "./inspector-arg-values";
 import {
     buildVariableUsageCount,
     createNodeDefMap,
@@ -27,6 +28,67 @@ type TreeInspectorFormValues = {
     group?: string[];
     vars?: VariableRowValue[];
     importRefs?: ImportRefFormValue[];
+};
+
+export const buildCommittedNodeData = (selectedNode: EditNode): UpdateNodeInput["data"] => ({
+    name: selectedNode.data.name,
+    desc: selectedNode.data.desc,
+    path: selectedNode.data.path,
+    debug: selectedNode.data.debug ? true : undefined,
+    disabled: selectedNode.data.disabled ? true : undefined,
+    input: selectedNode.data.input ? [...selectedNode.data.input] : undefined,
+    output: selectedNode.data.output ? [...selectedNode.data.output] : undefined,
+    args: selectedNode.data.args ? { ...selectedNode.data.args } : undefined,
+});
+
+export const parseVisibleArgs = (
+    currentNodeDef: NodeDef | null,
+    values: Pick<NodeInspectorFormValues, "args">,
+    fallbackArgs: Record<string, unknown> | undefined
+) => {
+    if (!currentNodeDef) {
+        return fallbackArgs;
+    }
+
+    const nextArgs = Object.fromEntries(
+        (currentNodeDef.args ?? [])
+            .map((arg) => [arg.name, parseArgSubmitValue(arg, values.args?.[arg.name])])
+            .filter(([, value]) => value !== undefined)
+    );
+    return Object.keys(nextArgs).length > 0 ? nextArgs : undefined;
+};
+
+export const buildScopedSlotArray = (
+    slotDefs: string[] | undefined,
+    committedSlots: string[] | undefined,
+    rawFormSlots: unknown,
+    index: number
+) => {
+    if (!slotDefs?.length) {
+        return committedSlots;
+    }
+
+    const scopedRawSlots = slotDefs.map((_, slotIndex) =>
+        getNodeSlotFormValue(committedSlots, slotIndex, isVariadic(slotDefs, slotIndex))
+    ) as Array<string | string[]>;
+    const formSlots = Array.isArray(rawFormSlots) ? rawFormSlots : [];
+    scopedRawSlots[index] = formSlots[index];
+    return buildNodeSlotArray(slotDefs, scopedRawSlots, committedSlots);
+};
+
+export const buildScopedArgs = (
+    committedArgs: Record<string, unknown> | undefined,
+    arg: NodeArg,
+    values: Pick<NodeInspectorFormValues, "args">
+) => {
+    const nextArgs = { ...(committedArgs ?? {}) };
+    const parsedValue = parseArgSubmitValue(arg, values.args?.[arg.name]);
+    if (parsedValue === undefined) {
+        delete nextArgs[arg.name];
+    } else {
+        nextArgs[arg.name] = parsedValue;
+    }
+    return Object.keys(nextArgs).length > 0 ? nextArgs : undefined;
 };
 
 export const useNodeInspectorViewState = (form: FormInstance) => {
@@ -206,6 +268,8 @@ export const createNodeInspectorFormValues = (
     };
 };
 
+export type NodeInspectorFormValues = ReturnType<typeof createNodeInspectorFormValues>;
+
 export const createTreeInspectorFormValues = (
     document: TreeInspectorDocument,
     variableUsageCount: Record<string, number>
@@ -224,7 +288,7 @@ export const createTreeInspectorFormValues = (
     };
 };
 
-export const createTreeMetaPayload = (values: TreeInspectorFormValues) => {
+export const createTreeMetaPayload = (values: TreeInspectorFormValues): UpdateTreeMetaInput => {
     return {
         desc: values.desc?.trim() || undefined,
         prefix: values.prefix ?? "",

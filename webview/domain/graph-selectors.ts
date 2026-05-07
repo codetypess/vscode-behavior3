@@ -12,6 +12,7 @@ import type {
     VarDecl,
 } from "../shared/contracts";
 import { stringifyCompactJson5, stringifySearchValueAsJson5 } from "../shared/json5-display";
+import { isJsonEqual } from "../shared/equality";
 import { collectResolvedNodeDiagnostics, parseExpressionVariables } from "./tree-validation";
 
 const DEFAULT_NODE_COLORS: Record<GraphNodeVM["nodeStyleKind"], string> = {
@@ -42,9 +43,6 @@ const pickNodeSubtitle = (nodeDesc: string | undefined, defDesc: string | undefi
     const trimmedDefDesc = defDesc?.trim();
     return trimmedDefDesc || undefined;
 };
-
-const isJsonEqual = (left: unknown, right: unknown) =>
-    JSON.stringify(left) === JSON.stringify(right);
 
 const hasNodeOverride = (node: ResolvedNodeModel): boolean => {
     if (!node.subtreeNode || !node.subtreeOriginal) {

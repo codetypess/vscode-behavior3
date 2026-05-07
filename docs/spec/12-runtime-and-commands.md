@@ -7,7 +7,7 @@
 1. 主编辑器内唯一可写结构化文档是真实的 `documentStore.persistedTree`。
 2. 图层、Inspector、搜索和变量高亮都只能消费派生数据，不能各自维护第二份可写树。
 3. Extension-host 负责磁盘 IO、监听器、项目索引、构建与检查脚本运行。
-4. 所有主文档结构修改都必须经过 `EditorCommand`。
+4. 所有主文档结构修改都必须先由 `EditorCommand` 组装 intent，再交给 extension-host session 权威提交。
 5. Inspector Sidebar 的编辑只是代理，不拥有独立文档真源。
 
 ## 稳定内部接口
@@ -94,8 +94,10 @@
 
 职责：
 
-- 是唯一允许修改主树结构或 `overrides` 的入口
-- 必要时同步 subtree cache、重建图、通知宿主；history 推进由 host session 在提交后完成
+- 是 webview 内唯一允许表达主树结构或 `overrides` 修改 intent 的入口
+- 对主文档编辑只补齐 host reducer 需要的 payload context，并调用 `HostAdapter.mutateDocument`
+- 不在 webview 本地判定提交结果、推进 history 或直接改写主文档权威状态
+- subtree cache、graph rebuild 与 Inspector projection 在宿主 committed snapshot 回推后刷新
 
 ### 文件与构建
 
@@ -182,7 +184,7 @@
 
 ## 验收标准
 
-- 任意 persisted tree 写入都能指出唯一的 `EditorCommand`
+- 任意 persisted tree 写入都能指出唯一的 `EditorCommand` intent 入口与 extension-host session 提交点
 - 任意宿主请求都能指出唯一的 `HostAdapter` 方法
 - 任意图视觉状态变化都能指出唯一的 `graphAdapter` 入口
 - 任一字段只存在于一个明确的可写真源中
