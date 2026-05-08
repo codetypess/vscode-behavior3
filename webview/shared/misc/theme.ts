@@ -196,6 +196,7 @@ const buildThemeConfig = (mode: ThemeMode, webviewKind: WebviewKind): ThemeConfi
             colorBgContainer: palette.panelBg,
             colorBgElevated: palette.elevatedBg,
             colorBorder: palette.panelBorder,
+            colorBorderDisabled: palette.panelBorder,
             colorBorderSecondary: palette.panelBorder,
             colorText: palette.text,
             colorTextSecondary: palette.textSecondary,
