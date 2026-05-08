@@ -97,6 +97,7 @@
 - 是 webview 内唯一允许表达主树结构或 `overrides` 修改 intent 的入口
 - 对主文档编辑只补齐 host reducer 需要的 payload context，并调用 `HostAdapter.mutateDocument`
 - 不在 webview 本地判定提交结果、推进 history 或直接改写主文档权威状态
+- webview 可运行共享 pure preflight 来提供即时错误反馈；最终是否提交仍由 host reducer / session 决定
 - subtree cache、graph rebuild 与 Inspector projection 在宿主 committed snapshot 回推后刷新
 
 ### 文件与构建
@@ -173,8 +174,9 @@
 3. 当前 `updateTreeMeta` / `updateNode` / `performDrop` / `pasteNode` / `insertNode` / `replaceNode` / `deleteNode` / `saveSelectedAsSubtree` 已可直接在 host 提交
 4. `updateNode` 在发送 intent 前会补齐 `currentNodeSnapshot`，若发生 subtree 脱链再补 `detachedSubtreeRoot`
 5. webview 不在发送前运行 shared reducer 来判定 noop/error；是否提交、是否 noop、错误文案都由宿主 reducer / session 决定
-6. 对于需要改选中的结构命令，宿主在内部消费 reducer `nextSelection`，并只通过 committed `documentSnapshotChanged.selection` 公开共享选中结果
-7. 若宿主无法提交 mutation，则直接返回错误，不再把执行权转回主编辑器
+6. webview 可运行不修改状态的共享 preflight 规则来给出即时反馈，例如 drop 禁止规则；该 preflight 不能替代 host reducer 权威判断
+7. 对于需要改选中的结构命令，宿主在内部消费 reducer `nextSelection`，并只通过 committed `documentSnapshotChanged.selection` 公开共享选中结果
+8. 若宿主无法提交 mutation，则直接返回错误，不再把执行权转回主编辑器
 
 这条规则意味着：
 

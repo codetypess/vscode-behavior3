@@ -200,6 +200,7 @@ host reducer 当前分三条路径：
 ### `performDrop(intent)`
 
 - canvas 先发送 `mutateDocument(performDrop)` intent 给宿主
+- canvas 可先运行共享 pure drop preflight 来显示即时错误，但该 preflight 不修改文档、不推进 history，也不是最终 authority
 - 宿主当前会优先直接提交，在内部消费 reducer `nextSelection`，并只通过 committed `documentSnapshotChanged.selection` 公开共享选中结果
 - 拒绝拖动 subtree 内部节点
 - 拒绝向 subtree link 直接添加 child

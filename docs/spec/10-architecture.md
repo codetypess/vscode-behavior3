@@ -37,7 +37,7 @@ Shared Layer
   -> contracts.ts
   -> message-protocol.ts
   -> protocol.ts
-  -> tree / subtree / resolve-graph utilities
+  -> tree / subtree / validation utilities
 ```
 
 ## 层职责
@@ -77,7 +77,12 @@ Shared Layer
 - 定义 host/webview 协议和内部稳定 DTO
 - 封装 workdir-relative path 规范
 - 统一 persisted tree 的解析、序列化、subtree 遍历与 stable id 生成
-- 提供 resolved graph 与图视图模型转换工具
+- 提供无 UI / 无 domain 依赖的共享校验与纯 helper
+
+约束：
+
+- `webview/shared/**` 不应依赖 `webview/domain/**`、`webview/features/**` 或 adapter 实现。
+- resolved graph、图视图模型转换与主文档 save 前 display id 回写属于 `webview/domain/**`。
 
 ## 关键组件
 
@@ -179,13 +184,13 @@ Shared Layer
 - `webview/stores/`
   - document / workspace / selection / graph-ui store
 - `webview/domain/`
-  - resolve graph、graph selectors、tree validation
+  - resolve graph、graph selectors、resolved-node validation、main-document save serialization
 - `webview/adapters/`
   - G6 graph adapter、VS Code host adapter
 - `webview/features/`
   - graph、search、inspector UI
 - `webview/shared/`
-  - contracts、protocol、tree、subtree cache、shared helpers
+  - contracts、protocol、tree、subtree cache、validation、shared helpers
 
 ## 架构验收标准
 

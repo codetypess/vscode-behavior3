@@ -103,7 +103,7 @@
         "command": "behavior3.build",
         "title": "%command.build.title%",
         "category": "%command.category%",
-        "icon": "$(tools)"
+        "icon": "$(build)"
       },
       {
         "command": "behavior3.buildDebug",
@@ -145,7 +145,7 @@
         "command": "behavior3.toggleEditorMode",
         "title": "%command.toggleEditorMode.title%",
         "category": "%command.category%",
-        "icon": "$(edit)"
+        "icon": "$(edit-code)"
       }
     ],
     "keybindings": [

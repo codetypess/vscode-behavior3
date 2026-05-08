@@ -10,7 +10,7 @@ import {
 } from "../../shared/misc/b3type";
 import { getNodeArgRawType, isNodeArgArray, isNodeArgOptional } from "../../shared/misc/b3util";
 import i18n from "../../shared/misc/i18n";
-import { validateExpressionValues } from "./inspector-shared";
+import { validateExpressionValues } from "./inspector-validation";
 
 export const formatArgInitialValue = (arg: NodeArg, value: unknown) => {
     const type = getNodeArgRawType(arg);

@@ -10,7 +10,6 @@ import {
     isIntType,
     isJsonType,
     isStringType,
-    keyWords,
     NodeArg,
     NodeData,
     NodeDef,
@@ -24,10 +23,13 @@ import { createNode, dfs, isSubtreeRoot, subtreeNeedsMissingIds } from "./tree-m
 import { normalizeNodeDefCollection } from "../schema";
 import { generateUuid } from "../stable-id";
 import {
+    hasDeclaredVars as sharedHasDeclaredVars,
+    isValidVariableName as sharedIsValidVariableName,
+    parseExpressionVariables,
     validateExpressionEntries,
     validateVariableReference,
     type TreeValidationDiagnostic,
-} from "../../domain/tree-validation";
+} from "../validation";
 
 /**
  * Shared editor/runtime utilities plus reusable validation helpers.
@@ -132,11 +134,7 @@ const toUsingVars = (vars: VarDecl[]): Record<string, VarDecl> | null => {
     return next;
 };
 
-export const hasDeclaredVars = (
-    vars: Record<string, VarDecl> | null | undefined
-): vars is Record<string, VarDecl> => {
-    return Boolean(vars && Object.keys(vars).length > 0);
-};
+export const hasDeclaredVars = sharedHasDeclaredVars;
 
 export const initWorkdir = (path: string, handler: typeof alertError) => {
     const posix = path.replace(/\\/g, "/");
@@ -185,19 +183,14 @@ const parseExprWithCache = (expr: string, exprCache: Record<string, string[]>) =
     if (exprCache[expr]) {
         return exprCache[expr];
     }
-    const result = expr
-        .split(/[^a-zA-Z0-9_.'"]/)
-        .map((v) => v.split(".")[0])
-        .filter((v) => isValidVariableName(v));
+    const result = parseExpressionVariables(expr);
     exprCache[expr] = result;
     return result;
 };
 
 export const parseExpr = (expr: string) => parseExprWithCache(expr, parsedExprs);
 
-export const isValidVariableName = (name: string) => {
-    return /^[a-zA-Z_$][a-zA-Z_$0-9]*$/.test(name) && !keyWords.includes(name);
-};
+export const isValidVariableName = sharedIsValidVariableName;
 
 export const isNodeEqual = (node1: NodeData, node2: NodeData) => {
     if (

@@ -4,15 +4,16 @@ import type { FormInstance } from "antd/es/form";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useRuntime, useWebviewKind } from "../../app/runtime";
-import { isValidVariableName } from "../../shared/misc/b3util";
+import { isValidVariableName } from "../../shared/validation";
 import {
     SectionDivider,
     VariableDeclRow,
-    type VariableRowValue,
     createInspectorLabelProps,
     filterOptionByLabel,
 } from "./inspector-shared";
+import type { VariableRowValue } from "./inspector-variable-options";
 import { queueInspectorTask, trackPendingInspectorEdit } from "./inspector-commit-queue";
+import { useTreeInspectorViewState } from "./inspector-state";
 import {
     buildTreeCustomRecord,
     createTreeMetaPayload,
@@ -20,8 +21,7 @@ import {
     getTreeCustomValueKind,
     type TreeCustomRowValue,
     type TreeCustomValueKind,
-    useTreeInspectorViewState,
-} from "./inspector-state";
+} from "./inspector-form-values";
 import { useInspectorMode } from "./inspector-mode";
 
 const { TextArea } = Input;

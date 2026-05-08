@@ -35,14 +35,19 @@ import {
 import {
     OverrideBar,
     SectionDivider,
-    cleanSlotLabel,
-    compareJsonValue,
     createInspectorLabelProps,
     filterOptionByLabel,
-    validateVariableValue,
-    type VariableOption,
 } from "./inspector-shared";
+import {
+    cleanSlotLabel,
+    compareJsonValue,
+    validateVariableValue,
+} from "./inspector-validation";
+import type { VariableOption } from "./inspector-variable-options";
 import { queueInspectorTask, trackPendingInspectorEdit } from "./inspector-commit-queue";
+import {
+    useNodeInspectorViewState,
+} from "./inspector-state";
 import {
     buildCommittedNodeData,
     buildNodeSlotArray,
@@ -52,8 +57,7 @@ import {
     getNodeSlotFormValue,
     parseVisibleArgs,
     type NodeInspectorFormValues,
-    useNodeInspectorViewState,
-} from "./inspector-state";
+} from "./inspector-form-values";
 import { useInspectorMode } from "./inspector-mode";
 
 const { TextArea } = Input;

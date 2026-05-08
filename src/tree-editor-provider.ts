@@ -5,7 +5,7 @@ import {
     readFileContentFromDisk,
     TreeEditorDocument,
 } from "./editor-session/document-sync";
-import { serializePersistedTreeForMainDocumentSave } from "../webview/shared/main-document-save";
+import { serializePersistedTreeForMainDocumentSave } from "../webview/domain/main-document-save";
 import { parsePersistedTreeContent } from "../webview/shared/tree";
 import type { HostSelectionState } from "../webview/shared/contracts";
 import type {

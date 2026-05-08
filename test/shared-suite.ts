@@ -33,7 +33,7 @@ import {
     buildTreeCustomRecord,
     getTreeCustomValueKind,
 } from "../webview/features/inspector/tree-custom-metadata";
-import { serializePersistedTreeForMainDocumentSave } from "../webview/shared/main-document-save";
+import { serializePersistedTreeForMainDocumentSave } from "../webview/domain/main-document-save";
 import { reduceDocumentMutation } from "../webview/shared/document-mutation-reducer";
 import {
     normalizeNodeDefCollection,

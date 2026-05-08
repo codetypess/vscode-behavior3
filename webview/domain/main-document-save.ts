@@ -1,15 +1,15 @@
-import { resolveDocumentGraph } from "../domain/resolve-graph";
-import type { NodeDef } from "./misc/b3type";
+import { resolveDocumentGraph } from "./resolve-graph";
+import type { NodeDef } from "../shared/misc/b3type";
 import type {
     PersistedTreeModel,
     WorkdirRelativeJsonPath,
-} from "./contracts";
-import { loadSubtreeSourceCache } from "./subtree-source-cache";
+} from "../shared/contracts";
+import { loadSubtreeSourceCache } from "../shared/subtree-source-cache";
 import {
     applyMainTreeDisplayIds,
     clonePersistedTree,
     serializePersistedTree,
-} from "./tree";
+} from "../shared/tree";
 
 export const serializePersistedTreeForMainDocumentSave = async (params: {
     tree: PersistedTreeModel;

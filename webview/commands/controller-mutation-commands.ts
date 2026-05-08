@@ -11,6 +11,10 @@ import type {
 import { stringifyJson } from "../shared/misc/stringify";
 import { parseWorkdirRelativeJsonPath } from "../shared/protocol";
 import { clonePersistedNode } from "../shared/tree";
+import {
+    preflightDropIntent,
+    type DropPreflightDenialReason,
+} from "../shared/drop-preflight";
 import { type ControllerRuntime } from "./controller-runtime";
 
 type MutationCommandKeys =
@@ -71,53 +75,46 @@ const getResolvedNodeByInstanceKey = (
     instanceKey: string
 ): ResolvedNodeModel | null => runtime.getResolvedGraph()?.nodesByInstanceKey[instanceKey] ?? null;
 
+const formatDropPreflightDenial = (reason: DropPreflightDenialReason): string | null => {
+    switch (reason) {
+        case "move-subtree-denied":
+            return i18n.t("node.moveSubtreeDenied");
+        case "drop-subtree-internal-denied":
+            return i18n.t("node.dropSubtreeInternalDenied");
+        case "move-root-denied":
+            return i18n.t("node.moveRootDenied");
+        case "drop-around-root-denied":
+            return i18n.t("node.dropAroundRootDenied");
+        case "add-child-to-subtree-ref-denied":
+            return i18n.t("node.addChildToSubtreeRefDenied");
+        case "move-into-descendant-denied":
+            return i18n.t("node.moveIntoDescendantDenied");
+        case "missing-context":
+        case "same-node":
+            return null;
+    }
+};
+
 const canForwardDropIntent = (runtime: ControllerRuntime, intent: DropIntent): boolean => {
     const currentTree = runtime.deps.documentStore.getState().persistedTree;
     const sourceResolved = getResolvedNodeByInstanceKey(runtime, intent.source.instanceKey);
     const targetResolved = getResolvedNodeByInstanceKey(runtime, intent.target.instanceKey);
 
-    if (!currentTree || !sourceResolved || !targetResolved) {
+    const preflight = preflightDropIntent({
+        hasDocument: Boolean(currentTree),
+        intent,
+        source: sourceResolved,
+        target: targetResolved,
+        isDescendant: (ancestorKey, targetKey) =>
+            runtime.isDescendantInstance(ancestorKey, targetKey),
+    });
+
+    if (!preflight.allowed) {
+        const message = formatDropPreflightDenial(preflight.reason);
+        if (message) {
+            throw new Error(message);
+        }
         return false;
-    }
-
-    if (intent.source.instanceKey === intent.target.instanceKey) {
-        return false;
-    }
-
-    if (sourceResolved.subtreeNode) {
-        throw new Error(i18n.t("node.moveSubtreeDenied"));
-    }
-
-    if (targetResolved.subtreeNode) {
-        throw new Error(i18n.t("node.dropSubtreeInternalDenied"));
-    }
-
-    if (sourceResolved.parentKey === null) {
-        throw new Error(i18n.t("node.moveRootDenied"));
-    }
-
-    if (
-        (intent.position === "before" || intent.position === "after") &&
-        targetResolved.parentKey === null
-    ) {
-        throw new Error(i18n.t("node.dropAroundRootDenied"));
-    }
-
-    if (
-        intent.position === "child" &&
-        targetResolved.ref.sourceTreePath !== null &&
-        !targetResolved.subtreeNode
-    ) {
-        throw new Error(i18n.t("node.addChildToSubtreeRefDenied"));
-    }
-
-    if (
-        runtime.isDescendantInstance(
-            sourceResolved.ref.instanceKey,
-            targetResolved.ref.instanceKey
-        )
-    ) {
-        throw new Error(i18n.t("node.moveIntoDescendantDenied"));
     }
 
     return true;
