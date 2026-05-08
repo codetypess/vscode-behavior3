@@ -22,6 +22,10 @@ import {
     parseArgSubmitValue,
     validateInspectorArgValue,
 } from "../webview/features/inspector/inspector-arg-values";
+import {
+    buildTreeCustomRecord,
+    getTreeCustomValueKind,
+} from "../webview/features/inspector/inspector-state";
 import { serializePersistedTreeForMainDocumentSave } from "../webview/shared/main-document-save";
 import { reduceDocumentMutation } from "../webview/shared/document-mutation-reducer";
 import {
@@ -298,6 +302,56 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
         },
     },
     {
+        name: "parses tree custom inspector rows into persisted custom values",
+        run() {
+            assert.deepEqual(
+                buildTreeCustomRecord([
+                    { key: "label", value: "hello" },
+                    { key: "literal", value: "null" },
+                    { key: "count", value: "42" },
+                    { key: "enabled", value: "true" },
+                    { key: "quoted", value: "\"true\"" },
+                ]),
+                {
+                    label: "hello",
+                    literal: "null",
+                    count: 42,
+                    enabled: true,
+                    quoted: "true",
+                }
+            );
+        },
+    },
+    {
+        name: "rejects invalid tree custom inspector literals",
+        run() {
+            assert.throws(
+                () =>
+                    buildTreeCustomRecord([
+                        { key: "object", value: "{ nested: true }" },
+                    ]),
+                /invalid tree custom value/
+            );
+            assert.throws(
+                () =>
+                    buildTreeCustomRecord([
+                        { key: "array", value: "[1, 2, 3]" },
+                    ]),
+                /invalid tree custom value/
+            );
+        },
+    },
+    {
+        name: "infers tree custom value kinds from inspector input",
+        run() {
+            assert.equal(getTreeCustomValueKind("hello"), "string");
+            assert.equal(getTreeCustomValueKind("42"), "number");
+            assert.equal(getTreeCustomValueKind("false"), "boolean");
+            assert.equal(getTreeCustomValueKind("\"quoted\""), "string");
+            assert.equal(getTreeCustomValueKind("{ nested: true }"), "invalid");
+        },
+    },
+    {
         name: "replays host document session undo and redo from snapshot history",
         run() {
             const session = new DocumentSessionState({ initialContent: "A" });
@@ -558,6 +612,52 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 result.tree.variables.locals.map((entry) => entry.name),
                 ["alpha", "zeta"]
             );
+        },
+    },
+    {
+        name: "reduces tree custom metadata mutations without rebuilding graph",
+        run() {
+            const tree = createTestTree();
+            tree.custom = {
+                legacy: "keep",
+            };
+
+            const result = reduceDocumentMutation(
+                {
+                    type: "updateTreeMeta",
+                    payload: {
+                        desc: tree.desc,
+                        prefix: tree.prefix,
+                        export: tree.export,
+                        group: [...tree.group],
+                        custom: {
+                            label: "hero",
+                            enabled: true,
+                            threshold: 3,
+                        },
+                        variables: {
+                            imports: [...tree.variables.imports],
+                            locals: tree.variables.locals.map((entry) => ({ ...entry })),
+                        },
+                    },
+                },
+                {
+                    tree,
+                    nodeDefs: [],
+                }
+            );
+
+            assert.equal(result.status, "changed");
+            if (result.status !== "changed") {
+                return;
+            }
+
+            assert.equal(result.rebuildGraph, false);
+            assert.deepEqual(result.tree.custom, {
+                label: "hero",
+                enabled: true,
+                threshold: 3,
+            });
         },
     },
     {

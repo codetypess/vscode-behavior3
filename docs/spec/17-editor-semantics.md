@@ -154,8 +154,10 @@
 
 - 规范化 `desc`、`prefix`、`export`
 - 校验 import paths
+- 若 payload 显式携带 `custom`，则按 Inspector 规则接收 `string | number | boolean` 值
 - 排序 locals 与 import refs
 - Inspector 可按字段或局部列表独立构造 payload；无关字段错误不应阻断本次 intent
+- `custom` 的重复 key、对象/数组字面量或非法结构化输入不得静默写入主文档
 - webview 只发送 intent，宿主仅在值确实变化时提交 mutation
 
 ### `updateNode(payload)`

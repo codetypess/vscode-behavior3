@@ -97,6 +97,14 @@
   "tree.vars.imports": "导入变量",
   "tree.vars.subtree": "子树变量",
   "tree.import.add": "添加导入",
+  "tree.custom": "自定义数据",
+  "tree.custom.add": "添加条目",
+  "tree.custom.key": "键",
+  "tree.custom.value": "值",
+  "tree.custom.type.string": "字符串值",
+  "tree.custom.type.number": "数字值",
+  "tree.custom.type.boolean": "布尔值",
+  "tree.custom.type.invalid": "非法的自定义值",
 
   "regnode.input": "输入：",
   "regnode.output": "输出：",
@@ -173,5 +181,8 @@
   "validation.missingOneofInput": "缺少 oneof 输入项 “{{input}}”",
   "validation.oneof": "“{{left}}” 和 “{{right}}” 只能设置其中之一",
   "validation.invalidJsonPath": "路径必须是工作目录内的相对 .json 文件：{{path}}",
-  "validation.variableDescriptionRequired": "变量说明必填"
+  "validation.variableDescriptionRequired": "变量说明必填",
+  "validation.customKeyRequired": "自定义 key 必填",
+  "validation.customKeyDuplicate": "自定义 key “{{key}}” 重复了",
+  "validation.customValueInvalid": "自定义值必须是字符串、数字或布尔值"
 }

@@ -64,6 +64,7 @@ Inspector 不只是字段表单，还需要表达：
 6. local vars
 7. subtree declarations
 8. import refs
+9. custom metadata
 
 ### Tree Meta
 
@@ -90,6 +91,16 @@ Inspector 不只是字段表单，还需要表达：
 - 由 `document.variables.imports` 驱动
 - 使用工作目录 `allFiles` 作为自动补全来源
 - 每个 import path 下展示宿主解析出的变量声明
+
+### Custom Metadata
+
+- 由 `document.custom` 驱动
+- 使用可增删的 `key:value` 行编辑
+- 每行左侧显示一个根据当前输入推断出的类型徽章
+- `key` 必填且不能重复
+- `value` 仅支持 `string`、`number`、`boolean`
+- 裸文本默认按字符串处理；布尔字面量、数字字面量和带引号字符串按值解析
+- 对象、数组或非法结构化输入拒绝提交
 
 ## Node Inspector Contract
 

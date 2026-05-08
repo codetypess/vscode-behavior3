@@ -88,9 +88,7 @@ export interface NodeInstanceRef {
 }
 
 /** Host snapshot authority is limited to shared tree/node selection. */
-export type HostSelectionState =
-    | { kind: "tree" }
-    | { kind: "node"; ref: NodeInstanceRef };
+export type HostSelectionState = { kind: "tree" } | { kind: "node"; ref: NodeInstanceRef };
 
 /** Committed document fanout; local graph UI state such as variable focus is excluded. */
 export interface HostDocumentSnapshot {
@@ -172,6 +170,7 @@ export interface UpdateTreeMetaInput {
     prefix?: string;
     export?: boolean;
     group: string[];
+    custom?: Record<string, string | number | boolean>;
     variables: {
         imports: string[];
         locals: VarDecl[];

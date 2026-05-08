@@ -1,5 +1,5 @@
 import { FormOutlined, MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
-import { AutoComplete, Button, Flex, Form, Input, Select, Switch } from "antd";
+import { AutoComplete, Button, Flex, Form, Input, Select, Space, Switch, Tooltip } from "antd";
 import type { FormInstance } from "antd/es/form";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -14,13 +14,30 @@ import {
 } from "./inspector-shared";
 import { queueInspectorTask, trackPendingInspectorEdit } from "./inspector-commit-queue";
 import {
+    buildTreeCustomRecord,
     createTreeMetaPayload,
     createTreeInspectorFormValues,
+    getTreeCustomValueKind,
+    type TreeCustomRowValue,
+    type TreeCustomValueKind,
     useTreeInspectorViewState,
 } from "./inspector-state";
 import { useInspectorMode } from "./inspector-mode";
 
 const { TextArea } = Input;
+
+const getCustomValueBadgeIcon = (kind: TreeCustomValueKind) => {
+    switch (kind) {
+        case "number":
+            return "symbol-numeric";
+        case "boolean":
+            return "symbol-boolean";
+        case "invalid":
+            return "error";
+        default:
+            return "symbol-string";
+    }
+};
 
 const TreeMetaFields: React.FC<{
     groupDefs: string[];
@@ -278,6 +295,169 @@ const ImportRefsSection: React.FC<{
     );
 };
 
+const TreeCustomRow: React.FC<{
+    value?: TreeCustomRowValue;
+    disabled?: boolean;
+    onChange?: (next: TreeCustomRowValue) => void;
+    onRemove?: () => void;
+    onSubmit?: () => void;
+}> = ({ value, disabled = false, onChange, onRemove, onSubmit }) => {
+    const { t } = useTranslation();
+    const [localValue, setLocalValue] = React.useState<TreeCustomRowValue>(
+        value ?? { key: "", value: "" }
+    );
+    const valueKind = getTreeCustomValueKind(localValue.value);
+
+    const valueKindLabel = (() => {
+        switch (valueKind) {
+            case "number":
+                return t("tree.custom.type.number");
+            case "boolean":
+                return t("tree.custom.type.boolean");
+            case "invalid":
+                return t("tree.custom.type.invalid");
+            default:
+                return t("tree.custom.type.string");
+        }
+    })();
+
+    useEffect(() => {
+        setLocalValue(value ?? { key: "", value: "" });
+    }, [value]);
+
+    const commit = () => {
+        onChange?.(localValue);
+        onSubmit?.();
+    };
+
+    return (
+        <Flex gap={4} align="start" className="b3-var-row">
+            <Space.Compact block className="b3-var-row-compact">
+                <Tooltip title={valueKindLabel}>
+                    <div className={`b3-custom-type-badge is-${valueKind}`}>
+                        <span
+                            className={`codicon codicon-${getCustomValueBadgeIcon(valueKind)}`}
+                            aria-hidden="true"
+                        />
+                    </div>
+                </Tooltip>
+                <Input
+                    disabled={disabled}
+                    value={localValue.key}
+                    placeholder={t("tree.custom.key")}
+                    onChange={(event) =>
+                        setLocalValue((current) => ({
+                            ...current,
+                            key: event.target.value,
+                        }))
+                    }
+                    onBlur={commit}
+                />
+                <Input
+                    disabled={disabled}
+                    value={localValue.value}
+                    placeholder={t("tree.custom.value")}
+                    onChange={(event) =>
+                        setLocalValue((current) => ({
+                            ...current,
+                            value: event.target.value,
+                        }))
+                    }
+                    onBlur={commit}
+                />
+            </Space.Compact>
+            {disabled ? (
+                <div className="b3-row-spacer" />
+            ) : (
+                <MinusCircleOutlined className="b3-inline-remove" onClick={onRemove} />
+            )}
+        </Flex>
+    );
+};
+
+const CustomDataSection: React.FC<{
+    form: FormInstance;
+    readOnly: boolean;
+    queueCommitCustomRows: () => void;
+}> = ({ form, readOnly, queueCommitCustomRows }) => {
+    const { t } = useTranslation();
+
+    return (
+        <>
+            <SectionDivider>{t("tree.custom")}</SectionDivider>
+            <Form.List name="customRows">
+                {(fields, { add, remove }, { errors }) => (
+                    <div className="b3-list-block">
+                        {fields.map((field) => (
+                            <Form.Item
+                                key={field.key}
+                                name={field.name}
+                                style={{ marginBottom: 2 }}
+                                validateTrigger={["onChange", "onBlur"]}
+                                rules={[
+                                    {
+                                        validator: async (_, value: TreeCustomRowValue) => {
+                                            const key = value?.key?.trim();
+                                            if (!key) {
+                                                throw new Error(t("validation.customKeyRequired"));
+                                            }
+
+                                            const customRows =
+                                                (form.getFieldValue("customRows") as
+                                                    | TreeCustomRowValue[]
+                                                    | undefined) ?? [];
+                                            const duplicateCount = customRows.filter(
+                                                (entry) => entry?.key?.trim() === key
+                                            ).length;
+                                            if (duplicateCount > 1) {
+                                                throw new Error(
+                                                    t("validation.customKeyDuplicate", { key })
+                                                );
+                                            }
+
+                                            try {
+                                                buildTreeCustomRecord([
+                                                    {
+                                                        key,
+                                                        value: value?.value ?? "",
+                                                    },
+                                                ]);
+                                            } catch {
+                                                throw new Error(t("validation.customValueInvalid"));
+                                            }
+                                        },
+                                    },
+                                ]}
+                            >
+                                <TreeCustomRow
+                                    disabled={readOnly}
+                                    onSubmit={queueCommitCustomRows}
+                                    onRemove={() => {
+                                        remove(field.name);
+                                        queueCommitCustomRows();
+                                    }}
+                                />
+                            </Form.Item>
+                        ))}
+                        <Form.Item style={{ marginBottom: 0, marginTop: 4 }}>
+                            <Button
+                                type="dashed"
+                                block
+                                disabled={readOnly}
+                                icon={<PlusOutlined />}
+                                onClick={() => add({ key: "", value: "" })}
+                            >
+                                {t("tree.custom.add")}
+                            </Button>
+                            <Form.ErrorList errors={errors} />
+                        </Form.Item>
+                    </div>
+                )}
+            </Form.List>
+        </>
+    );
+};
+
 export const TreeInspectorForm: React.FC = () => {
     const runtime = useRuntime();
     const webviewKind = useWebviewKind();
@@ -329,7 +509,9 @@ export const TreeInspectorForm: React.FC = () => {
         }
 
         const values = form.getFieldsValue(true);
-        const payload = createTreeMetaPayload(createTreeInspectorFormValues(document, variableUsageCount));
+        const payload = createTreeMetaPayload(
+            createTreeInspectorFormValues(document, variableUsageCount)
+        );
 
         switch (fields[0]) {
             case "desc":
@@ -356,6 +538,9 @@ export const TreeInspectorForm: React.FC = () => {
                 payload.variables.imports = (values.importRefs ?? [])
                     .map((entry: { path?: string }) => entry.path?.trim())
                     .filter((entry: string | undefined): entry is string => Boolean(entry));
+                break;
+            case "customRows":
+                payload.custom = buildTreeCustomRecord(values.customRows ?? []);
                 break;
             default:
                 return;
@@ -406,6 +591,11 @@ export const TreeInspectorForm: React.FC = () => {
                     readOnly={readOnly}
                     commitImportRefs={() => void commitTreeFields(["importRefs"])}
                     queueCommitImportRefs={() => queueCommitTreeFields(["importRefs"])}
+                />
+                <CustomDataSection
+                    form={form}
+                    readOnly={readOnly}
+                    queueCommitCustomRows={() => queueCommitTreeFields(["customRows"])}
                 />
             </Form>
         </div>

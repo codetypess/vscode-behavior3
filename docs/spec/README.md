@@ -216,6 +216,7 @@ Scope: <short boundary>
 新增 work-item 时，请继续按以下格式补充：
 
 - `your-work-item-slug.md` - `Draft` - 一句话范围说明
+- `tree-custom-inspector-metadata.md` - `Verifying` - 在 Tree Inspector 中新增 tree.custom 的 key:value 编辑与提交语义
 - `inspector-array-arg-validation.md` - `Implementing` - 修复 Inspector 把数组参数误判成单值类型的校验问题
 - `main-document-save-display-id-writeback.md` - `Implementing` - 在主文档保存时把当前主树 display id 回写到 persisted `id`
 - `inspector-required-arg-unset-initial-state.md` - `Verifying` - 让必填节点参数在首次出现时保持 unset，而不是静默写成空值

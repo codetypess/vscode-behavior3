@@ -253,6 +253,47 @@ body[data-webview-kind="inspector-sidebar"]
     border-radius: 6px 0 0 6px;
 }
 
+.b3-custom-type-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    flex: 0 0 40px;
+    min-width: 40px;
+    max-width: 40px;
+    padding: 0 6px;
+    color: var(--ant-color-text-secondary);
+    background: var(--ant-color-fill-tertiary);
+    border: 1px solid var(--ant-color-border);
+    border-right: 0;
+    border-radius: 6px 0 0 6px;
+    cursor: help;
+    user-select: none;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.b3-custom-type-badge .codicon {
+    font-size: 16px;
+}
+
+.b3-custom-type-badge.is-string {
+    color: var(--ant-color-blue-3);
+}
+
+.b3-custom-type-badge.is-number {
+    color: var(--ant-color-gold-3);
+}
+
+.b3-custom-type-badge.is-boolean {
+    color: var(--ant-color-green-3);
+}
+
+.b3-custom-type-badge.is-invalid {
+    color: var(--ant-color-error);
+}
+
 .b3-inline-remove {
     margin-top: 10px;
     color: var(--ant-color-text-tertiary);
@@ -315,4 +356,3 @@ body[data-webview-kind="inspector-sidebar"]
     background: color-mix(in srgb, var(--ant-color-fill) 72%, transparent);
     white-space: break-spaces;
 }
-

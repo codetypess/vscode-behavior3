@@ -10,7 +10,12 @@ import type {
 } from "./contracts";
 import { isJsonEqual } from "./equality";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
-import { clonePersistedNode, clonePersistedTree, findPersistedNodeByStableId } from "./tree";
+import {
+    cloneJsonValue,
+    clonePersistedNode,
+    clonePersistedTree,
+    findPersistedNodeByStableId,
+} from "./tree";
 
 // Internal reducer follow-up selection consumed by the host session only.
 export type DocumentMutationSelection =
@@ -189,6 +194,9 @@ const reduceUpdateTreeMeta = (
     const nextPrefix = payload.prefix ?? "";
     const nextExport = payload.export !== false;
     const nextGroup = [...payload.group];
+    const nextCustom = payload.custom
+        ? cloneJsonValue(payload.custom)
+        : cloneJsonValue(tree.custom);
     const nextVars = cloneVars(payload.variables.locals).sort((a, b) => a.name.localeCompare(b.name));
     const nextImportRefs: NonNullable<typeof tree.variables>["imports"] = [];
 
@@ -210,6 +218,7 @@ const reduceUpdateTreeMeta = (
         tree.prefix === nextPrefix &&
         (tree.export !== false) === nextExport &&
         isJsonEqual(tree.group, nextGroup) &&
+        isJsonEqual(tree.custom, nextCustom) &&
         isJsonEqual(tree.variables.locals, nextVars) &&
         isJsonEqual(tree.variables.imports, nextImportRefs)
     ) {
@@ -221,6 +230,7 @@ const reduceUpdateTreeMeta = (
     nextTree.prefix = nextPrefix;
     nextTree.export = nextExport;
     nextTree.group = nextGroup;
+    nextTree.custom = nextCustom;
     nextTree.variables = {
         imports: nextImportRefs,
         locals: nextVars,

@@ -98,6 +98,14 @@
   "tree.vars.imports": "Import Variables",
   "tree.vars.subtree": "Subtree Variables",
   "tree.import.add": "Add Import",
+  "tree.custom": "Custom Data",
+  "tree.custom.add": "Add Entry",
+  "tree.custom.key": "key",
+  "tree.custom.value": "value",
+  "tree.custom.type.string": "String value",
+  "tree.custom.type.number": "Number value",
+  "tree.custom.type.boolean": "Boolean value",
+  "tree.custom.type.invalid": "Invalid custom value",
 
   "regnode.input": "Input: ",
   "regnode.output": "Output: ",
@@ -174,5 +182,8 @@
   "validation.missingOneofInput": "Missing input slot for oneof '{{input}}'",
   "validation.oneof": "Only one of '{{left}}' and '{{right}}' can be set",
   "validation.invalidJsonPath": "Path must be a workdir-relative .json file: {{path}}",
-  "validation.variableDescriptionRequired": "Variable description is required"
+  "validation.variableDescriptionRequired": "Variable description is required",
+  "validation.customKeyRequired": "Custom key is required",
+  "validation.customKeyDuplicate": "Custom key '{{key}}' is duplicated",
+  "validation.customValueInvalid": "Custom value must be a string, number, or boolean"
 }
