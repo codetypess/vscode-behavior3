@@ -38,6 +38,7 @@ const isRuntimeModuleFile = (fileName: string) =>
     fileName.includes(".runtime.") && fileName.endsWith(".mjs");
 
 function cleanupRuntimeModulesUnder(dir: string): void {
+    // Debug builds keep temp runtime modules while the session is active, then clean them afterward.
     let entries: fs.Dirent[];
     try {
         entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -71,6 +72,7 @@ async function startBuildScriptDebugSession(params: {
     outputDir: string;
     checkExpr: boolean;
 }): Promise<boolean> {
+    // Launch the CLI under VS Code's debugger so source maps from transpiled build scripts work.
     const program = params.context.asAbsolutePath(path.join("dist", "build-cli.js"));
     if (!fs.existsSync(program)) {
         void vscode.window.showErrorMessage(`Build CLI is missing: ${program}`);
@@ -185,6 +187,7 @@ export async function runBuild(
     context: vscode.ExtensionContext,
     options: RunBuildOptions = {}
 ): Promise<void> {
+    // Build is intentionally single-flight because the shared logger/runtime temp files are process-wide.
     if (buildInFlight) {
         void vscode.window.showWarningMessage(
             "A build is already running. Please wait for it to finish."

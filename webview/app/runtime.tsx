@@ -32,6 +32,7 @@ export interface EditorRuntime {
 }
 
 export const createEditorRuntime = (webviewKind: WebviewKind = detectWebviewKind()): EditorRuntime => {
+    // Each webview gets isolated stores/adapters; host messages are the only shared boundary.
     const documentStore = createDocumentStore();
     const workspaceStore = createWorkspaceStore();
     const selectionStore = createSelectionStore();
@@ -142,6 +143,7 @@ export const useInspectorPaneState = () => {
 };
 
 export const useNodeInspectorState = () => {
+    // Keep inspector selectors centralized so the form tree does not subscribe to whole stores.
     const document = useDocumentStore((state) => state.persistedTree);
     const selectedNode = useSelectionStore((state) => state.selectedNodeSnapshot);
     const nodeDefs = useWorkspaceStore((state) => state.nodeDefs);

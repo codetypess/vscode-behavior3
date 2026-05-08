@@ -317,6 +317,7 @@ export async function resolveTreeEditorSession({
     };
 
     const refreshLatestVarDeclsFromContent = async (content: string): Promise<void> => {
+        // Vars and all-files are paired because inspector path pickers depend on the same index pass.
         const [allFiles, result] = await Promise.all([
             projectIndex.getAllFiles(),
             parseUsingVarsFromContent(projectIndex, content),
@@ -341,6 +342,7 @@ export async function resolveTreeEditorSession({
     addActiveWebview(activeWebviewEntry);
     const enqueueMainDocumentOperation = createSerialOperationQueue();
     const createNodeCheckRuntime = async () => {
+        // Custom checkers run in the extension host so they can use fs/path and workspace scripts.
         const workspaceFile = findB3WorkspacePath(document.uri, workspaceFolderUri);
         if (!workspaceFile) {
             return {
@@ -577,6 +579,7 @@ export async function resolveTreeEditorSession({
         syncKind?: "update" | "reload";
         refreshVars?: boolean;
     }): Promise<void> => {
+        // Editor and sidebar both consume the same host snapshot to avoid divergent dirty/selection state.
         await postMessage(
             buildDocumentSnapshotMessage({
                 syncKind: opts?.syncKind,
@@ -690,6 +693,7 @@ export async function resolveTreeEditorSession({
             return { kind: "skip" };
         }
 
+        // This mutation crosses the file-system boundary, so it stays host-side instead of reducer-only.
         const currentTree = parsePersistedTreeContent(document.content, document.uri.fsPath);
         if (currentTree.root.uuid === msg.mutation.payload.target.structuralStableId) {
             return {
@@ -831,6 +835,7 @@ export async function resolveTreeEditorSession({
         _source: MessageSource = "editor"
     ): Promise<void> => {
         await enqueueMainDocumentOperation(async () => {
+            // All persisted mutations are serialized to keep undo history, file watchers, and selection aligned.
             const editBlockedMessage = blockEditingForNewerFile();
             if (editBlockedMessage) {
                 await reply({
@@ -1019,6 +1024,7 @@ export async function resolveTreeEditorSession({
 
     const handleMainDocumentFileChange = async (): Promise<void> => {
         await enqueueMainDocumentOperation(async () => {
+            // Watcher events race with our own writes and external edits; consume them under the same queue.
             let content: string;
             try {
                 content = await readFileContentFromDisk(document.uri);
@@ -1189,6 +1195,7 @@ export async function resolveTreeEditorSession({
         suggestedBaseName: string
     ): Promise<{ savedPath: string | null; error?: string }> => {
         try {
+            // Save As is constrained to workdir so persisted subtree references stay portable.
             const activeFileBlockMessage = getActiveNewerFileEditMessage();
             if (activeFileBlockMessage) {
                 vscode.window.showErrorMessage(activeFileBlockMessage);

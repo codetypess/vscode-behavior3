@@ -38,6 +38,7 @@ import {
  */
 export class NodeDefs extends Map<string, NodeDef> {
     override get(key: string): NodeDef {
+        // Callers can render/validate unknown node names without null-checking every lookup.
         return super.get(key) ?? unknownNodeDef;
     }
 }
@@ -88,6 +89,7 @@ const createNodeDefsState = (
     for (const node of normalizeNodeDefCollection(defs)) {
         node.args?.forEach((arg) => {
             if (arg.options && !arg.options[0].source) {
+                // Older settings stored options directly; normalize them to source buckets.
                 arg.options = [
                     {
                         source: arg.options as unknown as Array<{ name: string; value: unknown }>,
@@ -183,6 +185,7 @@ const parseExprWithCache = (expr: string, exprCache: Record<string, string[]>) =
     if (exprCache[expr]) {
         return exprCache[expr];
     }
+    // Expression parsing is hot during validation; each state owns its own cache.
     const result = parseExpressionVariables(expr);
     exprCache[expr] = result;
     return result;

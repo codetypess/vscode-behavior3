@@ -50,6 +50,7 @@ const hasNodeOverride = (node: ResolvedNodeModel): boolean => {
         return false;
     }
 
+    // Subtree nodes compare against their resolved source snapshot to show override markers.
     return (
         (node.desc ?? "") !== (node.subtreeOriginal.desc ?? "") ||
         !isJsonEqual(node.input ?? [], node.subtreeOriginal.input ?? []) ||
@@ -79,6 +80,7 @@ export const buildResolvedGraphModel = (
         const node = graph.nodesByInstanceKey[key];
         const def = defsByName.get(node.name);
         const customDiagnostics = validation?.nodeCheckDiagnostics?.[node.ref.instanceKey] ?? [];
+        // Built-in validation and user build-script diagnostics both drive the error style.
         const invalid = collectResolvedNodeDiagnostics({
             node,
             def,
@@ -176,6 +178,7 @@ export const computeVariableHighlights = (
             if (!isExprType(arg.type)) {
                 continue;
             }
+            // Variable highlight scans expression args, not just explicit input/output slots.
             const rawValue = node.args?.[arg.name];
             const exprValues = Array.isArray(rawValue) ? rawValue : [rawValue];
             if (
@@ -221,6 +224,7 @@ export const computeSearchState = (
         const node = graph.nodesByInstanceKey[key];
         let matched = false;
         if (current.mode === "id") {
+            // ID search uses rendered display ids so users can jump to the labels on the canvas.
             matched = node.ref.displayId === current.query;
         } else {
             const stringParts = [

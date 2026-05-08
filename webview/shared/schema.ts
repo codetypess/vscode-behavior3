@@ -117,6 +117,7 @@ const normalizeNodeArgOptions = (
 
     const first = value[0];
     if (isPlainRecord(first) && !("source" in first)) {
+        // Legacy node configs stored one flat option list; normalize to the current source bucket shape.
         return [
             {
                 source: value.map((entry, index) => {
@@ -311,6 +312,7 @@ const normalizeStableUuid = (record: PlainRecord): string => {
         return record.uuid;
     }
     if (typeof record.$id === "string" && record.$id) {
+        // Older tree files used $id; keep it as the stable uuid during migration.
         return record.$id;
     }
     return generateUuid();
@@ -433,6 +435,7 @@ export const parseWorkspaceModelContent = (content: string): WorkspaceModel => {
 
 export const normalizeTreeData = (value: unknown): TreeData => {
     const record = expectPlainRecord(value, "tree file");
+    // Accept legacy top-level $override/import/vars while writing back the normalized shape.
     const overridesValue = record.overrides === undefined ? record.$override : record.overrides;
     const variablesValue = record.variables;
     const variablesRecord =

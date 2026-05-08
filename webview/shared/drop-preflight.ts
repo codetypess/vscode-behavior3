@@ -29,6 +29,7 @@ export const preflightDropIntent = (params: {
 }): DropPreflightResult => {
     const { hasDocument, intent, source, target, isDescendant } = params;
 
+    // This is a UI-side fast guard; the reducer repeats structural checks before persisting.
     if (!hasDocument || !source || !target) {
         return { allowed: false, reason: "missing-context" };
     }

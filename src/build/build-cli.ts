@@ -89,6 +89,8 @@ const resolveBehaviorProjectPaths = (
         "projectPath" | "workspaceFile" | "settingFile" | "workspaceRoot"
     >
 ): BehaviorProjectPaths => {
+    // Discovery starts from the user supplied project path, but can be capped at
+    // workspaceRoot so the CLI does not accidentally climb into unrelated parents.
     const projectPath = path.resolve(options.projectPath ?? process.cwd());
     const workspaceRoot = options.workspaceRoot ? path.resolve(options.workspaceRoot) : undefined;
 
@@ -116,6 +118,8 @@ const resolveBehaviorProjectPaths = (
         );
     }
 
+    // The build system uses the workspace folder as its working directory, even
+    // when the setting file is discovered or supplied from another location.
     return {
         workspaceFile,
         settingFile,
@@ -137,6 +141,8 @@ export const buildBehaviorProject = async (
     options: BehaviorBuildProjectOptions
 ): Promise<BehaviorBuildProjectResult> => {
     const paths = resolveBehaviorBuildPaths(options);
+    // Logger is a shared singleton in the webview build utilities, so preserve
+    // the previous instance when callers inject a CLI/test logger.
     const previousLogger = options.logger ? getLogger() : null;
 
     if (options.logger) {
@@ -145,6 +151,8 @@ export const buildBehaviorProject = async (
 
     try {
         fs.mkdirSync(paths.outputDir, { recursive: true });
+        // The shared builder expects POSIX-style paths because it also runs in
+        // webview-like environments where backslashes would be treated literally.
         const buildContext = createBuildProjectContext({
             workdir: normalizePosixPath(paths.workdir),
             settingFile: normalizePosixPath(paths.settingFile),
@@ -174,6 +182,7 @@ export const batchProcessBehaviorProject = async (
 ): Promise<BehaviorBatchProcessResult> => {
     const paths = resolveBehaviorProjectPaths(options);
     const scriptFile = ensureExistingScriptFile(options.scriptFile, "scriptFile");
+    // Keep the batch API isolated from any logger swap performed by a caller.
     const previousLogger = options.logger ? getLogger() : null;
 
     if (options.logger) {
@@ -238,6 +247,7 @@ const parseCliArgs = (args: string[]): BehaviorBuildProjectOptions => {
         checkExpr: true,
     };
 
+    // Parse manually to keep the distributable CLI small and dependency-free.
     for (let index = 0; index < args.length; index += 1) {
         const arg = args[index];
         switch (arg) {
@@ -310,6 +320,8 @@ export const runBuildCli = async (args = process.argv.slice(2)): Promise<number>
     }
 };
 
+// Allow the same file to be imported by tests/extensions without immediately
+// executing the command-line entrypoint.
 if (typeof require !== "undefined" && require.main === module) {
     void runBuildCli().then((code) => {
         process.exitCode = code;

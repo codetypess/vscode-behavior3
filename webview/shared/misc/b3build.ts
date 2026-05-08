@@ -27,6 +27,7 @@ export const isBehaviorTreeJsonPath = (filePath: string): boolean => {
         return false;
     }
 
+    // Project discovery is broad, so filter out common tooling JSON files and generated folders.
     const base = b3path.basename(normalized);
     const lowerBase = base.toLowerCase();
     if (SKIP_JSON_BASENAMES.has(lowerBase)) {
@@ -394,6 +395,7 @@ const matchGlobSegments = (
 
     const pattern = patternSegments[patternIndex];
     if (pattern === "**") {
+        // Let ** consume zero or more path segments.
         for (
             let nextPathIndex = pathIndex;
             nextPathIndex <= pathSegments.length;
@@ -457,6 +459,7 @@ export const resolveCheckScriptPaths = (
         }
     }
 
+    // Missing patterns are surfaced as build errors so typos do not silently disable checks.
     return {
         paths: [...pathSet].sort(),
         missingPatterns: [...matchesByPattern.entries()]
@@ -530,6 +533,7 @@ export const createFileDataWithContext = (
         nodeData.args = undefined;
     }
 
+    // Subtree references normally keep only the reference path; build output can opt into expansion.
     if (data.children?.length && (includeSubtree || !context.isSubtreeRoot(data))) {
         nodeData.children = [];
         data.children.forEach((child) => {
@@ -695,6 +699,7 @@ export const collectNodeArgCheckDiagnostics = (params: {
             continue;
         }
         for (const arg of nodeDef.args ?? []) {
+            // Node definitions opt into custom validation by naming a registered checker.
             const checkerName = arg.checker?.trim();
             if (!checkerName) {
                 continue;
@@ -857,6 +862,7 @@ const activeRuntimeModulesBySource = new Map<string, Set<string>>();
 const runtimeModuleSourceByPath = new Map<string, string>();
 
 const registerActiveRuntimeModule = (sourcePath: string, modulePath: string) => {
+    // TS build scripts are emitted to temporary ESM files next to their sources for dynamic import.
     const normalizedSourcePath = b3path.posixPath(sourcePath);
     const normalizedModulePath = b3path.posixPath(modulePath);
     let activeModules = activeRuntimeModulesBySource.get(normalizedSourcePath);
@@ -938,6 +944,7 @@ const getRuntimeProcess = (): RuntimeProcess | undefined => {
 const applyBehavior3DecoratorGlobal = () => {
     const runtimeGlobal = globalThis as RuntimeGlobals;
     if (decoratorGlobalState.depth === 0) {
+        // Decorators run at module evaluation time, so expose behavior3 only while loading scripts.
         decoratorGlobalState.hadBehavior3 = Object.prototype.hasOwnProperty.call(
             runtimeGlobal,
             "behavior3"
@@ -1043,6 +1050,7 @@ const createRuntimeTypeScriptModuleGraph = (
         const normalizedSourcePath = b3path.posixPath(sourcePath);
         const existing = emitted.get(normalizedSourcePath);
         if (existing) {
+            // De-duplicate shared imports so one source file has one temp runtime module per load.
             return existing;
         }
 
@@ -1055,6 +1063,7 @@ const createRuntimeTypeScriptModuleGraph = (
                     specifier,
                     normalizedSourcePath
                 );
+                // Local TS imports are rewritten to their emitted .mjs companions.
                 return importedPath
                     ? toRuntimeImportSpecifier(tempModulePath, emitModule(importedPath))
                     : null;

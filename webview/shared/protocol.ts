@@ -33,6 +33,7 @@ export const parseWorkdirRelativeJsonPath = (
         WINDOWS_ABSOLUTE_PATTERN.test(raw) ||
         URI_SCHEME_PATTERN.test(raw)
     ) {
+        // Subtree/import paths are persisted relative to workdir only, never as absolute or URI paths.
         return null;
     }
 
@@ -46,6 +47,7 @@ export const parseWorkdirRelativeJsonPath = (
 
     const segments = normalized.split("/");
     if (segments.some((segment) => !segment || segment === "." || segment === "..")) {
+        // Reject traversal early so host/webview path handling can share the same branded type.
         return null;
     }
     if (!normalized.toLowerCase().endsWith(".json")) {
@@ -116,6 +118,7 @@ export const normalizeHostDocumentSnapshot = (
 export const normalizeHostInitMessage = (
     message: Extract<HostToEditorMessage, { type: "init" }>
 ): HostInitPayload => {
+    // Normalize once at the host boundary so stores and UI components can trust path shapes.
     const settings: Settings = {
         checkExpr: message.checkExpr,
         subtreeEditable: message.subtreeEditable,

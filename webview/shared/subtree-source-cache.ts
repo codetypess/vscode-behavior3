@@ -32,10 +32,12 @@ export const loadSubtreeSourceCache = async (params: {
         if (visited.has(normalizedPath)) {
             return;
         }
+        // Subtree graphs may be cyclic; materialization reports cycles after sources are cached once.
         visited.add(normalizedPath);
 
         const content = await params.readContent(normalizedPath);
         if (content === null) {
+            // Null means the file is missing; invalid JSON is represented by an error object below.
             cache[normalizedPath] = null;
             return;
         }
@@ -45,6 +47,7 @@ export const loadSubtreeSourceCache = async (params: {
             const tree = parsePersistedTreeContent(content, normalizedPath);
             cache[normalizedPath] = tree;
 
+            // The host can write migrated subtree content after parsing without rewalking the graph.
             await params.onTreeLoaded?.({
                 path: normalizedPath,
                 tree,

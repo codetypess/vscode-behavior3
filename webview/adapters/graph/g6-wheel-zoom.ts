@@ -14,6 +14,7 @@ export const getWheelZoomRatio = (event: WheelDeltaEvent): number | null => {
         return null;
     }
 
+    // Clamp high-resolution trackpad deltas so zoom speed stays predictable.
     return 1 + (clampNumber(-delta, -50, 50) * WHEEL_ZOOM_SENSITIVITY) / 100;
 };
 

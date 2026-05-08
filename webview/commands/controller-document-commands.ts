@@ -33,6 +33,7 @@ export const createDocumentCommands = (
 
     return {
         async initFromHost(payload: HostInitPayload) {
+            // Init is the only full bootstrap path; subsequent messages patch this state incrementally.
             const persistedTree = parsePersistedTreeContent(payload.content, payload.filePath);
             deps.workspaceStore.setState((state) => ({
                 ...state,
@@ -54,6 +55,7 @@ export const createDocumentCommands = (
         },
 
         async applyDocumentSnapshot(snapshot: HostDocumentSnapshot) {
+            // Host snapshots are authoritative for dirty/reload/selection even when content is unchanged.
             applyHostDocumentSession(deps.documentStore, snapshot.documentSession);
 
             const matchesCurrent = runtime.matchesCurrentDocumentSnapshot(snapshot.content);
@@ -83,6 +85,7 @@ export const createDocumentCommands = (
         },
 
         async applyHostVars(payload: HostVarsPayload) {
+            // Var changes can affect validation/highlights; file list changes only refresh picker data.
             const current = deps.workspaceStore.getState();
             const nextAllFiles = payload.allFiles ?? current.allFiles;
             const usingVarsChanged = !isJsonEqual(current.usingVars, payload.usingVars);

@@ -6,6 +6,7 @@ export const applyWorkspaceTheme = (
     store: StoreApi<WorkspaceState>,
     theme: WorkspaceState["settings"]["theme"]
 ): void => {
+    // Ant Design tokens are memoized, so bump a version when only the theme mode changes.
     store.setState((state) => ({
         ...state,
         settings: {

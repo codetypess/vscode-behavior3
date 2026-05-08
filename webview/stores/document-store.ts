@@ -24,6 +24,7 @@ export const applyHostDocumentSession = (
     store: StoreApi<DocumentState>,
     session: HostDocumentSessionState
 ): void => {
+    // The extension host owns dirty/conflict state because it observes VS Code save/reload events.
     store.setState((state) => ({
         ...state,
         dirty: session.dirty,

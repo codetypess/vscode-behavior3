@@ -10,6 +10,7 @@ import { parseWorkdirRelativeJsonPath } from "./protocol";
 import { clonePersistedNode } from "./tree";
 
 const enum StatusFlag {
+    // Lower bits mirror node status; *_ZERO bits record whether any child lacks a status.
     SUCCESS = 2,
     FAILURE = 1,
     RUNNING = 0,
@@ -18,7 +19,9 @@ const enum StatusFlag {
 }
 
 interface MaterializeContext {
+    // Tracks the current subtree include chain for cycle detection and node identity.
     subtreeStack: WorkdirRelativeJsonPath[];
+    // Outer subtree overrides are replayed when resolving nodes from nested subtree files.
     overrideSourceChain: PersistedTreeModel[];
     sourceTreePath: WorkdirRelativeJsonPath | null;
     insideExternalSubtree: boolean;
@@ -43,6 +46,7 @@ const applyPatchIfAny = (
         | Pick<PersistedNodeModel, "desc" | "input" | "output" | "args" | "debug" | "disabled">
         | undefined
 ) => {
+    // Override patches are sparse; absent fields intentionally keep the source node value.
     if (!patch) {
         return;
     }
@@ -84,6 +88,7 @@ const buildResolvedExternalNode = (
     rootOverride: PersistedTreeModel["overrides"]
 ) => {
     const value = clonePersistedNode(sourceNode);
+    // Reapply source-file overrides from the innermost include outward, then main-tree overrides.
     for (const tree of [...overrideChain].reverse()) {
         applyPatchIfAny(value, tree.overrides[sourceNode.uuid]);
     }
@@ -120,6 +125,7 @@ const toStatusFlag = (nodeName: string, defsByName: Map<string, NodeDef>) => {
 const appendStatusFlag = (status: number, childStatus: number) => {
     const childSuccess = (childStatus >> StatusFlag.SUCCESS) & 1;
     const childFailure = (childStatus >> StatusFlag.FAILURE) & 1;
+    // Aggregate "&success"/"&failure" needs to know if any child omitted that status entirely.
     if (childSuccess === 0) {
         status |= 1 << StatusFlag.SUCCESS_ZERO;
     }
@@ -220,6 +226,7 @@ export const materializePersistedTree = (params: {
             ? parseWorkdirRelativeJsonPath(structuredNode.path)
             : undefined;
         const isCyclic = normalizedPath ? context.subtreeStack.includes(normalizedPath) : false;
+        // A valid path switches the node from inline children to an external subtree root.
         const subtreeSource =
             normalizedPath && !isCyclic ? params.subtreeSources[normalizedPath] : undefined;
         const subtreeTree =
@@ -246,6 +253,7 @@ export const materializePersistedTree = (params: {
                 throw new Error("unreachable subtree path state");
             }
             sourceNode = clonePersistedNode(subtreeTree.root);
+            // Keep the reference path on the materialized root so the inspector can detach it later.
             sourceNode.path = subtreePath;
             sourceTreePath = subtreePath;
             overrideChain = [...context.overrideSourceChain, subtreeTree];
@@ -302,6 +310,7 @@ export const materializePersistedTree = (params: {
 
         const children = nextChildren.map((child) => resolveNode(child, childContext));
         sourceNode.children = children.map((child) => child.data);
+        // Disabled children stay visible but are ignored when deriving parent status bits.
         sourceNode.$status = computeNodeStatusBits(
             sourceNode.name,
             children.filter((child) => !child.data.disabled).map((child) => child.data.$status),

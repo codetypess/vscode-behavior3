@@ -25,6 +25,7 @@ export const isValidVariableName = (name: string): boolean => {
 
 export const parseExpressionVariables = (expr: string): string[] => {
     return expr
+        // Split on operators/punctuation, then keep the base identifier from property access.
         .split(/[^a-zA-Z0-9_.'"]/)
         .map((value) => value.split(".")[0])
         .filter((value) => isValidVariableName(value));
@@ -67,6 +68,7 @@ export const validateExpressionEntries = (
         }
 
         if (checkExpr) {
+            // Dry-run catches syntax/runtime shape errors without evaluating real tree state.
             try {
                 if (!new ExpressionEvaluator(entry).dryRun()) {
                     return { code: "invalid-expression", field: "args", expression: entry };

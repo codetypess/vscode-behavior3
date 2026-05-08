@@ -7,6 +7,7 @@ import type {
 const isSameSubtreeStack = (left: readonly string[], right: readonly string[]) =>
     left.length === right.length && left.every((value, index) => value === right[index]);
 
+// The same source subtree can be mounted multiple times, so identity includes the mount stack.
 export const isSameNodeIdentity = (left: NodeInstanceRef, right: NodeInstanceRef) =>
     left.structuralStableId === right.structuralStableId &&
     left.sourceStableId === right.sourceStableId &&

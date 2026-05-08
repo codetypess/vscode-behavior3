@@ -35,6 +35,7 @@ const AppShell: React.FC = () => {
         };
 
         const handleHostMessage = (hostEvent: HostEvent) => {
+            // Host event handling stays here so React bootstrapping, i18n, and controller state advance together.
             switch (hostEvent.type) {
                 case "init":
                     void (async () => {

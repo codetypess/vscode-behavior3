@@ -118,6 +118,7 @@ const registerPendingRequest = <K extends PendingRequestType>(
     requestId = createRequestId(),
     timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS
 ): string => {
+    // Every host request resolves exactly once, even when the extension side never replies.
     const timeout = window.setTimeout(() => {
         const pending = pendingRequests.get(requestId);
         if (pending?.type !== type) {
@@ -140,6 +141,7 @@ const resolvePendingRequest = <K extends PendingRequestType>(
     type: K,
     value: PendingRequestMap[K]
 ): boolean => {
+    // Type matching prevents a stale response id from resolving the wrong request shape.
     const pending = pendingRequests.get(requestId);
     if (pending?.type !== type) {
         return false;
@@ -195,6 +197,7 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
             };
 
             const dispatchHostEvent = (message: HostToEditorMessage) => {
+                // Transport messages are normalized at this adapter boundary before reaching stores.
                 switch (message.type) {
                     case "readFileResult":
                         resolvePendingRequest(message.requestId, "readFile", {

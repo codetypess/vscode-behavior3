@@ -79,6 +79,7 @@ export const collectTransitivePaths = async (
     seedPaths: Iterable<string>,
     expand: (path: string) => Promise<Iterable<string> | null | undefined>
 ): Promise<string[]> => {
+    // Breadth-first order keeps declarations close to the order users see in tree metadata.
     const ordered: string[] = [];
     const seen = new Set<string>();
     const queue = Array.from(seedPaths);
@@ -127,6 +128,7 @@ export const hasMissingStableIds = (content: string): boolean => {
             import?: unknown;
             vars?: unknown;
         };
+        // Legacy files may need a writeback to add UUIDs and migrate old root-level fields.
         return (
             subtreeNeedsMissingIds(parsed.root) ||
             parsed.$override !== undefined ||

@@ -1,6 +1,7 @@
 // Adapted from original: removed Node.js fs/path imports (browser-safe version)
 
 export type Tag = {
+    // Metadata keys are consumed by this serializer and skipped from output.
     ["!name"]?: string;
     ["!type"]?: string;
     ["!stringify"]?: (v: TValue, ctx: StringifyContext) => void;
@@ -34,6 +35,7 @@ export class StringBuffer {
     }
 
     padding() {
+        // An indent of 0 switches the writer into compact single-line mode.
         if (this._indent > 0) {
             this.data.push(" ".repeat(this._indentCount));
         }
@@ -70,6 +72,7 @@ export const isNumericKey = (key: string) => {
     if (typeof key !== "string") return false;
     if (/^-?\d+$/.test(key)) {
         try {
+            // BigInt keeps integer-like keys exact instead of rounding through Number.
             return String(BigInt(key)) === key;
         } catch {
             return false;
@@ -97,10 +100,12 @@ export const keys = (
     ignore?: { [k: string]: boolean }
 ) => {
     const value = o as TObject;
+    // Drop serializer metadata and caller-ignored fields before ordering.
     const ks = Object.keys(value).filter(
         (k) => !k.startsWith("!") && (!ignore || !ignore[k]) && (!filter || filter(value[k]))
     );
 
+    // Keep emitted files stable: numeric keys first by numeric value, then strings alphabetically.
     const numKeys: string[] = [];
     const strKeys: string[] = [];
     for (const k of ks) {
@@ -130,6 +135,7 @@ const numberToString = (value: number, precision?: number) => {
     if (value === (value | 0)) {
         return value.toFixed(0);
     } else {
+        // Clamp floating point noise to the configured precision, then remove trailing zeroes.
         return value.toFixed(precision).replace(/\.?0+$/, "");
     }
 };
@@ -140,6 +146,7 @@ export type JsonStringifyOption = {
 };
 
 export const stringifyJson = (data: unknown, option?: JsonStringifyOption) => {
+    // Tracks the current object path for clearer overflow errors during recursive writes.
     const stacks: string[] = [];
     option = option ?? {};
     option.indent = Math.max(option.indent ?? 4, 0);
@@ -186,6 +193,7 @@ export const stringifyJson = (data: unknown, option?: JsonStringifyOption) => {
             throw new Error(`json stringify stack overflow: ${stacks.join("->")}`);
         }
 
+        // Allow tagged objects to take over their own representation.
         if (value["!stringify"]) {
             value["!stringify"](value, ctx);
             return;
@@ -215,6 +223,7 @@ export const stringifyJson = (data: unknown, option?: JsonStringifyOption) => {
     }
 
     function writeJsonArray(value: TArray) {
+        // Arrays share the same escape hatch as objects for legacy/custom formats.
         if (value["!stringify"]) {
             value["!stringify"](value, ctx);
             return;

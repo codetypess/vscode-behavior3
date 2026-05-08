@@ -276,6 +276,7 @@ export class G6GraphAdapter implements GraphAdapter {
         const candidates: ViewportAnchorCandidate[] = [];
         let currentKey: string | null = nodeKey;
         while (currentKey) {
+            // Save the node and its ancestors so a surviving parent can anchor after collapse/rebuild.
             const candidate = this.readViewportAnchorCandidate(currentKey);
             if (!candidate && !opts?.skipMissingCandidates) {
                 break;
@@ -330,6 +331,7 @@ export class G6GraphAdapter implements GraphAdapter {
         nodeKey: string;
     } | null {
         for (const candidate of anchor.candidates) {
+            // Resolve by logical identity because instance keys can change after graph rebuilds.
             const node = this.model?.nodes.find((entry) =>
                 isSameNodeIdentity(entry.ref, candidate.ref)
             );
@@ -803,6 +805,7 @@ export class G6GraphAdapter implements GraphAdapter {
 
         const x = canvas.x - position[0];
         const y = canvas.y - position[1];
+        // Left half drops around the target; right half nests as a child.
         const nextPosition: DropIntent["position"] =
             x > data.width / 2 ? "child" : y > data.height / 2 ? "after" : "before";
 

@@ -123,6 +123,7 @@ export const collectResolvedNodeDiagnostics = (params: {
 
     for (let index = 0; index < (def.input?.length ?? 0); index += 1) {
         if (isVariadicSlot(def.input ?? [], index)) {
+            // Once a variadic slot starts, the remaining arity is intentionally open-ended.
             break;
         }
         if (isRequiredSlotMissing(def.input, node.input, index)) {
@@ -136,6 +137,7 @@ export const collectResolvedNodeDiagnostics = (params: {
 
     for (let index = 0; index < (def.output?.length ?? 0); index += 1) {
         if (isVariadicSlot(def.output ?? [], index)) {
+            // Variadic output slots follow the same required-slot cutoff as inputs.
             break;
         }
         if (isRequiredSlotMissing(def.output, node.output, index)) {

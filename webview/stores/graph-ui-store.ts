@@ -15,6 +15,7 @@ export const patchGraphUiSearchState = (
     store: StoreApi<GraphUiState>,
     patch: Partial<GraphUiSearchState>
 ): void => {
+    // Search state is nested to let commands update results without replacing user-entered options.
     store.setState((state) => ({
         ...state,
         search: {

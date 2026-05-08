@@ -182,6 +182,7 @@ export class ProjectIndex {
         );
 
         if (openDocument) {
+            // Prefer unsaved editor text over disk so validation/import views match what the user sees.
             return openDocument.getText();
         }
 
@@ -197,6 +198,7 @@ export class ProjectIndex {
         const fileUri = vscode.Uri.joinPath(this.workdir, normalizedPath);
         const content = await this.readWorkspaceFileContent(fileUri).catch(() => null);
         if (content === null) {
+            // Cache misses as null to avoid repeatedly probing absent subtree/import files.
             this.treeCache.set(normalizedPath, {
                 content: "",
                 tree: null,
@@ -254,6 +256,7 @@ export class ProjectIndex {
         if (visitedForGlobal.has(normalizedPath)) {
             return localVars;
         }
+        // Imports and subtree references can form cycles; each file contributes globals once.
         visitedForGlobal.add(normalizedPath);
 
         const tree = await this.readTreeFile(normalizedPath);

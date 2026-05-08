@@ -136,6 +136,7 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
 
     private async buildMainDocumentSaveContent(document: TreeEditorDocument): Promise<string> {
         try {
+            // Main-document saves resolve reachable subtrees first so display ids match the rendered graph.
             const tree = parsePersistedTreeContent(document.content, document.uri.fsPath);
             const workspaceFolderUri = vscode.workspace.getWorkspaceFolder(document.uri)?.uri;
             const nodeDefs = workspaceFolderUri
@@ -168,6 +169,7 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         document: TreeEditorDocument,
         opts?: { notifyReload?: boolean }
     ): Promise<string> {
+        // This is the single VS Code save path that marks sessions saved and suppresses our watcher echo.
         const saveContent = await this.buildMainDocumentSaveContent(document);
         this.assertCanWriteTreeContent(saveContent);
         const normalizedContent = await this.writeDocumentContentToDisk(
@@ -205,6 +207,7 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         openContext: vscode.CustomDocumentOpenContext,
         _token: vscode.CancellationToken
     ): Promise<TreeEditorDocument> {
+        // VS Code may reopen from a backup or untitled buffer before the file exists on disk.
         let content = "";
         let dirty = false;
 

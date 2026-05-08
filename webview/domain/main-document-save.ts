@@ -29,6 +29,7 @@ export const serializePersistedTreeForMainDocumentSave = async (params: {
     });
 
     const nextTree = clonePersistedTree(params.tree);
+    // Display ids are assigned after subtree resolution so saved main-tree ids match the canvas.
     applyMainTreeDisplayIds(nextTree.root, resolved.mainTreeDisplayIdsByStableId);
     return serializePersistedTree(nextTree);
 };

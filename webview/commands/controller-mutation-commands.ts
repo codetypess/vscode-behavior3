@@ -34,6 +34,7 @@ const forwardDocumentMutation = async (
     runtime: ControllerRuntime,
     mutation: DocumentMutation
 ): Promise<DocumentMutationResponse> => {
+    // Mutations always round-trip through the host so undo history and filesystem state stay canonical.
     const response = await runtime.deps.hostAdapter.mutateDocument(mutation);
     if (!response.success) {
         runtime.notifyError(response.error ?? "Document mutation failed");
@@ -46,6 +47,7 @@ const buildUpdateNodePayload = (
     runtime: ControllerRuntime,
     payload: UpdateNodeInput
 ): UpdateNodeInput => {
+    // Attach the latest selected snapshot so the host reducer can reject stale inspector commits.
     const selectedSnapshot = runtime.deps.selectionStore.getState().selectedNodeSnapshot;
     const currentNodeSnapshot = selectedSnapshot
         ? {
@@ -96,6 +98,7 @@ const formatDropPreflightDenial = (reason: DropPreflightDenialReason): string | 
 };
 
 const canForwardDropIntent = (runtime: ControllerRuntime, intent: DropIntent): boolean => {
+    // Preflight gives immediate UI feedback; the host reducer repeats these checks before persisting.
     const currentTree = runtime.deps.documentStore.getState().persistedTree;
     const sourceResolved = getResolvedNodeByInstanceKey(runtime, intent.source.instanceKey);
     const targetResolved = getResolvedNodeByInstanceKey(runtime, intent.target.instanceKey);

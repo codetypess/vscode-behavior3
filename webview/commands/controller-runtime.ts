@@ -221,6 +221,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             return null;
         }
 
+        // Host snapshots can arrive after graph rebuilds; progressively relax identity to keep focus useful.
         const direct = resolvedGraph.nodesByInstanceKey[ref.instanceKey];
         if (direct) {
             return direct;
@@ -284,6 +285,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
     };
 
     const applyHostSelectionState = (selection: HostSelectionState) => {
+        // Host selection is authoritative; clear optimistic local hints once a snapshot catches up.
         updateGraphUiState((state) =>
             state.selectionVisualHint
                 ? {
@@ -487,6 +489,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         graph: ResolvedDocumentGraph,
         workspace: WorkspaceState
     ): Promise<Record<string, NodeCheckDiagnostic[]>> => {
+        // Checker requests are async; sequence numbers prevent stale diagnostics from winning the race.
         const content = getSerializedCurrentTree();
         const treePath = workspace.filePath;
         const nodes = collectNodeCheckValidationNodes(graph, workspace.nodeDefs);
@@ -674,6 +677,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
     };
 
     const setDocumentTree = (tree: PersistedTreeModel) => {
+        // Document tree and enabled groups move together because group validation depends on tree metadata.
         deps.documentStore.setState((state) => {
             return {
                 ...state,

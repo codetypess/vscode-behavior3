@@ -68,6 +68,7 @@ const cloneVars = <T extends { name: string }>(entries: T[]): T[] =>
     entries.map((entry) => ({ ...entry }));
 
 const overwritePersistedNode = (target: PersistedNodeModel, source: PersistedNodeModel): void => {
+    // Preserve the object reference held by the cloned tree while replacing every persisted field.
     for (const key of Object.keys(target) as Array<keyof PersistedNodeModel>) {
         delete target[key];
     }
@@ -144,6 +145,7 @@ const getNodeDef = (nodeDefs: NodeDef[], name: string): NodeDef | null => {
 };
 
 const matchesSelectedNodeTarget = (selectedNode: EditNode, payload: UpdateNodeInput): boolean => {
+    // Inspector edits are rejected if selection moved between render and commit.
     return (
         selectedNode.ref.structuralStableId === payload.target.structuralStableId &&
         selectedNode.ref.sourceStableId === payload.target.sourceStableId &&
@@ -297,6 +299,7 @@ const reduceUpdateNode = (
     const tree = clonePersistedTree(context.tree);
 
     if (selectedNode.subtreeNode) {
+        // External subtree nodes are not edited in-place; the main tree stores a sparse override.
         const original = selectedNode.subtreeOriginal;
         if (!original) {
             return {
@@ -347,6 +350,7 @@ const reduceUpdateNode = (
 
     const isDetachingSubtree = Boolean(selectedNode.data.path) && !payload.data.path;
     if (isDetachingSubtree) {
+        // Removing a subtree path turns the materialized external root back into inline data.
         const detachedRoot = payload.detachedSubtreeRoot;
         if (!detachedRoot) {
             return {
@@ -550,8 +554,10 @@ const reduceReplaceNode = (
     }
 
     const replacement = clonePersistedNode(mutation.payload.snapshot);
+    // Preserve the target identity so existing selections/edges still point at the replaced slot.
     replacement.uuid = targetNode.uuid;
     for (const child of replacement.children ?? []) {
+        // Children are copied content and must not alias nodes from their source tree.
         assignFreshStableIds(child);
     }
     if (replacement.path) {

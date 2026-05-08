@@ -29,6 +29,7 @@ export const normalizeTreeContentForWrite = (content: string, filePath: string):
     try {
         const tree = readTree(content);
         const name = basenameWithoutExt(filePath);
+        // Persisted tree names follow the target filename so "Save As" keeps metadata aligned.
         tree.name = name;
         return writeTree(tree, name);
     } catch {
@@ -40,6 +41,7 @@ const buildSuppressedDocumentChange = (content: string): SuppressedDocumentChang
     return {
         raw: content,
         normalizedLineEndings: normalizeLineEndings(content),
+        // Canonical JSON lets us recognize our own write even if VS Code normalizes formatting.
         canonicalJson: normalizeJsonContent(content),
     };
 };
@@ -126,6 +128,7 @@ export class TreeEditorDocument implements vscode.CustomDocument {
     }
 
     rememberOwnWrite(content: string): void {
+        // File watchers will report writes made by this extension; queue them so they can be ignored once.
         this._ownFileWrites.push(buildSuppressedDocumentChange(content));
     }
 
