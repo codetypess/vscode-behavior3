@@ -29,15 +29,15 @@ export const formatArgInitialValue = (arg: NodeArg, value: unknown) => {
         return JSON.stringify(value, null, 2);
     }
 
-    if (hasArgOptions(arg)) {
-        return value ?? (optional ? "__unset__" : undefined);
-    }
-
     if (isBoolType(type)) {
         if (value === undefined) {
-            return optional ? "__unset__" : undefined;
+            return optional ? false : undefined;
         }
         return value;
+    }
+
+    if (hasArgOptions(arg)) {
+        return value ?? (optional ? "__unset__" : undefined);
     }
 
     if (isJsonType(type)) {
@@ -78,15 +78,15 @@ export const parseArgSubmitValue = (arg: NodeArg, raw: unknown): unknown => {
         return parsed;
     }
 
-    if (hasArgOptions(arg)) {
-        return raw === "__unset__" ? undefined : raw;
-    }
-
     if (isBoolType(type)) {
         if (raw === "__unset__") {
             return undefined;
         }
         return Boolean(raw);
+    }
+
+    if (hasArgOptions(arg)) {
+        return raw === "__unset__" ? undefined : raw;
     }
 
     if (isIntType(type) || isFloatType(type)) {

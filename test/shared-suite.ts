@@ -196,7 +196,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
         },
     },
     {
-        name: "preserves optional inspector arg unset sentinels",
+        name: "formats optional inspector arg initial values",
         run() {
             assert.equal(
                 formatArgInitialValue({ name: "text", type: "string?", desc: "" }, undefined),
@@ -204,7 +204,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             );
             assert.equal(
                 formatArgInitialValue({ name: "enabled", type: "bool?", desc: "" }, undefined),
-                "__unset__"
+                false
             );
         },
     },
@@ -246,6 +246,10 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
         run() {
             assert.equal(
                 parseArgSubmitValue({ name: "enabled", type: "bool", desc: "" }, false),
+                false
+            );
+            assert.equal(
+                parseArgSubmitValue({ name: "enabled", type: "bool?", desc: "" }, false),
                 false
             );
             assert.equal(

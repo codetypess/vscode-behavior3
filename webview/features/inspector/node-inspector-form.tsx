@@ -146,6 +146,19 @@ const NodeArgField: React.FC<{
         }
     };
 
+    if (isBoolType(type)) {
+        return (
+            <Form.Item
+                {...argLabelProps}
+                name={["args", arg.name]}
+                valuePropName="checked"
+                rules={[{ validator: validateField }]}
+            >
+                <Switch disabled={disabled} onChange={onQueueCommit} />
+            </Form.Item>
+        );
+    }
+
     if (hasArgOptions(arg)) {
         return (
             <Form.Item
@@ -184,40 +197,6 @@ const NodeArgField: React.FC<{
                     }
                     onBlur={onCommit}
                 />
-            </Form.Item>
-        );
-    }
-
-    if (isBoolType(type)) {
-        if (isNodeArgOptional(arg)) {
-            return (
-                <Form.Item
-                    {...argLabelProps}
-                    name={["args", arg.name]}
-                    rules={[{ validator: validateField }]}
-                >
-                    <Select
-                        disabled={disabled}
-                        allowClear={false}
-                        onChange={onQueueCommit}
-                        options={[
-                            { label: t("form.unset"), value: "__unset__" },
-                            { label: t("form.true"), value: true },
-                            { label: t("form.false"), value: false },
-                        ]}
-                    />
-                </Form.Item>
-            );
-        }
-
-        return (
-            <Form.Item
-                {...argLabelProps}
-                name={["args", arg.name]}
-                valuePropName="checked"
-                rules={[{ validator: validateField }]}
-            >
-                <Switch disabled={disabled} onChange={onQueueCommit} />
             </Form.Item>
         );
     }

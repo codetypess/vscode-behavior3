@@ -144,6 +144,7 @@ Inspector 不只是字段表单，还需要表达：
 ### Args
 
 - 按 arg 类型渲染为 `Select` / `Switch` / `InputNumber` / `TextArea` 等
+- `bool` / `bool?` 标量参数统一渲染为 `Switch`；项目内 bool 参数不通过 `options` 配置枚举值
 - 表达式型参数校验变量引用与表达式合法性
 - 自定义 node check 结果会映射到对应 arg 校验提示
 - 新切入的 required arg 若当前还没有 committed 值，初始态保持 unset；在用户显式输入前不得静默序列化成 `""`、`false` 或其他占位值
