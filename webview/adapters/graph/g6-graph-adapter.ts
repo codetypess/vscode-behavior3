@@ -34,6 +34,15 @@ import {
     measureVectorTreeNode,
     registerVectorTreeNode,
 } from "./g6-vector-tree-node";
+import {
+    expandCollapsedAncestorsForNode,
+    getVisibleChildKeys,
+    isCollapsedNodeRef,
+    isSameNodeIdentity,
+    pruneCollapsedNodeRefs,
+    toggleCollapsedNodeRefs,
+} from "./graph-collapse-state";
+import { eventHasShapeClass } from "./graph-event-shape";
 import { handleNativeWheelZoom } from "./g6-wheel-zoom";
 
 const DEFAULT_VIEWPORT: GraphViewport = { zoom: 1, x: 0, y: 0 };
@@ -111,29 +120,10 @@ const compareLayoutOrder = (nodeA: G6NodeData, nodeB: G6NodeData): number => {
     return String(nodeA.id).localeCompare(String(nodeB.id));
 };
 
-const isSameSubtreeStack = (left: readonly string[], right: readonly string[]) =>
-    left.length === right.length && left.every((value, index) => value === right[index]);
-
-const isSameNodeIdentity = (left: NodeInstanceRef, right: NodeInstanceRef) =>
-    left.structuralStableId === right.structuralStableId &&
-    left.sourceStableId === right.sourceStableId &&
-    left.sourceTreePath === right.sourceTreePath &&
-    isSameSubtreeStack(left.subtreeStack, right.subtreeStack);
-
 const getEventTargetId = (event: G6Event): string | null => {
     const target = (event as { target?: { id?: unknown } }).target;
     const id = target?.id;
     return typeof id === "string" || typeof id === "number" ? String(id) : null;
-};
-
-const getOriginalShapeClassName = (event: G6Event): string | null => {
-    const originalTarget = (event as { originalTarget?: { className?: unknown } }).originalTarget;
-    if (typeof originalTarget?.className === "string") {
-        return originalTarget.className;
-    }
-
-    const target = (event as { target?: { className?: unknown } }).target;
-    return typeof target?.className === "string" ? target.className : null;
 };
 
 export class G6GraphAdapter implements GraphAdapter {
@@ -160,6 +150,7 @@ export class G6GraphAdapter implements GraphAdapter {
         targetKey: null,
         position: null,
     };
+    private collapsedNodeRefs: NodeInstanceRef[] = [];
     private suppressTransformSync = false;
 
     private syncThemeOptions() {
@@ -274,7 +265,10 @@ export class G6GraphAdapter implements GraphAdapter {
         }
     }
 
-    private readViewportAnchor(nodeKey: string | null | undefined): ViewportAnchor | null {
+    private readViewportAnchor(
+        nodeKey: string | null | undefined,
+        opts?: { skipMissingCandidates?: boolean }
+    ): ViewportAnchor | null {
         if (!nodeKey || !this.graph || !this.isGraphRendered()) {
             return null;
         }
@@ -283,10 +277,12 @@ export class G6GraphAdapter implements GraphAdapter {
         let currentKey: string | null = nodeKey;
         while (currentKey) {
             const candidate = this.readViewportAnchorCandidate(currentKey);
-            if (!candidate) {
+            if (!candidate && !opts?.skipMissingCandidates) {
                 break;
             }
-            candidates.push(candidate);
+            if (candidate) {
+                candidates.push(candidate);
+            }
             currentKey = this.getNodeVM(currentKey)?.parentKey ?? null;
         }
 
@@ -384,6 +380,31 @@ export class G6GraphAdapter implements GraphAdapter {
         return this.model?.nodes.find((node) => node.ref.instanceKey === nodeKey) ?? null;
     }
 
+    private async handleCollapseToggle(node: GraphNodeVM): Promise<void> {
+        const anchor = this.readViewportAnchor(node.ref.instanceKey);
+        this.collapsedNodeRefs = toggleCollapsedNodeRefs(this.collapsedNodeRefs, node.ref);
+        await this.renderGraphData(anchor);
+    }
+
+    private async ensureNodeVisible(nodeKey: string): Promise<void> {
+        if (!this.graph || !this.model || this.graph.hasNode(nodeKey)) {
+            return;
+        }
+
+        const nextCollapsedNodeRefs = expandCollapsedAncestorsForNode(
+            this.collapsedNodeRefs,
+            this.model,
+            nodeKey
+        );
+        if (nextCollapsedNodeRefs.length === this.collapsedNodeRefs.length) {
+            return;
+        }
+
+        const anchor = this.readViewportAnchor(nodeKey, { skipMissingCandidates: true });
+        this.collapsedNodeRefs = nextCollapsedNodeRefs;
+        await this.renderGraphData(anchor);
+    }
+
     private getNodeDatum(node: GraphNodeVM): VectorTreeNodeDatum {
         const size = measureVectorTreeNode(node);
         return {
@@ -457,6 +478,8 @@ export class G6GraphAdapter implements GraphAdapter {
         }
 
         const datum = this.getNodeDatum(node);
+        const collapsed = isCollapsedNodeRef(this.collapsedNodeRefs, node.ref);
+        const visibleChildKeys = getVisibleChildKeys(node, this.collapsedNodeRefs);
         return {
             id: nodeKey,
             nodeData: {
@@ -466,13 +489,14 @@ export class G6GraphAdapter implements GraphAdapter {
                 style: {
                     size: [datum.width, datum.height],
                     cursor: "pointer",
+                    collapsed,
                     draggable: !node.subtreeNode,
                     ports: DEFAULT_PORTS,
                 },
-                children: node.childKeys,
+                children: visibleChildKeys,
                 depth: node.depth,
             },
-            children: node.childKeys
+            children: visibleChildKeys
                 .map((childKey) => this.buildTreeDatum(childKey))
                 .filter((child): child is TreeDatum => Boolean(child)),
         };
@@ -664,9 +688,13 @@ export class G6GraphAdapter implements GraphAdapter {
             return;
         }
 
-        const shapeClassName = getOriginalShapeClassName(event);
+        if (eventHasShapeClass(event, "collapse")) {
+            void this.handleCollapseToggle(node);
+            return;
+        }
+
         let keepVariableFocus = false;
-        if (shapeClassName === "input-text") {
+        if (eventHasShapeClass(event, "input-text")) {
             const variableNames = node.inputs
                 .map((entry) => entry.variable)
                 .filter((value): value is string => Boolean(value));
@@ -677,7 +705,7 @@ export class G6GraphAdapter implements GraphAdapter {
                     variableNames,
                 });
             }
-        } else if (shapeClassName === "output-text") {
+        } else if (eventHasShapeClass(event, "output-text")) {
             const variableNames = node.outputs
                 .map((entry) => entry.variable)
                 .filter((value): value is string => Boolean(value));
@@ -892,6 +920,7 @@ export class G6GraphAdapter implements GraphAdapter {
     async render(model: ResolvedGraphModel): Promise<void> {
         const anchor = this.readViewportCenterAnchor();
         this.model = model;
+        this.collapsedNodeRefs = pruneCollapsedNodeRefs(this.collapsedNodeRefs, model);
         this.clearDragIntent();
         this.syncThemeOptions();
         await this.renderGraphData(anchor);
@@ -917,6 +946,7 @@ export class G6GraphAdapter implements GraphAdapter {
 
     async focusNode(nodeKey: string): Promise<void> {
         this.focusedNodeKey = nodeKey;
+        await this.ensureNodeVisible(nodeKey);
         this.refreshNodeStates();
         if (this.graph?.hasNode(nodeKey) && this.isGraphRendered()) {
             await this.graph.focusElement(nodeKey, false);

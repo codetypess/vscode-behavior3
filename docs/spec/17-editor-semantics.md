@@ -56,6 +56,12 @@
 - 从 `graphUiStore.search` 计算 search result keys 与 active index
 - 分别下发到 graph adapter
 
+### Graph-Local Collapse State
+
+- 节点折叠不进入 `selectionStore`、`graphUiStore`、宿主 snapshot 或 persisted tree
+- 折叠由 graph adapter 按节点 identity 维护为本地视觉状态
+- `rebuildGraph()` 只重建 `ResolvedGraphModel`；adapter 自行在新模型中裁剪已失效的 collapsed identity，并尽量保留仍可匹配的折叠节点
+
 ### `applyDocumentTree(tree, opts?)`
 
 - 可预先写入“待恢复 selection”
@@ -107,11 +113,13 @@
 
 - 更新 query 并重算结果
 - 若结果非空，自动选中并聚焦第一个结果
+- 若目标结果当前位于已折叠祖先之下，graph adapter 会在聚焦前自动展开祖先链
 
 ### `nextSearchResult()` / `prevSearchResult()`
 
 - 在结果集内循环移动
 - 同步选中和图聚焦
+- 若目标结果当前被折叠隐藏，graph adapter 会在聚焦前自动展开祖先链
 
 ## Host 驱动命令
 

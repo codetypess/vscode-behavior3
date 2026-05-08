@@ -2,7 +2,6 @@ import { Image as GImage, Path as GPath, Rect as GRect, Text as GText } from "@a
 import { DisplayObject, Group } from "@antv/g-lite";
 import {
     Badge,
-    CommonEvent,
     ExtensionCategory,
     NodeData as G6NodeData,
     Rect,
@@ -796,7 +795,7 @@ class VectorTreeNode extends Rect {
     }
 
     private drawCollapseBadge(attributes: Required<RectStyleProps>, container: Group) {
-        const badge = this.upsert(
+        this.upsert(
             "collapse",
             Badge,
             {
@@ -819,18 +818,6 @@ class VectorTreeNode extends Rect {
             },
             container
         );
-
-        if (badge && !Reflect.has(badge, "__bind__")) {
-            Reflect.set(badge, "__bind__", true);
-            badge.addEventListener(CommonEvent.CLICK, () => {
-                const graph = this.context.graph;
-                if (this.attributes.collapsed) {
-                    graph.expandElement(this.id);
-                } else {
-                    graph.collapseElement(this.id);
-                }
-            });
-        }
     }
 
     private drawDragShapes(container: Group) {

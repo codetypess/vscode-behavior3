@@ -216,6 +216,7 @@ Scope: <short boundary>
 新增 work-item 时，请继续按以下格式补充：
 
 - `your-work-item-slug.md` - `Draft` - 一句话范围说明
+- `graph-collapse-render-stability.md` - `Verifying` - 将图节点折叠改为 adapter-owned 本地视觉状态，避免 G6 内部折叠状态与 adapter rebuild 链路打架
 - `tree-custom-inspector-metadata.md` - `Verifying` - 在 Tree Inspector 中新增 tree.custom 的 key:value 编辑与提交语义
 - `inspector-array-arg-validation.md` - `Implementing` - 修复 Inspector 把数组参数误判成单值类型的校验问题
 - `main-document-save-display-id-writeback.md` - `Implementing` - 在主文档保存时把当前主树 display id 回写到 persisted `id`

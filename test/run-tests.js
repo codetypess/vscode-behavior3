@@ -14,8 +14,23 @@ async function main() {
       format: "cjs",
       target: "node18",
       outfile,
+      loader: {
+        ".svg": "dataurl",
+      },
       sourcemap: false,
       logLevel: "silent",
+    });
+
+    globalThis.window = Object.assign(globalThis, {
+      addEventListener() {},
+      removeEventListener() {},
+    });
+    globalThis.acquireVsCodeApi = () => ({
+      postMessage() {},
+      getState() {
+        return undefined;
+      },
+      setState() {},
     });
 
     require(outfile);

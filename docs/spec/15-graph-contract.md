@@ -23,6 +23,8 @@
 
 所有输出都以 `GraphEventHandlers` 回调表达，而不是直接改 store。
 
+graph adapter 允许保留实现自有的 graph-local 视觉缓存，例如节点折叠可见性；这类状态不属于外部输入，也不能写回 persisted tree、host snapshot 或 Inspector authority。
+
 ## GraphAdapter Interface
 
 当前 `GraphAdapter` 稳定接口为：
@@ -108,6 +110,12 @@
 - container resize 时也应保持既有 viewport，并在需要时补偿视觉锚点，避免缩放后的内容整体漂移
 - `focusNode` 会聚焦到目标节点并刷新当前视口缓存
 
+### Graph-Local Collapse State
+
+- 节点折叠当前属于 graph adapter 自己维护的本地视觉状态
+- rebuild 后若同一 `NodeInstanceRef` identity 仍存在，adapter 应尽量保留其折叠状态
+- 折叠只影响图上可见 descendants 与布局输入，不改变 `ResolvedGraphModel`、persisted tree 或 host selection
+
 ## Outbound Contract
 
 图层只向上抛出这些业务事件：
@@ -164,6 +172,7 @@
 
 - `focusOnly = true` 且 query 非空时，非结果节点灰化
 - `focusNode` 只负责图上聚焦，不改 selection store
+- 若目标节点当前被 graph-local collapsed ancestor 隐藏，`focusNode` 应先展开祖先链再聚焦
 - graph 允许保留 editor-local 视觉选中 hint，但该 hint 不能被当作 Inspector 或共享 selection authority
 
 ## Drag-and-Drop Contract

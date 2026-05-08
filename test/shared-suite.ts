@@ -14,6 +14,13 @@ import {
     resolveBehaviorBuildPaths,
 } from "../src/build/build-cli";
 import { DocumentSessionState } from "../src/editor-session/document-session-state";
+import {
+    getVisibleChildKeys,
+    expandCollapsedAncestorsForNode,
+    pruneCollapsedNodeRefs,
+    toggleCollapsedNodeRefs,
+} from "../webview/adapters/graph/graph-collapse-state";
+import { eventHasShapeClass } from "../webview/adapters/graph/graph-event-shape";
 import { handleNativeWheelZoom } from "../webview/adapters/graph/g6-wheel-zoom";
 import { buildResolvedGraphModel } from "../webview/domain/graph-selectors";
 import { collectResolvedNodeDiagnostics } from "../webview/domain/tree-validation";
@@ -25,7 +32,7 @@ import {
 import {
     buildTreeCustomRecord,
     getTreeCustomValueKind,
-} from "../webview/features/inspector/inspector-state";
+} from "../webview/features/inspector/tree-custom-metadata";
 import { serializePersistedTreeForMainDocumentSave } from "../webview/shared/main-document-save";
 import { reduceDocumentMutation } from "../webview/shared/document-mutation-reducer";
 import {
@@ -349,6 +356,154 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             assert.equal(getTreeCustomValueKind("false"), "boolean");
             assert.equal(getTreeCustomValueKind("\"quoted\""), "string");
             assert.equal(getTreeCustomValueKind("{ nested: true }"), "invalid");
+        },
+    },
+    {
+        name: "keeps graph-local collapsed refs by stable identity and hides collapsed children",
+        run() {
+            const rootRef: NodeInstanceRef = {
+                instanceKey: "root-v1",
+                displayId: "1",
+                structuralStableId: "root",
+                sourceStableId: "root",
+                sourceTreePath: null,
+                subtreeStack: [],
+            };
+            const childRef: NodeInstanceRef = {
+                instanceKey: "child-v1",
+                displayId: "2",
+                structuralStableId: "child",
+                sourceStableId: "child",
+                sourceTreePath: null,
+                subtreeStack: [],
+            };
+            const removedRef: NodeInstanceRef = {
+                instanceKey: "gone-v1",
+                displayId: "3",
+                structuralStableId: "gone",
+                sourceStableId: "gone",
+                sourceTreePath: null,
+                subtreeStack: [],
+            };
+
+            const collapsed = toggleCollapsedNodeRefs([removedRef], rootRef);
+            assert.deepEqual(
+                getVisibleChildKeys(
+                    {
+                        ref: rootRef,
+                        childKeys: [childRef.instanceKey],
+                    } as any,
+                    collapsed
+                ),
+                []
+            );
+
+            const reboundModel = {
+                rootKey: "root-v2",
+                nodes: [
+                    {
+                        ref: {
+                            ...rootRef,
+                            instanceKey: "root-v2",
+                        },
+                    },
+                    {
+                        ref: {
+                            ...childRef,
+                            instanceKey: "child-v2",
+                        },
+                    },
+                ],
+                edges: [],
+            } as any;
+
+            assert.deepEqual(pruneCollapsedNodeRefs(collapsed, reboundModel), [rootRef]);
+            assert.deepEqual(toggleCollapsedNodeRefs(collapsed, rootRef), [removedRef]);
+        },
+    },
+    {
+        name: "matches graph shape classes through composite badge ancestry",
+        run() {
+            const badgeText = {
+                className: "text",
+                parentElement: {
+                    className: "label",
+                    parentElement: {
+                        className: "collapse",
+                        parentElement: null,
+                    },
+                },
+            };
+
+            assert.equal(eventHasShapeClass({ originalTarget: badgeText }, "collapse"), true);
+            assert.equal(eventHasShapeClass({ originalTarget: badgeText }, "input-text"), false);
+            assert.equal(
+                eventHasShapeClass(
+                    {
+                        originalTarget: {
+                            className: "input-text",
+                            parentElement: null,
+                        },
+                    },
+                    "input-text"
+                ),
+                true
+            );
+        },
+    },
+    {
+        name: "expands collapsed ancestors for hidden search targets",
+        run() {
+            const rootRef: NodeInstanceRef = {
+                instanceKey: "root-v1",
+                displayId: "1",
+                structuralStableId: "root",
+                sourceStableId: "root",
+                sourceTreePath: null,
+                subtreeStack: [],
+            };
+            const branchRef: NodeInstanceRef = {
+                instanceKey: "branch-v1",
+                displayId: "2",
+                structuralStableId: "branch",
+                sourceStableId: "branch",
+                sourceTreePath: null,
+                subtreeStack: [],
+            };
+            const targetRef: NodeInstanceRef = {
+                instanceKey: "target-v1",
+                displayId: "3",
+                structuralStableId: "target",
+                sourceStableId: "target",
+                sourceTreePath: null,
+                subtreeStack: [],
+            };
+            const unrelatedRef: NodeInstanceRef = {
+                instanceKey: "other-v1",
+                displayId: "9",
+                structuralStableId: "other",
+                sourceStableId: "other",
+                sourceTreePath: null,
+                subtreeStack: [],
+            };
+
+            const model = {
+                nodes: [
+                    { ref: rootRef, parentKey: null },
+                    { ref: branchRef, parentKey: rootRef.instanceKey },
+                    { ref: targetRef, parentKey: branchRef.instanceKey },
+                    { ref: unrelatedRef, parentKey: null },
+                ],
+            } as any;
+
+            assert.deepEqual(
+                expandCollapsedAncestorsForNode(
+                    [rootRef, branchRef, unrelatedRef],
+                    model,
+                    targetRef.instanceKey
+                ),
+                [unrelatedRef]
+            );
         },
     },
     {
