@@ -59,7 +59,6 @@ Root cause:
   - `selectedNodeKey`
   - `selectedNodeRef`
   - `selectedNodeSnapshot`
-  - `selectedNodeDef`
 - New local `graphUiStore` keeps:
   - `activeVariableNames`
   - `search`

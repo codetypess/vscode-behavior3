@@ -25,9 +25,9 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 18 份 work-item spec
-- 6 份登记中的 active work-item spec
-- 12 份登记中的 done work-item spec
+- 22 份 work-item spec
+- 8 份登记中的 active work-item spec
+- 14 份登记中的 done work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
 目录判断规则：
@@ -234,6 +234,8 @@ Scope: <short boundary>
 - `focus-variable-wire-rename.md` - `Done` - 将 raw `focusVariable` 协议拆成 request/relay 双向命名
 - `focus-variable-relay-semantics.md` - `Done` - 明确 `focusVariable` 是瞬时变量高亮 relay，不是 host snapshot authority
 - `host-selection-authority.md` - `Done` - 将 tree/node selection authority 收口到 extension-host selection intent 与 host snapshot fanout
+- `inspector-reset-dead-state-cleanup.md` - `Done` - 修正 Inspector arg reset 字段路径，并移除无消费者的 runtime state 字段
+- `persisted-empty-children-serialization.md` - `Done` - 序列化 persisted node 时省略空 `children` 数组
 - `selection-store-authority-boundary.md` - `Done` - 将 host-projected selection authority 与本地 graph UI state 正式拆分成独立 store/model
 - `selection-snapshot-single-authority.md` - `Done` - 移除公开 `nextSelection` 协议面，让共享选中只通过 host snapshot `selection` 收敛
 - `selection-visual-hint-host-authority.md` - `Done` - 收掉 editor 普通选中的 optimistic `selectionStore` authority，仅保留 graph-only 本地 hint

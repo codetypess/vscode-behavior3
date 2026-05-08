@@ -110,11 +110,6 @@ export interface EditNode {
     resolutionError?: "missing-subtree" | "invalid-subtree" | "cyclic-subtree";
 }
 
-export interface EditNodeDef {
-    data: NodeDef | null;
-    path?: WorkdirRelativeJsonPath;
-}
-
 export interface DocumentState {
     persistedTree: PersistedTreeModel | null;
     dirty: boolean;
@@ -135,8 +130,6 @@ export interface WorkspaceState {
     importDecls: ImportDecl[];
     subtreeDecls: ImportDecl[];
     subtreeSources: Record<WorkdirRelativeJsonPath, SubtreeSourceCacheEntry>;
-    subtreeSourceRevision: number;
-    hostSubtreeRefreshSeq: number;
     nodeCheckDiagnostics: Record<string, NodeCheckDiagnostic[]>;
 }
 
@@ -145,7 +138,6 @@ export interface SelectionState {
     selectedNodeKey: string | null;
     selectedNodeRef: NodeInstanceRef | null;
     selectedNodeSnapshot: EditNode | null;
-    selectedNodeDef: EditNodeDef | null;
 }
 
 export interface GraphUiSearchState {

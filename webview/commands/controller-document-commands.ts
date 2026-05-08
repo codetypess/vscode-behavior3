@@ -113,10 +113,6 @@ export const createDocumentCommands = (
         },
 
         async markSubtreeChanged() {
-            deps.workspaceStore.setState((state) => ({
-                ...state,
-                hostSubtreeRefreshSeq: state.hostSubtreeRefreshSeq + 1,
-            }));
             await runtime.syncReachableSubtreeSources();
             await runtime.rebuildGraph({ preserveSelection: true });
         },

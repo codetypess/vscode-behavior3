@@ -51,7 +51,7 @@ Root cause:
 
 - `selectTree()` and `selectNode()` only send host intents for shared selection changes.
 - Before the host snapshot arrives, the editor may keep a transient graph-only selection hint.
-- That hint must not write `selectedTree`, `selectedNodeKey`, `selectedNodeRef`, `selectedNodeSnapshot`, or `selectedNodeDef`.
+- That hint must not write `selectedTree`, `selectedNodeKey`, `selectedNodeRef`, or `selectedNodeSnapshot`.
 - `applyHostSelectionState()` becomes the only runtime entry that writes shared tree/node selection projection into `selectionStore`.
 - When a host snapshot arrives, the runtime clears any transient hint and replays the authoritative selection projection.
 - Search jumps and variable-hotspot-driven selection reuse the same rule:

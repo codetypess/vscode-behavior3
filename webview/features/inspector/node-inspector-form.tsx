@@ -987,7 +987,7 @@ export const NodeInspectorForm: React.FC = () => {
             ["args", arg.name],
             formatArgInitialValue(arg, subtreeOriginal?.args?.[arg.name])
         );
-        queueNodeMutation(["args", arg.name], (values) => ({
+        queueNodeMutation([["args", arg.name]], (values) => ({
             ...buildCommittedNodeData(selectedNode),
             args: buildScopedArgs(selectedNode.data.args, arg, values),
         }));

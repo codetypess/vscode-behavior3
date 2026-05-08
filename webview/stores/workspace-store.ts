@@ -47,8 +47,6 @@ export const createInitialWorkspaceState = (): WorkspaceState => ({
     importDecls: [],
     subtreeDecls: [],
     subtreeSources: {},
-    subtreeSourceRevision: 0,
-    hostSubtreeRefreshSeq: 0,
     nodeCheckDiagnostics: {},
 });
 

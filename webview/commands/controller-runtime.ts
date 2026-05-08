@@ -5,7 +5,6 @@ import type { AppHooksStore } from "../shared/misc/hooks";
 import type {
     DocumentState,
     EditNode,
-    EditNodeDef,
     GraphUiState,
     GraphHighlightState,
     GraphSearchState,
@@ -63,7 +62,6 @@ export type SelectionPatch = Partial<
         | "selectedNodeKey"
         | "selectedNodeRef"
         | "selectedNodeSnapshot"
-        | "selectedNodeDef"
     >
 >;
 
@@ -154,7 +152,6 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             selectedNodeKey: null,
             selectedNodeRef: null,
             selectedNodeSnapshot: null,
-            selectedNodeDef: null,
         };
     };
 
@@ -194,20 +191,6 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         };
     };
 
-    const buildSelectedNodeDef = (instanceKey: string): EditNodeDef | null => {
-        if (!resolvedGraph) {
-            return null;
-        }
-        const node = resolvedGraph.nodesByInstanceKey[instanceKey];
-        if (!node) {
-            return null;
-        }
-        return {
-            data: getNodeDef(node.name),
-            path: node.path,
-        };
-    };
-
     const buildResolvedNodeSelectionPatch = (instanceKey: string): SelectionPatch | null => {
         if (!resolvedGraph) {
             return null;
@@ -223,7 +206,6 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             selectedNodeKey: node.ref.instanceKey,
             selectedNodeRef: node.ref,
             selectedNodeSnapshot: buildSelectedNodeSnapshot(node.ref.instanceKey),
-            selectedNodeDef: buildSelectedNodeDef(node.ref.instanceKey),
         };
     };
 
@@ -232,7 +214,6 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         selectedNodeKey: null,
         selectedNodeRef: ref,
         selectedNodeSnapshot: null,
-        selectedNodeDef: null,
     });
 
     const resolveSelectionRef = (ref: NodeInstanceRef): ResolvedNodeModel | null => {
@@ -689,7 +670,6 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         deps.workspaceStore.setState((state) => ({
             ...state,
             subtreeSources: nextSources,
-            subtreeSourceRevision: state.subtreeSourceRevision + 1,
         }));
     };
 

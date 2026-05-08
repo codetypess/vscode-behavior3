@@ -115,8 +115,6 @@
 - `importDecls`
 - `subtreeDecls`
 - `subtreeSources`
-- `subtreeSourceRevision`
-- `hostSubtreeRefreshSeq`
 - `nodeCheckDiagnostics`
 
 ### subtreeSources
@@ -139,14 +137,13 @@
 - `selectedNodeKey`
 - `selectedNodeRef`
 - `selectedNodeSnapshot`
-- `selectedNodeDef`
 
 说明：
 
 - `selectedTree` / `selectedNodeRef` 是宿主共享 selection 在当前 webview 的本地 projection
 - 普通 editor 选中 intent 不会直接改写这些 authority 字段；它们只随宿主 `selection` snapshot 收敛
 - `selectedNodeSnapshot` 是给 Inspector 使用的编辑投影
-- `selectedNodeDef` 是当前节点对应的 nodeDef 快照
+- 当前节点对应的 nodeDef 由 Inspector 按 `selectedNodeSnapshot.data.name` 从 `workspaceStore.nodeDefs` 派生，不作为 selection state 单独存储
 - 这些都不是主文档真源，只是当前 resolved graph 的投影视图
 
 `graphUiStore` 持有：
