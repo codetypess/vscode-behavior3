@@ -991,6 +991,78 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
         },
     },
     {
+        name: "does not persist default-only subtree args into overrides",
+        run() {
+            const tree = createTestTree();
+            const nodeDefs: NodeDef[] = [
+                {
+                    name: "TryLaunchSkill",
+                    type: "Action",
+                    desc: "",
+                    args: [
+                        {
+                            name: "skip_cd",
+                            type: "bool?",
+                            desc: "",
+                            default: false,
+                        },
+                    ],
+                },
+            ];
+
+            const result = reduceDocumentMutation(
+                {
+                    type: "updateNode",
+                    payload: {
+                        target: {
+                            instanceKey: "node-1",
+                            displayId: "2",
+                            structuralStableId: "sub-node",
+                            sourceStableId: "sub-node",
+                            sourceTreePath: "subtree/child.json" as any,
+                            subtreeStack: [],
+                        },
+                        data: {
+                            name: "TryLaunchSkill",
+                            desc: "updated",
+                            args: { skip_cd: false },
+                        },
+                        currentNodeSnapshot: {
+                            data: {
+                                uuid: "sub-node",
+                                id: "2",
+                                name: "TryLaunchSkill",
+                                desc: "",
+                                args: { skip_cd: false },
+                            },
+                            subtreeNode: true,
+                            subtreeOriginal: {
+                                uuid: "sub-node",
+                                id: "2",
+                                name: "TryLaunchSkill",
+                                desc: "",
+                                args: { skip_cd: false },
+                            },
+                        },
+                    },
+                },
+                {
+                    tree,
+                    nodeDefs,
+                }
+            );
+
+            assert.equal(result.status, "changed");
+            if (result.status !== "changed") {
+                return;
+            }
+
+            assert.deepEqual(result.tree.overrides["sub-node"], {
+                desc: "updated",
+            });
+        },
+    },
+    {
         name: "reduces subtree detach mutations in shared host reducer",
         run() {
             const tree = createTestTree();
@@ -1988,6 +2060,97 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             assert.equal(root.children[0]?.children[0]?.data.desc, "from-main");
             assert.equal(root.children[0]?.children[0]?.data.$status, 1 << 2);
             assert.equal(root.data.$status, 1 << 2);
+        },
+    },
+    {
+        name: "normalizes subtree original args with resolved defaults",
+        async run() {
+            const mainTree = parsePersistedTreeContent(
+                JSON.stringify({
+                    version: "2.0.0",
+                    name: "main",
+                    prefix: "",
+                    group: [],
+                    variables: {
+                        imports: [],
+                        locals: [],
+                    },
+                    custom: {},
+                    overrides: {},
+                    root: {
+                        uuid: "root",
+                        id: "1",
+                        name: "SubtreeRef",
+                        path: "sub.json",
+                    },
+                }),
+                "main.json"
+            );
+
+            const subtreeSources = await loadSubtreeSourceCache({
+                root: mainTree.root,
+                readContent: async () =>
+                    JSON.stringify({
+                        version: "2.0.0",
+                        name: "sub",
+                        prefix: "",
+                        group: [],
+                        variables: {
+                            imports: [],
+                            locals: [],
+                        },
+                        custom: {},
+                        overrides: {},
+                        root: {
+                            uuid: "sub-root",
+                            id: "1",
+                            name: "Sequence",
+                            children: [
+                                {
+                                    uuid: "sub-node",
+                                    id: "2",
+                                    name: "TryLaunchSkill",
+                                },
+                            ],
+                        },
+                    }),
+            });
+
+            const root = materializePersistedTree({
+                persistedTree: mainTree,
+                subtreeSources,
+                nodeDefs: [
+                    {
+                        name: "SubtreeRef",
+                        type: "Action",
+                        desc: "",
+                    },
+                    {
+                        name: "Sequence",
+                        type: "Composite",
+                        desc: "",
+                    },
+                    {
+                        name: "TryLaunchSkill",
+                        type: "Action",
+                        desc: "",
+                        args: [
+                            {
+                                name: "skip_cd",
+                                type: "bool?",
+                                desc: "",
+                                default: false,
+                            },
+                        ],
+                    },
+                ],
+                subtreeEditable: false,
+            });
+
+            const subtreeNode = root.children[0];
+            assert.ok(subtreeNode);
+            assert.equal(subtreeNode?.data.args?.skip_cd, false);
+            assert.equal(subtreeNode?.subtreeOriginal?.args?.skip_cd, false);
         },
     },
     {

@@ -130,6 +130,8 @@
 4. 记录 `sourceTreePath = subtree path`
 5. 叠加 override chain
 6. 记录 `subtreeOriginal`
+   - 代表 subtree 源节点加外层 subtree override chain 后、但尚未叠加主文档 `overrides` 的基准值
+   - 与当前 resolved node 一样，会补齐 nodeDef 的 arg 默认值，避免默认值被误判成 main-document override
 
 ### 5. 外部 subtree 内部节点
 
@@ -149,6 +151,11 @@
 ### 7. 默认参数补齐
 
 在节点定义存在时，若某个 arg 在 node data 中缺失且 nodeDef 提供默认值，则当前物化结果会补齐默认值。
+
+对于带 `subtreeOriginal` 的外部 subtree 节点，这个默认值补齐同时作用于：
+
+- 当前 resolved node
+- `subtreeOriginal`
 
 ## 状态位计算
 

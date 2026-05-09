@@ -25,9 +25,9 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 25 份 work-item spec
+- 26 份 work-item spec
 - 9 份登记中的 active work-item spec
-- 17 份登记中的 done work-item spec
+- 18 份登记中的 done work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
 目录判断规则：
@@ -228,6 +228,7 @@ Scope: <short boundary>
 
 ## Done Work Items
 
+- `subtree-default-arg-override-alignment.md` - `Done` - 让 subtree `subtreeOriginal` 与当前 resolved node 使用相同的默认参数归一化，避免默认值被误判成 override
 - `helper-boundary-cleanup.md` - `Done` - 收敛 shared/domain/helper 边界，移动保存序列化 helper，并拆分 Inspector 纯 helper
 - `subtree-save-time-writeback.md` - `Done` - 将 legacy subtree 规范化写回从加载期延后到主树保存期，并确定性生成缺失 uuid
 - `architecture-maintainability-refactor.md` - `Done` - 架构、运行时、Inspector 和样式的保持行为不变的可维护性清理

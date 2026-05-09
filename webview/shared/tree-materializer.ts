@@ -277,7 +277,11 @@ export const materializePersistedTree = (params: {
             sourceNode = clonePersistedNode(sourceNode);
         }
 
-        applyArgDefaults(sourceNode, defsByName.get(sourceNode.name) ?? null);
+        const currentNodeDef = defsByName.get(sourceNode.name) ?? null;
+        applyArgDefaults(sourceNode, currentNodeDef);
+        if (subtreeOriginal) {
+            applyArgDefaults(subtreeOriginal, currentNodeDef);
+        }
 
         const childContext: MaterializeContext =
             materialized && subtreeTree

@@ -189,6 +189,8 @@ host reducer 当前分三条路径：
 
 - 不改 subtree 源文件
 - 以 payload 自带的 `subtreeOriginal` 对比出 diff
+  - `subtreeOriginal` 与当前 resolved node 已共享同一套 arg 默认值归一化
+  - 仅因 nodeDef 默认值补齐而出现的值，不得单独生成 main-document `overrides`
 - 写入或清理主文档 `overrides`
 
 #### C. 从 subtree link 脱链

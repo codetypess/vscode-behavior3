@@ -176,6 +176,8 @@ Inspector 不只是字段表单，还需要表达：
 
 ### 语义
 
+- 对 subtree 节点的 override 比较，`subtreeOriginal` 与当前 resolved node 使用同一套 arg 默认值归一化
+- 因此 nodeDef 的默认参数补齐本身不会单独点亮 override UI
 - reset 后提交新的 node 数据
 - host reducer 会重新计算 override diff
 - 若 diff 为空，则从主文档 `overrides` 中删除
