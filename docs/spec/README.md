@@ -25,9 +25,9 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 27 份 work-item spec
+- 28 份 work-item spec
 - 9 份登记中的 active work-item spec
-- 19 份登记中的 done work-item spec
+- 20 份登记中的 done work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
 目录判断规则：
@@ -228,6 +228,7 @@ Scope: <short boundary>
 
 ## Done Work Items
 
+- `inspector-variable-usage-count.md` - `Done` - 让 Tree Inspector 的变量使用计数覆盖当前 resolved graph 中的 materialized subtree 实例
 - `inspector-edit-subtree-button.md` - `Done` - 为 Inspector 子树跳转补齐目标子树活动上下文与选中同步
 - `subtree-open-target-selection.md` - `Done` - 打开 subtree 时按双击命中的源节点 stable id 把目标编辑器定位并聚焦到对应 subtree 节点
 - `subtree-default-arg-override-alignment.md` - `Done` - 让 subtree `subtreeOriginal` 与当前 resolved node 使用相同的默认参数归一化，避免默认值被误判成 override

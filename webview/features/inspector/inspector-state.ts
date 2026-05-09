@@ -3,7 +3,7 @@ import type { FormInstance } from "antd/es/form";
 import { useMemo } from "react";
 import { useNodeInspectorState, useTreeInspectorState } from "../../app/runtime";
 import {
-    buildVariableUsageCount,
+    buildTreeInspectorVariableUsageCount,
     createNodeDefMap,
     createVariableOptions,
     type VariableRowValue,
@@ -69,13 +69,28 @@ export const useNodeInspectorViewState = (form: FormInstance) => {
 };
 
 export const useTreeInspectorViewState = (form: FormInstance) => {
-    const { document, nodeDefs, groupDefs, allFiles, importDecls, subtreeDecls } =
-        useTreeInspectorState();
+    const {
+        document,
+        nodeDefs,
+        groupDefs,
+        allFiles,
+        importDecls,
+        subtreeDecls,
+        subtreeSources,
+        subtreeEditable,
+    } = useTreeInspectorState();
 
     const nodeDefMap = useMemo(() => createNodeDefMap(nodeDefs), [nodeDefs]);
     const variableUsageCount = useMemo(
-        () => buildVariableUsageCount(document?.root ?? null, nodeDefMap),
-        [document?.root, nodeDefMap]
+        () =>
+            buildTreeInspectorVariableUsageCount({
+                document,
+                subtreeSources,
+                nodeDefs,
+                nodeDefMap,
+                subtreeEditable,
+            }),
+        [document, subtreeSources, nodeDefs, nodeDefMap, subtreeEditable]
     );
     const currentImportRefs =
         (Form.useWatch("importRefs", form) as ImportRefFormValue[] | undefined) ?? [];

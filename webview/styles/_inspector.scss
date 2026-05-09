@@ -35,14 +35,8 @@ body[data-webview-kind="inspector-sidebar"] .b3-inspector-form .ant-form-item:la
     margin-bottom: 0 !important;
 }
 
-body[data-webview-kind="inspector-sidebar"]
-    .b3-inspector-form
-    .b3-section-divider
-    + .ant-form-item,
-body[data-webview-kind="inspector-sidebar"]
-    .b3-inspector-form
-    .b3-section-divider
-    + .b3-list-block,
+body[data-webview-kind="inspector-sidebar"] .b3-inspector-form .b3-section-divider + .ant-form-item,
+body[data-webview-kind="inspector-sidebar"] .b3-inspector-form .b3-section-divider + .b3-list-block,
 body[data-webview-kind="inspector-sidebar"]
     .b3-inspector-form
     .b3-section-divider
@@ -82,7 +76,7 @@ body[data-webview-kind="inspector-sidebar"]
     min-height: 0;
     flex: 1;
     overflow: auto;
-    padding: 20px 12px;
+    padding: 16px;
     background: var(--b3-panel-content-bg);
 }
 

@@ -37,6 +37,10 @@ import {
     validateInspectorArgValue,
 } from "../webview/features/inspector/inspector-arg-values";
 import {
+    buildTreeInspectorVariableUsageCount,
+    createNodeDefMap,
+} from "../webview/features/inspector/inspector-variable-options";
+import {
     buildTreeCustomRecord,
     getTreeCustomValueKind,
 } from "../webview/features/inspector/tree-custom-metadata";
@@ -2194,6 +2198,229 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             assert.equal(root.children[0]?.children[0]?.data.desc, "from-main");
             assert.equal(root.children[0]?.children[0]?.data.$status, 1 << 2);
             assert.equal(root.data.$status, 1 << 2);
+        },
+    },
+    {
+        name: "counts tree inspector variable usages inside materialized subtrees",
+        run() {
+            const mainTree = parsePersistedTreeContent(
+                JSON.stringify({
+                    version: "2.0.0",
+                    name: "main",
+                    prefix: "",
+                    group: [],
+                    variables: {
+                        imports: ["vars.json"],
+                        locals: [{ name: "mainTarget", desc: "main target" }],
+                    },
+                    custom: {},
+                    overrides: {},
+                    root: {
+                        uuid: "root",
+                        id: "1",
+                        name: "Sequence",
+                        children: [
+                            {
+                                uuid: "subref",
+                                id: "2",
+                                name: "SubtreeRef",
+                                path: "sub.json",
+                            },
+                            {
+                                uuid: "main-use",
+                                id: "3",
+                                name: "UseVars",
+                                input: ["mainTarget"],
+                                args: {
+                                    expr: "importedVar + mainTarget",
+                                },
+                            },
+                        ],
+                    },
+                }),
+                "main.json"
+            );
+
+            const subtreeTree = parsePersistedTreeContent(
+                JSON.stringify({
+                    version: "2.0.0",
+                    name: "sub",
+                    prefix: "",
+                    group: [],
+                    variables: {
+                        imports: [],
+                        locals: [{ name: "subTarget", desc: "sub target" }],
+                    },
+                    custom: {},
+                    overrides: {},
+                    root: {
+                        uuid: "sub-root",
+                        id: "1",
+                        name: "SubtreeRoot",
+                        children: [
+                            {
+                                uuid: "sub-use",
+                                id: "2",
+                                name: "UseVars",
+                                input: ["subTarget"],
+                                output: ["importedVar"],
+                                args: {
+                                    expr: "subTarget + importedVar",
+                                },
+                            },
+                        ],
+                    },
+                }),
+                "sub.json"
+            );
+
+            const nodeDefs: NodeDef[] = [
+                {
+                    name: "Sequence",
+                    type: "Composite",
+                    desc: "",
+                    status: ["|success"],
+                },
+                {
+                    name: "SubtreeRef",
+                    type: "Action",
+                    desc: "",
+                },
+                {
+                    name: "SubtreeRoot",
+                    type: "Composite",
+                    desc: "",
+                    status: ["|success"],
+                },
+                {
+                    name: "UseVars",
+                    type: "Action",
+                    desc: "",
+                    input: ["target"],
+                    output: ["result"],
+                    args: [{ name: "expr", type: "expr", desc: "" }],
+                },
+            ];
+
+            const usageCount = buildTreeInspectorVariableUsageCount({
+                document: mainTree,
+                subtreeSources: {
+                    "sub.json": subtreeTree,
+                },
+                nodeDefs,
+                nodeDefMap: createNodeDefMap(nodeDefs),
+                subtreeEditable: true,
+            });
+
+            assert.equal(usageCount.mainTarget, 2);
+            assert.equal(usageCount.subTarget, 2);
+            assert.equal(usageCount.importedVar, 3);
+        },
+    },
+    {
+        name: "counts repeated subtree instances separately in tree inspector variable usages",
+        run() {
+            const mainTree = parsePersistedTreeContent(
+                JSON.stringify({
+                    version: "2.0.0",
+                    name: "main",
+                    prefix: "",
+                    group: [],
+                    variables: {
+                        imports: [],
+                        locals: [],
+                    },
+                    custom: {},
+                    overrides: {},
+                    root: {
+                        uuid: "root",
+                        id: "1",
+                        name: "Sequence",
+                        children: [
+                            {
+                                uuid: "subref-a",
+                                id: "2",
+                                name: "SubtreeRef",
+                                path: "sub.json",
+                            },
+                            {
+                                uuid: "subref-b",
+                                id: "3",
+                                name: "SubtreeRef",
+                                path: "sub.json",
+                            },
+                        ],
+                    },
+                }),
+                "main.json"
+            );
+
+            const subtreeTree = parsePersistedTreeContent(
+                JSON.stringify({
+                    version: "2.0.0",
+                    name: "sub",
+                    prefix: "",
+                    group: [],
+                    variables: {
+                        imports: [],
+                        locals: [{ name: "sharedTarget", desc: "shared target" }],
+                    },
+                    custom: {},
+                    overrides: {},
+                    root: {
+                        uuid: "sub-root",
+                        id: "1",
+                        name: "SubtreeRoot",
+                        children: [
+                            {
+                                uuid: "sub-use",
+                                id: "2",
+                                name: "UseVars",
+                                input: ["sharedTarget"],
+                            },
+                        ],
+                    },
+                }),
+                "sub.json"
+            );
+
+            const nodeDefs: NodeDef[] = [
+                {
+                    name: "Sequence",
+                    type: "Composite",
+                    desc: "",
+                    status: ["|success"],
+                },
+                {
+                    name: "SubtreeRef",
+                    type: "Action",
+                    desc: "",
+                },
+                {
+                    name: "SubtreeRoot",
+                    type: "Composite",
+                    desc: "",
+                    status: ["|success"],
+                },
+                {
+                    name: "UseVars",
+                    type: "Action",
+                    desc: "",
+                    input: ["target"],
+                },
+            ];
+
+            const usageCount = buildTreeInspectorVariableUsageCount({
+                document: mainTree,
+                subtreeSources: {
+                    "sub.json": subtreeTree,
+                },
+                nodeDefs,
+                nodeDefMap: createNodeDefMap(nodeDefs),
+                subtreeEditable: true,
+            });
+
+            assert.equal(usageCount.sharedTarget, 2);
         },
     },
     {

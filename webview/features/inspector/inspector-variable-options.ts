@@ -1,3 +1,10 @@
+import { resolveDocumentGraph } from "../../domain/resolve-graph";
+import type {
+    PersistedTreeModel,
+    ResolvedDocumentGraph,
+    SubtreeSourceCacheEntry,
+    WorkdirRelativeJsonPath,
+} from "../../shared/contracts";
 import { dfs, getNodeArgRawType, isVariadic } from "../../shared/misc/b3util";
 import { hasDeclaredVars as hasSharedDeclaredVars, parseExpressionVariables } from "../../shared/validation";
 import { isExprType, type NodeDef, type VarDecl } from "../../shared/misc/b3type";
@@ -20,6 +27,8 @@ type VariableUsageNode = {
     children?: VariableUsageNode[];
 };
 
+type VariableUsageEntry = Pick<VariableUsageNode, "name" | "args" | "input" | "output">;
+
 export const createNodeDefMap = (nodeDefs: NodeDef[]) => {
     const map = new Map<string, NodeDef>();
     for (const nodeDef of nodeDefs) {
@@ -28,54 +37,88 @@ export const createNodeDefMap = (nodeDefs: NodeDef[]) => {
     return map;
 };
 
-export const buildVariableUsageCount = (
-    root: VariableUsageNode | null,
+const addVariableUsageCount = (
+    count: Record<string, number>,
+    node: VariableUsageEntry,
+    nodeDefMap: Map<string, NodeDef>
+) => {
+    const nodeDef = nodeDefMap.get(node.name);
+    if (!nodeDef) {
+        return;
+    }
+
+    node.input?.forEach((variable) => {
+        if (!variable) {
+            return;
+        }
+        count[variable] = (count[variable] ?? 0) + 1;
+    });
+
+    node.output?.forEach((variable) => {
+        if (!variable) {
+            return;
+        }
+        count[variable] = (count[variable] ?? 0) + 1;
+    });
+
+    nodeDef.args?.forEach((arg) => {
+        if (!isExprType(getNodeArgRawType(arg))) {
+            return;
+        }
+        const rawValue = node.args?.[arg.name];
+        const entries = Array.isArray(rawValue) ? rawValue : [rawValue];
+        entries.forEach((entry) => {
+            if (typeof entry !== "string" || !entry) {
+                return;
+            }
+            parseExpressionVariables(entry).forEach((variable) => {
+                count[variable] = (count[variable] ?? 0) + 1;
+            });
+        });
+    });
+};
+
+export const buildVariableUsageCountFromGraph = (
+    graph: ResolvedDocumentGraph | null,
     nodeDefMap: Map<string, NodeDef>
 ) => {
     const count: Record<string, number> = {};
 
-    if (!root) {
+    if (!graph) {
         return count;
     }
 
-    dfs(root, (node) => {
-        const nodeDef = nodeDefMap.get(node.name);
-        if (!nodeDef) {
-            return;
+    for (const key of graph.nodeOrder) {
+        const node = graph.nodesByInstanceKey[key];
+        if (!node) {
+            continue;
         }
-
-        node.input?.forEach((variable) => {
-            if (!variable) {
-                return;
-            }
-            count[variable] = (count[variable] ?? 0) + 1;
-        });
-
-        node.output?.forEach((variable) => {
-            if (!variable) {
-                return;
-            }
-            count[variable] = (count[variable] ?? 0) + 1;
-        });
-
-        nodeDef.args?.forEach((arg) => {
-            if (!isExprType(getNodeArgRawType(arg))) {
-                return;
-            }
-            const rawValue = node.args?.[arg.name];
-            const entries = Array.isArray(rawValue) ? rawValue : [rawValue];
-            entries.forEach((entry) => {
-                if (typeof entry !== "string" || !entry) {
-                    return;
-                }
-                parseExpressionVariables(entry).forEach((variable) => {
-                    count[variable] = (count[variable] ?? 0) + 1;
-                });
-            });
-        });
-    });
+        addVariableUsageCount(count, node, nodeDefMap);
+    }
 
     return count;
+};
+
+export const buildTreeInspectorVariableUsageCount = (params: {
+    document: PersistedTreeModel | null;
+    subtreeSources: Record<WorkdirRelativeJsonPath, SubtreeSourceCacheEntry>;
+    nodeDefs: NodeDef[];
+    nodeDefMap: Map<string, NodeDef>;
+    subtreeEditable: boolean;
+}) => {
+    if (!params.document) {
+        return {};
+    }
+
+    // Tree Inspector counts should match the currently materialized graph, including subtree instances.
+    const graph = resolveDocumentGraph({
+        persistedTree: params.document,
+        subtreeSources: params.subtreeSources,
+        nodeDefs: params.nodeDefs,
+        subtreeEditable: params.subtreeEditable,
+    }).graph;
+
+    return buildVariableUsageCountFromGraph(graph, params.nodeDefMap);
 };
 
 export const createVariableOptions = (

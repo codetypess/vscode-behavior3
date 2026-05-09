@@ -184,6 +184,8 @@ export const useTreeInspectorState = () => {
     const allFiles = useWorkspaceStore((state) => state.allFiles);
     const importDecls = useWorkspaceStore((state) => state.importDecls);
     const subtreeDecls = useWorkspaceStore((state) => state.subtreeDecls);
+    const subtreeSources = useWorkspaceStore((state) => state.subtreeSources);
+    const subtreeEditable = useWorkspaceStore((state) => state.settings.subtreeEditable);
 
     return {
         document,
@@ -192,6 +194,8 @@ export const useTreeInspectorState = () => {
         allFiles,
         importDecls,
         subtreeDecls,
+        subtreeSources,
+        subtreeEditable,
     };
 };
 

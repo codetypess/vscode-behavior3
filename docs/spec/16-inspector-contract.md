@@ -94,6 +94,14 @@ Inspector 不只是字段表单，还需要表达：
 - 使用工作目录 `allFiles` 作为自动补全来源
 - 每个 import path 下展示宿主解析出的变量声明
 
+### Variable Usage Badges
+
+- Tree Inspector 中每个变量行左侧显示 usage badge
+- 计数按当前 resolved graph 统计，而不是只看主文档 persisted root
+- 统计范围包含主树以及当前可达的 materialized subtree 实例
+- `input`、`output` 与表达式型参数中的变量引用都计入统计
+- 同一个 subtree file 被引用多次时，各 materialized 实例分别计数
+
 ### Custom Metadata
 
 - 由 `document.custom` 驱动
