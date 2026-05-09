@@ -11,14 +11,34 @@ import {
     serializePersistedTree,
 } from "../shared/tree";
 
-export const serializePersistedTreeForMainDocumentSave = async (params: {
+export interface MainDocumentSubtreeWriteback {
+    path: WorkdirRelativeJsonPath;
+    content: string;
+}
+
+export interface MainDocumentSavePlan {
+    content: string;
+    subtreeWritebacks: MainDocumentSubtreeWriteback[];
+}
+
+export const preparePersistedTreeForMainDocumentSave = async (params: {
     tree: PersistedTreeModel;
     nodeDefs: NodeDef[];
     readSubtreeContent: (path: WorkdirRelativeJsonPath) => Promise<string | null>;
-}): Promise<string> => {
+}): Promise<MainDocumentSavePlan> => {
+    const subtreeWritebacks: MainDocumentSubtreeWriteback[] = [];
     const subtreeSources = await loadSubtreeSourceCache({
         root: params.tree.root,
         readContent: params.readSubtreeContent,
+        onTreeLoaded: ({ path, tree, needsWriteback }) => {
+            if (!needsWriteback) {
+                return;
+            }
+            subtreeWritebacks.push({
+                path,
+                content: serializePersistedTree(tree),
+            });
+        },
     });
 
     const resolved = resolveDocumentGraph({
@@ -31,5 +51,17 @@ export const serializePersistedTreeForMainDocumentSave = async (params: {
     const nextTree = clonePersistedTree(params.tree);
     // Display ids are assigned after subtree resolution so saved main-tree ids match the canvas.
     applyMainTreeDisplayIds(nextTree.root, resolved.mainTreeDisplayIdsByStableId);
-    return serializePersistedTree(nextTree);
+    return {
+        content: serializePersistedTree(nextTree),
+        subtreeWritebacks,
+    };
+};
+
+export const serializePersistedTreeForMainDocumentSave = async (params: {
+    tree: PersistedTreeModel;
+    nodeDefs: NodeDef[];
+    readSubtreeContent: (path: WorkdirRelativeJsonPath) => Promise<string | null>;
+}): Promise<string> => {
+    const savePlan = await preparePersistedTreeForMainDocumentSave(params);
+    return savePlan.content;
 };

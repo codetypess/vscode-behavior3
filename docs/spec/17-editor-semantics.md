@@ -38,7 +38,7 @@
 
 - 递归读取当前主树可达 subtree
 - 构建 `workspaceStore.subtreeSources`
-- subtree 解析到缺失稳定 id 时进行规范化回写
+- subtree 解析到缺失稳定 id 时按文件路径与节点位置确定性补齐内存模型；磁盘规范化回写延后到主文档保存
 
 ### `rebuildGraph(opts?)`
 
@@ -235,6 +235,7 @@ host reducer 当前分三条路径：
 - 主编辑器或侧栏发起保存后，最终都进入 VS Code custom editor 保存生命周期
 - 宿主写盘前会重新解析当前主文档，并用 resolved graph 的主树 display id 回写 persisted `id`
 - 该回写只作用于主树结构节点，不把 subtree 内部实例 id 反写到主文档
+- 同一次保存动作会显式写回当前可达 legacy subtree 的规范化内容
 - 保存成功后，宿主当前 history 游标快照同步替换为写盘后的规范化内容
 
 ### `replaceNode()`

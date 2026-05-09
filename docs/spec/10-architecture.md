@@ -140,7 +140,8 @@ Shared Layer
 
 1. editor 或 sidebar webview 发送 `saveDocument` / `undo` / `redo` intent
 2. extension-host session 在主文档操作队列内执行对应的 save 或 history 迁移
-3. 宿主以带当前 `selection` 的 `documentSnapshotChanged` 回推权威结果；若变量视图受影响，再单独补发 `varDeclLoaded`
+3. save 会在写主文档前显式 flush 当前可达 legacy subtree 的规范化写回
+4. 宿主以带当前 `selection` 的 `documentSnapshotChanged` 回推权威结果；若变量视图受影响，再单独补发 `varDeclLoaded`
 
 ### Host-First Mutation Intent
 
@@ -161,7 +162,7 @@ Shared Layer
 
 1. extension-host 只跟踪当前主树可达的 subtree 集合
 2. 被跟踪 subtree 改动后，session 直接刷新 vars，并发送 `subtreeFileChanged`
-3. webview 重新拉取 subtree 内容并 rebuild graph
+3. webview 重新拉取 subtree 内容并 rebuild graph；该加载过程不直接写回 subtree 文件
 
 ## 架构约束
 

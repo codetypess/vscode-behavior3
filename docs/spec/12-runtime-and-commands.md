@@ -152,7 +152,8 @@
 
 - 对当前主树可达 subtree 递归 `readFile`
 - 解析成功则填充缓存
-- 若加载时发现缺少稳定 id，则回写规范化 subtree
+- 加载过程不写回 subtree；legacy subtree 规范化写回由主文档保存流程显式执行
+- 缺失 `uuid` 的 legacy subtree 节点按同一文件路径确定性生成稳定 id
 
 ## HostAdapter 责任
 

@@ -83,6 +83,8 @@
 - `Save as subtree` 会把当前选中子树序列化为新文件，并把原节点替换为 subtree link
 - 会话只跟踪“当前主树可达”的 subtree 集合
 - 被跟踪 subtree 保存或修改后，父编辑器收到 `subtreeFileChanged` 并重建解析结果
+- 打开或刷新含 legacy subtree 的主树不会立刻写回 subtree 文件
+- 保存主树时才显式写回当前可达 legacy subtree 的规范化内容，且多个父树引用同一 subtree 时生成一致的迁移 `uuid`
 
 ### BB-11 Settings、Theme 与 NodeDefs 热更新
 

@@ -33,7 +33,10 @@ import {
     buildTreeCustomRecord,
     getTreeCustomValueKind,
 } from "../webview/features/inspector/tree-custom-metadata";
-import { serializePersistedTreeForMainDocumentSave } from "../webview/domain/main-document-save";
+import {
+    preparePersistedTreeForMainDocumentSave,
+    serializePersistedTreeForMainDocumentSave,
+} from "../webview/domain/main-document-save";
 import { reduceDocumentMutation } from "../webview/shared/document-mutation-reducer";
 import {
     normalizeNodeDefCollection,
@@ -731,6 +734,112 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             assert.equal(serializedTree.root.children?.[0]?.children, undefined);
             assert.equal(Array.isArray(serializedTree.root.children?.[1]?.children), true);
             assert.equal(branchChildren?.[0]?.children, undefined);
+        },
+    },
+    {
+        name: "stages legacy subtree normalization for main document save",
+        async run() {
+            const linkedPath = parseWorkdirRelativeJsonPath("sub/tree.json");
+            assert.ok(linkedPath);
+            const tree: PersistedTreeModel = {
+                version: "2.0.0",
+                name: "main",
+                prefix: "",
+                export: true,
+                group: [],
+                variables: {
+                    imports: [],
+                    locals: [],
+                },
+                custom: {},
+                overrides: {},
+                root: {
+                    uuid: "root",
+                    id: "1",
+                    name: "Sequence",
+                    children: [
+                        {
+                            uuid: "child",
+                            id: "2",
+                            name: "LinkNode",
+                            path: linkedPath,
+                        },
+                    ],
+                },
+            };
+            const legacySubtree = JSON.stringify({
+                version: "2.0.0",
+                name: "tree",
+                prefix: "",
+                export: true,
+                group: [],
+                variables: {
+                    imports: [],
+                    locals: [],
+                },
+                custom: {},
+                overrides: {},
+                root: {
+                    id: "1",
+                    name: "SubSequence",
+                    children: [
+                        {
+                            id: "2",
+                            name: "SubAction",
+                        },
+                    ],
+                },
+            });
+
+            const buildPlan = () =>
+                preparePersistedTreeForMainDocumentSave({
+                    tree,
+                    nodeDefs: [
+                        {
+                            name: "Sequence",
+                            type: "Composite",
+                            desc: "",
+                            status: ["success"],
+                        },
+                        {
+                            name: "LinkNode",
+                            type: "Action",
+                            desc: "",
+                        },
+                        {
+                            name: "SubSequence",
+                            type: "Composite",
+                            desc: "",
+                            status: ["success"],
+                        },
+                        {
+                            name: "SubAction",
+                            type: "Action",
+                            desc: "",
+                        },
+                    ],
+                    readSubtreeContent: async (path) => {
+                        assert.equal(path, linkedPath);
+                        return legacySubtree;
+                    },
+                });
+
+            const firstPlan = await buildPlan();
+            const secondPlan = await buildPlan();
+
+            assert.equal(firstPlan.subtreeWritebacks.length, 1);
+            assert.equal(firstPlan.subtreeWritebacks[0]?.path, linkedPath);
+            assert.equal(
+                firstPlan.subtreeWritebacks[0]?.content,
+                secondPlan.subtreeWritebacks[0]?.content
+            );
+
+            const normalizedSubtree = parsePersistedTreeContent(
+                firstPlan.subtreeWritebacks[0]!.content,
+                linkedPath
+            );
+            assert.ok(normalizedSubtree.root.uuid);
+            assert.ok(normalizedSubtree.root.children?.[0]?.uuid);
         },
     },
     {
@@ -1697,6 +1806,42 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
         },
     },
     {
+        name: "generates deterministic stable ids for legacy tree files",
+        run() {
+            const legacyContent = JSON.stringify({
+                version: "2.0.0",
+                name: "legacy",
+                prefix: "",
+                group: [],
+                variables: {
+                    imports: [],
+                    locals: [],
+                },
+                custom: {},
+                overrides: {},
+                root: {
+                    id: "1",
+                    name: "Sequence",
+                    children: [
+                        {
+                            id: "2",
+                            name: "Log",
+                        },
+                    ],
+                },
+            });
+
+            const first = parsePersistedTreeContent(legacyContent, "subtree/c.json");
+            const second = parsePersistedTreeContent(legacyContent, "subtree/c.json");
+            const differentFile = parsePersistedTreeContent(legacyContent, "subtree/d.json");
+
+            assert.equal(first.root.uuid, second.root.uuid);
+            assert.equal(first.root.children?.[0]?.uuid, second.root.children?.[0]?.uuid);
+            assert.notEqual(first.root.uuid, differentFile.root.uuid);
+            assert.notEqual(first.root.children?.[0]?.uuid, differentFile.root.children?.[0]?.uuid);
+        },
+    },
+    {
         name: "parses migrated sample tree files with variables",
         run() {
             const sampleTreeFiles = [
@@ -2048,6 +2193,160 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
 
             await controller.openSubtreePath("sub\\tree.json");
             assert.equal(readPath, "sub/tree.json");
+        },
+    },
+    {
+        name: "does not write subtree files during subtree cache sync",
+        async run() {
+            const documentStore = createDocumentStore();
+            const workspaceStore = createWorkspaceStore();
+            const selectionStore = createSelectionStore();
+            const graphUiStore = createGraphUiStore();
+            const appHooks = createAppHooksStore();
+            appHooks.bind({
+                message: {
+                    success() {},
+                    error() {},
+                } as any,
+                notification: {} as any,
+                modal: {} as any,
+            });
+
+            const saveSubtreeCalls: Array<{ path: string; content: string }> = [];
+            const hostAdapter: HostAdapter = {
+                connect: () => () => {},
+                sendReady() {},
+                undo() {},
+                redo() {},
+                async mutateDocument() {
+                    return { success: true };
+                },
+                selectTree() {},
+                selectNode() {},
+                requestFocusVariable() {},
+                sendRequestSetting() {},
+                sendBuild() {},
+                async validateNodeChecks() {
+                    return { diagnostics: [] };
+                },
+                async saveDocument() {
+                    return { success: true };
+                },
+                async revertDocument() {
+                    return { success: true };
+                },
+                async readFile(path) {
+                    if (path !== "sub/tree.json") {
+                        return { content: null };
+                    }
+                    return {
+                        content: JSON.stringify({
+                            version: "2.0.0",
+                            name: "tree",
+                            prefix: "",
+                            group: [],
+                            variables: {
+                                imports: [],
+                                locals: [],
+                            },
+                            custom: {},
+                            overrides: {},
+                            root: {
+                                id: "1",
+                                name: "SubSequence",
+                                children: [
+                                    {
+                                        id: "2",
+                                        name: "SubAction",
+                                    },
+                                ],
+                            },
+                        }),
+                    };
+                },
+                async saveSubtree(path, content) {
+                    saveSubtreeCalls.push({ path, content });
+                    return { success: true };
+                },
+                async saveSubtreeAs() {
+                    return { savedPath: null };
+                },
+                log() {},
+            };
+            const graphAdapter: GraphAdapter = {
+                async mount() {},
+                unmount() {},
+                async render() {},
+                async applySelection() {},
+                async applyHighlights() {},
+                async applySearch() {},
+                async focusNode() {},
+                async restoreViewport() {},
+                getViewport: () => ({ zoom: 1, x: 0, y: 0 }),
+            };
+            const controller = createEditorController({
+                documentStore,
+                workspaceStore,
+                selectionStore,
+                graphUiStore,
+                hostAdapter,
+                graphAdapter,
+                appHooks,
+            });
+
+            await controller.initFromHost({
+                filePath: "/tmp/main.json",
+                workdir: "/tmp",
+                content: JSON.stringify({
+                    version: "2.0.0",
+                    name: "main",
+                    prefix: "",
+                    group: [],
+                    variables: {
+                        imports: [],
+                        locals: [],
+                    },
+                    custom: {},
+                    overrides: {},
+                    root: {
+                        uuid: "root",
+                        id: "1",
+                        name: "Sequence",
+                        children: [
+                            {
+                                uuid: "child",
+                                id: "2",
+                                name: "SubSequence",
+                                path: "sub/tree.json",
+                            },
+                        ],
+                    },
+                }),
+                nodeDefs: [
+                    { name: "Sequence", type: "Composite", desc: "", status: ["success"] },
+                    { name: "SubSequence", type: "Composite", desc: "", status: ["success"] },
+                    { name: "SubAction", type: "Action", desc: "" },
+                ],
+                allFiles: ["sub/tree.json" as any],
+                settings: {
+                    checkExpr: true,
+                    subtreeEditable: true,
+                    language: "en",
+                    theme: "light",
+                },
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: null,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: { kind: "tree" },
+            });
+
+            assert.equal(saveSubtreeCalls.length, 0);
+            assert.ok(workspaceStore.getState().subtreeSources["sub/tree.json"]);
         },
     },
     {

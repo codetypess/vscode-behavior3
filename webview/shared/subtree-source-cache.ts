@@ -47,7 +47,7 @@ export const loadSubtreeSourceCache = async (params: {
             const tree = parsePersistedTreeContent(content, normalizedPath);
             cache[normalizedPath] = tree;
 
-            // The host can write migrated subtree content after parsing without rewalking the graph.
+            // Callers can stage normalized subtree content after parsing without rewalking the graph.
             await params.onTreeLoaded?.({
                 path: normalizedPath,
                 tree,

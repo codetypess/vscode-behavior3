@@ -648,8 +648,8 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
 
     /**
      * Refresh the subtree cache for files that are currently reachable from the
-     * main tree only. Any write-back here is for normalization such as filling
-     * missing ids/defaults discovered while loading subtree content.
+     * main tree only. Loading is read-only; legacy subtree normalization writes
+     * are staged by the explicit main-document save flow.
      */
     const syncReachableSubtreeSources = async () => {
         const tree = deps.documentStore.getState().persistedTree;
@@ -662,11 +662,6 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             readContent: async (path) => {
                 const response = await deps.hostAdapter.readFile(path);
                 return response.content;
-            },
-            onTreeLoaded: ({ path, tree: subtree, needsWriteback }) => {
-                if (needsWriteback) {
-                    void deps.hostAdapter.saveSubtree(path, serializePersistedTree(subtree));
-                }
             },
         });
 

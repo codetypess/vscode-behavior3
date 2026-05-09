@@ -27,7 +27,7 @@ const normalizeJsonContentForWrite = (content: string): string => {
 
 export const normalizeTreeContentForWrite = (content: string, filePath: string): string => {
     try {
-        const tree = readTree(content);
+        const tree = readTree(content, { stableIdSeed: filePath.replace(/\\/g, "/") });
         const name = basenameWithoutExt(filePath);
         // Persisted tree names follow the target filename so "Save As" keeps metadata aligned.
         tree.name = name;

@@ -14,7 +14,10 @@ export const parsePersistedTreeContent = (
     content: string,
     filePath?: string
 ): PersistedTreeModel => {
-    const tree = readTree(content);
+    const tree = readTree(
+        content,
+        filePath ? { stableIdSeed: filePath.replace(/\\/g, "/") } : undefined
+    );
     if (filePath) {
         tree.name = basenameWithoutExt(filePath);
     }

@@ -5,7 +5,10 @@ import {
     readFileContentFromDisk,
     TreeEditorDocument,
 } from "./editor-session/document-sync";
-import { serializePersistedTreeForMainDocumentSave } from "../webview/domain/main-document-save";
+import {
+    preparePersistedTreeForMainDocumentSave,
+    type MainDocumentSubtreeWriteback,
+} from "../webview/domain/main-document-save";
 import { parsePersistedTreeContent } from "../webview/shared/tree";
 import type { HostSelectionState } from "../webview/shared/contracts";
 import type {
@@ -134,19 +137,31 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         return normalizedContent;
     }
 
-    private async buildMainDocumentSaveContent(document: TreeEditorDocument): Promise<string> {
+    private getProjectRootFsPath(
+        document: TreeEditorDocument,
+        workspaceFolderUri?: vscode.Uri
+    ): string {
+        return workspaceFolderUri
+            ? getBehaviorProjectRootFsPath(document.uri, workspaceFolderUri)
+            : path.dirname(document.uri.fsPath);
+    }
+
+    private async buildMainDocumentSavePlan(document: TreeEditorDocument): Promise<{
+        content: string;
+        subtreeWritebacks: MainDocumentSubtreeWriteback[];
+        projectRootFsPath: string;
+    }> {
+        const workspaceFolderUri = vscode.workspace.getWorkspaceFolder(document.uri)?.uri;
+        const projectRootFsPath = this.getProjectRootFsPath(document, workspaceFolderUri);
+
         try {
             // Main-document saves resolve reachable subtrees first so display ids match the rendered graph.
             const tree = parsePersistedTreeContent(document.content, document.uri.fsPath);
-            const workspaceFolderUri = vscode.workspace.getWorkspaceFolder(document.uri)?.uri;
             const nodeDefs = workspaceFolderUri
                 ? await resolveNodeDefs(workspaceFolderUri, document.uri)
                 : [];
-            const projectRootFsPath = workspaceFolderUri
-                ? getBehaviorProjectRootFsPath(document.uri, workspaceFolderUri)
-                : path.dirname(document.uri.fsPath);
 
-            return await serializePersistedTreeForMainDocumentSave({
+            const savePlan = await preparePersistedTreeForMainDocumentSave({
                 tree,
                 nodeDefs,
                 readSubtreeContent: async (relativePath) => {
@@ -160,8 +175,49 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
                     }
                 },
             });
+            return {
+                ...savePlan,
+                projectRootFsPath,
+            };
         } catch {
-            return normalizeTreeContentForWrite(document.content, document.uri.fsPath);
+            return {
+                content: normalizeTreeContentForWrite(document.content, document.uri.fsPath),
+                subtreeWritebacks: [],
+                projectRootFsPath,
+            };
+        }
+    }
+
+    private async assertCanWriteSubtreeWritebacks(
+        projectRootFsPath: string,
+        writebacks: MainDocumentSubtreeWriteback[]
+    ): Promise<void> {
+        for (const writeback of writebacks) {
+            const subtreeUri = vscode.Uri.file(path.join(projectRootFsPath, writeback.path));
+            let existingContent: string | null = null;
+            try {
+                existingContent = await readFileContentFromDisk(subtreeUri);
+            } catch {
+                // Missing files can be created; other read failures will surface during the write.
+            }
+            if (existingContent === null) {
+                continue;
+            }
+
+            const error = getNewerFileWriteError(existingContent);
+            if (error) {
+                throw new Error(error);
+            }
+        }
+    }
+
+    private async writeSubtreeWritebacks(
+        projectRootFsPath: string,
+        writebacks: MainDocumentSubtreeWriteback[]
+    ): Promise<void> {
+        for (const writeback of writebacks) {
+            const subtreeUri = vscode.Uri.file(path.join(projectRootFsPath, writeback.path));
+            await this.writeDocumentContentToDisk(subtreeUri, writeback.content);
         }
     }
 
@@ -170,11 +226,19 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         opts?: { notifyReload?: boolean }
     ): Promise<string> {
         // This is the single VS Code save path that marks sessions saved and suppresses our watcher echo.
-        const saveContent = await this.buildMainDocumentSaveContent(document);
-        this.assertCanWriteTreeContent(saveContent);
+        const savePlan = await this.buildMainDocumentSavePlan(document);
+        this.assertCanWriteTreeContent(savePlan.content);
+        await this.assertCanWriteSubtreeWritebacks(
+            savePlan.projectRootFsPath,
+            savePlan.subtreeWritebacks
+        );
+        await this.writeSubtreeWritebacks(
+            savePlan.projectRootFsPath,
+            savePlan.subtreeWritebacks
+        );
         const normalizedContent = await this.writeDocumentContentToDisk(
             document.uri,
-            saveContent
+            savePlan.content
         );
         document.markSaved(normalizedContent);
         document.sessionState.markSaved(normalizedContent);
@@ -241,8 +305,8 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         destination: vscode.Uri,
         _cancellation: vscode.CancellationToken
     ): Promise<void> {
-        const saveContent = await this.buildMainDocumentSaveContent(document);
-        this.assertCanWriteTreeContent(saveContent);
+        const savePlan = await this.buildMainDocumentSavePlan(document);
+        this.assertCanWriteTreeContent(savePlan.content);
         let existingContent: string | null = null;
         try {
             existingContent = await readFileContentFromDisk(destination);
@@ -252,7 +316,15 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         if (existingContent !== null) {
             this.assertCanWriteTreeContent(existingContent);
         }
-        await this.writeDocumentContentToDisk(destination, saveContent);
+        await this.assertCanWriteSubtreeWritebacks(
+            savePlan.projectRootFsPath,
+            savePlan.subtreeWritebacks
+        );
+        await this.writeSubtreeWritebacks(
+            savePlan.projectRootFsPath,
+            savePlan.subtreeWritebacks
+        );
+        await this.writeDocumentContentToDisk(destination, savePlan.content);
     }
 
     async revertCustomDocument(

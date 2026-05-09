@@ -41,8 +41,8 @@ const applyTreeDefaults = (data: TreeData): TreeData => {
 };
 
 /** Parse tree JSON from editor / postMessage string content. */
-export const readTree = (text: string): TreeData => {
-    return applyTreeDefaults(parseTreeContent(text));
+export const readTree = (text: string, opts?: { stableIdSeed?: string }): TreeData => {
+    return applyTreeDefaults(parseTreeContent(text, opts));
 };
 
 // ─── Node-only (after setFs) — used by buildProject ───
@@ -65,7 +65,7 @@ export const readWorkspace = (path: string) => {
 /** Load tree from disk path (extension build). */
 export const readTreeFromFile = (path: string): TreeData => {
     const str = getFs().readFileSync(path, "utf-8");
-    return applyTreeDefaults(parseTreeContent(str));
+    return applyTreeDefaults(parseTreeContent(str, { stableIdSeed: path.replace(/\\/g, "/") }));
 };
 
 export const writeTreeToFile = (path: string, data: TreeData) => {

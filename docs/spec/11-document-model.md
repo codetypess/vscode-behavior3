@@ -127,7 +127,7 @@
   - `null`：文件缺失或不可读
   - `{ error: "invalid-subtree" }`：文件存在但不可解析
 
-该缓存由 controller 通过 host `readFile` 递归加载，不由图层主动维护。
+该缓存由 controller 通过 host `readFile` 递归加载，不由图层主动维护。加载缓存是读路径；若 legacy subtree 需要稳定 id 或字段迁移，写回会被延后到主文档保存流程。缺失 `uuid` 的 legacy 节点按文件路径与节点位置确定性生成，保证多个父树引用同一 subtree 时收敛到同一组稳定 id。
 
 ## Selection 与 Inspector 投影视图
 
@@ -222,9 +222,10 @@
 
 1. webview 发送 `saveDocument` intent
 2. 宿主在写盘前按当前主树解析结果回写主树节点 `id`
-3. 宿主保存当前规范化后的 `TreeEditorDocument.content`
-4. 成功后更新宿主 `sessionState.lastSavedSnapshot` 与当前 history 游标快照
-5. 宿主广播带当前 `selection` 的 `documentSnapshotChanged(syncKind: "reload")`
+3. 宿主收集当前可达 legacy subtree 的规范化写回，并在同一次保存动作内显式写回这些 subtree 文件
+4. 宿主保存当前规范化后的 `TreeEditorDocument.content`
+5. 成功后更新宿主 `sessionState.lastSavedSnapshot` 与当前 history 游标快照
+6. 宿主广播带当前 `selection` 的 `documentSnapshotChanged(syncKind: "reload")`
 
 ### Undo / Redo
 
@@ -250,7 +251,7 @@
 
 1. 尝试按行为树模型重新解析/序列化
 2. 主文档 `name` 与目标文件名保持一致
-3. subtree 文件在加载时若缺少稳定 id，会被补齐并回写规范化结果
+3. subtree 文件在加载时若缺少稳定 id，会在内存模型中按确定性规则补齐；磁盘回写只在主文档保存时发生
 4. persisted node 若没有任何内联子节点，写回结果应省略空 `children` 字段
 
 ## 不变量
