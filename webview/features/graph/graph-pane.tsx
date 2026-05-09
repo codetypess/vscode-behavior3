@@ -245,7 +245,7 @@ export const GraphPane: React.FC = () => {
                     force: opts?.force,
                     clearVariableFocus: opts?.clearVariableFocus,
                 }),
-            onNodeDoubleClicked: () => void runtime.controller.openSelectedSubtree(),
+            onNodeDoubleClicked: (node) => void runtime.controller.openSelectedSubtree(node),
             onVariableHotspotClicked: (_node, payload) =>
                 void runtime.controller.focusVariable(payload.variableNames),
             onDropCommitted: async (intent) => {

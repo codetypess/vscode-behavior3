@@ -97,6 +97,9 @@
 - `relayFocusVariable`
   - 语义：宿主向 editor 投递一次新鲜变量聚焦 relay
   - 不属于 `init` / `documentSnapshotChanged` 的 snapshot 内容
+- `relayFocusNode`
+  - 语义：宿主向 editor 投递一次新鲜节点 reveal relay，用于把目标节点带入视图
+  - 不属于 `init` / `documentSnapshotChanged` 的 snapshot 内容
 
 ### 环境与依赖变化
 
@@ -138,6 +141,16 @@
 - `selection`
   - 当前宿主共享选中快照
   - 只承载 tree/node selection，不承载 variable focus
+
+## `readFile` Open Relay
+
+`readFile` 除了普通读取，还允许在 `openIfSubtree = true` 时携带可选 `openSelection`：
+
+- `openSelection`
+  - 语义：目标 subtree 文档打开后希望落到的共享 node selection
+  - 仅用于 subtree 打开 relay，不改变 `readFileResult` 的返回结构
+  - 宿主可在打开前先为目标文档暂存该 selection，或对已打开的目标文档直接转发 `selectNode`
+  - 若该 subtree 打开还需要把节点带入视图，则宿主再额外发一次 `relayFocusNode`
 
 ### HostDocumentSessionState
 

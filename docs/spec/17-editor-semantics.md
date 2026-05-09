@@ -305,11 +305,16 @@ host reducer 当前分三条路径：
 
 - 规范化 path
 - 通过 host `readFile(..., { openIfSubtree: true })` 打开对应 subtree
+- 若调用方提供目标 subtree 节点 identity，则一并把 `openSelection` relay 给 host
+- 若目标 subtree 打开后需要把节点带入视图，host 再投递一次 transient `relayFocusNode`
 
 ### `openSelectedSubtree()`
 
+- 若命令由 graph double click 触发，优先使用事件命中的 `node.ref`，而不是依赖当前 selection store
 - 优先读取当前节点 `path`
 - 若当前选中的是 subtree 内部节点，则退回 `subtreeStack` 的最后一个路径
+- 对目标 subtree 文档的选中锚点使用当前节点的 `sourceStableId`
+- 打开完成后，目标 subtree 节点除了被 host 选中，还会收到一次 reveal/focus relay
 
 ### `saveSelectedAsSubtree()`
 

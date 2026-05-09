@@ -20,6 +20,7 @@ import {
     normalizeHostDocumentSnapshot,
     normalizeHostInitMessage,
     normalizeHostVarsMessage,
+    normalizeNodeInstanceRef,
     parseWorkdirRelativeJsonPath,
 } from "../../shared/protocol";
 
@@ -269,6 +270,13 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
                         onMessage({ type: "focusVariable", names: message.names });
                         return;
 
+                    case "relayFocusNode":
+                        onMessage({
+                            type: "focusNode",
+                            target: normalizeNodeInstanceRef(message.target),
+                        });
+                        return;
+
                     case "varDeclLoaded":
                         onMessage({
                             type: "varDeclLoaded",
@@ -407,6 +415,7 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
                     requestId,
                     path,
                     openIfSubtree: opts?.openIfSubtree,
+                    openSelection: opts?.openSelection,
                 });
             });
         },

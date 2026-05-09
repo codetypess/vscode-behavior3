@@ -10,7 +10,7 @@ import {
     type MainDocumentSubtreeWriteback,
 } from "../webview/domain/main-document-save";
 import { parsePersistedTreeContent } from "../webview/shared/tree";
-import type { HostSelectionState } from "../webview/shared/contracts";
+import type { HostSelectionState, NodeInstanceRef } from "../webview/shared/contracts";
 import type {
     EditorToHostMessage,
     HostToEditorMessage,
@@ -20,6 +20,7 @@ import { resolveTreeEditorSession } from "./editor-session/tree-editor-webview-s
 import { InspectorSidebarCoordinator } from "./inspector-sidebar-coordinator";
 import { configureBehaviorWebview } from "./webview-html";
 import { isDocumentVersionNewer } from "../webview/shared/document-version";
+import { normalizeHostSelectionState } from "../webview/shared/protocol";
 import { getBehaviorProjectRootFsPath, resolveNodeDefs } from "./setting-resolver";
 
 function getTreeFileVersion(content: string): string | undefined {
@@ -59,6 +60,7 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
     public static readonly viewType = "behavior3.treeEditor";
     private static readonly activeWebviews = new Set<ActiveTreeEditorWebview>();
     private readonly documentSelections = new Map<string, HostSelectionState>();
+    private readonly documentRevealTargets = new Map<string, NodeInstanceRef>();
     private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<
         vscode.CustomDocumentContentChangeEvent<TreeEditorDocument>
     >();
@@ -113,6 +115,31 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         private readonly _extensionUri: vscode.Uri,
         private readonly inspectorCoordinator: InspectorSidebarCoordinator
     ) {}
+
+    private stageDocumentSelection(documentUri: string, selection: HostSelectionState): void {
+        const normalized = normalizeHostSelectionState(selection);
+        this.documentSelections.set(documentUri, normalized);
+
+        const message: EditorToHostMessage =
+            normalized.kind === "tree"
+                ? { type: "selectTree" }
+                : { type: "selectNode", target: normalized.ref };
+
+        TreeEditorProvider.dispatchMessageToDocument(documentUri, message, async () => true);
+        if (normalized.kind === "tree") {
+            this.documentRevealTargets.delete(documentUri);
+            return;
+        }
+
+        this.documentRevealTargets.set(documentUri, normalized.ref);
+        const delivered = TreeEditorProvider.postMessageToDocument(documentUri, {
+            type: "relayFocusNode",
+            target: normalized.ref,
+        });
+        if (delivered) {
+            this.documentRevealTargets.delete(documentUri);
+        }
+    }
 
     private assertCanWriteTreeContent(content: string): void {
         const error = getNewerFileWriteError(content);
@@ -377,10 +404,17 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         webviewPanel: vscode.WebviewPanel,
         _token: vscode.CancellationToken
     ): Promise<void> {
+        const initialSelection =
+            this.documentSelections.get(document.uri.toString()) ?? ({ kind: "tree" } as const);
+        const initialRevealTarget =
+            this.documentRevealTargets.get(document.uri.toString()) ?? null;
+        this.documentRevealTargets.delete(document.uri.toString());
         await resolveTreeEditorSession({
             document,
             webviewPanel,
             viewType: TreeEditorProvider.viewType,
+            initialSelection,
+            initialRevealTarget,
             configureWebview: (webview, workspaceFolderUri) => {
                 configureBehaviorWebview(webview, this._extensionUri, workspaceFolderUri, {
                     title: "Behavior3 Editor",
@@ -400,12 +434,19 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
             removeActiveWebview: (entry) => {
                 TreeEditorProvider.activeWebviews.delete(entry);
             },
+            stageDocumentSelection: (documentUri, selection) => {
+                this.stageDocumentSelection(documentUri, selection);
+            },
             onInspectorSessionUpdate: (snapshot) => {
-                this.documentSelections.set(document.uri.toString(), snapshot.documentSnapshot.selection);
+                this.documentSelections.set(
+                    document.uri.toString(),
+                    normalizeHostSelectionState(snapshot.documentSnapshot.selection)
+                );
                 this.inspectorCoordinator.updateSession(snapshot);
             },
             onInspectorSessionDispose: (documentUri) => {
                 this.documentSelections.delete(documentUri);
+                this.documentRevealTargets.delete(documentUri);
                 this.inspectorCoordinator.removeSession(documentUri);
             },
         });

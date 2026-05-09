@@ -84,6 +84,7 @@ export interface ControllerRuntime {
     setNextGraphRenderAnchor(nodeKey: string | null): void;
     resetGraphUiState(): void;
     applyHostSelectionState(selection: HostSelectionState): void;
+    revealNode(target: NodeInstanceRef): Promise<void>;
     getSelectedResolvedNode(): ResolvedNodeModel | null;
     isSubtreeStructureLocked(node: ResolvedNodeModel | null): boolean;
     readClipboardNode(): Promise<PersistedNodeModel | null>;
@@ -120,6 +121,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
     let resolvedGraph: ResolvedDocumentGraph | null = null;
     let nodeCheckRequestSeq = 0;
     let nextGraphRenderAnchorNodeKey: string | null = null;
+    let pendingRevealTarget: NodeInstanceRef | null = null;
 
     const notifyError = (text: string) => {
         deps.appHooks.getMessage().error(text);
@@ -296,6 +298,21 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         deps.graphUiStore.setState(() => createInitialGraphUiState());
     };
 
+    const flushPendingReveal = async (): Promise<boolean> => {
+        if (!pendingRevealTarget || !resolvedGraph) {
+            return false;
+        }
+
+        const target = resolveSelectionRef(pendingRevealTarget);
+        if (!target) {
+            return false;
+        }
+
+        pendingRevealTarget = null;
+        await deps.graphAdapter.focusNode(target.ref.instanceKey);
+        return true;
+    };
+
     const applyHostSelectionState = (selection: HostSelectionState) => {
         // Host selection is authoritative; clear optimistic local hints once a snapshot catches up.
         updateGraphUiState((state) =>
@@ -311,6 +328,11 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         }
 
         updateSelectionState(() => projectSelectionRef(selection.ref));
+    };
+
+    const revealNode = async (target: NodeInstanceRef) => {
+        pendingRevealTarget = target;
+        await flushPendingReveal();
     };
 
     const getSelectedResolvedNode = (): ResolvedNodeModel | null => {
@@ -658,6 +680,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             });
         }
         await applyVisualState();
+        await flushPendingReveal();
     };
 
     /**
@@ -736,6 +759,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         setNextGraphRenderAnchor,
         resetGraphUiState,
         applyHostSelectionState,
+        revealNode,
         getSelectedResolvedNode,
         isSubtreeStructureLocked,
         readClipboardNode,

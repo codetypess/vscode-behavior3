@@ -76,6 +76,7 @@
 
 - 当前展示数据来源节点的稳定 `uuid`
 - 对 subtree 内部节点，来自外部 subtree 源文件
+- 跨文档打开 subtree 并定位对应节点时，当前实现以它作为目标 subtree 文档内的选中锚点
 
 ### `displayId`
 

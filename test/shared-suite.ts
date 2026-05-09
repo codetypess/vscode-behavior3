@@ -2359,6 +2359,183 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
         },
     },
     {
+        name: "opens subtree from the explicit graph target and forwards subtree-local selection",
+        async run() {
+            const documentStore = createDocumentStore();
+            const workspaceStore = createWorkspaceStore();
+            const selectionStore = createSelectionStore();
+            const graphUiStore = createGraphUiStore();
+            const appHooks = createAppHooksStore();
+            const readCalls: Array<{
+                path: string;
+                opts?: { openIfSubtree?: boolean; openSelection?: NodeInstanceRef };
+            }> = [];
+
+            appHooks.bind({
+                message: {
+                    success() {},
+                    error() {},
+                } as any,
+                notification: {} as any,
+                modal: {} as any,
+            });
+
+            const hostAdapter: HostAdapter = {
+                connect: () => () => {},
+                sendReady() {},
+                undo() {},
+                redo() {},
+                async mutateDocument() {
+                    return { success: true };
+                },
+                selectTree() {},
+                selectNode() {},
+                requestFocusVariable() {},
+                sendRequestSetting() {},
+                sendBuild() {},
+                async validateNodeChecks() {
+                    return { diagnostics: [] };
+                },
+                async saveDocument() {
+                    return { success: true };
+                },
+                async revertDocument() {
+                    return { success: true };
+                },
+                async readFile(path, opts) {
+                    readCalls.push({ path, opts });
+                    if (path !== "sub/tree.json") {
+                        return { content: null };
+                    }
+                    return {
+                        content: JSON.stringify({
+                            version: "2.0.0",
+                            name: "subtree",
+                            prefix: "",
+                            group: [],
+                            variables: {
+                                imports: [],
+                                locals: [],
+                            },
+                            custom: {},
+                            overrides: {},
+                            root: {
+                                uuid: "sub-root",
+                                id: "1",
+                                name: "SubtreeRoot",
+                                children: [],
+                            },
+                        }),
+                    };
+                },
+                async saveSubtree() {
+                    return { success: true };
+                },
+                async saveSubtreeAs() {
+                    return { savedPath: null };
+                },
+                log() {},
+            };
+            const graphAdapter: GraphAdapter = {
+                async mount() {},
+                unmount() {},
+                async render() {},
+                async applySelection() {},
+                async applyHighlights() {},
+                async applySearch() {},
+                async focusNode() {},
+                async restoreViewport() {},
+                getViewport: () => ({ zoom: 1, x: 0, y: 0 }),
+            };
+
+            const controller = createEditorController({
+                documentStore,
+                workspaceStore,
+                selectionStore,
+                graphUiStore,
+                hostAdapter,
+                graphAdapter,
+                appHooks,
+            });
+
+            const tree = createTestTree();
+            tree.root.children = [
+                {
+                    uuid: "sub-link",
+                    id: "2",
+                    name: "SubtreeRef",
+                    path: "sub/tree.json" as any,
+                },
+            ];
+            const content = serializePersistedTree(tree);
+
+            await controller.initFromHost({
+                filePath: "/tmp/main.json",
+                workdir: "/tmp",
+                content,
+                nodeDefs: [
+                    {
+                        name: "Sequence",
+                        type: "Composite",
+                        desc: "",
+                        status: ["success"],
+                    },
+                    {
+                        name: "SubtreeRef",
+                        type: "Action",
+                        desc: "",
+                    },
+                    {
+                        name: "SubtreeRoot",
+                        type: "Composite",
+                        desc: "",
+                        status: ["success"],
+                    },
+                ],
+                allFiles: ["sub/tree.json" as any],
+                settings: {
+                    checkExpr: true,
+                    subtreeEditable: true,
+                    language: "en",
+                    theme: "light",
+                },
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: content,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: { kind: "tree" },
+            });
+
+            readCalls.length = 0;
+            assert.equal(selectionStore.getState().selectedNodeRef, null);
+
+            await controller.openSelectedSubtree({
+                instanceKey: "2",
+                displayId: "2",
+                structuralStableId: "sub-link",
+                sourceStableId: "sub-root",
+                sourceTreePath: "sub/tree.json" as any,
+                subtreeStack: ["sub/tree.json" as any],
+            });
+
+            assert.equal(readCalls.length, 1);
+            assert.equal(readCalls[0]?.path, "sub/tree.json");
+            assert.equal(readCalls[0]?.opts?.openIfSubtree, true);
+            assert.deepEqual(readCalls[0]?.opts?.openSelection, {
+                instanceKey: "sub-root",
+                displayId: "",
+                structuralStableId: "sub-root",
+                sourceStableId: "sub-root",
+                sourceTreePath: null,
+                subtreeStack: [],
+            });
+        },
+    },
+    {
         name: "does not write subtree files during subtree cache sync",
         async run() {
             const documentStore = createDocumentStore();
@@ -4313,6 +4490,160 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
         },
     },
     {
+        name: "queues host node reveal until the graph is ready and then focuses the target node",
+        async run() {
+            const documentStore = createDocumentStore();
+            const workspaceStore = createWorkspaceStore();
+            const selectionStore = createSelectionStore();
+            const graphUiStore = createGraphUiStore();
+            const appHooks = createAppHooksStore();
+            const focusedNodeKeys: string[] = [];
+
+            appHooks.bind({
+                message: {
+                    success() {},
+                    error() {},
+                } as any,
+                notification: {} as any,
+                modal: {} as any,
+            });
+
+            const hostAdapter: HostAdapter = {
+                connect: () => () => {},
+                sendReady() {},
+                undo() {},
+                redo() {},
+                async mutateDocument() {
+                    return { success: true };
+                },
+                selectTree() {},
+                selectNode() {},
+                requestFocusVariable() {},
+                sendRequestSetting() {},
+                sendBuild() {},
+                async validateNodeChecks() {
+                    return { diagnostics: [] };
+                },
+                async saveDocument() {
+                    return { success: true };
+                },
+                async revertDocument() {
+                    return { success: true };
+                },
+                async readFile() {
+                    return { content: "{}" };
+                },
+                async saveSubtree() {
+                    return { success: true };
+                },
+                async saveSubtreeAs() {
+                    return { savedPath: null };
+                },
+                log() {},
+            };
+            const graphAdapter: GraphAdapter = {
+                async mount() {},
+                unmount() {},
+                async render() {},
+                async applySelection() {},
+                async applyHighlights() {},
+                async applySearch() {},
+                async focusNode(nodeKey) {
+                    focusedNodeKeys.push(nodeKey);
+                },
+                async restoreViewport() {},
+                getViewport: () => ({ zoom: 1, x: 0, y: 0 }),
+            };
+
+            const controller = createEditorController({
+                documentStore,
+                workspaceStore,
+                selectionStore,
+                graphUiStore,
+                hostAdapter,
+                graphAdapter,
+                appHooks,
+            });
+
+            await controller.revealNode({
+                instanceKey: "child-b",
+                displayId: "",
+                structuralStableId: "child-b",
+                sourceStableId: "child-b",
+                sourceTreePath: null,
+                subtreeStack: [],
+            });
+            assert.deepEqual(focusedNodeKeys, []);
+
+            const tree = createTestTree();
+            tree.root.children = [
+                {
+                    uuid: "child-a",
+                    id: "2",
+                    name: "ActionA",
+                },
+                {
+                    uuid: "child-b",
+                    id: "3",
+                    name: "ActionB",
+                },
+            ];
+            const content = serializePersistedTree(tree);
+
+            await controller.initFromHost({
+                filePath: "/tmp/main.json",
+                workdir: "/tmp",
+                content,
+                nodeDefs: [
+                    {
+                        name: "Sequence",
+                        type: "Composite",
+                        desc: "",
+                        status: ["success"],
+                    },
+                    {
+                        name: "ActionA",
+                        type: "Action",
+                        desc: "",
+                    },
+                    {
+                        name: "ActionB",
+                        type: "Action",
+                        desc: "",
+                    },
+                ],
+                allFiles: [],
+                settings: {
+                    checkExpr: true,
+                    subtreeEditable: true,
+                    language: "en",
+                    theme: "light",
+                },
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: content,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: {
+                    kind: "node",
+                    ref: {
+                        instanceKey: "child-b",
+                        displayId: "",
+                        structuralStableId: "child-b",
+                        sourceStableId: "child-b",
+                        sourceTreePath: null,
+                        subtreeStack: [],
+                    },
+                },
+            });
+
+            assert.deepEqual(focusedNodeKeys, ["3"]);
+        },
+    },
+    {
         name: "serializes focus-variable request/relay messages and resolves pending host requests on disconnect",
         async run() {
             const testGlobal = globalThis as unknown as {
@@ -4353,9 +4684,12 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                     await import("../webview/adapters/host/vscode-host-adapter");
                 const adapter = createVsCodeHostAdapter();
                 let relayedNames: string[] | null = null;
+                let relayedNode: NodeInstanceRef | null = null;
                 const off = adapter.connect((message) => {
                     if (message.type === "focusVariable") {
                         relayedNames = message.names;
+                    } else if (message.type === "focusNode") {
+                        relayedNode = message.target;
                     }
                 });
 
@@ -4383,9 +4717,56 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 } as MessageEvent);
                 assert.deepEqual(relayedNames, ["mp"]);
 
-                const resultPromise = adapter.readFile(parseWorkdirRelativeJsonPath("sub/a.json")!);
+                messageListener?.({
+                    data: {
+                        type: "relayFocusNode",
+                        target: {
+                            instanceKey: "sub-root",
+                            displayId: "",
+                            structuralStableId: "sub-root",
+                            sourceStableId: "sub-root",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                    },
+                } as MessageEvent);
+                assert.deepEqual(relayedNode, {
+                    instanceKey: "sub-root",
+                    displayId: "",
+                    structuralStableId: "sub-root",
+                    sourceStableId: "sub-root",
+                    sourceTreePath: null,
+                    subtreeStack: [],
+                });
+
+                const resultPromise = adapter.readFile(parseWorkdirRelativeJsonPath("sub/a.json")!, {
+                    openIfSubtree: true,
+                    openSelection: {
+                        instanceKey: "sub-root",
+                        displayId: "",
+                        structuralStableId: "sub-root",
+                        sourceStableId: "sub-root",
+                        sourceTreePath: null,
+                        subtreeStack: [],
+                    },
+                });
 
                 assert.equal((posts[1] as { type?: string } | undefined)?.type, "readFile");
+                assert.equal(
+                    (posts[1] as { openIfSubtree?: boolean } | undefined)?.openIfSubtree,
+                    true
+                );
+                assert.deepEqual(
+                    (posts[1] as { openSelection?: NodeInstanceRef } | undefined)?.openSelection,
+                    {
+                        instanceKey: "sub-root",
+                        displayId: "",
+                        structuralStableId: "sub-root",
+                        sourceStableId: "sub-root",
+                        sourceTreePath: null,
+                        subtreeStack: [],
+                    }
+                );
                 off();
 
                 const result = await resultPromise;

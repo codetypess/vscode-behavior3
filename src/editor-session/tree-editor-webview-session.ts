@@ -38,7 +38,7 @@ import type {
     HostToEditorMessage,
     NodeDef,
 } from "../../webview/shared/message-protocol";
-import type { HostSelectionState } from "../../webview/shared/contracts";
+import type { HostSelectionState, NodeInstanceRef } from "../../webview/shared/contracts";
 import {
     type DocumentMutationSelection,
     formatDocumentMutationReducerError,
@@ -119,6 +119,8 @@ interface ResolveTreeEditorSessionParams {
     document: TreeEditorDocument;
     webviewPanel: vscode.WebviewPanel;
     viewType: string;
+    initialSelection: HostSelectionState;
+    initialRevealTarget: NodeInstanceRef | null;
     configureWebview(webview: vscode.Webview, workspaceFolderUri: vscode.Uri): void;
     writeDocumentContentToDisk(targetUri: vscode.Uri, content: string): Promise<string>;
     revertDocument(
@@ -128,6 +130,7 @@ interface ResolveTreeEditorSessionParams {
     onDidChangeDocument(document: TreeEditorDocument): void;
     addActiveWebview(entry: ActiveTreeEditorWebview): void;
     removeActiveWebview(entry: ActiveTreeEditorWebview): void;
+    stageDocumentSelection(documentUri: string, selection: HostSelectionState): void;
     onInspectorSessionUpdate(snapshot: InspectorSessionSnapshot): void;
     onInspectorSessionDispose(documentUri: string): void;
 }
@@ -191,12 +194,15 @@ export async function resolveTreeEditorSession({
     document,
     webviewPanel,
     viewType,
+    initialSelection,
+    initialRevealTarget,
     configureWebview,
     writeDocumentContentToDisk,
     revertDocument,
     onDidChangeDocument,
     addActiveWebview,
     removeActiveWebview,
+    stageDocumentSelection,
     onInspectorSessionUpdate,
     onInspectorSessionDispose,
 }: ResolveTreeEditorSessionParams): Promise<void> {
@@ -225,11 +231,12 @@ export async function resolveTreeEditorSession({
             importDecls: [],
             subtreeDecls: [],
         },
-        sharedSelection: { kind: "tree" },
+        sharedSelection: normalizeHostSelectionState(initialSelection),
         selectionRevision: 0,
         inspectorContentSyncKind: "reload",
     };
     const documentSession = document.sessionState;
+    let pendingInitialRevealTarget = initialRevealTarget;
     const buildDocumentSessionMessage = () => documentSession.getSnapshot();
 
     configureWebview(webviewPanel.webview, workspaceFolderUri);
@@ -676,6 +683,13 @@ export async function resolveTreeEditorSession({
         });
 
         await postVarDeclLoaded(reply, state.latestVarDecls, state.latestAllFiles);
+        if (pendingInitialRevealTarget) {
+            await reply({
+                type: "relayFocusNode",
+                target: pendingInitialRevealTarget,
+            });
+            pendingInitialRevealTarget = null;
+        }
 
         notifyInspectorSessionUpdate();
     };
@@ -1085,6 +1099,12 @@ export async function resolveTreeEditorSession({
         try {
             const content = await readWorkspaceFileContent(fileUri);
             if (msg.openIfSubtree) {
+                if (msg.openSelection) {
+                    stageDocumentSelection(fileUri.toString(), {
+                        kind: "node",
+                        ref: normalizeNodeInstanceRef(msg.openSelection),
+                    });
+                }
                 try {
                     await vscode.commands.executeCommand(
                         "vscode.openWith",

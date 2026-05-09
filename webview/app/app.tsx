@@ -52,6 +52,10 @@ const AppShell: React.FC = () => {
                     void runtime.controller.focusVariable(hostEvent.names);
                     return;
 
+                case "focusNode":
+                    void runtime.controller.revealNode(hostEvent.target);
+                    return;
+
                 case "themeChanged":
                     applyThemeChange(hostEvent.theme);
                     void runtime.controller.refreshGraph({ preserveSelection: true });

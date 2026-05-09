@@ -272,6 +272,8 @@ export type HostEvent =
     | { type: "documentSnapshotChanged"; snapshot: HostDocumentSnapshot }
     /** Normalized editor-local variable-focus event from a raw `relayFocusVariable` message. */
     | { type: "focusVariable"; names: string[] }
+    /** Normalized editor-local node reveal event from a raw `relayFocusNode` message. */
+    | { type: "focusNode"; target: NodeInstanceRef }
     | { type: "themeChanged"; theme: Settings["theme"] }
     | { type: "subtreeFileChanged" }
     | { type: "inspectorContextCleared" }
@@ -417,7 +419,7 @@ export interface HostAdapter {
     revertDocument(): Promise<RevertDocumentResponse>;
     readFile(
         path: WorkdirRelativeJsonPath,
-        opts?: { openIfSubtree?: boolean }
+        opts?: { openIfSubtree?: boolean; openSelection?: NodeInstanceRef }
     ): Promise<ReadFileResponse>;
     saveSubtree(path: WorkdirRelativeJsonPath, content: string): Promise<SaveSubtreeResponse>;
     saveSubtreeAs(content: string, suggestedBaseName: string): Promise<SaveSubtreeAsResponse>;
@@ -436,6 +438,7 @@ export interface EditorCommand {
         nodeKey: string,
         opts?: { force?: boolean; clearVariableFocus?: boolean }
     ): Promise<void>;
+    revealNode(target: NodeInstanceRef): Promise<void>;
     focusVariable(names: string[]): Promise<void>;
     updateTreeMeta(payload: UpdateTreeMetaInput): Promise<void>;
     updateNode(payload: UpdateNodeInput): Promise<void>;
@@ -455,7 +458,7 @@ export interface EditorCommand {
     saveDocument(): Promise<void>;
     revertDocument(): Promise<void>;
     buildDocument(opts?: { buildScriptDebug?: boolean }): Promise<void>;
-    openSubtreePath(path: string): Promise<void>;
-    openSelectedSubtree(): Promise<void>;
+    openSubtreePath(path: string, opts?: { openSelection?: NodeInstanceRef }): Promise<void>;
+    openSelectedSubtree(target?: NodeInstanceRef): Promise<void>;
     saveSelectedAsSubtree(): Promise<void>;
 }

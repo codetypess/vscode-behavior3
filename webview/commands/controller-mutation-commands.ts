@@ -4,6 +4,7 @@ import type {
     DocumentMutation,
     DocumentMutationResponse,
     EditorCommand,
+    NodeInstanceRef,
     ResolvedNodeModel,
     UpdateNodeInput,
     UpdateTreeMetaInput,
@@ -76,6 +77,15 @@ const getResolvedNodeByInstanceKey = (
     runtime: ControllerRuntime,
     instanceKey: string
 ): ResolvedNodeModel | null => runtime.getResolvedGraph()?.nodesByInstanceKey[instanceKey] ?? null;
+
+const buildOpenedSubtreeSelectionRef = (target: NodeInstanceRef): NodeInstanceRef => ({
+    instanceKey: target.sourceStableId,
+    displayId: "",
+    structuralStableId: target.sourceStableId,
+    sourceStableId: target.sourceStableId,
+    sourceTreePath: null,
+    subtreeStack: [],
+});
 
 const getDeleteAnchorNodeKey = (
     runtime: ControllerRuntime,
@@ -152,14 +162,17 @@ export const createMutationCommands = (
 ): Pick<EditorCommand, MutationCommandKeys> => {
     const { deps } = runtime;
 
-    const openSubtreePath = async (path: string) => {
+    const openSubtreePath = async (path: string, opts?: { openSelection?: NodeInstanceRef }) => {
         const subtreePath = parseWorkdirRelativeJsonPath(path);
         if (!subtreePath) {
             runtime.notifyError(i18n.t("validation.invalidJsonPath", { path }));
             return;
         }
 
-        const response = await deps.hostAdapter.readFile(subtreePath, { openIfSubtree: true });
+        const response = await deps.hostAdapter.readFile(subtreePath, {
+            openIfSubtree: true,
+            openSelection: opts?.openSelection,
+        });
         if (response.content === null) {
             runtime.notifyError(i18n.t("node.subtreeOpenFailed", { path: subtreePath }));
         }
@@ -340,8 +353,8 @@ export const createMutationCommands = (
 
         openSubtreePath,
 
-        async openSelectedSubtree() {
-            const ref = deps.selectionStore.getState().selectedNodeRef;
+        async openSelectedSubtree(target) {
+            const ref = target ?? deps.selectionStore.getState().selectedNodeRef;
             const resolvedGraph = runtime.getResolvedGraph();
             if (!ref || !resolvedGraph) {
                 return;
@@ -355,7 +368,9 @@ export const createMutationCommands = (
             if (!path) {
                 return;
             }
-            await openSubtreePath(path);
+            await openSubtreePath(path, {
+                openSelection: buildOpenedSubtreeSelectionRef(ref),
+            });
         },
 
         async saveSelectedAsSubtree() {

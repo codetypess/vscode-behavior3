@@ -5,6 +5,7 @@ import type { ControllerRuntime } from "./controller-runtime";
 type SelectionCommandKeys =
     | "selectTree"
     | "selectNode"
+    | "revealNode"
     | "focusVariable"
     | "openSearch"
     | "updateSearch"
@@ -60,6 +61,10 @@ export const createSelectionCommands = (
             if (shouldClearVariableFocus) {
                 await runtime.applyVisualState();
             }
+        },
+
+        async revealNode(target) {
+            await runtime.revealNode(target);
         },
 
         async focusVariable(names: string[]) {

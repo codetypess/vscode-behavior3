@@ -35,7 +35,13 @@ export type EditorToHostMessage =
           treePath: string;
           nodes: NodeCheckValidationNode[];
       }
-    | { type: "readFile"; requestId: string; path: string; openIfSubtree?: boolean }
+    | {
+          type: "readFile";
+          requestId: string;
+          path: string;
+          openIfSubtree?: boolean;
+          openSelection?: NodeInstanceRef;
+      }
     | { type: "saveSubtree"; requestId: string; path: string; content: string }
     /** Right-click -> Save as subtree: pick path under workdir and write JSON from webview. */
     | { type: "saveSubtreeAs"; requestId: string; content: string; suggestedBaseName: string }
@@ -61,6 +67,8 @@ export type HostToEditorMessage =
     | { type: "documentSnapshotChanged"; snapshot: HostDocumentSnapshot }
     /** One-shot variable highlight relay into the active editor; not snapshot authority. */
     | { type: "relayFocusVariable"; names: string[] }
+    /** One-shot node reveal relay into the active editor; selection authority still comes from snapshots. */
+    | { type: "relayFocusNode"; target: NodeInstanceRef }
     /** A referenced subtree file was saved or edited; parent canvas should reload subtree data. */
     | { type: "subtreeFileChanged" }
     /** No active Behavior3 editor is currently driving the sidebar inspector. */

@@ -80,6 +80,7 @@
 ### BB-10 Subtree 打开、另存与追踪刷新
 
 - 节点 `path` 指向的 subtree 可被打开到对应 Behavior3 编辑器
+- 从主树双击 materialized subtree 节点进入 subtree 时，新编辑器会定位到对应的 subtree 源节点，并将其带入当前视图
 - `Save as subtree` 会把当前选中子树序列化为新文件，并把原节点替换为 subtree link
 - 会话只跟踪“当前主树可达”的 subtree 集合
 - 被跟踪 subtree 保存或修改后，父编辑器收到 `subtreeFileChanged` 并重建解析结果
