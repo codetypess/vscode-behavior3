@@ -20,7 +20,7 @@ import type {
     NodeInstanceRef,
     ResolvedGraphModel,
 } from "../../shared/contracts";
-import type { GraphAdapter } from "../../shared/graph-contracts";
+import type { GraphAdapter, GraphRenderOptions } from "../../shared/graph-contracts";
 import {
     G6_VECTOR_NODE_H_GAP,
     G6_VECTOR_NODE_MIN_HEIGHT,
@@ -920,13 +920,47 @@ export class G6GraphAdapter implements GraphAdapter {
         this.clearDragIntent();
     }
 
-    async render(model: ResolvedGraphModel): Promise<void> {
-        const anchor = this.readViewportCenterAnchor();
+    async render(model: ResolvedGraphModel, opts?: GraphRenderOptions): Promise<void> {
+        const anchor = opts?.anchorNodeKey
+            ? this.readViewportAnchor(opts.anchorNodeKey, { skipMissingCandidates: true }) ??
+              this.readViewportCenterAnchor()
+            : this.readViewportCenterAnchor();
         this.model = model;
         this.collapsedNodeRefs = pruneCollapsedNodeRefs(this.collapsedNodeRefs, model);
         this.clearDragIntent();
         this.syncThemeOptions();
         await this.renderGraphData(anchor);
+    }
+
+    pickNearestNodeAnchor(sourceNodeKey: string, candidateNodeKeys: string[]): string | null {
+        const source = this.readViewportAnchorCandidate(sourceNodeKey);
+        if (!source) {
+            return null;
+        }
+
+        let best: { nodeKey: string; distance: number } | null = null;
+        const seen = new Set<string>();
+        for (const nodeKey of candidateNodeKeys) {
+            if (nodeKey === sourceNodeKey || seen.has(nodeKey)) {
+                continue;
+            }
+            seen.add(nodeKey);
+
+            const candidate = this.readViewportAnchorCandidate(nodeKey);
+            if (!candidate) {
+                continue;
+            }
+
+            const distance = Math.hypot(
+                candidate.viewportPosition[0] - source.viewportPosition[0],
+                candidate.viewportPosition[1] - source.viewportPosition[1]
+            );
+            if (!best || distance < best.distance) {
+                best = { nodeKey, distance };
+            }
+        }
+
+        return best?.nodeKey ?? null;
     }
 
     async applySelection(selection: GraphSelectionState): Promise<void> {

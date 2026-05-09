@@ -81,6 +81,7 @@ export interface ControllerRuntime {
     clearActiveVariableFocus(): boolean;
     getCurrentGraphSelectionKey(): string | null;
     showSelectionVisualHint(selectedNodeKey: string | null): Promise<void>;
+    setNextGraphRenderAnchor(nodeKey: string | null): void;
     resetGraphUiState(): void;
     applyHostSelectionState(selection: HostSelectionState): void;
     getSelectedResolvedNode(): ResolvedNodeModel | null;
@@ -118,6 +119,7 @@ export const buildUsingGroups = (groupNames: string[]): Record<string, boolean> 
 export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime => {
     let resolvedGraph: ResolvedDocumentGraph | null = null;
     let nodeCheckRequestSeq = 0;
+    let nextGraphRenderAnchorNodeKey: string | null = null;
 
     const notifyError = (text: string) => {
         deps.appHooks.getMessage().error(text);
@@ -278,6 +280,16 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             selectionVisualHint: { selectedNodeKey },
         }));
         await deps.graphAdapter.applySelection({ selectedNodeKey });
+    };
+
+    const setNextGraphRenderAnchor = (nodeKey: string | null) => {
+        nextGraphRenderAnchorNodeKey = nodeKey;
+    };
+
+    const takeNextGraphRenderAnchor = (): string | null => {
+        const nodeKey = nextGraphRenderAnchorNodeKey;
+        nextGraphRenderAnchorNodeKey = null;
+        return nodeKey;
     };
 
     const resetGraphUiState = () => {
@@ -623,6 +635,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         resolvedGraph = result.graph;
         const nodeCheckDiagnostics = await requestNodeCheckDiagnostics(result.graph, workspace);
 
+        const anchorNodeKey = takeNextGraphRenderAnchor();
         await deps.graphAdapter.render(
             buildResolvedGraphModel(
                 result.graph,
@@ -634,7 +647,8 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
                     checkExpr: workspace.settings.checkExpr,
                     nodeCheckDiagnostics,
                 }
-            )
+            ),
+            anchorNodeKey ? { anchorNodeKey } : undefined
         );
         if (opts?.preserveSelection) {
             await restoreSelection();
@@ -719,6 +733,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         clearActiveVariableFocus,
         getCurrentGraphSelectionKey: () => getCurrentGraphSelectionState().selectedNodeKey,
         showSelectionVisualHint,
+        setNextGraphRenderAnchor,
         resetGraphUiState,
         applyHostSelectionState,
         getSelectedResolvedNode,

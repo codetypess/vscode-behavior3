@@ -25,9 +25,9 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 24 份 work-item spec
-- 8 份登记中的 active work-item spec
-- 16 份登记中的 done work-item spec
+- 25 份 work-item spec
+- 9 份登记中的 active work-item spec
+- 17 份登记中的 done work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
 目录判断规则：
@@ -216,6 +216,7 @@ Scope: <short boundary>
 新增 work-item 时，请继续按以下格式补充：
 
 - `your-work-item-slug.md` - `Draft` - 一句话范围说明
+- `graph-structural-mutation-target-anchor.md` - `Verifying` - drop、insert、delete 后按本地操作上下文稳定画布视图锚点
 - `graph-collapse-render-stability.md` - `Verifying` - 将图节点折叠改为 adapter-owned 本地视觉状态，避免 G6 内部折叠状态与 adapter rebuild 链路打架
 - `tree-custom-inspector-metadata.md` - `Verifying` - 在 Tree Inspector 中新增 tree.custom 的 key:value 编辑与提交语义
 - `inspector-array-arg-validation.md` - `Implementing` - 修复 Inspector 把数组参数误判成单值类型的校验问题
@@ -228,6 +229,7 @@ Scope: <short boundary>
 ## Done Work Items
 
 - `helper-boundary-cleanup.md` - `Done` - 收敛 shared/domain/helper 边界，移动保存序列化 helper，并拆分 Inspector 纯 helper
+- `subtree-save-time-writeback.md` - `Done` - 将 legacy subtree 规范化写回从加载期延后到主树保存期，并确定性生成缺失 uuid
 - `architecture-maintainability-refactor.md` - `Done` - 架构、运行时、Inspector 和样式的保持行为不变的可维护性清理
 - `baseline-spec-sync-current-code.md` - `Done` - 按当前实现回写编号基线 spec
 - `document-mutation-selection-internal.md` - `Done` - 将 reducer `nextSelection` helper type 从 public contracts 收口到 host/reducer 内部边界

@@ -3356,6 +3356,288 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
         },
     },
     {
+        name: "anchors structural mutation rebuilds on local target context nodes",
+        async run() {
+            const createDocumentSession = (content: string) => ({
+                dirty: false,
+                historyIndex: 0,
+                historyLength: 1,
+                lastSavedSnapshot: content,
+                alertReload: false,
+                pendingExternalContent: null,
+            });
+            const createTreeWithChildren = () => {
+                const tree = createTestTree();
+                tree.root.children = [
+                    {
+                        uuid: "child-a",
+                        id: "2",
+                        name: "ActionA",
+                    },
+                    {
+                        uuid: "child-b",
+                        id: "3",
+                        name: "ActionB",
+                    },
+                ];
+                return tree;
+            };
+            const createNodeDefs = (): NodeDef[] => [
+                {
+                    name: "Sequence",
+                    type: "Composite",
+                    desc: "",
+                    status: ["success"],
+                },
+                {
+                    name: "ActionA",
+                    type: "Action",
+                    desc: "",
+                },
+                {
+                    name: "ActionB",
+                    type: "Action",
+                    desc: "",
+                },
+            ];
+            const createRef = (
+                instanceKey: string,
+                structuralStableId: string
+            ): NodeInstanceRef => ({
+                instanceKey,
+                displayId: instanceKey,
+                structuralStableId,
+                sourceStableId: structuralStableId,
+                sourceTreePath: null,
+                subtreeStack: [],
+            });
+
+            const setupController = async (nearestAnchorResult: string | null = null) => {
+                const documentStore = createDocumentStore();
+                const workspaceStore = createWorkspaceStore();
+                const selectionStore = createSelectionStore();
+                const graphUiStore = createGraphUiStore();
+                const appHooks = createAppHooksStore();
+                appHooks.bind({
+                    message: {
+                        success() {},
+                        error() {},
+                    } as any,
+                    notification: {} as any,
+                    modal: {} as any,
+                });
+
+                const mutations: DocumentMutation[] = [];
+                const selectedNodeTargets: NodeInstanceRef[] = [];
+                const renderAnchors: Array<string | null> = [];
+                const nearestAnchorCalls: Array<{
+                    sourceNodeKey: string;
+                    candidateNodeKeys: string[];
+                }> = [];
+                const hostAdapter: HostAdapter = {
+                    connect: () => () => {},
+                    sendReady() {},
+                    undo() {},
+                    redo() {},
+                    async mutateDocument(mutation) {
+                        mutations.push(mutation);
+                        return { success: true };
+                    },
+                    selectTree() {},
+                    selectNode(target) {
+                        selectedNodeTargets.push(target);
+                    },
+                    requestFocusVariable() {},
+                    sendRequestSetting() {},
+                    sendBuild() {},
+                    async validateNodeChecks() {
+                        return { diagnostics: [] };
+                    },
+                    async saveDocument() {
+                        return { success: true };
+                    },
+                    async revertDocument() {
+                        return { success: true };
+                    },
+                    async readFile() {
+                        return { content: "{}" };
+                    },
+                    async saveSubtree() {
+                        return { success: true };
+                    },
+                    async saveSubtreeAs() {
+                        return { savedPath: null };
+                    },
+                    log() {},
+                };
+                const graphAdapter: GraphAdapter = {
+                    async mount() {},
+                    unmount() {},
+                    async render(_model, opts) {
+                        renderAnchors.push(opts?.anchorNodeKey ?? null);
+                    },
+                    pickNearestNodeAnchor(sourceNodeKey, candidateNodeKeys) {
+                        nearestAnchorCalls.push({
+                            sourceNodeKey,
+                            candidateNodeKeys: [...candidateNodeKeys],
+                        });
+                        return nearestAnchorResult;
+                    },
+                    async applySelection() {},
+                    async applyHighlights() {},
+                    async applySearch() {},
+                    async focusNode() {},
+                    async restoreViewport() {},
+                    getViewport: () => ({ zoom: 1, x: 0, y: 0 }),
+                };
+                const controller = createEditorController({
+                    documentStore,
+                    workspaceStore,
+                    selectionStore,
+                    graphUiStore,
+                    hostAdapter,
+                    graphAdapter,
+                    appHooks,
+                });
+
+                const tree = createTreeWithChildren();
+                const content = serializePersistedTree(tree);
+                await controller.initFromHost({
+                    filePath: "/tmp/main.json",
+                    workdir: "/tmp",
+                    content,
+                    nodeDefs: createNodeDefs(),
+                    allFiles: [],
+                    settings: {
+                        checkExpr: true,
+                        subtreeEditable: true,
+                        language: "en",
+                        theme: "light",
+                    },
+                    documentSession: createDocumentSession(content),
+                    selection: { kind: "tree" },
+                });
+
+                return {
+                    controller,
+                    tree,
+                    content,
+                    mutations,
+                    renderAnchors,
+                    nearestAnchorCalls,
+                    selectedNodeTargets,
+                };
+            };
+
+            const dropSetup = await setupController();
+            const sourceRef = createRef("2", "child-a");
+            const targetRef = createRef("3", "child-b");
+            await dropSetup.controller.performDrop({
+                source: sourceRef,
+                target: targetRef,
+                position: "child",
+            });
+            const dropMutation = dropSetup.mutations[0];
+            assert.equal(dropMutation?.type, "performDrop");
+            if (dropMutation?.type !== "performDrop") {
+                return;
+            }
+            const dropResult = reduceDocumentMutation(dropMutation, {
+                tree: dropSetup.tree,
+                nodeDefs: createNodeDefs(),
+            });
+            assert.equal(dropResult.status, "changed");
+            if (dropResult.status !== "changed") {
+                return;
+            }
+            const dropContent = serializePersistedTree(dropResult.tree);
+            await dropSetup.controller.applyDocumentSnapshot({
+                content: dropContent,
+                documentSession: createDocumentSession(dropContent),
+                selection: { kind: "node", ref: sourceRef },
+                syncKind: "update",
+            });
+            assert.equal(dropSetup.renderAnchors[dropSetup.renderAnchors.length - 1], "3");
+
+            const insertSetup = await setupController();
+            await insertSetup.controller.selectNode("3");
+            const selectedTarget =
+                insertSetup.selectedNodeTargets[insertSetup.selectedNodeTargets.length - 1];
+            assert.ok(selectedTarget);
+            await insertSetup.controller.applyDocumentSnapshot({
+                content: insertSetup.content,
+                documentSession: createDocumentSession(insertSetup.content),
+                selection: { kind: "node", ref: selectedTarget },
+                syncKind: "update",
+            });
+            await insertSetup.controller.insertNode();
+            const insertMutation = insertSetup.mutations[0];
+            assert.equal(insertMutation?.type, "insertNode");
+            if (insertMutation?.type !== "insertNode") {
+                return;
+            }
+            const insertResult = reduceDocumentMutation(insertMutation, {
+                tree: insertSetup.tree,
+                nodeDefs: createNodeDefs(),
+            });
+            assert.equal(insertResult.status, "changed");
+            if (insertResult.status !== "changed") {
+                return;
+            }
+            const insertContent = serializePersistedTree(insertResult.tree);
+            await insertSetup.controller.applyDocumentSnapshot({
+                content: insertContent,
+                documentSession: createDocumentSession(insertContent),
+                selection: { kind: "tree" },
+                syncKind: "update",
+            });
+            assert.equal(insertSetup.renderAnchors[insertSetup.renderAnchors.length - 1], "3");
+
+            const deleteSetup = await setupController("2");
+            await deleteSetup.controller.selectNode("3");
+            const deletedTarget =
+                deleteSetup.selectedNodeTargets[deleteSetup.selectedNodeTargets.length - 1];
+            assert.ok(deletedTarget);
+            await deleteSetup.controller.applyDocumentSnapshot({
+                content: deleteSetup.content,
+                documentSession: createDocumentSession(deleteSetup.content),
+                selection: { kind: "node", ref: deletedTarget },
+                syncKind: "update",
+            });
+            await deleteSetup.controller.deleteNode();
+            assert.deepEqual(deleteSetup.nearestAnchorCalls, [
+                {
+                    sourceNodeKey: "3",
+                    candidateNodeKeys: ["2", "1"],
+                },
+            ]);
+            const deleteMutation = deleteSetup.mutations[0];
+            assert.equal(deleteMutation?.type, "deleteNode");
+            if (deleteMutation?.type !== "deleteNode") {
+                return;
+            }
+            const deleteResult = reduceDocumentMutation(deleteMutation, {
+                tree: deleteSetup.tree,
+                nodeDefs: createNodeDefs(),
+            });
+            assert.equal(deleteResult.status, "changed");
+            if (deleteResult.status !== "changed") {
+                return;
+            }
+            const deleteContent = serializePersistedTree(deleteResult.tree);
+            await deleteSetup.controller.applyDocumentSnapshot({
+                content: deleteContent,
+                documentSession: createDocumentSession(deleteContent),
+                selection: { kind: "node", ref: createRef("1", "root") },
+                syncKind: "update",
+            });
+            assert.equal(deleteSetup.renderAnchors[deleteSetup.renderAnchors.length - 1], "2");
+
+            await insertSetup.controller.refreshGraph({ preserveSelection: true });
+            assert.equal(insertSetup.renderAnchors[insertSetup.renderAnchors.length - 1], null);
+        },
+    },
+    {
         name: "routes editor metadata and node updates through host mutation intents",
         async run() {
             const documentStore = createDocumentStore();

@@ -45,7 +45,7 @@
 - 基于 `persistedTree + subtreeSources + nodeDefs + subtreeEditable` 重新 resolve graph
 - 请求节点参数检查结果
 - 重建 `ResolvedGraphModel`
-- 交给 graph adapter render
+- 交给 graph adapter render；若当前存在一次性结构变更锚点，则随 render 一起传入
 - 视情况恢复 selection
 - 最后重放 selection/highlight/search
 
@@ -201,6 +201,7 @@ host reducer 当前分三条路径：
 
 - canvas 先发送 `mutateDocument(performDrop)` intent 给宿主
 - canvas 可先运行共享 pure drop preflight 来显示即时错误，但该 preflight 不修改文档、不推进 history，也不是最终 authority
+- webview 在发送合法 drop intent 前，将 drop target 记录为下一次 graph render 的一次性视图锚点
 - 宿主当前会优先直接提交，在内部消费 reducer `nextSelection`，并只通过 committed `documentSnapshotChanged.selection` 公开共享选中结果
 - 拒绝拖动 subtree 内部节点
 - 拒绝向 subtree link 直接添加 child
@@ -224,6 +225,7 @@ host reducer 当前分三条路径：
 ### `insertNode()`
 
 - canvas 先发送 `mutateDocument(insertNode)`
+- webview 在发送 insert intent 前，将当前选中目标记录为下一次 graph render 的一次性视图锚点
 - 宿主直接提交后把新节点选中折叠进 committed snapshot `selection`
 - 在当前节点下追加一个最小节点：
   - `uuid`
@@ -248,6 +250,7 @@ host reducer 当前分三条路径：
 ### `deleteNode()`
 
 - canvas 先发送 `mutateDocument(deleteNode)`
+- webview 在发送 delete intent 前，以当前待删除节点为 source，把其兄弟节点与父节点作为候选，向 graph adapter 查询当前 viewport 中距离 source 最近的候选，并把该候选记录为下一次 graph render 的一次性视图锚点
 - 宿主直接提交后把父节点选中折叠进 committed snapshot `selection`
 - 不能删除根节点
 - 删除后默认选中父节点

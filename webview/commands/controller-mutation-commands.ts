@@ -77,6 +77,30 @@ const getResolvedNodeByInstanceKey = (
     instanceKey: string
 ): ResolvedNodeModel | null => runtime.getResolvedGraph()?.nodesByInstanceKey[instanceKey] ?? null;
 
+const getDeleteAnchorNodeKey = (
+    runtime: ControllerRuntime,
+    selected: ResolvedNodeModel
+): string | null => {
+    const parentKey = selected.parentKey;
+    if (!parentKey) {
+        return null;
+    }
+
+    const graph = runtime.getResolvedGraph();
+    const parent = graph?.nodesByInstanceKey[parentKey];
+    const candidateKeys = [
+        ...(parent?.childKeys ?? []).filter((nodeKey) => nodeKey !== selected.ref.instanceKey),
+        parentKey,
+    ];
+    return (
+        runtime.deps.graphAdapter.pickNearestNodeAnchor?.(
+            selected.ref.instanceKey,
+            candidateKeys
+        ) ??
+        parentKey
+    );
+};
+
 const formatDropPreflightDenial = (reason: DropPreflightDenialReason): string | null => {
     switch (reason) {
         case "move-subtree-denied":
@@ -168,10 +192,19 @@ export const createMutationCommands = (
                 return;
             }
 
-            await forwardDocumentMutation(runtime, {
-                type: "performDrop",
-                payload: intent,
-            });
+            runtime.setNextGraphRenderAnchor(intent.target.instanceKey);
+            try {
+                const response = await forwardDocumentMutation(runtime, {
+                    type: "performDrop",
+                    payload: intent,
+                });
+                if (!response.success) {
+                    runtime.setNextGraphRenderAnchor(null);
+                }
+            } catch (error) {
+                runtime.setNextGraphRenderAnchor(null);
+                throw error;
+            }
         },
 
         async copyNode() {
@@ -231,12 +264,21 @@ export const createMutationCommands = (
                 return;
             }
 
-            await forwardDocumentMutation(runtime, {
-                type: "insertNode",
-                payload: {
-                    target: selected.ref,
-                },
-            });
+            runtime.setNextGraphRenderAnchor(selected.ref.instanceKey);
+            try {
+                const response = await forwardDocumentMutation(runtime, {
+                    type: "insertNode",
+                    payload: {
+                        target: selected.ref,
+                    },
+                });
+                if (!response.success) {
+                    runtime.setNextGraphRenderAnchor(null);
+                }
+            } catch (error) {
+                runtime.setNextGraphRenderAnchor(null);
+                throw error;
+            }
         },
 
         async replaceNode() {
@@ -278,12 +320,22 @@ export const createMutationCommands = (
                 return;
             }
 
-            await forwardDocumentMutation(runtime, {
-                type: "deleteNode",
-                payload: {
-                    target: selected.ref,
-                },
-            });
+            const anchorNodeKey = getDeleteAnchorNodeKey(runtime, selected);
+            runtime.setNextGraphRenderAnchor(anchorNodeKey);
+            try {
+                const response = await forwardDocumentMutation(runtime, {
+                    type: "deleteNode",
+                    payload: {
+                        target: selected.ref,
+                    },
+                });
+                if (!response.success) {
+                    runtime.setNextGraphRenderAnchor(null);
+                }
+            } catch (error) {
+                runtime.setNextGraphRenderAnchor(null);
+                throw error;
+            }
         },
 
         openSubtreePath,
