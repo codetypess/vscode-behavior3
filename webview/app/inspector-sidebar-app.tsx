@@ -1,5 +1,5 @@
 import { App as AntdApp, ConfigProvider, Flex, Typography } from "antd";
-import React, { useEffect, useLayoutEffect } from "react";
+import React, { useEffect, useLayoutEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { getAntdLocale } from "../shared/misc/antd-locale";
 import { deriveGroupDefs } from "../shared/protocol";
@@ -14,6 +14,7 @@ import type {
     HostSelectionState,
     HostVarsPayload,
 } from "../shared/contracts";
+import { rememberInspectorNodeSnapshot } from "../features/inspector/inspector-node-snapshot-cache";
 import { createInitialDocumentState } from "../stores/document-store";
 import { createInitialGraphUiState } from "../stores/graph-ui-store";
 import { createInitialSelectionState } from "../stores/selection-store";
@@ -111,17 +112,29 @@ const isEditableTarget = (target: EventTarget | null) => {
 
 const SidebarHostBridge: React.FC = () => {
     const runtime = useRuntime();
+    const latestIncomingFilePathRef = useRef<string | null>(null);
 
     useEffect(() => {
+        const rememberCurrentNodeSnapshot = (preferredFilePath?: string | null) => {
+            const filePath = preferredFilePath ?? runtime.workspaceStore.getState().filePath;
+            const { selectedNodeRef, selectedNodeSnapshot } = runtime.selectionStore.getState();
+            if (!filePath || !selectedNodeRef || !selectedNodeSnapshot) {
+                return;
+            }
+            rememberInspectorNodeSnapshot(filePath, selectedNodeRef, selectedNodeSnapshot);
+        };
+
         const handleHostMessage = (hostEvent: HostEvent) => {
             switch (hostEvent.type) {
                 case "init":
                     void (async () => {
+                        latestIncomingFilePathRef.current = hostEvent.payload.filePath;
                         const selectionChanged = hasIncomingSelectionChange(
                             runtime,
                             hostEvent.payload.selection
                         );
                         await applySidebarInit(runtime, hostEvent.payload);
+                        rememberCurrentNodeSnapshot(hostEvent.payload.filePath);
                         if (selectionChanged) {
                             queueSidebarSelectionBlur(runtime);
                         }
@@ -135,6 +148,7 @@ const SidebarHostBridge: React.FC = () => {
                             hostEvent.snapshot.selection
                         );
                         await runtime.controller.applyDocumentSnapshot(hostEvent.snapshot);
+                        rememberCurrentNodeSnapshot(latestIncomingFilePathRef.current);
                         if (selectionChanged) {
                             queueSidebarSelectionBlur(runtime);
                         }
@@ -174,6 +188,7 @@ const SidebarHostBridge: React.FC = () => {
                     return;
 
                 case "inspectorContextCleared":
+                    latestIncomingFilePathRef.current = null;
                     resetSidebarContext(runtime);
                     return;
 

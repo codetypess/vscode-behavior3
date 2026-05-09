@@ -1,9 +1,10 @@
-import { MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
+import { FormOutlined, MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
 import { AutoComplete, Button, Flex, Form, Input, InputNumber, Select, Switch } from "antd";
 import type { FormInstance } from "antd/es/form";
 import React, { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
+import { canOpenSubtreeTarget } from "../../domain/subtree-navigation";
 import {
     hasArgOptions,
     isBoolType,
@@ -748,6 +749,7 @@ export const NodeInspectorForm: React.FC = () => {
     const [form] = Form.useForm();
     const {
         selectedNode,
+        pendingSelectedNodeSnapshot,
         nodeDefs,
         usingVars,
         usingGroups,
@@ -764,6 +766,7 @@ export const NodeInspectorForm: React.FC = () => {
         subtreeOriginal,
         canShowOverride,
     } = useNodeInspectorViewState(form);
+    const effectiveReadOnly = readOnly || pendingSelectedNodeSnapshot;
 
     useEffect(() => {
         if (!selectedNode) {
@@ -777,7 +780,7 @@ export const NodeInspectorForm: React.FC = () => {
     }, [form, nodeDefMap, selectedNode, t]);
 
     useEffect(() => {
-        if (!selectedNode || readOnly) {
+        if (!selectedNode || effectiveReadOnly) {
             return;
         }
 
@@ -791,7 +794,7 @@ export const NodeInspectorForm: React.FC = () => {
         form,
         nodeCheckDiagnostics,
         nodeDef,
-        readOnly,
+        effectiveReadOnly,
         selectedNode,
         usingGroups,
         usingVars,
@@ -805,7 +808,7 @@ export const NodeInspectorForm: React.FC = () => {
         fields: InspectorFieldTarget[],
         buildData: (values: NodeInspectorFormValues) => UpdateNodeInput["data"]
     ) => {
-        if (readOnly) {
+        if (effectiveReadOnly) {
             return;
         }
 
@@ -1029,6 +1032,8 @@ export const NodeInspectorForm: React.FC = () => {
         }));
     };
 
+    const canOpenSubtree = canOpenSubtreeTarget(selectedNode.data.path, selectedNode.ref);
+
     return (
         <div className="b3-inspector-content">
             <Form
@@ -1048,7 +1053,7 @@ export const NodeInspectorForm: React.FC = () => {
                     usingGroups={usingGroups}
                     allFiles={allFiles}
                     fieldEditDisabled={fieldEditDisabled}
-                    readOnly={readOnly}
+                    readOnly={effectiveReadOnly}
                     canShowOverride={canShowOverride}
                     subtreeOriginal={subtreeOriginal}
                     onCommitName={commitName}
@@ -1079,7 +1084,7 @@ export const NodeInspectorForm: React.FC = () => {
                     slotDefs={nodeDef?.input}
                     usingVars={usingVars}
                     variableOptions={variableOptions}
-                    fieldEditDisabled={readOnly || fieldEditDisabled}
+                    fieldEditDisabled={effectiveReadOnly || fieldEditDisabled}
                     isOverridden={isInputOverridden}
                     onReset={resetInputField}
                     onCommit={commitInputField}
@@ -1096,7 +1101,7 @@ export const NodeInspectorForm: React.FC = () => {
                         usingVars={usingVars}
                         checkExpr={checkExpr}
                         nodeCheckDiagnostics={nodeCheckDiagnostics}
-                        fieldEditDisabled={readOnly || fieldEditDisabled}
+                        fieldEditDisabled={effectiveReadOnly || fieldEditDisabled}
                         isOverridden={isArgOverridden}
                         onReset={resetArgField}
                         onCommit={commitArgField}
@@ -1113,12 +1118,25 @@ export const NodeInspectorForm: React.FC = () => {
                     slotDefs={nodeDef?.output}
                     usingVars={usingVars}
                     variableOptions={variableOptions}
-                    fieldEditDisabled={readOnly || fieldEditDisabled}
+                    fieldEditDisabled={effectiveReadOnly || fieldEditDisabled}
                     isOverridden={isOutputOverridden}
                     onReset={resetOutputField}
                     onCommit={commitOutputField}
                     onQueueCommit={commitOutputField}
                 />
+
+                {canOpenSubtree ? (
+                    <Button
+                        type="primary"
+                        htmlType="button"
+                        block
+                        icon={<FormOutlined />}
+                        className="b3-node-subtree-button"
+                        onClick={() => void runtime.controller.openSelectedSubtree(selectedNode.ref)}
+                    >
+                        {t("editSubtree")}
+                    </Button>
+                ) : null}
             </Form>
         </div>
     );

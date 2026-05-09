@@ -2,6 +2,7 @@ import { Alert, Button, Flex, Skeleton } from "antd";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { useInspectorPaneState, useRuntime } from "../../app/runtime";
+import { getInspectorPaneMode } from "./inspector-pane-mode";
 import { NodeInspectorForm } from "./node-inspector-form";
 import { TreeInspectorForm } from "./tree-inspector-form";
 
@@ -22,6 +23,14 @@ const InspectorSkeletonRow: React.FC = () => {
 const InspectorSkeleton: React.FC = () => {
     return (
         <div className="b3-inspector b3-inspector-skeleton">
+            <InspectorSkeletonContent />
+        </div>
+    );
+};
+
+const InspectorSkeletonContent: React.FC = () => {
+    return (
+        <>
             <div className="b3-inspector-header">
                 <Skeleton.Input active size="small" className="b3-inspector-skeleton-title" />
             </div>
@@ -37,7 +46,7 @@ const InspectorSkeleton: React.FC = () => {
                 <InspectorSkeletonRow />
                 <InspectorSkeletonRow />
             </div>
-        </div>
+        </>
     );
 };
 
@@ -75,9 +84,15 @@ const InspectorReloadBanner: React.FC<{
 
 export const InspectorPane: React.FC = () => {
     const runtime = useRuntime();
-    const { document, alertReload, pendingExternalContent, selectedNode } = useInspectorPaneState();
+    const { document, alertReload, pendingExternalContent, selectedNode, selectedNodeRef } =
+        useInspectorPaneState();
+    const paneMode = getInspectorPaneMode({
+        documentPresent: Boolean(document),
+        selectedNode,
+        selectedNodeRef,
+    });
 
-    if (!document) {
+    if (paneMode === "skeleton") {
         return <InspectorSkeleton />;
     }
 
@@ -91,7 +106,13 @@ export const InspectorPane: React.FC = () => {
                 />
             ) : null}
 
-            {selectedNode ? <NodeInspectorForm /> : <TreeInspectorForm />}
+            {paneMode === "node" ? <NodeInspectorForm /> : null}
+            {paneMode === "node-pending" ? (
+                <div className="b3-inspector-skeleton">
+                    <InspectorSkeletonContent />
+                </div>
+            ) : null}
+            {paneMode === "tree" ? <TreeInspectorForm /> : null}
         </div>
     );
 };

@@ -10,6 +10,7 @@ import { createSelectionStore } from "../stores/selection-store";
 import { createWorkspaceStore } from "../stores/workspace-store";
 import { createAppHooksStore, type AppHooksStore } from "../shared/misc/hooks";
 import { detectWebviewKind, type WebviewKind } from "../shared/webview-kind";
+import { getCachedInspectorNodeSnapshot } from "../features/inspector/inspector-node-snapshot-cache";
 import type {
     DocumentState,
     EditorCommand,
@@ -132,30 +133,41 @@ export const useInspectorPaneState = () => {
     const document = useDocumentStore((state) => state.persistedTree);
     const alertReload = useDocumentStore((state) => state.alertReload);
     const pendingExternalContent = useDocumentStore((state) => state.pendingExternalContent);
-    const selectedNode = useSelectionStore((state) => state.selectedNodeSnapshot);
+    const filePath = useWorkspaceStore((state) => state.filePath);
+    const selectedNodeRef = useSelectionStore((state) => state.selectedNodeRef);
+    const rawSelectedNode = useSelectionStore((state) => state.selectedNodeSnapshot);
+    const selectedNode =
+        rawSelectedNode ?? getCachedInspectorNodeSnapshot(filePath, selectedNodeRef);
 
     return {
         document,
         alertReload,
         pendingExternalContent,
         selectedNode,
+        selectedNodeRef,
     };
 };
 
 export const useNodeInspectorState = () => {
     // Keep inspector selectors centralized so the form tree does not subscribe to whole stores.
     const document = useDocumentStore((state) => state.persistedTree);
-    const selectedNode = useSelectionStore((state) => state.selectedNodeSnapshot);
+    const filePath = useWorkspaceStore((state) => state.filePath);
+    const selectedNodeRef = useSelectionStore((state) => state.selectedNodeRef);
+    const rawSelectedNode = useSelectionStore((state) => state.selectedNodeSnapshot);
+    const selectedNode =
+        rawSelectedNode ?? getCachedInspectorNodeSnapshot(filePath, selectedNodeRef);
     const nodeDefs = useWorkspaceStore((state) => state.nodeDefs);
     const usingVars = useWorkspaceStore((state) => state.usingVars);
     const usingGroups = useWorkspaceStore((state) => state.usingGroups);
     const allFiles = useWorkspaceStore((state) => state.allFiles);
     const checkExpr = useWorkspaceStore((state) => state.settings.checkExpr);
     const nodeCheckDiagnostics = useWorkspaceStore((state) => state.nodeCheckDiagnostics);
+    const pendingSelectedNodeSnapshot = !rawSelectedNode && Boolean(selectedNodeRef && selectedNode);
 
     return {
         document,
         selectedNode,
+        pendingSelectedNodeSnapshot,
         nodeDefs,
         usingVars,
         usingGroups,

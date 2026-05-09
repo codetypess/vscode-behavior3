@@ -44,6 +44,8 @@ Inspector 不只是字段表单，还需要表达：
 ### Node Selected
 
 - 显示 Node Inspector
+- 若 host 已确认当前为 node selection，但新文档 graph 仍在重建、`selectedNodeSnapshot` 尚未恢复，Inspector 仍停留在 node 通道，并显示 pending/loading 态，而不是闪回 Tree Inspector
+- 若当前文档此前已经成功渲染过同一逻辑节点，Inspector 可先复用该文档缓存的 node snapshot，待真实 snapshot 恢复后再覆盖，从而避免重复 loading 动画
 
 ### Reload Conflict
 
@@ -122,6 +124,7 @@ Inspector 不只是字段表单，还需要表达：
 12. output slots
 13. structured args
 14. raw node JSON fallback（仅未知节点）
+15. edit subtree action（仅可打开 subtree 的节点）
 
 ### Readonly Meta
 
@@ -153,6 +156,12 @@ Inspector 不只是字段表单，还需要表达：
 
 - 当前 nodeDef 不存在时，不渲染结构化 args
 - 显示原始节点 JSON 只读视图
+
+### Edit Subtree Action
+
+- 若当前节点自身存在 `path`，或其 `ref.subtreeStack` 非空，则 Node Inspector 底部显示全宽“编辑子树”按钮
+- 该按钮复用 `openSelectedSubtree()` 语义，不单独派生路径或目标节点 identity
+- subtree link 节点与 materialized subtree 内部节点都可通过该入口打开对应 subtree
 
 ## Override Contract
 

@@ -69,6 +69,9 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(() => {
         syncActiveInspectorDocument();
     }));
+    context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabGroups(() => {
+        syncActiveInspectorDocument();
+    }));
     context.subscriptions.push(vscode.window.onDidChangeActiveColorTheme(() => {
         inspectorCoordinator.setTheme(getVSCodeTheme());
     }));

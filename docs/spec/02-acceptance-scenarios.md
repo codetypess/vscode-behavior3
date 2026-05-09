@@ -19,6 +19,8 @@
 - 激活某个 Behavior3 编辑器时，Inspector Sidebar 自动切到该文档上下文
 - 点击画布空白处时，侧栏显示 Tree Inspector
 - 点击节点或右键节点时，侧栏切换到对应 Node Inspector
+- 在两个都已有 node selection 的 Behavior3 tab 之间切换时，Inspector 不会先闪回 Tree Inspector 再切回 Node Inspector
+- 若两个 tab 都已经在 sidebar 中展示过对应节点，来回切换时 Inspector 不应只在某一侧额外出现 node loading 动画
 - 没有激活 Behavior3 编辑器时，侧栏显示空状态而不是陈旧数据
 
 ### BB-03 节点选中、搜索与变量聚焦
@@ -81,6 +83,7 @@
 
 - 节点 `path` 指向的 subtree 可被打开到对应 Behavior3 编辑器
 - 从主树双击 materialized subtree 节点进入 subtree 时，新编辑器会定位到对应的 subtree 源节点，并将其带入当前视图
+- 从 Node Inspector 点击“编辑子树”时，subtree link 节点与 materialized subtree 内部节点都会进入对应 subtree，并定位到当前节点对应的 subtree 源节点
 - `Save as subtree` 会把当前选中子树序列化为新文件，并把原节点替换为 subtree link
 - 会话只跟踪“当前主树可达”的 subtree 集合
 - 被跟踪 subtree 保存或修改后，父编辑器收到 `subtreeFileChanged` 并重建解析结果

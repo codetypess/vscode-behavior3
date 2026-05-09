@@ -3,6 +3,7 @@ import type { MenuProps } from "antd";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useGraphPaneState, useRuntime } from "../../app/runtime";
+import { canOpenSubtreeTarget } from "../../domain/subtree-navigation";
 import { Hotkey, isMacos, useKeyPress } from "../../shared/misc/keys";
 import { SearchBar } from "../search/search-bar";
 
@@ -51,9 +52,7 @@ export const GraphPane: React.FC = () => {
         selectedNodeRef?.structuralStableId &&
         selectedNodeRef.structuralStableId === rootStableId
     );
-    const canOpenSubtree = Boolean(
-        selectedNode?.data.path || (selectedNodeRef?.subtreeStack.length ?? 0) > 0
-    );
+    const canOpenSubtree = canOpenSubtreeTarget(selectedNode?.data.path, selectedNodeRef);
 
     const menuItems = useMemo<MenuProps["items"]>(() => {
         const renderItem = (label: string, shortcut?: string) => (

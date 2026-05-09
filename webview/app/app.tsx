@@ -28,10 +28,6 @@ const AppShell: React.FC = () => {
             const text =
                 event.message.trim() || i18n.t(event.success ? "build.success" : "build.failed");
             void (event.success ? messageApi.success(text) : messageApi.error(text));
-            runtime.hostAdapter.log(
-                event.success ? "info" : "warn",
-                `[v2] build result: ${event.message}`
-            );
         };
 
         const handleHostMessage = (hostEvent: HostEvent) => {
@@ -94,6 +90,41 @@ const AppShell: React.FC = () => {
         runtime.hostAdapter.sendReady();
         return off;
     }, [messageApi, runtime]);
+
+    useEffect(() => {
+        const syncVisibleEditorSelection = () => {
+            if (typeof document === "undefined" || document.visibilityState !== "visible") {
+                return;
+            }
+
+            const graphSelectionKey =
+                runtime.graphUiStore.getState().selectionVisualHint?.selectedNodeKey ??
+                runtime.selectionStore.getState().selectedNodeKey;
+
+            if (graphSelectionKey) {
+                void runtime.controller.selectNode(graphSelectionKey, { force: true });
+                return;
+            }
+
+            if (runtime.selectionStore.getState().selectedTree) {
+                void runtime.controller.selectTree();
+            }
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState !== "visible") {
+                return;
+            }
+            syncVisibleEditorSelection();
+        };
+
+        window.addEventListener("focus", syncVisibleEditorSelection);
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        return () => {
+            window.removeEventListener("focus", syncVisibleEditorSelection);
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+        };
+    }, [runtime]);
 
     useLayoutEffect(() => {
         applyDocumentTheme(theme);

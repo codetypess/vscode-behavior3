@@ -404,6 +404,13 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         webviewPanel: vscode.WebviewPanel,
         _token: vscode.CancellationToken
     ): Promise<void> {
+        webviewPanel.onDidChangeViewState(() => {
+            if (!webviewPanel.active) {
+                return;
+            }
+            this.inspectorCoordinator.setActiveDocument(document.uri.toString());
+        });
+
         const initialSelection =
             this.documentSelections.get(document.uri.toString()) ?? ({ kind: "tree" } as const);
         const initialRevealTarget =

@@ -83,6 +83,7 @@ export interface ControllerRuntime {
     showSelectionVisualHint(selectedNodeKey: string | null): Promise<void>;
     setNextGraphRenderAnchor(nodeKey: string | null): void;
     resetGraphUiState(): void;
+    stageHostSelectionState(selection: HostSelectionState): void;
     applyHostSelectionState(selection: HostSelectionState): void;
     revealNode(target: NodeInstanceRef): Promise<void>;
     getSelectedResolvedNode(): ResolvedNodeModel | null;
@@ -105,6 +106,9 @@ export const cloneVars = <T extends { name: string; desc: string }>(entries: T[]
     entries.map((entry) => ({ ...entry }));
 
 export { isJsonEqual };
+
+const isSameSubtreeStack = (left: readonly string[], right: readonly string[]) =>
+    left.length === right.length && left.every((value, index) => value === right[index]);
 
 export const buildUsingGroups = (groupNames: string[]): Record<string, boolean> | null => {
     if (groupNames.length === 0) {
@@ -220,37 +224,66 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         selectedNodeSnapshot: null,
     });
 
-    const resolveSelectionRef = (ref: NodeInstanceRef): ResolvedNodeModel | null => {
+    const hasSameSelectionContext = (left: NodeInstanceRef, right: NodeInstanceRef) =>
+        left.sourceTreePath === right.sourceTreePath &&
+        isSameSubtreeStack(left.subtreeStack, right.subtreeStack);
+
+    const resolveSelectionTarget = (ref: NodeInstanceRef): ResolvedNodeModel | null => {
         if (!resolvedGraph) {
             return null;
         }
 
-        // Host snapshots can arrive after graph rebuilds; progressively relax identity to keep focus useful.
+        // Instance keys are only trusted when the rest of the subtree identity still matches.
         const direct = resolvedGraph.nodesByInstanceKey[ref.instanceKey];
-        if (direct) {
+        if (
+            direct &&
+            direct.ref.structuralStableId === ref.structuralStableId &&
+            direct.ref.sourceStableId === ref.sourceStableId &&
+            hasSameSelectionContext(direct.ref, ref)
+        ) {
             return direct;
         }
 
         const nodes = Object.values(resolvedGraph.nodesByInstanceKey);
-        return (
-            nodes.find(
-                (node) =>
-                    node.ref.structuralStableId === ref.structuralStableId &&
-                    node.ref.sourceStableId === ref.sourceStableId &&
-                    node.ref.sourceTreePath === ref.sourceTreePath
-            ) ??
-            nodes.find(
-                (node) =>
-                    node.ref.sourceStableId === ref.sourceStableId &&
-                    node.ref.sourceTreePath === ref.sourceTreePath
-            ) ??
-            nodes.find((node) => node.ref.structuralStableId === ref.structuralStableId) ??
-            null
+        const exact = nodes.find(
+            (node) =>
+                node.ref.structuralStableId === ref.structuralStableId &&
+                node.ref.sourceStableId === ref.sourceStableId &&
+                hasSameSelectionContext(node.ref, ref)
         );
+        if (exact) {
+            return exact;
+        }
+
+        const bySource = nodes.find(
+            (node) =>
+                node.ref.sourceStableId === ref.sourceStableId &&
+                hasSameSelectionContext(node.ref, ref)
+        );
+        if (bySource) {
+            return bySource;
+        }
+
+        const byStructuralInContext = nodes.find(
+            (node) =>
+                node.ref.structuralStableId === ref.structuralStableId &&
+                hasSameSelectionContext(node.ref, ref)
+        );
+        if (byStructuralInContext) {
+            return byStructuralInContext;
+        }
+
+        if (ref.sourceTreePath === null && ref.subtreeStack.length === 0) {
+            return (
+                nodes.find((node) => node.ref.structuralStableId === ref.structuralStableId) ?? null
+            );
+        }
+
+        return null;
     };
 
     const projectSelectionRef = (ref: NodeInstanceRef): SelectionPatch => {
-        const resolvedNode = resolveSelectionRef(ref);
+        const resolvedNode = resolveSelectionTarget(ref);
         if (resolvedNode) {
             return buildResolvedNodeSelectionPatch(resolvedNode.ref.instanceKey) ?? {};
         }
@@ -270,6 +303,17 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
 
     const applyTreeSelectionProjection = () => {
         updateSelectionState(() => buildTreeSelectionPatch());
+    };
+
+    const clearSelectionVisualHint = () => {
+        // Host selection is authoritative; clear optimistic local hints once a snapshot catches up.
+        updateGraphUiState((state) =>
+            state.selectionVisualHint
+                ? {
+                      selectionVisualHint: null,
+                  }
+                : {}
+        );
     };
 
     const getCurrentGraphSelectionState = (): GraphSelectionState =>
@@ -303,7 +347,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             return false;
         }
 
-        const target = resolveSelectionRef(pendingRevealTarget);
+        const target = resolveSelectionTarget(pendingRevealTarget);
         if (!target) {
             return false;
         }
@@ -313,15 +357,18 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         return true;
     };
 
+    const stageHostSelectionState = (selection: HostSelectionState) => {
+        clearSelectionVisualHint();
+        if (selection.kind === "tree") {
+            applyTreeSelectionProjection();
+            return;
+        }
+
+        updateSelectionState(() => buildPendingNodeSelectionPatch(selection.ref));
+    };
+
     const applyHostSelectionState = (selection: HostSelectionState) => {
-        // Host selection is authoritative; clear optimistic local hints once a snapshot catches up.
-        updateGraphUiState((state) =>
-            state.selectionVisualHint
-                ? {
-                      selectionVisualHint: null,
-                  }
-                : {}
-        );
+        clearSelectionVisualHint();
         if (selection.kind === "tree") {
             applyTreeSelectionProjection();
             return;
@@ -624,7 +671,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             return;
         }
 
-        const fallback = resolveSelectionRef(selection.selectedNodeRef);
+        const fallback = resolveSelectionTarget(selection.selectedNodeRef);
 
         if (!fallback) {
             updateSelectionState(() => projectSelectionRef(selection.selectedNodeRef!));
@@ -758,6 +805,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         showSelectionVisualHint,
         setNextGraphRenderAnchor,
         resetGraphUiState,
+        stageHostSelectionState,
         applyHostSelectionState,
         revealNode,
         getSelectedResolvedNode,

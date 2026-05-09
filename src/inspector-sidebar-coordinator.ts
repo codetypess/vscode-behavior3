@@ -128,7 +128,6 @@ export class InspectorSidebarCoordinator {
         if (!isJsonEqual(previous.varsMessage, snapshot.varsMessage)) {
             void this.postMessage(snapshot.varsMessage);
         }
-
     }
 
     removeSession(documentUri: string): void {

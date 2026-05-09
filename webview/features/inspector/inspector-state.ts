@@ -18,6 +18,7 @@ export const useNodeInspectorViewState = (form: FormInstance) => {
     const {
         document,
         selectedNode,
+        pendingSelectedNodeSnapshot,
         nodeDefs,
         usingVars,
         usingGroups,
@@ -43,6 +44,7 @@ export const useNodeInspectorViewState = (form: FormInstance) => {
     return {
         document,
         selectedNode,
+        pendingSelectedNodeSnapshot,
         nodeDefs,
         usingVars,
         usingGroups,

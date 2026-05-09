@@ -228,6 +228,7 @@ Scope: <short boundary>
 
 ## Done Work Items
 
+- `inspector-edit-subtree-button.md` - `Done` - 为 Inspector 子树跳转补齐目标子树活动上下文与选中同步
 - `subtree-open-target-selection.md` - `Done` - 打开 subtree 时按双击命中的源节点 stable id 把目标编辑器定位并聚焦到对应 subtree 节点
 - `subtree-default-arg-override-alignment.md` - `Done` - 让 subtree `subtreeOriginal` 与当前 resolved node 使用相同的默认参数归一化，避免默认值被误判成 override
 - `helper-boundary-cleanup.md` - `Done` - 收敛 shared/domain/helper 边界，移动保存序列化 helper，并拆分 Inspector 纯 helper

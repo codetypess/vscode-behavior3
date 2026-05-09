@@ -23,7 +23,14 @@ import {
 import { eventHasShapeClass } from "../webview/adapters/graph/graph-event-shape";
 import { handleNativeWheelZoom } from "../webview/adapters/graph/g6-wheel-zoom";
 import { buildResolvedGraphModel } from "../webview/domain/graph-selectors";
+import { resolveDocumentGraph } from "../webview/domain/resolve-graph";
+import { canOpenSubtreeTarget } from "../webview/domain/subtree-navigation";
 import { collectResolvedNodeDiagnostics } from "../webview/domain/tree-validation";
+import {
+    cloneInspectorNodeSnapshotForRef,
+    resolveCachedInspectorNodeSnapshot,
+} from "../webview/features/inspector/inspector-node-snapshot-cache";
+import { getInspectorPaneMode } from "../webview/features/inspector/inspector-pane-mode";
 import {
     formatArgInitialValue,
     parseArgSubmitValue,
@@ -87,6 +94,133 @@ const createTestTree = (): PersistedTreeModel => ({
 });
 
 const tests: Array<{ name: string; run(): Promise<void> | void }> = [
+    {
+        name: "detects whether a node can open its subtree target",
+        run() {
+            assert.equal(canOpenSubtreeTarget("sub/tree.json", null), true);
+            assert.equal(
+                canOpenSubtreeTarget(undefined, {
+                    subtreeStack: [parseWorkdirRelativeJsonPath("sub/tree.json")!],
+                }),
+                true
+            );
+            assert.equal(canOpenSubtreeTarget(undefined, { subtreeStack: [] }), false);
+            assert.equal(canOpenSubtreeTarget(undefined, null), false);
+        },
+    },
+    {
+        name: "keeps inspector in node mode while a host-selected node snapshot is still pending",
+        run() {
+            const pendingNodeRef: NodeInstanceRef = {
+                instanceKey: "2",
+                displayId: "2",
+                structuralStableId: "child",
+                sourceStableId: "child",
+                sourceTreePath: null,
+                subtreeStack: [],
+            };
+
+            assert.equal(
+                getInspectorPaneMode({
+                    documentPresent: false,
+                    selectedNodeRef: null,
+                    selectedNode: null,
+                }),
+                "skeleton"
+            );
+            assert.equal(
+                getInspectorPaneMode({
+                    documentPresent: true,
+                    selectedNodeRef: null,
+                    selectedNode: null,
+                }),
+                "tree"
+            );
+            assert.equal(
+                getInspectorPaneMode({
+                    documentPresent: true,
+                    selectedNodeRef: pendingNodeRef,
+                    selectedNode: null,
+                }),
+                "node-pending"
+            );
+            assert.equal(
+                getInspectorPaneMode({
+                    documentPresent: true,
+                    selectedNodeRef: pendingNodeRef,
+                    selectedNode: {
+                        ref: pendingNodeRef,
+                        data: {
+                            uuid: "child",
+                            id: "2",
+                            name: "Action",
+                        },
+                        prefix: "",
+                        activeChildCount: 0,
+                        disabled: false,
+                        subtreeNode: false,
+                        subtreeEditable: true,
+                    },
+                }),
+                "node"
+            );
+        },
+    },
+    {
+        name: "reuses cached inspector node snapshots only for the same logical node identity",
+        run() {
+            const cachedRef: NodeInstanceRef = {
+                instanceKey: "5",
+                displayId: "5",
+                structuralStableId: "child",
+                sourceStableId: "child",
+                sourceTreePath: null,
+                subtreeStack: [],
+            };
+            const nextRef: NodeInstanceRef = {
+                ...cachedRef,
+                instanceKey: "12",
+                displayId: "12",
+            };
+            const cachedSnapshot = {
+                ref: cachedRef,
+                data: {
+                    uuid: "child",
+                    id: "5",
+                    name: "Action",
+                },
+                prefix: "",
+                activeChildCount: 0,
+                disabled: false,
+                subtreeNode: false,
+                subtreeEditable: true,
+            };
+
+            assert.deepEqual(
+                resolveCachedInspectorNodeSnapshot(
+                    {
+                        ref: cachedRef,
+                        snapshot: cachedSnapshot,
+                    },
+                    nextRef
+                ),
+                cloneInspectorNodeSnapshotForRef(cachedSnapshot, nextRef)
+            );
+            assert.equal(
+                resolveCachedInspectorNodeSnapshot(
+                    {
+                        ref: cachedRef,
+                        snapshot: cachedSnapshot,
+                    },
+                    {
+                        ...nextRef,
+                        structuralStableId: "other-child",
+                    }
+                ),
+                null
+            );
+        },
+    },
     {
         name: "normalizes legacy node definitions",
         run() {
@@ -2536,6 +2670,154 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
         },
     },
     {
+        name: "opens subtree from inspector-selected subtree-internal nodes via subtree stack fallback",
+        async run() {
+            const documentStore = createDocumentStore();
+            const workspaceStore = createWorkspaceStore();
+            const selectionStore = createSelectionStore();
+            const graphUiStore = createGraphUiStore();
+            const appHooks = createAppHooksStore();
+            const readCalls: Array<{
+                path: string;
+                opts?: { openIfSubtree?: boolean; openSelection?: NodeInstanceRef };
+            }> = [];
+
+            appHooks.bind({
+                message: {
+                    success() {},
+                    error() {},
+                } as any,
+                notification: {} as any,
+                modal: {} as any,
+            });
+
+            const hostAdapter: HostAdapter = {
+                connect: () => () => {},
+                sendReady() {},
+                undo() {},
+                redo() {},
+                async mutateDocument() {
+                    return { success: true };
+                },
+                selectTree() {},
+                selectNode() {},
+                requestFocusVariable() {},
+                sendRequestSetting() {},
+                sendBuild() {},
+                async validateNodeChecks() {
+                    return { diagnostics: [] };
+                },
+                async saveDocument() {
+                    return { success: true };
+                },
+                async revertDocument() {
+                    return { success: true };
+                },
+                async readFile(path, opts) {
+                    readCalls.push({ path, opts });
+                    return { content: null };
+                },
+                async saveSubtree() {
+                    return { success: true };
+                },
+                async saveSubtreeAs() {
+                    return { savedPath: null };
+                },
+                log() {},
+            };
+            const graphAdapter: GraphAdapter = {
+                async mount() {},
+                unmount() {},
+                async render() {},
+                async applySelection() {},
+                async applyHighlights() {},
+                async applySearch() {},
+                async focusNode() {},
+                async restoreViewport() {},
+                getViewport: () => ({ zoom: 1, x: 0, y: 0 }),
+            };
+
+            const controller = createEditorController({
+                documentStore,
+                workspaceStore,
+                selectionStore,
+                graphUiStore,
+                hostAdapter,
+                graphAdapter,
+                appHooks,
+            });
+
+            const tree = createTestTree();
+            tree.root.children = [
+                {
+                    uuid: "sub-link",
+                    id: "2",
+                    name: "SubtreeRef",
+                    path: "sub/tree.json" as any,
+                },
+            ];
+            const content = serializePersistedTree(tree);
+
+            await controller.initFromHost({
+                filePath: "/tmp/main.json",
+                workdir: "/tmp",
+                content,
+                nodeDefs: [
+                    {
+                        name: "Sequence",
+                        type: "Composite",
+                        desc: "",
+                        status: ["success"],
+                    },
+                    {
+                        name: "SubtreeRef",
+                        type: "Action",
+                        desc: "",
+                    },
+                ],
+                allFiles: ["sub/tree.json" as any],
+                settings: {
+                    checkExpr: true,
+                    subtreeEditable: true,
+                    language: "en",
+                    theme: "light",
+                },
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: content,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: { kind: "tree" },
+            });
+
+            readCalls.length = 0;
+
+            await controller.openSelectedSubtree({
+                instanceKey: "sub-child",
+                displayId: "",
+                structuralStableId: "sub-child",
+                sourceStableId: "sub-child",
+                sourceTreePath: "sub/tree.json" as any,
+                subtreeStack: ["sub/tree.json" as any],
+            });
+
+            assert.equal(readCalls.length, 1);
+            assert.equal(readCalls[0]?.path, "sub/tree.json");
+            assert.equal(readCalls[0]?.opts?.openIfSubtree, true);
+            assert.deepEqual(readCalls[0]?.opts?.openSelection, {
+                instanceKey: "sub-child",
+                displayId: "",
+                structuralStableId: "sub-child",
+                sourceStableId: "sub-child",
+                sourceTreePath: null,
+                subtreeStack: [],
+            });
+        },
+    },
+    {
         name: "does not write subtree files during subtree cache sync",
         async run() {
             const documentStore = createDocumentStore();
@@ -4498,6 +4780,7 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             const graphUiStore = createGraphUiStore();
             const appHooks = createAppHooksStore();
             const focusedNodeKeys: string[] = [];
+            let appliedSelectionKey: string | null = null;
 
             appHooks.bind({
                 message: {
@@ -4545,7 +4828,9 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
                 async mount() {},
                 unmount() {},
                 async render() {},
-                async applySelection() {},
+                async applySelection(payload) {
+                    appliedSelectionKey = payload.selectedNodeKey;
+                },
                 async applyHighlights() {},
                 async applySearch() {},
                 async focusNode(nodeKey) {
@@ -4641,6 +4926,252 @@ const tests: Array<{ name: string; run(): Promise<void> | void }> = [
             });
 
             assert.deepEqual(focusedNodeKeys, ["3"]);
+            assert.equal(selectionStore.getState().selectedNodeRef?.structuralStableId, "child-b");
+            assert.equal(selectionStore.getState().selectedNodeSnapshot?.data.uuid, "child-b");
+            assert.equal(appliedSelectionKey, "3");
+        },
+    },
+    {
+        name: "full host init restores subtree selections against the rebuilt document graph",
+        async run() {
+            const documentStore = createDocumentStore();
+            const workspaceStore = createWorkspaceStore();
+            const selectionStore = createSelectionStore();
+            const graphUiStore = createGraphUiStore();
+            const appHooks = createAppHooksStore();
+            let appliedSelectionKey: string | null = null;
+
+            appHooks.bind({
+                message: {
+                    success() {},
+                    error() {},
+                } as any,
+                notification: {} as any,
+                modal: {} as any,
+            });
+
+            const mainTree = createTestTree();
+            mainTree.root.children = [
+                {
+                    uuid: "main-link",
+                    id: "2",
+                    name: "SubtreeRef",
+                    path: "sub/outer.json" as any,
+                },
+            ];
+            const outerTree = createTestTree();
+            outerTree.root.uuid = "outer-root";
+            outerTree.root.id = "1";
+            outerTree.root.name = "OuterRoot";
+            outerTree.root.children = [
+                {
+                    uuid: "outer-link",
+                    id: "2",
+                    name: "SubtreeRef",
+                    path: "sub/deep.json" as any,
+                },
+            ];
+            const deepTree = createTestTree();
+            deepTree.root.uuid = "deep-root";
+            deepTree.root.id = "1";
+            deepTree.root.name = "DeepRoot";
+            deepTree.root.children = [
+                {
+                    uuid: "deep-leaf",
+                    id: "2",
+                    name: "DeepLeaf",
+                },
+            ];
+
+            const mainContent = serializePersistedTree(mainTree);
+            const outerContent = serializePersistedTree(outerTree);
+            const deepContent = serializePersistedTree(deepTree);
+
+            const hostAdapter: HostAdapter = {
+                connect: () => () => {},
+                sendReady() {},
+                undo() {},
+                redo() {},
+                async mutateDocument() {
+                    return { success: true };
+                },
+                selectTree() {},
+                selectNode() {},
+                requestFocusVariable() {},
+                sendRequestSetting() {},
+                sendBuild() {},
+                async validateNodeChecks() {
+                    return { diagnostics: [] };
+                },
+                async saveDocument() {
+                    return { success: true };
+                },
+                async revertDocument() {
+                    return { success: true };
+                },
+                async readFile(path) {
+                    if (path === "sub/outer.json") {
+                        return { content: outerContent };
+                    }
+                    if (path === "sub/deep.json") {
+                        return { content: deepContent };
+                    }
+                    return { content: null };
+                },
+                async saveSubtree() {
+                    return { success: true };
+                },
+                async saveSubtreeAs() {
+                    return { savedPath: null };
+                },
+                log() {},
+            };
+            const graphAdapter: GraphAdapter = {
+                async mount() {},
+                unmount() {},
+                async render() {},
+                async applySelection(payload) {
+                    appliedSelectionKey = payload.selectedNodeKey;
+                },
+                async applyHighlights() {},
+                async applySearch() {},
+                async focusNode() {},
+                async restoreViewport() {},
+                getViewport: () => ({ zoom: 1, x: 0, y: 0 }),
+            };
+            const controller = createEditorController({
+                documentStore,
+                workspaceStore,
+                selectionStore,
+                graphUiStore,
+                hostAdapter,
+                graphAdapter,
+                appHooks,
+            });
+
+            const nodeDefs: NodeDef[] = [
+                {
+                    name: "Sequence",
+                    type: "Composite",
+                    desc: "",
+                    status: ["success"],
+                },
+                {
+                    name: "SubtreeRef",
+                    type: "Action",
+                    desc: "",
+                },
+                {
+                    name: "OuterRoot",
+                    type: "Composite",
+                    desc: "",
+                    status: ["success"],
+                },
+                {
+                    name: "DeepRoot",
+                    type: "Composite",
+                    desc: "",
+                    status: ["success"],
+                },
+                {
+                    name: "DeepLeaf",
+                    type: "Action",
+                    desc: "",
+                },
+            ];
+
+            await controller.initFromHost({
+                filePath: "/tmp/sub/outer.json",
+                workdir: "/tmp",
+                content: outerContent,
+                nodeDefs,
+                allFiles: ["sub/outer.json" as any, "sub/deep.json" as any],
+                settings: {
+                    checkExpr: true,
+                    subtreeEditable: true,
+                    language: "en",
+                    theme: "light",
+                },
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: outerContent,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: { kind: "tree" },
+            });
+
+            const mainGraph = resolveDocumentGraph({
+                persistedTree: mainTree,
+                subtreeSources: {
+                    "sub/outer.json": parsePersistedTreeContent(
+                        outerContent,
+                        "/tmp/sub/outer.json"
+                    ),
+                    "sub/deep.json": parsePersistedTreeContent(
+                        deepContent,
+                        "/tmp/sub/deep.json"
+                    ),
+                },
+                nodeDefs,
+                subtreeEditable: true,
+            }).graph;
+
+            const nestedSubtreeRoot =
+                Object.values(mainGraph.nodesByInstanceKey).find(
+                    (node) =>
+                        node.ref.sourceStableId === "deep-root" &&
+                        node.ref.sourceTreePath === ("sub/deep.json" as any) &&
+                        node.ref.subtreeStack.length === 2 &&
+                        node.ref.subtreeStack[0] === ("sub/outer.json" as any) &&
+                        node.ref.subtreeStack[1] === ("sub/deep.json" as any)
+                )?.ref ?? null;
+
+            assert.ok(nestedSubtreeRoot);
+            assert.equal(nestedSubtreeRoot.instanceKey, "3");
+
+            await controller.initFromHost({
+                filePath: "/tmp/main.json",
+                workdir: "/tmp",
+                content: mainContent,
+                nodeDefs,
+                allFiles: ["sub/outer.json" as any, "sub/deep.json" as any],
+                settings: {
+                    checkExpr: true,
+                    subtreeEditable: true,
+                    language: "en",
+                    theme: "light",
+                },
+                documentSession: {
+                    dirty: false,
+                    historyIndex: 0,
+                    historyLength: 1,
+                    lastSavedSnapshot: mainContent,
+                    alertReload: false,
+                    pendingExternalContent: null,
+                },
+                selection: {
+                    kind: "node",
+                    ref: nestedSubtreeRoot,
+                },
+            });
+
+            assert.equal(selectionStore.getState().selectedNodeRef?.sourceStableId, "deep-root");
+            assert.equal(
+                selectionStore.getState().selectedNodeRef?.sourceTreePath,
+                "sub/deep.json"
+            );
+            assert.deepEqual(selectionStore.getState().selectedNodeRef?.subtreeStack, [
+                "sub/outer.json",
+                "sub/deep.json",
+            ]);
+            assert.equal(selectionStore.getState().selectedNodeSnapshot?.data.uuid, "deep-root");
+            assert.equal(
+                appliedSelectionKey,
+                selectionStore.getState().selectedNodeRef?.instanceKey ?? null
+            );
         },
     },
     {

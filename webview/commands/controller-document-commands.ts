@@ -46,7 +46,9 @@ export const createDocumentCommands = (
                 usingGroups: buildUsingGroups(persistedTree.group),
             }));
             runtime.resetGraphUiState();
-            runtime.applyHostSelectionState(payload.selection);
+            // Full init can follow a different active document, so defer selection projection
+            // until the new document graph is available.
+            runtime.stageHostSelectionState(payload.selection);
 
             await runtime.applyDocumentTree(persistedTree, {
                 preserveSelection: true,
@@ -59,15 +61,18 @@ export const createDocumentCommands = (
             applyHostDocumentSession(deps.documentStore, snapshot.documentSession);
 
             const matchesCurrent = runtime.matchesCurrentDocumentSnapshot(snapshot.content);
-            runtime.applyHostSelectionState(snapshot.selection);
             if (!matchesCurrent && snapshot.syncKind === "reload") {
                 runtime.resetGraphUiState();
             }
             if (matchesCurrent) {
+                runtime.applyHostSelectionState(snapshot.selection);
                 await runtime.applyVisualState();
                 return;
             }
 
+            // Content changes invalidate the current resolved graph; keep the host ref pending
+            // and restore it against the rebuilt graph instead of projecting through stale nodes.
+            runtime.stageHostSelectionState(snapshot.selection);
             const filePath = deps.workspaceStore.getState().filePath || undefined;
             const tree = parsePersistedTreeContent(snapshot.content, filePath);
             await runtime.applyDocumentTree(tree, {
