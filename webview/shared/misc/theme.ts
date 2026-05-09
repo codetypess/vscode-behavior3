@@ -9,6 +9,8 @@ type ThemePalette = {
     elevatedBg: string;
     inputBg: string;
     inputBorder: string;
+    overlayBg: string;
+    overlayBorder: string;
     panelBorder: string;
     text: string;
     textSecondary: string;
@@ -102,6 +104,26 @@ const getThemePalette = (mode: ThemeMode, webviewKind: WebviewKind): ThemePalett
             ["--vscode-input-border", "--vscode-panel-border", "--vscode-sideBar-border"],
             isDark ? "#30363d" : "#d0d7de"
         ),
+        overlayBg: resolveCssVariable(
+            [
+                "--vscode-editorWidget-background",
+                "--vscode-quickInput-background",
+                "--vscode-input-background",
+                "--vscode-sideBarSectionHeader-background",
+                "--vscode-sideBar-background",
+            ],
+            isDark ? "#161b22" : "#ffffff"
+        ),
+        overlayBorder: resolveCssVariable(
+            [
+                "--vscode-editorWidget-border",
+                "--vscode-widget-border",
+                "--vscode-input-border",
+                "--vscode-panel-border",
+                "--vscode-sideBar-border",
+            ],
+            isDark ? "#30363d" : "#d0d7de"
+        ),
         panelBorder: resolveCssVariable(
             isInspectorSidebar
                 ? [
@@ -178,6 +200,7 @@ const getThemePalette = (mode: ThemeMode, webviewKind: WebviewKind): ThemePalett
 };
 
 const getInputShadow = (color: string) => `0 0 0 1px ${color}`;
+const getOverlayShadow = (borderColor: string) => `0 0 0 1px ${borderColor}`;
 
 const buildThemeConfig = (mode: ThemeMode, webviewKind: WebviewKind): ThemeConfig => {
     const palette = getThemePalette(mode, webviewKind);
@@ -224,6 +247,8 @@ const buildThemeConfig = (mode: ThemeMode, webviewKind: WebviewKind): ThemeConfi
                 lightTriggerColor: palette.text,
             },
             Input: {
+                colorBgContainer: palette.inputBg,
+                colorBorder: palette.inputBorder,
                 addonBg: palette.elevatedBg,
                 activeBg: palette.inputBg,
                 hoverBg: palette.inputBg,
@@ -234,6 +259,8 @@ const buildThemeConfig = (mode: ThemeMode, webviewKind: WebviewKind): ThemeConfi
                 warningActiveShadow: getInputShadow(palette.warning),
             },
             InputNumber: {
+                colorBgContainer: palette.inputBg,
+                colorBorder: palette.inputBorder,
                 addonBg: palette.elevatedBg,
                 activeBg: palette.inputBg,
                 hoverBg: palette.inputBg,
@@ -247,6 +274,10 @@ const buildThemeConfig = (mode: ThemeMode, webviewKind: WebviewKind): ThemeConfi
                 handleHoverColor: palette.focusBorder,
             },
             Select: {
+                colorBgContainer: palette.inputBg,
+                colorBgElevated: palette.overlayBg,
+                colorBorder: palette.inputBorder,
+                boxShadowSecondary: getOverlayShadow(palette.overlayBorder),
                 selectorBg: palette.inputBg,
                 clearBg: palette.inputBg,
                 hoverBorderColor: palette.focusBorder,

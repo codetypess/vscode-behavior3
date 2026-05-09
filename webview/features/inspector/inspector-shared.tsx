@@ -71,6 +71,11 @@ export const createInspectorLabelProps = (text: string, required = false) => ({
     colon: false as const,
 });
 
+export const createInspectorSwitchLabelProps = (text: string, required = false) => ({
+    ...createInspectorLabelProps(text, required),
+    htmlFor: undefined,
+});
+
 export const VariableDeclRow: React.FC<{
     value?: VariableRowValue;
     disabled?: boolean;

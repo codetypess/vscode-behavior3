@@ -9,6 +9,7 @@ import {
     SectionDivider,
     VariableDeclRow,
     createInspectorLabelProps,
+    createInspectorSwitchLabelProps,
     filterOptionByLabel,
 } from "./inspector-shared";
 import type { VariableRowValue } from "./inspector-variable-options";
@@ -63,7 +64,7 @@ const TreeMetaFields: React.FC<{
                 <Input disabled={readOnly} onBlur={() => commitFields(["prefix"])} />
             </Form.Item>
             <Form.Item
-                {...createInspectorLabelProps(t("tree.export"))}
+                {...createInspectorSwitchLabelProps(t("tree.export"))}
                 name="export"
                 valuePropName="checked"
             >

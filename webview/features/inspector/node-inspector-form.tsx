@@ -37,6 +37,7 @@ import {
     OverrideBar,
     SectionDivider,
     createInspectorLabelProps,
+    createInspectorSwitchLabelProps,
     filterOptionByLabel,
 } from "./inspector-shared";
 import {
@@ -150,7 +151,7 @@ const NodeArgField: React.FC<{
     if (isBoolType(type)) {
         return (
             <Form.Item
-                {...argLabelProps}
+                {...createInspectorSwitchLabelProps(argLabel, required)}
                 name={["args", arg.name]}
                 valuePropName="checked"
                 rules={[{ validator: validateField }]}
@@ -419,7 +420,7 @@ const NodeMetaFields: React.FC<{
                 onReset={onResetDebug}
             >
                 <Form.Item
-                    {...createInspectorLabelProps(t("node.debug"))}
+                    {...createInspectorSwitchLabelProps(t("node.debug"))}
                     name="debug"
                     valuePropName="checked"
                 >
@@ -438,7 +439,7 @@ const NodeMetaFields: React.FC<{
                 onReset={onResetDisabled}
             >
                 <Form.Item
-                    {...createInspectorLabelProps(t("node.disabled"))}
+                    {...createInspectorSwitchLabelProps(t("node.disabled"))}
                     name="disabled"
                     valuePropName="checked"
                 >
