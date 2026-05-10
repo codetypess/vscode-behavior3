@@ -1,6 +1,6 @@
 # Inspector Commit Service
 
-Status: Approved
+Status: Done
 Date: 2026-05-10
 Scope: Node Inspector commit/reset orchestration and field target consistency
 

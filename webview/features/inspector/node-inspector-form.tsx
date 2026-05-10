@@ -27,10 +27,9 @@ import {
     isNodeArgOptional,
 } from "../../shared/misc/b3util";
 import { useRuntime } from "../../app/runtime";
-import type { NodeCheckDiagnostic, UpdateNodeInput } from "../../shared/contracts";
+import type { NodeCheckDiagnostic } from "../../shared/contracts";
 import { isRequiredNodeArgValueMissing } from "../../domain/tree-validation";
 import {
-    formatArgInitialValue,
     parseArgSubmitValue,
     validateInspectorArgValue,
 } from "./inspector-arg-values";
@@ -43,24 +42,18 @@ import {
 } from "./inspector-shared";
 import { compareJsonValue, validateVariableValue } from "./inspector-validation";
 import type { VariableOption } from "./inspector-variable-options";
-import { queueInspectorTask, trackPendingInspectorEdit } from "./inspector-commit-queue";
 import { useNodeInspectorViewState } from "./inspector-state";
 import {
-    buildCommittedNodeData,
-    buildNodeSlotArray,
-    buildScopedArgs,
-    buildScopedSlotArray,
     createNodeInspectorFormValues,
-    getNodeSlotFormValue,
-    parseVisibleArgs,
     type NodeInspectorFormValues,
 } from "./inspector-form-values";
 import { useInspectorMode } from "./inspector-mode";
+import {
+    type SlotFieldName,
+    useNodeInspectorCommitters,
+} from "./node-inspector-committers";
 
 const { TextArea } = Input;
-
-type SlotFieldName = "inputSlots" | "outputSlots";
-type InspectorFieldTarget = string | Array<string | number>;
 
 const NodeArgField: React.FC<{
     form: FormInstance;
@@ -808,249 +801,36 @@ export const NodeInspectorForm: React.FC = () => {
         return null;
     }
 
-    const commitNodeMutation = async (
-        fields: InspectorFieldTarget[],
-        buildData: (values: NodeInspectorFormValues) => UpdateNodeInput["data"]
-    ) => {
-        if (effectiveReadOnly) {
-            return;
-        }
-
-        try {
-            await form.validateFields(fields as never, { recursive: true });
-        } catch {
-            return;
-        }
-
-        const values = form.getFieldsValue(true) as NodeInspectorFormValues;
-        try {
-            trackPendingInspectorEdit(
-                runtime.controller.updateNode({
-                    target: selectedNode.ref,
-                    data: buildData(values),
-                })
-            );
-        } catch (error) {
-            runtime.hostAdapter.log("warn", `[v2] node form submit failed: ${String(error)}`);
-        }
-    };
-
-    const queueNodeMutation = (
-        fields: InspectorFieldTarget[],
-        buildData: (values: NodeInspectorFormValues) => UpdateNodeInput["data"]
-    ) => {
-        queueInspectorTask(() => {
-            void commitNodeMutation(fields, buildData);
-        });
-    };
-
-    const commitName = () => {
-        queueNodeMutation(["name", "inputSlots", "outputSlots", "args"], (values) => {
-            const nextName =
-                String(values.name ?? selectedNode.data.name).trim() || selectedNode.data.name;
-            const currentNodeDef = findNodeDef(nodeDefMap, nextName);
-            return {
-                ...buildCommittedNodeData(selectedNode),
-                name: nextName,
-                input: buildNodeSlotArray(
-                    currentNodeDef?.input,
-                    values.inputSlots,
-                    selectedNode.data.input
-                ),
-                output: buildNodeSlotArray(
-                    currentNodeDef?.output,
-                    values.outputSlots,
-                    selectedNode.data.output
-                ),
-                args: parseVisibleArgs(currentNodeDef, values, selectedNode.data.args),
-            };
-        });
-    };
-
-    const commitDesc = () => {
-        queueNodeMutation(["desc"], (values) => ({
-            ...buildCommittedNodeData(selectedNode),
-            desc: values.desc?.trim() || undefined,
-        }));
-    };
-
-    const commitDebug = () => {
-        queueNodeMutation(["debug"], (values) => ({
-            ...buildCommittedNodeData(selectedNode),
-            debug: values.debug ? true : undefined,
-        }));
-    };
-
-    const commitDisabled = () => {
-        queueNodeMutation(["disabled"], (values) => ({
-            ...buildCommittedNodeData(selectedNode),
-            disabled: values.disabled ? true : undefined,
-        }));
-    };
-
-    const commitPath = () => {
-        queueNodeMutation(["path"], (values) => ({
-            ...buildCommittedNodeData(selectedNode),
-            path:
-                selectedNode.subtreeNode || fieldEditDisabled
-                    ? selectedNode.data.path
-                    : values.path?.trim() || undefined,
-        }));
-    };
-
-    const isSlotOverridden = (
-        currentSlots: string[] | undefined,
-        originalSlots: string[] | undefined,
-        index: number,
-        variadic = false
-    ) => {
-        if (!canShowOverride) {
-            return false;
-        }
-        if (variadic) {
-            return !compareJsonValue(
-                currentSlots?.slice(index) ?? [],
-                originalSlots?.slice(index) ?? []
-            );
-        }
-        return (currentSlots?.[index] ?? "") !== (originalSlots?.[index] ?? "");
-    };
-
-    const resetSlotField = (
-        fieldName: SlotFieldName,
-        originalSlots: string[] | undefined,
-        index: number,
-        variadic = false
-    ) => {
-        form.setFieldValue(
-            [fieldName, index],
-            getNodeSlotFormValue(originalSlots, index, variadic)
-        );
-        const commitSlot =
-            fieldName === "inputSlots"
-                ? () => {
-                      const relatedArg = relatedArgForInput(index);
-                      queueNodeMutation(
-                          relatedArg
-                              ? ([
-                                    [fieldName, index],
-                                    ["args", relatedArg.name],
-                                ] as InspectorFieldTarget[])
-                              : [[fieldName, index]],
-                          (values) => ({
-                              ...buildCommittedNodeData(selectedNode),
-                              input: buildScopedSlotArray(
-                                  nodeDef?.input,
-                                  selectedNode.data.input,
-                                  values.inputSlots,
-                                  index
-                              ),
-                          })
-                      );
-                  }
-                : () => {
-                      queueNodeMutation([[fieldName, index]], (values) => ({
-                          ...buildCommittedNodeData(selectedNode),
-                          output: buildScopedSlotArray(
-                              nodeDef?.output,
-                              selectedNode.data.output,
-                              values.outputSlots,
-                              index
-                          ),
-                      }));
-                  };
-        commitSlot();
-    };
-
-    const isInputOverridden = (index: number, variadic = false) =>
-        isSlotOverridden(selectedNode.data.input, subtreeOriginal?.input, index, variadic);
-    const isOutputOverridden = (index: number, variadic = false) =>
-        isSlotOverridden(selectedNode.data.output, subtreeOriginal?.output, index, variadic);
-    const isArgOverridden = (argName: string) =>
-        canShowOverride &&
-        !compareJsonValue(selectedNode.data.args?.[argName], subtreeOriginal?.args?.[argName]);
-
-    const resetInputField = (index: number, variadic = false) => {
-        resetSlotField("inputSlots", subtreeOriginal?.input, index, variadic);
-    };
-
-    const resetOutputField = (index: number, variadic = false) => {
-        resetSlotField("outputSlots", subtreeOriginal?.output, index, variadic);
-    };
-
-    const resetArgField = (arg: NodeArg) => {
-        form.setFieldValue(
-            ["args", arg.name],
-            formatArgInitialValue(arg, subtreeOriginal?.args?.[arg.name])
-        );
-        queueNodeMutation([["args", arg.name]], (values) => ({
-            ...buildCommittedNodeData(selectedNode),
-            args: buildScopedArgs(selectedNode.data.args, arg, values),
-        }));
-    };
-
-    const relatedArgForInput = (index: number) => {
-        if (!nodeDef) {
-            return null;
-        }
-        const slotName = parseSlotDefinition(
-            nodeDef.input?.[index] ?? "",
-            nodeDef.input,
-            index
-        ).label;
-        return nodeDef.args?.find((arg) => arg.oneof === slotName) ?? null;
-    };
-
-    const commitInputField = (index: number) => {
-        const relatedArg = relatedArgForInput(index);
-        queueNodeMutation(
-            relatedArg
-                ? ([
-                      ["inputSlots", index],
-                      ["args", relatedArg.name],
-                  ] as InspectorFieldTarget[])
-                : [["inputSlots", index]],
-            (values) => ({
-                ...buildCommittedNodeData(selectedNode),
-                input: buildScopedSlotArray(
-                    nodeDef?.input,
-                    selectedNode.data.input,
-                    values.inputSlots,
-                    index
-                ),
-            })
-        );
-    };
-
-    const commitOutputField = (index: number) => {
-        queueNodeMutation([["outputSlots", index]], (values) => ({
-            ...buildCommittedNodeData(selectedNode),
-            output: buildScopedSlotArray(
-                nodeDef?.output,
-                selectedNode.data.output,
-                values.outputSlots,
-                index
-            ),
-        }));
-    };
-
-    const commitArgField = (arg: NodeArg) => {
-        const fields: InspectorFieldTarget[] = [["args", arg.name]];
-        if (arg.oneof && nodeDef?.input) {
-            const relatedInputIndex = nodeDef.input.findIndex(
-                (input, inputIndex) =>
-                    parseSlotDefinition(input, nodeDef.input, inputIndex).label === arg.oneof
-            );
-            if (relatedInputIndex >= 0) {
-                fields.push(["inputSlots", relatedInputIndex]);
-            }
-        }
-
-        queueNodeMutation(fields, (values) => ({
-            ...buildCommittedNodeData(selectedNode),
-            args: buildScopedArgs(selectedNode.data.args, arg, values),
-        }));
-    };
+    const {
+        relatedArgForInput,
+        commitName,
+        commitDesc,
+        commitDebug,
+        commitDisabled,
+        commitPath,
+        isInputOverridden,
+        isOutputOverridden,
+        isArgOverridden,
+        resetInputField,
+        resetOutputField,
+        resetArgField,
+        resetDesc,
+        resetDebug,
+        resetDisabled,
+        commitInputField,
+        commitOutputField,
+        commitArgField,
+    } = useNodeInspectorCommitters({
+        form,
+        runtime,
+        selectedNode,
+        nodeDef,
+        nodeDefMap,
+        subtreeOriginal,
+        fieldEditDisabled,
+        effectiveReadOnly,
+        canShowOverride,
+    });
 
     const canOpenSubtree = canOpenSubtreeTarget(selectedNode.data.path, selectedNode.ref);
 
@@ -1083,18 +863,9 @@ export const NodeInspectorForm: React.FC = () => {
                     onQueueCommitDisabled={commitDisabled}
                     onCommitPath={commitPath}
                     onQueueCommitPath={commitPath}
-                    onResetDesc={() => {
-                        form.setFieldValue("desc", subtreeOriginal?.desc ?? "");
-                        commitDesc();
-                    }}
-                    onResetDebug={() => {
-                        form.setFieldValue("debug", Boolean(subtreeOriginal?.debug));
-                        commitDebug();
-                    }}
-                    onResetDisabled={() => {
-                        form.setFieldValue("disabled", Boolean(subtreeOriginal?.disabled));
-                        commitDisabled();
-                    }}
+                    onResetDesc={resetDesc}
+                    onResetDebug={resetDebug}
+                    onResetDisabled={resetDisabled}
                 />
 
                 <NodeVariableSection
