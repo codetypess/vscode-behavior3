@@ -38,7 +38,11 @@ import type {
     HostToEditorMessage,
     NodeDef,
 } from "../../webview/shared/message-protocol";
-import type { HostSelectionState, NodeInstanceRef } from "../../webview/shared/contracts";
+import type {
+    HostSelectionState,
+    NodeInstanceRef,
+    PersistedNodeModel,
+} from "../../webview/shared/contracts";
 import {
     type DocumentMutationSelection,
     formatDocumentMutationReducerError,
@@ -54,8 +58,11 @@ import {
     clonePersistedNode,
     clonePersistedTree,
     findPersistedNodeByStableId,
+    loadSubtreeSourceCache,
     parsePersistedTreeContent,
+    pruneStaleSubtreeOverrides,
     serializePersistedTree,
+    walkPersistedNodes,
 } from "../../webview/shared/tree";
 import { isJsonEqual } from "../../webview/shared/json";
 import { setFs } from "../../webview/shared/b3fs";
@@ -419,6 +426,92 @@ export async function resolveTreeEditorSession({
         state.cachedSubtreeRefs = null;
     };
 
+    const branchContainsSubtreeLink = (node: PersistedNodeModel | null | undefined): boolean => {
+        if (!node) {
+            return false;
+        }
+
+        let found = false;
+        walkPersistedNodes(node, (entry) => {
+            if (entry.path) {
+                found = true;
+            }
+        });
+        return found;
+    };
+
+    const normalizeReachableSubtreeOverrides = async (
+        tree: ReturnType<typeof parsePersistedTreeContent>
+    ): Promise<void> => {
+        if (Object.keys(tree.overrides).length === 0) {
+            return;
+        }
+
+        const subtreeSources = await loadSubtreeSourceCache({
+            root: tree.root,
+            readContent: async (relativePath) => {
+                const subtreeUri = vscode.Uri.file(path.join(projectRootUri.fsPath, relativePath));
+                try {
+                    return await readWorkspaceFileContent(subtreeUri);
+                } catch {
+                    return null;
+                }
+            },
+        });
+        pruneStaleSubtreeOverrides({
+            tree,
+            subtreeSources,
+        });
+    };
+
+    const mutationMayAffectSubtreeOverrideReachability = (
+        mutation: Extract<EditorToHostMessage, { type: "mutateDocument" }>["mutation"],
+        currentTree: ReturnType<typeof parsePersistedTreeContent>
+    ): boolean => {
+        switch (mutation.type) {
+            case "updateNode": {
+                if (mutation.payload.currentNodeSnapshot?.subtreeNode) {
+                    return false;
+                }
+
+                const currentNode =
+                    findPersistedNodeByStableId(
+                        currentTree.root,
+                        mutation.payload.target.structuralStableId
+                    ) ?? mutation.payload.currentNodeSnapshot?.data;
+                if (!currentNode) {
+                    return false;
+                }
+
+                const currentPath = currentNode.path;
+                const nextPath = mutation.payload.data.path?.trim() || undefined;
+                return currentPath !== nextPath;
+            }
+
+            case "replaceNode": {
+                const currentNode = findPersistedNodeByStableId(
+                    currentTree.root,
+                    mutation.payload.target.structuralStableId
+                );
+                return (
+                    branchContainsSubtreeLink(currentNode) ||
+                    branchContainsSubtreeLink(mutation.payload.snapshot)
+                );
+            }
+
+            case "deleteNode": {
+                const currentNode = findPersistedNodeByStableId(
+                    currentTree.root,
+                    mutation.payload.target.structuralStableId
+                );
+                return branchContainsSubtreeLink(currentNode);
+            }
+
+            default:
+                return false;
+        }
+    };
+
     /** Cache the transitive subtree closure of the current main document. */
     const refreshTrackedSubtreeRefs = async () => {
         state.cachedSubtreeRefs = await projectIndex.getTransitiveSubtreeRelativePaths(
@@ -748,6 +841,7 @@ export async function resolveTreeEditorSession({
 
         nextTargetNode.path = savedPath;
         nextTargetNode.children = undefined;
+        await normalizeReachableSubtreeOverrides(nextTree);
         const nextSelection: DocumentMutationSelection = {
             kind: "node",
             structuralStableId: nextTargetNode.uuid,
@@ -805,11 +899,9 @@ export async function resolveTreeEditorSession({
             }
 
             let reduced: ReturnType<typeof reduceDocumentMutation>;
+            let currentTree: ReturnType<typeof parsePersistedTreeContent> | null = null;
             try {
-                const currentTree = parsePersistedTreeContent(
-                    document.content,
-                    document.uri.fsPath
-                );
+                currentTree = parsePersistedTreeContent(document.content, document.uri.fsPath);
                 reduced = reduceDocumentMutation(msg.mutation, {
                     tree: currentTree,
                     nodeDefs: state.nodeDefs,
@@ -844,6 +936,13 @@ export async function resolveTreeEditorSession({
                     success: true,
                 } satisfies HostToEditorMessage);
                 return;
+            }
+
+            if (
+                currentTree &&
+                mutationMayAffectSubtreeOverrideReachability(msg.mutation, currentTree)
+            ) {
+                await normalizeReachableSubtreeOverrides(reduced.tree);
             }
 
             const changed = applyContentFromWebview(serializePersistedTree(reduced.tree));

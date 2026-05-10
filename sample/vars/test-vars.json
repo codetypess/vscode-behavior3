@@ -13,28 +13,6 @@
       "args": {
         "message": "hello overwrite"
       }
-    },
-    "n4ByJBOzNv": {
-      "args": {
-        "open": true,
-        "time": 2
-      }
-    },
-    "OUL4MGlC0Q": {
-      "args": {
-        "message": "helloxxxx"
-      }
-    },
-    "Rc5aDruW5M": {
-      "args": {
-        "x": 6,
-        "y": 8
-      }
-    },
-    "z56njSp7U6": {
-      "output": [
-        "target"
-      ]
     }
   },
   "prefix": "",

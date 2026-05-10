@@ -275,6 +275,7 @@ host reducer 当前分三条路径：
 
 - 比较文档版本，拒绝保存“新版本生成的文件”
 - 通过 host `saveDocument` 请求落盘
+- 写盘前按当前可达 subtree graph 清理已不可达的 stale override 条目；若 reachable subtree source 不完整，则保留现有 overrides
 - 成功后清理 dirty 与 reload conflict
 
 ### `revertDocument()`

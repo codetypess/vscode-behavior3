@@ -50,6 +50,7 @@ import {
     collectTransitivePaths,
     loadSubtreeSourceCache,
     parsePersistedTreeContent,
+    pruneStaleSubtreeOverrides,
     serializePersistedTree,
 } from "../webview/shared/tree";
 import { parseWorkdirRelativeJsonPath } from "../webview/shared/protocol";
@@ -434,6 +435,99 @@ const tests = registerSharedTestSuites(
             },
         },
         {
+            name: "prunes stale subtree overrides when reachable subtree graph is complete",
+            run() {
+                const linkedPath = parseWorkdirRelativeJsonPath("sub/tree.json");
+                assert.ok(linkedPath);
+
+                const tree = createTestTree();
+                tree.root.children = [
+                    {
+                        uuid: "link-root",
+                        id: "2",
+                        name: "LinkNode",
+                        path: linkedPath,
+                    },
+                ];
+                tree.overrides = {
+                    "sub-child": { desc: "keep" },
+                    stale: { desc: "drop" },
+                };
+
+                const subtree: PersistedTreeModel = {
+                    version: "2.0.0",
+                    name: "tree",
+                    prefix: "",
+                    export: true,
+                    group: [],
+                    variables: {
+                        imports: [],
+                        locals: [],
+                    },
+                    custom: {},
+                    overrides: {},
+                    root: {
+                        uuid: "sub-root",
+                        id: "1",
+                        name: "Sequence",
+                        children: [
+                            {
+                                uuid: "sub-child",
+                                id: "2",
+                                name: "Action",
+                            },
+                        ],
+                    },
+                };
+
+                const changed = pruneStaleSubtreeOverrides({
+                    tree,
+                    subtreeSources: {
+                        [linkedPath]: subtree,
+                    } as any,
+                });
+
+                assert.equal(changed, true);
+                assert.deepEqual(tree.overrides, {
+                    "sub-child": { desc: "keep" },
+                });
+            },
+        },
+        {
+            name: "keeps subtree overrides when reachable subtree graph is incomplete",
+            run() {
+                const linkedPath = parseWorkdirRelativeJsonPath("sub/tree.json");
+                assert.ok(linkedPath);
+
+                const tree = createTestTree();
+                tree.root.children = [
+                    {
+                        uuid: "link-root",
+                        id: "2",
+                        name: "LinkNode",
+                        path: linkedPath,
+                    },
+                ];
+                tree.overrides = {
+                    "sub-child": { desc: "keep" },
+                    stale: { desc: "keep-too" },
+                };
+
+                const changed = pruneStaleSubtreeOverrides({
+                    tree,
+                    subtreeSources: {
+                        [linkedPath]: null,
+                    } as any,
+                });
+
+                assert.equal(changed, false);
+                assert.deepEqual(tree.overrides, {
+                    "sub-child": { desc: "keep" },
+                    stale: { desc: "keep-too" },
+                });
+            },
+        },
+        {
             name: "writes current main-tree display ids during main-document save serialization",
             async run() {
                 const linkedPath = parseWorkdirRelativeJsonPath("sub/tree.json");
@@ -547,6 +641,28 @@ const tests = registerSharedTestSuites(
                 assert.equal(savedTree.root.children?.[1]?.id, "3");
                 assert.equal(savedJson.root.children?.[0]?.children, undefined);
                 assert.equal(savedTree.root.children?.[1]?.children, undefined);
+            },
+        },
+        {
+            name: "prunes stale subtree overrides during main-document save serialization",
+            async run() {
+                const tree = createTestTree();
+                tree.overrides = {
+                    orphaned: {
+                        desc: "stale",
+                    },
+                };
+
+                const content = await serializePersistedTreeForMainDocumentSave({
+                    tree,
+                    nodeDefs: [],
+                    readSubtreeContent: async () => {
+                        throw new Error("save should not read subtree content when no subtree links exist");
+                    },
+                });
+
+                const savedTree = parsePersistedTreeContent(content, "/tmp/main.json");
+                assert.deepEqual(savedTree.overrides, {});
             },
         },
         {

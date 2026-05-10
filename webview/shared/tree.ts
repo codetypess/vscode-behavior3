@@ -121,6 +121,76 @@ export const collectReachableSubtreePaths = (
     return Array.from(paths);
 };
 
+const isValidSubtreeSource = (
+    entry: SubtreeSourceCacheEntry
+): entry is PersistedTreeModel => Boolean(entry && !("error" in entry));
+
+export const collectReachableSubtreeSourceStableIds = (params: {
+    root: PersistedNodeModel;
+    subtreeSources: Record<WorkdirRelativeJsonPath, SubtreeSourceCacheEntry>;
+}): { stableIds: Set<string>; complete: boolean } => {
+    const stableIds = new Set<string>();
+    const visitedPaths = new Set<WorkdirRelativeJsonPath>();
+    let complete = true;
+
+    const visitSubtreePath = (subtreePath: WorkdirRelativeJsonPath) => {
+        if (visitedPaths.has(subtreePath)) {
+            return;
+        }
+        visitedPaths.add(subtreePath);
+
+        const entry = params.subtreeSources[subtreePath];
+        if (!isValidSubtreeSource(entry)) {
+            complete = false;
+            return;
+        }
+
+        walkPersistedNodes(entry.root, (node) => {
+            stableIds.add(node.uuid);
+            if (node.path) {
+                visitSubtreePath(node.path);
+            }
+        });
+    };
+
+    walkPersistedNodes(params.root, (node) => {
+        if (node.path) {
+            visitSubtreePath(node.path);
+        }
+    });
+
+    return { stableIds, complete };
+};
+
+export const pruneStaleSubtreeOverrides = (params: {
+    tree: PersistedTreeModel;
+    subtreeSources: Record<WorkdirRelativeJsonPath, SubtreeSourceCacheEntry>;
+}): boolean => {
+    const overrideKeys = Object.keys(params.tree.overrides);
+    if (overrideKeys.length === 0) {
+        return false;
+    }
+
+    const { stableIds, complete } = collectReachableSubtreeSourceStableIds({
+        root: params.tree.root,
+        subtreeSources: params.subtreeSources,
+    });
+    if (!complete) {
+        return false;
+    }
+
+    let changed = false;
+    for (const key of overrideKeys) {
+        if (stableIds.has(key)) {
+            continue;
+        }
+        delete params.tree.overrides[key];
+        changed = true;
+    }
+
+    return changed;
+};
+
 export const collectTransitivePaths = async (
     seedPaths: Iterable<string>,
     expand: (path: string) => Promise<Iterable<string> | null | undefined>

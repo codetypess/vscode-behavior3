@@ -185,6 +185,7 @@
 2. override 表达的是“相对 subtree 原始节点的差异”。
 3. 若差异为空，应删除对应 override 条目。
 4. override 不会直接回写 subtree 源文件。
+5. 若某个 override 对应的 subtree 源节点已不再从当前主树可达，则宿主在可完整解析当前 reachable subtree graph 时应清理该条目。
 
 ## History 与 Dirty
 
@@ -254,7 +255,8 @@
 1. 尝试按行为树模型重新解析/序列化
 2. 主文档 `name` 与目标文件名保持一致
 3. subtree 文件在加载时若缺少稳定 id，会在内存模型中按确定性规则补齐；磁盘回写只在主文档保存时发生
-4. persisted node 若没有任何内联子节点，写回结果应省略空 `children` 字段
+4. 写回主文档前，若当前 reachable subtree graph 可完整解析，应清理已不可达的 stale `overrides`
+5. persisted node 若没有任何内联子节点，写回结果应省略空 `children` 字段
 
 ## 不变量
 

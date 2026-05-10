@@ -38,9 +38,9 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 25 份 work-item spec
+- 26 份 work-item spec
 - 9 份登记中的 active work-item spec
-- 16 份保留的 done work-item spec
+- 17 份保留的 done work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
 这里不是完整历史档案。纯机械整理、模块拆分、重命名、helper 收口这类 work-item，在长期规则已经同步进编号基线后，可以直接删除，不需要长期保留。
@@ -241,9 +241,9 @@ Scope: <short boundary>
 - `node-required-arg-error-state.md` - `Verifying` - 让节点必填参数缺失时同步进入 graph Error 风格
 - `inspector-independent-field-commit.md` - `Verifying` - 将 Inspector 从整表校验提交改为字段级独立提交
 - `graph-resize-viewport-stability.md` - `Verifying` - 调整 inspector 宽度时保持已缩放画布的 viewport 稳定，不让节点整体漂移
-
 ## Retained Done Work Items
 
+- `stale-subtree-override-pruning.md` - `Done` - 清理当前 subtree 图中已经不可达的 stale override 条目
 - `host-webview-migration-semantics.md` - `Done` - 统一 host/webview/sidebar 迁移后的语义、实现和规范表述
 - `sidebar-host-single-source.md` - `Done` - 将主文档 authority 收口到 extension-host document/session 与统一 snapshot fanout
 - `host-selection-authority.md` - `Done` - 将 tree/node selection authority 收口到 extension-host selection intent 与 host snapshot fanout
