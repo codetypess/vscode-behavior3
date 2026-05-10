@@ -8,8 +8,6 @@ import {
     validateVariableReference,
 } from "../../shared/validation";
 
-export const cleanSlotLabel = (value: string) => value.replace(/\?$/, "").replace(/\.\.\.$/, "");
-
 const formatValidationDiagnostic = (diagnostic: TreeValidationDiagnostic): string => {
     switch (diagnostic.code) {
         case "invalid-variable-name":

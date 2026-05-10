@@ -10,11 +10,7 @@ import { getBehavior3OutputChannel } from "../output-channel";
 import { mapNodeDefsIconsForWebview } from "../node-def-icons";
 import { ProjectIndex, type VarDeclResult } from "./project-index";
 import { getNewerVersionMessage, getTreeFileVersion } from "./session-file-version";
-import {
-    createBuildScriptLogger,
-    logAsyncRuntimeError,
-    logRuntimeError,
-} from "./session-logging";
+import { createBuildScriptLogger, logAsyncRuntimeError, logRuntimeError } from "./session-logging";
 import { createSerialOperationQueue } from "./operation-queue";
 import {
     getWorkdir,
@@ -51,6 +47,7 @@ import {
     normalizeNodeInstanceRef,
     parseWorkdirRelativeJsonPath,
 } from "../../webview/shared/protocol";
+import { createNodeDefMap } from "../../webview/shared/node-definition-utils";
 import { parseWorkspaceModelContent } from "../../webview/shared/schema";
 import {
     clonePersistedNode,
@@ -357,7 +354,7 @@ export async function resolveTreeEditorSession({
                     fs,
                     path: b3path,
                     workdir: workspaceFolderUri.fsPath,
-                    nodeDefs: new Map(state.nodeDefs.map((def) => [def.name, def] as const)),
+                    nodeDefs: createNodeDefMap(state.nodeDefs),
                     logger: createBuildScriptLogger(),
                 }),
                 treePath: workspaceFolderUri.fsPath,
@@ -373,7 +370,7 @@ export async function resolveTreeEditorSession({
             fs,
             path: b3path,
             workdir,
-            nodeDefs: new Map(state.nodeDefs.map((def) => [def.name, def] as const)),
+            nodeDefs: createNodeDefMap(state.nodeDefs),
             logger: createBuildScriptLogger(),
         };
 
@@ -429,7 +426,7 @@ export async function resolveTreeEditorSession({
                     fs,
                     path: b3path,
                     workdir: runtimeResult.treePath,
-                    nodeDefs: new Map(state.nodeDefs.map((def) => [def.name, def] as const)),
+                    nodeDefs: createNodeDefMap(state.nodeDefs),
                     logger: createBuildScriptLogger(),
                 },
                 checkers: runtimeResult.buildScriptRuntime.nodeArgCheckers,
@@ -861,8 +858,7 @@ export async function resolveTreeEditorSession({
                 return;
             }
 
-            const saveSelectedAsSubtreeResult =
-                await handleSaveSelectedAsSubtreeMutation(msg);
+            const saveSelectedAsSubtreeResult = await handleSaveSelectedAsSubtreeMutation(msg);
             if (saveSelectedAsSubtreeResult.kind === "handled") {
                 await reply(saveSelectedAsSubtreeResult.reply);
                 return;
@@ -880,7 +876,10 @@ export async function resolveTreeEditorSession({
 
             let reduced: ReturnType<typeof reduceDocumentMutation>;
             try {
-                const currentTree = parsePersistedTreeContent(document.content, document.uri.fsPath);
+                const currentTree = parsePersistedTreeContent(
+                    document.content,
+                    document.uri.fsPath
+                );
                 reduced = reduceDocumentMutation(msg.mutation, {
                     tree: currentTree,
                     nodeDefs: state.nodeDefs,
@@ -999,8 +998,7 @@ export async function resolveTreeEditorSession({
                 return;
             }
 
-            const snapshot =
-                direction === "undo" ? documentSession.undo() : documentSession.redo();
+            const snapshot = direction === "undo" ? documentSession.undo() : documentSession.redo();
             if (!snapshot) {
                 return;
             }

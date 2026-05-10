@@ -5,10 +5,14 @@ import type {
     SubtreeSourceCacheEntry,
     WorkdirRelativeJsonPath,
 } from "../../shared/contracts";
-import { dfs, getNodeArgRawType, isVariadic } from "../../shared/misc/b3util";
-import { hasDeclaredVars as hasSharedDeclaredVars, parseExpressionVariables } from "../../shared/validation";
+import { findNodeDef } from "../../shared/node-definition-utils";
+import { parseSlotDefinition } from "../../shared/slot-definition-utils";
+import { dfs, getNodeArgRawType } from "../../shared/misc/b3util";
+import {
+    hasDeclaredVars as hasSharedDeclaredVars,
+    parseExpressionVariables,
+} from "../../shared/validation";
 import { isExprType, type NodeDef, type VarDecl } from "../../shared/misc/b3type";
-import { cleanSlotLabel } from "./inspector-validation";
 
 export type VariableOption = {
     label: string;
@@ -29,20 +33,12 @@ type VariableUsageNode = {
 
 type VariableUsageEntry = Pick<VariableUsageNode, "name" | "args" | "input" | "output">;
 
-export const createNodeDefMap = (nodeDefs: NodeDef[]) => {
-    const map = new Map<string, NodeDef>();
-    for (const nodeDef of nodeDefs) {
-        map.set(nodeDef.name, nodeDef);
-    }
-    return map;
-};
-
 const addVariableUsageCount = (
     count: Record<string, number>,
     node: VariableUsageEntry,
-    nodeDefMap: Map<string, NodeDef>
+    nodeDefMap: ReadonlyMap<string, NodeDef>
 ) => {
-    const nodeDef = nodeDefMap.get(node.name);
+    const nodeDef = findNodeDef(nodeDefMap, node.name);
     if (!nodeDef) {
         return;
     }
@@ -80,7 +76,7 @@ const addVariableUsageCount = (
 
 export const buildVariableUsageCountFromGraph = (
     graph: ResolvedDocumentGraph | null,
-    nodeDefMap: Map<string, NodeDef>
+    nodeDefMap: ReadonlyMap<string, NodeDef>
 ) => {
     const count: Record<string, number> = {};
 
@@ -103,7 +99,7 @@ export const buildTreeInspectorVariableUsageCount = (params: {
     document: PersistedTreeModel | null;
     subtreeSources: Record<WorkdirRelativeJsonPath, SubtreeSourceCacheEntry>;
     nodeDefs: NodeDef[];
-    nodeDefMap: Map<string, NodeDef>;
+    nodeDefMap: ReadonlyMap<string, NodeDef>;
     subtreeEditable: boolean;
 }) => {
     if (!params.document) {
@@ -124,7 +120,7 @@ export const buildTreeInspectorVariableUsageCount = (params: {
 export const createVariableOptions = (
     usingVars: Record<string, VarDecl> | null,
     root: VariableUsageNode | null,
-    nodeDefMap: Map<string, NodeDef>
+    nodeDefMap: ReadonlyMap<string, NodeDef>
 ): VariableOption[] => {
     const options: VariableOption[] = [];
     const seen = new Set<string>();
@@ -148,21 +144,35 @@ export const createVariableOptions = (
     }
 
     dfs(root, (node) => {
-        const nodeDef = nodeDefMap.get(node.name);
+        const nodeDef = findNodeDef(nodeDefMap, node.name);
+        const lastInputSlot =
+            nodeDef?.input?.length && nodeDef.input.length > 0
+                ? parseSlotDefinition(
+                      nodeDef.input[nodeDef.input.length - 1] ?? "",
+                      nodeDef.input,
+                      nodeDef.input.length - 1
+                  )
+                : null;
+        const lastOutputSlot =
+            nodeDef?.output?.length && nodeDef.output.length > 0
+                ? parseSlotDefinition(
+                      nodeDef.output[nodeDef.output.length - 1] ?? "",
+                      nodeDef.output,
+                      nodeDef.output.length - 1
+                  )
+                : null;
 
         node.input?.forEach((variable, index) => {
             if (!variable || seen.has(variable)) {
                 return;
             }
             const rawLabel =
-                nodeDef?.input?.length &&
-                index >= nodeDef.input.length &&
-                isVariadic(nodeDef.input, -1)
+                nodeDef?.input?.length && index >= nodeDef.input.length && lastInputSlot?.variadic
                     ? nodeDef.input[nodeDef.input.length - 1]
                     : (nodeDef?.input?.[index] ?? "input");
             seen.add(variable);
             options.push({
-                label: `${variable} (${cleanSlotLabel(rawLabel)})`,
+                label: `${variable} (${parseSlotDefinition(rawLabel).label})`,
                 value: variable,
             });
         });
@@ -174,12 +184,12 @@ export const createVariableOptions = (
             const rawLabel =
                 nodeDef?.output?.length &&
                 index >= nodeDef.output.length &&
-                isVariadic(nodeDef.output, -1)
+                lastOutputSlot?.variadic
                     ? nodeDef.output[nodeDef.output.length - 1]
                     : (nodeDef?.output?.[index] ?? "output");
             seen.add(variable);
             options.push({
-                label: `${variable} (${cleanSlotLabel(rawLabel)})`,
+                label: `${variable} (${parseSlotDefinition(rawLabel).label})`,
                 value: variable,
             });
         });

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { hostProtocolSharedTests } from "./shared-tests/host-protocol-shared-tests";
 import { inspectorSharedTests } from "./shared-tests/inspector-shared-tests";
+import { nodeDefinitionSlotUtilsSharedTests } from "./shared-tests/node-definition-slot-utils-shared-tests";
 import { defineSharedTests, registerSharedTestSuites } from "./shared-test-types";
 import { createAppHooksStore } from "../webview/shared/misc/hooks";
 import { createEditorController } from "../webview/commands/create-editor-controller";
@@ -34,10 +35,8 @@ import {
     resolveCachedInspectorNodeSnapshot,
 } from "../webview/features/inspector/inspector-node-snapshot-cache";
 import { getInspectorPaneMode } from "../webview/features/inspector/inspector-pane-mode";
-import {
-    buildTreeInspectorVariableUsageCount,
-    createNodeDefMap,
-} from "../webview/features/inspector/inspector-variable-options";
+import { createNodeDefMap } from "../webview/shared/node-definition-utils";
+import { buildTreeInspectorVariableUsageCount } from "../webview/features/inspector/inspector-variable-options";
 import {
     preparePersistedTreeForMainDocumentSave,
     serializePersistedTreeForMainDocumentSave,
@@ -86,6 +85,7 @@ const createTestTree = (): PersistedTreeModel => ({
 const tests = registerSharedTestSuites(
     inspectorSharedTests,
     hostProtocolSharedTests,
+    nodeDefinitionSlotUtilsSharedTests,
     defineSharedTests([
         {
             name: "detects whether a node can open its subtree target",

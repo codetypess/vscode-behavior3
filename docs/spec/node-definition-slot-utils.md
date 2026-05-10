@@ -1,6 +1,6 @@
 # Node Definition Slot Utils
 
-Status: Approved
+Status: Done
 Date: 2026-05-10
 Scope: node definition lookup consistency and slot definition parsing
 

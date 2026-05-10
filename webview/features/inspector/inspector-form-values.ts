@@ -1,7 +1,7 @@
 import { stringifySearchValueAsJson5 } from "../../shared/json5-display";
+import { parseSlotDefinition } from "../../shared/slot-definition-utils";
 import type { EditNode, UpdateNodeInput, UpdateTreeMetaInput } from "../../shared/contracts";
 import type { NodeArg, NodeDef } from "../../shared/misc/b3type";
-import { isVariadic } from "../../shared/misc/b3util";
 import { formatArgInitialValue, parseArgSubmitValue } from "./inspector-arg-values";
 import { type VariableRowValue } from "./inspector-variable-options";
 import { formatChildrenLabel } from "./inspector-validation";
@@ -99,7 +99,11 @@ export const buildScopedSlotArray = (
     }
 
     const scopedRawSlots = slotDefs.map((_, slotIndex) =>
-        getNodeSlotFormValue(committedSlots, slotIndex, isVariadic(slotDefs, slotIndex))
+        getNodeSlotFormValue(
+            committedSlots,
+            slotIndex,
+            parseSlotDefinition(slotDefs[slotIndex] ?? "", slotDefs, slotIndex).variadic
+        )
     ) as Array<string | string[]>;
     const formSlots = Array.isArray(rawFormSlots) ? rawFormSlots : [];
     scopedRawSlots[index] = formSlots[index];
@@ -143,9 +147,11 @@ export const buildNodeSlotArray = (
 
     slotDefs.forEach((_, index) => {
         const rawValue = slots[index];
-        if (isVariadic(slotDefs, index)) {
+        if (parseSlotDefinition(slotDefs[index] ?? "", slotDefs, index).variadic) {
             const entries = Array.isArray(rawValue) ? rawValue : [];
-            nextValue.push(...entries.filter((entry): entry is string => typeof entry === "string"));
+            nextValue.push(
+                ...entries.filter((entry): entry is string => typeof entry === "string")
+            );
         } else {
             nextValue.push(typeof rawValue === "string" ? rawValue : "");
         }
@@ -179,14 +185,22 @@ export const createNodeInspectorFormValues = (
             getNodeSlotFormValue(
                 selectedNode.data.input,
                 index,
-                Boolean(currentNodeDef?.input && isVariadic(currentNodeDef.input, index))
+                parseSlotDefinition(
+                    currentNodeDef?.input?.[index] ?? "",
+                    currentNodeDef?.input,
+                    index
+                ).variadic
             )
         ),
         outputSlots: (currentNodeDef?.output ?? []).map((_, index) =>
             getNodeSlotFormValue(
                 selectedNode.data.output,
                 index,
-                Boolean(currentNodeDef?.output && isVariadic(currentNodeDef.output, index))
+                parseSlotDefinition(
+                    currentNodeDef?.output?.[index] ?? "",
+                    currentNodeDef?.output,
+                    index
+                ).variadic
             )
         ),
         rawNodeJson: JSON.stringify(selectedNode.data ?? {}, null, 2),

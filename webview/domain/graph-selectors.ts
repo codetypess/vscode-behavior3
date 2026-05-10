@@ -13,6 +13,7 @@ import type {
 } from "../shared/contracts";
 import { stringifyCompactJson5, stringifySearchValueAsJson5 } from "../shared/json5-display";
 import { isJsonEqual } from "../shared/equality";
+import { createNodeDefMap, findNodeDef } from "../shared/node-definition-utils";
 import { parseExpressionVariables } from "../shared/validation";
 import { collectResolvedNodeDiagnostics } from "./tree-validation";
 
@@ -72,23 +73,25 @@ export const buildResolvedGraphModel = (
         nodeCheckDiagnostics?: Record<string, NodeCheckDiagnostic[]>;
     }
 ): ResolvedGraphModel => {
-    const defsByName = new Map(nodeDefs.map((def) => [def.name, def] as const));
+    const defsByName = createNodeDefMap(nodeDefs);
     const nodes: GraphNodeVM[] = [];
     const edges = [];
 
     for (const key of graph.nodeOrder) {
         const node = graph.nodesByInstanceKey[key];
-        const def = defsByName.get(node.name);
+        const def = findNodeDef(defsByName, node.name);
         const customDiagnostics = validation?.nodeCheckDiagnostics?.[node.ref.instanceKey] ?? [];
         // Built-in validation and user build-script diagnostics both drive the error style.
-        const invalid = collectResolvedNodeDiagnostics({
-            node,
-            def,
-            usingVars: validation?.usingVars ?? null,
-            usingGroups: validation?.usingGroups ?? null,
-            checkExpr: validation?.checkExpr ?? false,
-        }).length > 0 || customDiagnostics.length > 0;
-        const nodeStyleKind = node.resolutionError || invalid ? "Error" : def ? getNodeType(def) : "Error";
+        const invalid =
+            collectResolvedNodeDiagnostics({
+                node,
+                def,
+                usingVars: validation?.usingVars ?? null,
+                usingGroups: validation?.usingGroups ?? null,
+                checkExpr: validation?.checkExpr ?? false,
+            }).length > 0 || customDiagnostics.length > 0;
+        const nodeStyleKind =
+            node.resolutionError || invalid ? "Error" : def ? getNodeType(def) : "Error";
         const accentColor =
             nodeStyleKind === "Error"
                 ? (nodeColors?.[nodeStyleKind] ?? DEFAULT_NODE_COLORS[nodeStyleKind])
@@ -153,7 +156,7 @@ export const computeVariableHighlights = (
     nodeDefs: NodeDef[],
     activeVariableNames: string[]
 ): GraphHighlightState => {
-    const defsByName = new Map(nodeDefs.map((def) => [def.name, def] as const));
+    const defsByName = createNodeDefMap(nodeDefs);
     const hits: GraphHighlightState["variableHits"] = {};
 
     if (activeVariableNames.length === 0) {
@@ -173,7 +176,7 @@ export const computeVariableHighlights = (
             nodeHits.push("output");
         }
 
-        const def = defsByName.get(node.name);
+        const def = findNodeDef(defsByName, node.name);
         for (const arg of def?.args ?? []) {
             if (!isExprType(arg.type)) {
                 continue;

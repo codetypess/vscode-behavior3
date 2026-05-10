@@ -6,6 +6,7 @@ import type {
     SubtreeSourceCacheEntry,
     WorkdirRelativeJsonPath,
 } from "./contracts";
+import { createNodeDefMap } from "./node-definition-utils";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
 import { clonePersistedNode } from "./tree";
 
@@ -216,7 +217,7 @@ export const materializePersistedTree = (params: {
     nodeDefs: NodeDef[];
     subtreeEditable: boolean;
 }): MaterializedTreeNode => {
-    const defsByName = new Map(params.nodeDefs.map((def) => [def.name, def] as const));
+    const defsByName = createNodeDefMap(params.nodeDefs);
 
     const resolveNode = (
         structuredNode: PersistedNodeModel,

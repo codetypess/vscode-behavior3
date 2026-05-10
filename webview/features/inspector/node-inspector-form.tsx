@@ -5,6 +5,8 @@ import React, { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import { canOpenSubtreeTarget } from "../../domain/subtree-navigation";
+import { findNodeDef } from "../../shared/node-definition-utils";
+import { parseSlotDefinition } from "../../shared/slot-definition-utils";
 import {
     hasArgOptions,
     isBoolType,
@@ -23,7 +25,6 @@ import {
     getNodeArgRawType,
     isNodeArgArray,
     isNodeArgOptional,
-    isVariadic,
 } from "../../shared/misc/b3util";
 import { useRuntime } from "../../app/runtime";
 import type { NodeCheckDiagnostic, UpdateNodeInput } from "../../shared/contracts";
@@ -40,16 +41,10 @@ import {
     createInspectorSwitchLabelProps,
     filterOptionByLabel,
 } from "./inspector-shared";
-import {
-    cleanSlotLabel,
-    compareJsonValue,
-    validateVariableValue,
-} from "./inspector-validation";
+import { compareJsonValue, validateVariableValue } from "./inspector-validation";
 import type { VariableOption } from "./inspector-variable-options";
 import { queueInspectorTask, trackPendingInspectorEdit } from "./inspector-commit-queue";
-import {
-    useNodeInspectorViewState,
-} from "./inspector-state";
+import { useNodeInspectorViewState } from "./inspector-state";
 import {
     buildCommittedNodeData,
     buildNodeSlotArray,
@@ -130,7 +125,10 @@ const NodeArgField: React.FC<{
 
         if (arg.oneof) {
             const relatedInputIndex =
-                nodeDef.input?.findIndex((input) => cleanSlotLabel(input) === arg.oneof) ?? -1;
+                nodeDef.input?.findIndex(
+                    (input, index) =>
+                        parseSlotDefinition(input, nodeDef.input, index).label === arg.oneof
+                ) ?? -1;
 
             if (relatedInputIndex < 0) {
                 throw new Error(t("validation.missingOneofInput", { input: arg.oneof }));
@@ -247,7 +245,7 @@ const NodeMetaFields: React.FC<{
     selectedNode: NonNullable<ReturnType<typeof useNodeInspectorViewState>["selectedNode"]>;
     nodeDefs: NodeDef[];
     nodeDef: NodeDef | null;
-    nodeDefMap: Map<string, NodeDef>;
+    nodeDefMap: ReadonlyMap<string, NodeDef>;
     usingGroups: Record<string, boolean> | null;
     allFiles: string[];
     fieldEditDisabled: boolean;
@@ -373,7 +371,7 @@ const NodeMetaFields: React.FC<{
                             if (nextName === selectedNode.data.name) {
                                 return;
                             }
-                            if (!nodeDefMap.has(nextName)) {
+                            if (!findNodeDef(nodeDefMap, nextName)) {
                                 throw new Error(
                                     t("node.notFound", {
                                         name: nextName || selectedNode.data.name,
@@ -510,8 +508,9 @@ const NodeVariableField: React.FC<{
     getRelatedArg,
 }) => {
     const { t } = useTranslation();
-    const slotLabel = cleanSlotLabel(slot);
-    const variadic = isVariadic(slotDefs, index);
+    const slotDefinition = parseSlotDefinition(slot, slotDefs, index);
+    const slotLabel = slotDefinition.label;
+    const variadic = slotDefinition.variadic;
     const relatedArg = getRelatedArg?.(index) ?? null;
 
     const validateSlotValue = async (_: unknown, value: string | undefined) => {
@@ -535,7 +534,7 @@ const NodeVariableField: React.FC<{
     if (variadic) {
         return (
             <OverrideBar active={isOverridden(index, true)} onReset={() => onReset(index, true)}>
-                <Form.Item {...createInspectorLabelProps(slotLabel, !slot.includes("?"))}>
+                <Form.Item {...createInspectorLabelProps(slotLabel, slotDefinition.required)}>
                     <Form.List name={[fieldName, index]}>
                         {(fields, { add, remove }, { errors }) => (
                             <div className="b3-list-block">
@@ -585,11 +584,11 @@ const NodeVariableField: React.FC<{
     return (
         <OverrideBar active={isOverridden(index)} onReset={() => onReset(index)}>
             <Form.Item
-                {...createInspectorLabelProps(slotLabel, !slot.includes("?"))}
+                {...createInspectorLabelProps(slotLabel, slotDefinition.required)}
                 name={[fieldName, index]}
                 rules={[
                     {
-                        required: !slot.includes("?"),
+                        required: slotDefinition.required,
                         message: t("fieldRequired", {
                             field: slotLabel,
                         }),
@@ -657,8 +656,12 @@ const NodeVariableSection: React.FC<{
                     fieldEditDisabled={fieldEditDisabled}
                     isOverridden={isOverridden}
                     onReset={onReset}
-                    onCommit={() => onCommit(index, isVariadic(slotDefs, index))}
-                    onQueueCommit={() => onQueueCommit(index, isVariadic(slotDefs, index))}
+                    onCommit={() =>
+                        onCommit(index, parseSlotDefinition(slot, slotDefs, index).variadic)
+                    }
+                    onQueueCommit={() =>
+                        onQueueCommit(index, parseSlotDefinition(slot, slotDefs, index).variadic)
+                    }
                     getRelatedArg={getRelatedArg}
                 />
             ))}
@@ -774,7 +777,7 @@ export const NodeInspectorForm: React.FC = () => {
             return;
         }
 
-        const currentNodeDef = nodeDefMap.get(selectedNode.data.name) ?? null;
+        const currentNodeDef = findNodeDef(nodeDefMap, selectedNode.data.name);
         form.setFieldsValue(
             createNodeInspectorFormValues(currentNodeDef, selectedNode, t("node.unknownType"))
         );
@@ -843,8 +846,9 @@ export const NodeInspectorForm: React.FC = () => {
 
     const commitName = () => {
         queueNodeMutation(["name", "inputSlots", "outputSlots", "args"], (values) => {
-            const nextName = String(values.name ?? selectedNode.data.name).trim() || selectedNode.data.name;
-            const currentNodeDef = nodeDefs.find((entry) => entry.name === nextName) ?? null;
+            const nextName =
+                String(values.name ?? selectedNode.data.name).trim() || selectedNode.data.name;
+            const currentNodeDef = findNodeDef(nodeDefMap, nextName);
             return {
                 ...buildCommittedNodeData(selectedNode),
                 name: nextName,
@@ -927,7 +931,12 @@ export const NodeInspectorForm: React.FC = () => {
                 ? () => {
                       const relatedArg = relatedArgForInput(index);
                       queueNodeMutation(
-                          relatedArg ? ([[fieldName, index], ["args", relatedArg.name]] as InspectorFieldTarget[]) : [[fieldName, index]],
+                          relatedArg
+                              ? ([
+                                    [fieldName, index],
+                                    ["args", relatedArg.name],
+                                ] as InspectorFieldTarget[])
+                              : [[fieldName, index]],
                           (values) => ({
                               ...buildCommittedNodeData(selectedNode),
                               input: buildScopedSlotArray(
@@ -984,14 +993,23 @@ export const NodeInspectorForm: React.FC = () => {
         if (!nodeDef) {
             return null;
         }
-        const slotName = cleanSlotLabel(nodeDef.input?.[index] ?? "");
+        const slotName = parseSlotDefinition(
+            nodeDef.input?.[index] ?? "",
+            nodeDef.input,
+            index
+        ).label;
         return nodeDef.args?.find((arg) => arg.oneof === slotName) ?? null;
     };
 
     const commitInputField = (index: number) => {
         const relatedArg = relatedArgForInput(index);
         queueNodeMutation(
-            relatedArg ? ([["inputSlots", index], ["args", relatedArg.name]] as InspectorFieldTarget[]) : [["inputSlots", index]],
+            relatedArg
+                ? ([
+                      ["inputSlots", index],
+                      ["args", relatedArg.name],
+                  ] as InspectorFieldTarget[])
+                : [["inputSlots", index]],
             (values) => ({
                 ...buildCommittedNodeData(selectedNode),
                 input: buildScopedSlotArray(
@@ -1020,7 +1038,8 @@ export const NodeInspectorForm: React.FC = () => {
         const fields: InspectorFieldTarget[] = [["args", arg.name]];
         if (arg.oneof && nodeDef?.input) {
             const relatedInputIndex = nodeDef.input.findIndex(
-                (input) => cleanSlotLabel(input) === arg.oneof
+                (input, inputIndex) =>
+                    parseSlotDefinition(input, nodeDef.input, inputIndex).label === arg.oneof
             );
             if (relatedInputIndex >= 0) {
                 fields.push(["inputSlots", relatedInputIndex]);
@@ -1133,7 +1152,9 @@ export const NodeInspectorForm: React.FC = () => {
                         block
                         icon={<FormOutlined />}
                         className="b3-node-subtree-button"
-                        onClick={() => void runtime.controller.openSelectedSubtree(selectedNode.ref)}
+                        onClick={() =>
+                            void runtime.controller.openSelectedSubtree(selectedNode.ref)
+                        }
                     >
                         {t("editSubtree")}
                     </Button>

@@ -24,6 +24,7 @@ import type {
 } from "../shared/contracts";
 import type { GraphAdapter } from "../shared/graph-contracts";
 import { parseWorkdirRelativeJsonPath } from "../shared/protocol";
+import { createNodeDefMap, findNodeDef } from "../shared/node-definition-utils";
 import {
     cloneJsonValue,
     parsePersistedTreeContent,
@@ -58,10 +59,7 @@ export interface ControllerDeps {
 export type SelectionPatch = Partial<
     Pick<
         SelectionState,
-        | "selectedTree"
-        | "selectedNodeKey"
-        | "selectedNodeRef"
-        | "selectedNodeSnapshot"
+        "selectedTree" | "selectedNodeKey" | "selectedNodeRef" | "selectedNodeSnapshot"
     >
 >;
 
@@ -136,7 +134,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
     };
 
     const getNodeDef = (name: string): NodeDef | null => {
-        return deps.workspaceStore.getState().nodeDefs.find((def) => def.name === name) ?? null;
+        return findNodeDef(createNodeDefMap(deps.workspaceStore.getState().nodeDefs), name);
     };
 
     const updateSelectionState = (buildPatch: (state: SelectionState) => SelectionPatch) => {
@@ -537,11 +535,11 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         graph: ResolvedDocumentGraph,
         nodeDefs: NodeDef[]
     ): NodeCheckValidationNode[] => {
-        const defsByName = new Map(nodeDefs.map((def) => [def.name, def] as const));
+        const defsByName = createNodeDefMap(nodeDefs);
         const nodes: NodeCheckValidationNode[] = [];
         for (const key of graph.nodeOrder) {
             const node = graph.nodesByInstanceKey[key];
-            const def = defsByName.get(node.name);
+            const def = findNodeDef(defsByName, node.name);
             if (!def?.args?.some((arg) => arg.checker?.trim())) {
                 continue;
             }

@@ -6,6 +6,7 @@ import {
     type VarDecl,
 } from "../shared/misc/b3type";
 import type { ResolvedNodeModel } from "../shared/contracts";
+import { parseSlotDefinition } from "../shared/slot-definition-utils";
 import {
     validateExpressionEntries,
     validateVariableReference,
@@ -21,18 +22,13 @@ export {
     type TreeValidationDiagnostic,
 } from "../shared/validation";
 
-const isVariadicSlot = (slots: string[], index: number): boolean => {
-    const current = index < 0 ? slots[slots.length - 1] : slots[index];
-    return Boolean(current?.endsWith("..."));
-};
-
 const isRequiredSlotMissing = (
     slots: string[] | undefined,
     values: string[] | undefined,
     index: number
 ): boolean => {
-    const label = slots?.[index] ?? "";
-    return !isVariadicSlot(slots ?? [], index) && !label.includes("?") && !(values?.[index] ?? "");
+    const slotDefinition = parseSlotDefinition(slots?.[index] ?? "", slots, index);
+    return !slotDefinition.variadic && slotDefinition.required && !(values?.[index] ?? "");
 };
 
 export const isRequiredNodeArgValueMissing = (arg: NodeArg, value: unknown): boolean => {
@@ -122,7 +118,8 @@ export const collectResolvedNodeDiagnostics = (params: {
     }
 
     for (let index = 0; index < (def.input?.length ?? 0); index += 1) {
-        if (isVariadicSlot(def.input ?? [], index)) {
+        const slotDefinition = parseSlotDefinition(def.input?.[index] ?? "", def.input, index);
+        if (slotDefinition.variadic) {
             // Once a variadic slot starts, the remaining arity is intentionally open-ended.
             break;
         }
@@ -130,13 +127,14 @@ export const collectResolvedNodeDiagnostics = (params: {
             diagnostics.push({
                 code: "required-input",
                 index,
-                label: def.input?.[index] ?? "",
+                label: slotDefinition.label,
             });
         }
     }
 
     for (let index = 0; index < (def.output?.length ?? 0); index += 1) {
-        if (isVariadicSlot(def.output ?? [], index)) {
+        const slotDefinition = parseSlotDefinition(def.output?.[index] ?? "", def.output, index);
+        if (slotDefinition.variadic) {
             // Variadic output slots follow the same required-slot cutoff as inputs.
             break;
         }
@@ -144,7 +142,7 @@ export const collectResolvedNodeDiagnostics = (params: {
             diagnostics.push({
                 code: "required-output",
                 index,
-                label: def.output?.[index] ?? "",
+                label: slotDefinition.label,
             });
         }
     }

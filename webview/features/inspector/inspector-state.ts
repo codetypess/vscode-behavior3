@@ -2,9 +2,9 @@ import { Form } from "antd";
 import type { FormInstance } from "antd/es/form";
 import { useMemo } from "react";
 import { useNodeInspectorState, useTreeInspectorState } from "../../app/runtime";
+import { createNodeDefMap, findNodeDef } from "../../shared/node-definition-utils";
 import {
     buildTreeInspectorVariableUsageCount,
-    createNodeDefMap,
     createVariableOptions,
     type VariableRowValue,
 } from "./inspector-variable-options";
@@ -36,7 +36,7 @@ export const useNodeInspectorViewState = (form: FormInstance) => {
 
     const effectiveName =
         (watchedName ?? selectedNode?.data.name ?? "").trim() || selectedNode?.data.name || "";
-    const nodeDef = nodeDefs.find((entry) => entry.name === effectiveName) ?? null;
+    const nodeDef = findNodeDef(nodeDefMap, effectiveName);
     const fieldEditDisabled = selectedNode?.disabled ?? false;
     const structuredArgs = nodeDef?.args ?? [];
     const subtreeOriginal = selectedNode?.subtreeOriginal;

@@ -9,6 +9,7 @@ import type {
     UpdateNodeInput,
 } from "./contracts";
 import { isJsonEqual } from "./equality";
+import { createNodeDefMap, findNodeDef } from "./node-definition-utils";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
 import {
     cloneJsonValue,
@@ -141,7 +142,7 @@ const assignFreshStableIds = (node: PersistedNodeModel): void => {
 };
 
 const getNodeDef = (nodeDefs: NodeDef[], name: string): NodeDef | null => {
-    return nodeDefs.find((def) => def.name === name) ?? null;
+    return findNodeDef(createNodeDefMap(nodeDefs), name);
 };
 
 const matchesSelectedNodeTarget = (selectedNode: EditNode, payload: UpdateNodeInput): boolean => {
@@ -199,7 +200,9 @@ const reduceUpdateTreeMeta = (
     const nextCustom = payload.custom
         ? cloneJsonValue(payload.custom)
         : cloneJsonValue(tree.custom);
-    const nextVars = cloneVars(payload.variables.locals).sort((a, b) => a.name.localeCompare(b.name));
+    const nextVars = cloneVars(payload.variables.locals).sort((a, b) =>
+        a.name.localeCompare(b.name)
+    );
     const nextImportRefs: NonNullable<typeof tree.variables>["imports"] = [];
 
     for (const rawPath of payload.variables.imports) {
@@ -258,7 +261,8 @@ const reduceUpdateNode = (
     }
 
     const { payload } = mutation;
-    const nextName = String(payload.data.name ?? selectedNode.data.name).trim() || selectedNode.data.name;
+    const nextName =
+        String(payload.data.name ?? selectedNode.data.name).trim() || selectedNode.data.name;
     const nextNodeDef = getNodeDef(context.nodeDefs, nextName);
     const nextNodeDefDesc = nextNodeDef?.desc?.trim() || undefined;
     const nextDescRaw = payload.data.desc?.trim() || undefined;
@@ -435,7 +439,9 @@ const reducePerformDrop = (
     }
 
     const sourceSiblings = sourceLocation.parent.children ?? [];
-    const sourceIndex = sourceSiblings.findIndex((entry) => entry.uuid === sourceLocation.node.uuid);
+    const sourceIndex = sourceSiblings.findIndex(
+        (entry) => entry.uuid === sourceLocation.node.uuid
+    );
     if (sourceIndex < 0) {
         return { status: "error", error: { code: "missing-source-node" } };
     }
