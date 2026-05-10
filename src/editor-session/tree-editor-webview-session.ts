@@ -9,8 +9,12 @@ import {
 import { getBehavior3OutputChannel } from "../output-channel";
 import { mapNodeDefsIconsForWebview } from "../node-def-icons";
 import { ProjectIndex, type VarDeclResult } from "./project-index";
-import { getNewerVersionMessage, getTreeFileVersion } from "./session-file-version";
-import { createBuildScriptLogger, logAsyncRuntimeError, logRuntimeError } from "./session-logging";
+import { getNewerFileVersion, getNewerVersionMessage } from "./session-file-version";
+import { logAsyncRuntimeError, logRuntimeError } from "./session-logging";
+import {
+    createSessionBuildScriptEnv,
+    createSessionNodeCheckRuntime,
+} from "./session-node-check-runtime";
 import { createSerialOperationQueue } from "./operation-queue";
 import {
     getWorkdir,
@@ -20,8 +24,8 @@ import {
 } from "./session-paths";
 import { buildPendingSelectionRef } from "./session-selection";
 import { getEditorLanguage, getVSCodeTheme, type EditorLanguage } from "./session-settings";
+import { readExistingNewerFileEditMessage } from "./session-subtree-save-guards";
 import {
-    findB3WorkspacePath,
     getBehaviorProjectRootFsPath,
     getResolvedB3SettingDir,
     resolveNodeDefs,
@@ -41,14 +45,11 @@ import {
     isReducibleDocumentMutation,
     reduceDocumentMutation,
 } from "../../webview/shared/document-mutation-reducer";
-import { isDocumentVersionNewer } from "../../webview/shared/document-version";
 import {
     normalizeHostSelectionState,
     normalizeNodeInstanceRef,
     parseWorkdirRelativeJsonPath,
 } from "../../webview/shared/protocol";
-import { createNodeDefMap } from "../../webview/shared/node-definition-utils";
-import { parseWorkspaceModelContent } from "../../webview/shared/schema";
 import {
     clonePersistedNode,
     clonePersistedTree,
@@ -57,16 +58,8 @@ import {
     serializePersistedTree,
 } from "../../webview/shared/tree";
 import { isJsonEqual } from "../../webview/shared/equality";
-import b3path from "../../webview/shared/misc/b3path";
 import { setFs } from "../../webview/shared/misc/b3fs";
-import {
-    collectNodeArgCheckDiagnostics,
-    createBuildScriptRuntime,
-    createBuildScriptRuntimeWithCheckModules,
-    loadRuntimeModule,
-    resolveCheckScriptPaths,
-} from "../../webview/shared/misc/b3build";
-import type { BuildEnv, CheckScriptModule } from "../../webview/shared/misc/b3build";
+import { collectNodeArgCheckDiagnostics } from "../../webview/shared/misc/b3build";
 import { VERSION, type NodeData, type TreeData } from "../../webview/shared/misc/b3type";
 import type { InspectorSessionSnapshot } from "../inspector-sidebar-coordinator";
 
@@ -347,69 +340,12 @@ export async function resolveTreeEditorSession({
     const enqueueMainDocumentOperation = createSerialOperationQueue();
     const createNodeCheckRuntime = async () => {
         // Custom checkers run in the extension host so they can use fs/path and workspace scripts.
-        const workspaceFile = findB3WorkspacePath(document.uri, workspaceFolderUri);
-        if (!workspaceFile) {
-            return {
-                buildScriptRuntime: createBuildScriptRuntime(null, {
-                    fs,
-                    path: b3path,
-                    workdir: workspaceFolderUri.fsPath,
-                    nodeDefs: createNodeDefMap(state.nodeDefs),
-                    logger: createBuildScriptLogger(),
-                }),
-                treePath: workspaceFolderUri.fsPath,
-            };
-        }
-
-        const workspaceText = await readWorkspaceFileContent(vscode.Uri.file(workspaceFile));
-        const workspaceModel = parseWorkspaceModelContent(workspaceText);
-        const buildScript = workspaceModel.settings.buildScript;
-        const checkScripts = workspaceModel.settings.checkScripts ?? [];
-        const workdir = path.dirname(workspaceFile).replace(/\\/g, "/");
-        const env: BuildEnv = {
-            fs,
-            path: b3path,
-            workdir,
-            nodeDefs: createNodeDefMap(state.nodeDefs),
-            logger: createBuildScriptLogger(),
-        };
-
-        let buildScriptModule: unknown = null;
-        let hasRuntimeLoadError = false;
-        if (buildScript) {
-            const scriptPath = path.join(workdir, buildScript);
-            buildScriptModule = await loadRuntimeModule(scriptPath, { debug: false });
-            hasRuntimeLoadError = !buildScriptModule;
-        }
-
-        const checkScriptModules: CheckScriptModule[] = [];
-        const checkScriptPaths = resolveCheckScriptPaths(workdir, checkScripts);
-        hasRuntimeLoadError = hasRuntimeLoadError || checkScriptPaths.missingPatterns.length > 0;
-        for (const pattern of checkScriptPaths.missingPatterns) {
-            env.logger.error(`checkScripts pattern matched no files: ${pattern}`);
-        }
-        for (const scriptPath of checkScriptPaths.paths) {
-            const moduleExports = await loadRuntimeModule(scriptPath, { debug: false });
-            if (!moduleExports) {
-                env.logger.error(`'${scriptPath}' is not a valid check script`);
-                hasRuntimeLoadError = true;
-                continue;
-            }
-            checkScriptModules.push({ path: scriptPath, moduleExports });
-        }
-
-        const buildScriptRuntime = createBuildScriptRuntimeWithCheckModules(
-            buildScriptModule,
-            checkScriptModules,
-            env
-        );
-        return {
-            buildScriptRuntime: {
-                ...buildScriptRuntime,
-                hasError: buildScriptRuntime.hasError || hasRuntimeLoadError,
-            },
-            treePath: workdir,
-        };
+        return createSessionNodeCheckRuntime({
+            documentUri: document.uri,
+            workspaceFolderUri,
+            nodeDefs: state.nodeDefs,
+            readWorkspaceFileContent,
+        });
     };
 
     const handleValidateNodeChecksMessage = async (
@@ -422,13 +358,7 @@ export async function resolveTreeEditorSession({
             const diagnostics = collectNodeArgCheckDiagnostics({
                 tree,
                 treePath: msg.treePath || runtimeResult.treePath,
-                env: {
-                    fs,
-                    path: b3path,
-                    workdir: runtimeResult.treePath,
-                    nodeDefs: createNodeDefMap(state.nodeDefs),
-                    logger: createBuildScriptLogger(),
-                },
+                env: createSessionBuildScriptEnv(runtimeResult.treePath, state.nodeDefs),
                 checkers: runtimeResult.buildScriptRuntime.nodeArgCheckers,
                 targets: msg.nodes.map((entry) => ({
                     instanceKey: entry.instanceKey,
@@ -500,8 +430,8 @@ export async function resolveTreeEditorSession({
         state.fileVersionIsNewer = false;
         state.newerFileVersion = null;
 
-        const fileVersion = getTreeFileVersion(content);
-        if (!fileVersion || !isDocumentVersionNewer(fileVersion)) {
+        const fileVersion = getNewerFileVersion(content);
+        if (!fileVersion) {
             return;
         }
 
@@ -616,11 +546,11 @@ export async function resolveTreeEditorSession({
 
     const getActiveNewerFileEditMessage = (): string | null => {
         updateFileVersionState(document.content);
-        if (!state.fileVersionIsNewer) {
+        const fileVersion = state.newerFileVersion;
+        if (!state.fileVersionIsNewer || !fileVersion) {
             return null;
         }
 
-        const fileVersion = state.newerFileVersion ?? getTreeFileVersion(document.content) ?? "";
         return getNewerVersionMessage(state.currentSettings.language, fileVersion, "edit");
     };
 
@@ -635,20 +565,11 @@ export async function resolveTreeEditorSession({
     };
 
     const getExistingNewerFileEditMessage = async (fileUri: vscode.Uri): Promise<string | null> => {
-        let content: string;
-        try {
-            content = await readWorkspaceFileContent(fileUri);
-        } catch {
-            return null;
-        }
-
-        const fileVersion = getTreeFileVersion(content);
-        if (!fileVersion || !isDocumentVersionNewer(fileVersion)) {
-            return null;
-        }
-
-        const message = getNewerVersionMessage(state.currentSettings.language, fileVersion, "edit");
-        return message;
+        return readExistingNewerFileEditMessage(
+            fileUri,
+            state.currentSettings.language,
+            readWorkspaceFileContent
+        );
     };
 
     /**

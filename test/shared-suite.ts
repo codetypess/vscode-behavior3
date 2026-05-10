@@ -6,6 +6,7 @@ import { hostProtocolSharedTests } from "./shared-tests/host-protocol-shared-tes
 import { hostRequestSpecSharedTests } from "./shared-tests/host-request-spec-shared-tests";
 import { inspectorSharedTests } from "./shared-tests/inspector-shared-tests";
 import { nodeDefinitionSlotUtilsSharedTests } from "./shared-tests/node-definition-slot-utils-shared-tests";
+import { sessionFileVersionSharedTests } from "./shared-tests/session-file-version-shared-tests";
 import { defineSharedTests, registerSharedTestSuites } from "./shared-test-types";
 import { createAppHooksStore } from "../webview/shared/misc/hooks";
 import { createEditorController } from "../webview/commands/create-editor-controller";
@@ -88,6 +89,7 @@ const tests = registerSharedTestSuites(
     hostProtocolSharedTests,
     hostRequestSpecSharedTests,
     nodeDefinitionSlotUtilsSharedTests,
+    sessionFileVersionSharedTests,
     defineSharedTests([
         {
             name: "detects whether a node can open its subtree target",

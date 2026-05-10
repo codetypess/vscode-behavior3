@@ -1,6 +1,6 @@
 # Tree Editor Session Service Split
 
-Status: Approved
+Status: Done
 Date: 2026-05-10
 Scope: extension-host session helper extraction and host lifecycle clarity
 
