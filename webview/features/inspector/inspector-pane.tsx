@@ -1,9 +1,10 @@
 import { Alert, Button, Flex, Skeleton } from "antd";
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { useInspectorPaneState, useRuntime } from "../../app/runtime";
+import { useRuntime } from "../../app/runtime";
 import { getInspectorPaneMode } from "./inspector-pane-mode";
 import { NodeInspectorForm } from "./node-inspector-form";
+import { useInspectorPaneState } from "./inspector-state";
 import { TreeInspectorForm } from "./tree-inspector-form";
 
 const InspectorSkeletonRow: React.FC = () => {

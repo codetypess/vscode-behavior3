@@ -1,6 +1,6 @@
 # Runtime Feature Selector Boundary
 
-Status: Approved
+Status: Done
 Date: 2026-05-10
 Scope: app runtime store hooks and feature-owned selectors
 

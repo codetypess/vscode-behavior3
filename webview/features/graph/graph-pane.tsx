@@ -2,9 +2,10 @@ import { App, Dropdown, Flex } from "antd";
 import type { MenuProps } from "antd";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useGraphPaneState, useRuntime } from "../../app/runtime";
+import { useRuntime } from "../../app/runtime";
 import { canOpenSubtreeTarget } from "../../domain/subtree-navigation";
 import { Hotkey, isMacos, useKeyPress } from "../../shared/misc/keys";
+import { useGraphPaneState } from "./graph-pane-state";
 import { SearchBar } from "../search/search-bar";
 
 const hotkeyMap: Record<

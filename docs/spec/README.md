@@ -26,8 +26,8 @@
 
 - 11 份编号基线 spec
 - 39 份 work-item spec
-- 12 份登记中的 active work-item spec
-- 27 份登记中的 done work-item spec
+- 11 份登记中的 active work-item spec
+- 28 份登记中的 done work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
 目录判断规则：
@@ -216,7 +216,6 @@ Scope: <short boundary>
 新增 work-item 时，请继续按以下格式补充：
 
 - `your-work-item-slug.md` - `Draft` - 一句话范围说明
-- `runtime-feature-selector-boundary.md` - `Approved` - 将 app runtime 中的 Inspector/Graph feature selector 移回各 feature
 - `inspector-commit-service.md` - `Approved` - 将 Node Inspector commit/reset 编排抽成 feature-local hook/service
 - `g6-compat-layer.md` - `Approved` - 为 G6 adapter 的 unsafe/internal API 访问建立兼容层
 - `graph-structural-mutation-target-anchor.md` - `Verifying` - drop、insert、delete 后按本地操作上下文稳定画布视图锚点
@@ -231,6 +230,7 @@ Scope: <short boundary>
 
 ## Done Work Items
 
+- `runtime-feature-selector-boundary.md` - `Done` - 将 app runtime 中的 Inspector/Graph feature selector 移回各 feature
 - `tree-editor-session-service-split.md` - `Done` - 继续拆薄 extension-host TreeEditorSession 的 checker、subtree 与 helper 职责
 - `host-helper-sidebar-style-consistency.md` - `Done` - 收口 host helper 重复并拆分 Inspector sidebar 专属样式
 - `host-request-spec-map.md` - `Done` - 将 host/webview request-response 映射收口到单一 registry

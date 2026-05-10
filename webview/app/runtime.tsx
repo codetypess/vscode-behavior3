@@ -10,7 +10,6 @@ import { createSelectionStore } from "../stores/selection-store";
 import { createWorkspaceStore } from "../stores/workspace-store";
 import { createAppHooksStore, type AppHooksStore } from "../shared/misc/hooks";
 import { detectWebviewKind, type WebviewKind } from "../shared/webview-kind";
-import { getCachedInspectorNodeSnapshot } from "../features/inspector/inspector-node-snapshot-cache";
 import type {
     DocumentState,
     EditorCommand,
@@ -126,89 +125,5 @@ export const useAppThemeState = () => {
         language,
         themeVersion,
         webviewKind,
-    };
-};
-
-export const useInspectorPaneState = () => {
-    const document = useDocumentStore((state) => state.persistedTree);
-    const alertReload = useDocumentStore((state) => state.alertReload);
-    const pendingExternalContent = useDocumentStore((state) => state.pendingExternalContent);
-    const filePath = useWorkspaceStore((state) => state.filePath);
-    const selectedNodeRef = useSelectionStore((state) => state.selectedNodeRef);
-    const rawSelectedNode = useSelectionStore((state) => state.selectedNodeSnapshot);
-    const selectedNode =
-        rawSelectedNode ?? getCachedInspectorNodeSnapshot(filePath, selectedNodeRef);
-
-    return {
-        document,
-        alertReload,
-        pendingExternalContent,
-        selectedNode,
-        selectedNodeRef,
-    };
-};
-
-export const useNodeInspectorState = () => {
-    // Keep inspector selectors centralized so the form tree does not subscribe to whole stores.
-    const document = useDocumentStore((state) => state.persistedTree);
-    const filePath = useWorkspaceStore((state) => state.filePath);
-    const selectedNodeRef = useSelectionStore((state) => state.selectedNodeRef);
-    const rawSelectedNode = useSelectionStore((state) => state.selectedNodeSnapshot);
-    const selectedNode =
-        rawSelectedNode ?? getCachedInspectorNodeSnapshot(filePath, selectedNodeRef);
-    const nodeDefs = useWorkspaceStore((state) => state.nodeDefs);
-    const usingVars = useWorkspaceStore((state) => state.usingVars);
-    const usingGroups = useWorkspaceStore((state) => state.usingGroups);
-    const allFiles = useWorkspaceStore((state) => state.allFiles);
-    const checkExpr = useWorkspaceStore((state) => state.settings.checkExpr);
-    const nodeCheckDiagnostics = useWorkspaceStore((state) => state.nodeCheckDiagnostics);
-    const pendingSelectedNodeSnapshot = !rawSelectedNode && Boolean(selectedNodeRef && selectedNode);
-
-    return {
-        document,
-        selectedNode,
-        pendingSelectedNodeSnapshot,
-        nodeDefs,
-        usingVars,
-        usingGroups,
-        allFiles,
-        checkExpr,
-        nodeCheckDiagnostics,
-    };
-};
-
-export const useTreeInspectorState = () => {
-    const document = useDocumentStore((state) => state.persistedTree);
-    const nodeDefs = useWorkspaceStore((state) => state.nodeDefs);
-    const groupDefs = useWorkspaceStore((state) => state.groupDefs);
-    const allFiles = useWorkspaceStore((state) => state.allFiles);
-    const importDecls = useWorkspaceStore((state) => state.importDecls);
-    const subtreeDecls = useWorkspaceStore((state) => state.subtreeDecls);
-    const subtreeSources = useWorkspaceStore((state) => state.subtreeSources);
-    const subtreeEditable = useWorkspaceStore((state) => state.settings.subtreeEditable);
-
-    return {
-        document,
-        nodeDefs,
-        groupDefs,
-        allFiles,
-        importDecls,
-        subtreeDecls,
-        subtreeSources,
-        subtreeEditable,
-    };
-};
-
-export const useGraphPaneState = () => {
-    const selectedNode = useSelectionStore((state) => state.selectedNodeSnapshot);
-    const selectedNodeRef = useSelectionStore((state) => state.selectedNodeRef);
-    const searchOpen = useGraphUiStore((state) => state.search.open);
-    const rootStableId = useDocumentStore((state) => state.persistedTree?.root.uuid ?? null);
-
-    return {
-        selectedNode,
-        selectedNodeRef,
-        searchOpen,
-        rootStableId,
     };
 };
