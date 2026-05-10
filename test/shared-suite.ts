@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { hostProtocolSharedTests } from "./shared-tests/host-protocol-shared-tests";
+import { hostRequestSpecSharedTests } from "./shared-tests/host-request-spec-shared-tests";
 import { inspectorSharedTests } from "./shared-tests/inspector-shared-tests";
 import { nodeDefinitionSlotUtilsSharedTests } from "./shared-tests/node-definition-slot-utils-shared-tests";
 import { defineSharedTests, registerSharedTestSuites } from "./shared-test-types";
@@ -85,6 +86,7 @@ const createTestTree = (): PersistedTreeModel => ({
 const tests = registerSharedTestSuites(
     inspectorSharedTests,
     hostProtocolSharedTests,
+    hostRequestSpecSharedTests,
     nodeDefinitionSlotUtilsSharedTests,
     defineSharedTests([
         {

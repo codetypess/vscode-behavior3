@@ -1,5 +1,12 @@
 import type { EditorToHostMessage, HostToEditorMessage } from "../../shared/message-protocol";
 import {
+    createHostRequestTimeoutResponse,
+    isHostRequestResultMessage,
+    resolveHostRequestResult,
+    type PendingRequestMap,
+    type PendingRequestType,
+} from "../../shared/host-request-spec";
+import {
     composeLoggers,
     createConsoleLogger,
     setLogger,
@@ -32,17 +39,6 @@ declare function acquireVsCodeApi(): {
 
 const vscode = acquireVsCodeApi();
 
-interface PendingRequestMap {
-    readFile: ReadFileResponse;
-    saveSubtree: SaveSubtreeResponse;
-    saveSubtreeAs: SaveSubtreeAsResponse;
-    saveDocument: SaveDocumentResponse;
-    revertDocument: RevertDocumentResponse;
-    mutateDocument: DocumentMutationResponse;
-    validateNodeChecks: ValidateNodeChecksResponse;
-}
-
-type PendingRequestType = keyof PendingRequestMap;
 type PendingRequest = {
     [K in PendingRequestType]: {
         type: K;
@@ -94,25 +90,6 @@ const postMessage = (message: EditorToHostMessage) => {
     vscode.postMessage(message);
 };
 
-const createTimeoutResponse = <K extends PendingRequestType>(type: K): PendingRequestMap[K] => {
-    const error = `Host request '${type}' timed out`;
-    switch (type) {
-        case "readFile":
-            return { content: null } as PendingRequestMap[K];
-        case "saveSubtree":
-        case "saveDocument":
-        case "revertDocument":
-            return { success: false, error } as PendingRequestMap[K];
-        case "saveSubtreeAs":
-            return { savedPath: null, error } as PendingRequestMap[K];
-        case "mutateDocument":
-        case "validateNodeChecks":
-            return (
-                type === "mutateDocument" ? { success: false, error } : { diagnostics: [], error }
-            ) as PendingRequestMap[K];
-    }
-};
-
 const registerPendingRequest = <K extends PendingRequestType>(
     type: K,
     resolve: (value: PendingRequestMap[K]) => void,
@@ -126,7 +103,9 @@ const registerPendingRequest = <K extends PendingRequestType>(
             return;
         }
         pendingRequests.delete(requestId);
-        (pending.resolve as (resolved: PendingRequestMap[K]) => void)(createTimeoutResponse(type));
+        (pending.resolve as (resolved: PendingRequestMap[K]) => void)(
+            createHostRequestTimeoutResponse(type)
+        );
     }, timeoutMs);
 
     pendingRequests.set(requestId, {
@@ -137,10 +116,10 @@ const registerPendingRequest = <K extends PendingRequestType>(
     return requestId;
 };
 
-const resolvePendingRequest = <K extends PendingRequestType>(
+const resolvePendingRequest = (
     requestId: string,
-    type: K,
-    value: PendingRequestMap[K]
+    type: PendingRequestType,
+    value: PendingRequestMap[PendingRequestType]
 ): boolean => {
     // Type matching prevents a stale response id from resolving the wrong request shape.
     const pending = pendingRequests.get(requestId);
@@ -148,9 +127,12 @@ const resolvePendingRequest = <K extends PendingRequestType>(
         return false;
     }
 
+    const resolvedPending = pending;
     pendingRequests.delete(requestId);
-    window.clearTimeout(pending.timeout);
-    (pending.resolve as (resolved: PendingRequestMap[K]) => void)(value);
+    window.clearTimeout(resolvedPending.timeout);
+    (resolvedPending.resolve as (resolved: PendingRequestMap[typeof resolvedPending.type]) => void)(
+        value as never
+    );
     return true;
 };
 
@@ -159,7 +141,7 @@ const resolveAllPendingRequests = () => {
         pendingRequests.delete(requestId);
         window.clearTimeout(pending.timeout);
         (pending.resolve as (resolved: PendingRequestMap[typeof pending.type]) => void)(
-            createTimeoutResponse(pending.type)
+            createHostRequestTimeoutResponse(pending.type)
         );
     }
 };
@@ -186,6 +168,10 @@ const createForwardLogger = (): Logger => {
 
 setLogger(composeLoggers(createConsoleLogger(), createForwardLogger()));
 
+const hostRequestResolverContext = {
+    parseWorkdirRelativeJsonPath,
+};
+
 export const createVsCodeHostAdapter = (): HostAdapter => {
     return {
         connect(onMessage) {
@@ -199,62 +185,13 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
 
             const dispatchHostEvent = (message: HostToEditorMessage) => {
                 // Transport messages are normalized at this adapter boundary before reaching stores.
+                if (isHostRequestResultMessage(message)) {
+                    const resolved = resolveHostRequestResult(message, hostRequestResolverContext);
+                    resolvePendingRequest(resolved.requestId, resolved.type, resolved.value);
+                    return;
+                }
+
                 switch (message.type) {
-                    case "readFileResult":
-                        resolvePendingRequest(message.requestId, "readFile", {
-                            content: message.content,
-                        });
-                        return;
-
-                    case "saveSubtreeResult":
-                        resolvePendingRequest(message.requestId, "saveSubtree", {
-                            success: message.success,
-                            error: message.error,
-                        });
-                        return;
-
-                    case "saveSubtreeAsResult":
-                        resolvePendingRequest(message.requestId, "saveSubtreeAs", {
-                            savedPath: message.savedPath
-                                ? parseWorkdirRelativeJsonPath(message.savedPath)
-                                : null,
-                            error:
-                                message.error ??
-                                (message.savedPath &&
-                                !parseWorkdirRelativeJsonPath(message.savedPath)
-                                    ? "Host returned an invalid saved subtree path"
-                                    : undefined),
-                        });
-                        return;
-
-                    case "saveDocumentResult":
-                        resolvePendingRequest(message.requestId, "saveDocument", {
-                            success: message.success,
-                            error: message.error,
-                        });
-                        return;
-
-                    case "revertDocumentResult":
-                        resolvePendingRequest(message.requestId, "revertDocument", {
-                            success: message.success,
-                            error: message.error,
-                        });
-                        return;
-
-                    case "mutateDocumentResult":
-                        resolvePendingRequest(message.requestId, "mutateDocument", {
-                            success: message.success,
-                            error: message.error,
-                        });
-                        return;
-
-                    case "validateNodeChecksResult":
-                        resolvePendingRequest(message.requestId, "validateNodeChecks", {
-                            diagnostics: message.diagnostics,
-                            error: message.error,
-                        });
-                        return;
-
                     case "init":
                         onMessage({ type: "init", payload: normalizeHostInitMessage(message) });
                         return;

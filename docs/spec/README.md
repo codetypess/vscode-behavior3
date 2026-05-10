@@ -26,8 +26,8 @@
 
 - 11 份编号基线 spec
 - 39 份 work-item spec
-- 15 份登记中的 active work-item spec
-- 24 份登记中的 done work-item spec
+- 14 份登记中的 active work-item spec
+- 25 份登记中的 done work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
 目录判断规则：
@@ -216,7 +216,6 @@ Scope: <short boundary>
 新增 work-item 时，请继续按以下格式补充：
 
 - `your-work-item-slug.md` - `Draft` - 一句话范围说明
-- `host-request-spec-map.md` - `Approved` - 将 host/webview request-response 映射收口到单一 registry
 - `host-helper-sidebar-style-consistency.md` - `Approved` - 收口 host helper 重复并拆分 Inspector sidebar 专属样式
 - `tree-editor-session-service-split.md` - `Approved` - 继续拆薄 extension-host TreeEditorSession 的 checker、subtree 与 helper 职责
 - `runtime-feature-selector-boundary.md` - `Approved` - 将 app runtime 中的 Inspector/Graph feature selector 移回各 feature
@@ -234,6 +233,7 @@ Scope: <short boundary>
 
 ## Done Work Items
 
+- `host-request-spec-map.md` - `Done` - 将 host/webview request-response 映射收口到单一 registry
 - `b3util-state-boundary.md` - `Done` - 将 shared misc 中的纯 helper 与 legacy 模块级状态继续拆边界
 - `node-definition-slot-utils.md` - `Done` - 统一 nodeDef map/lookup 与 slot required/variadic/label 解析工具
 - `shared-test-suite-split-format.md` - `Done` - 拆分 shared tests 并补 format quality gate

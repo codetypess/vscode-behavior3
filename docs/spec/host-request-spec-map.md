@@ -1,6 +1,6 @@
 # Host Request Spec Map
 
-Status: Approved
+Status: Done
 Date: 2026-05-10
 Scope: host/webview request-response registry, adapter pending request handling, protocol baseline
 
