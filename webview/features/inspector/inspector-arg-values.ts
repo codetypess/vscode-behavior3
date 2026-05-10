@@ -10,7 +10,8 @@ import {
 } from "../../shared/b3type";
 import { getNodeArgRawType, isNodeArgArray, isNodeArgOptional } from "../../shared/node-utils";
 import i18n from "../../shared/i18n";
-import { validateExpressionValues } from "./inspector-validation";
+import { validateNodeArgValue } from "../../shared/validation";
+import { formatValidationDiagnostic, validateExpressionValues } from "./inspector-validation";
 
 export const formatArgInitialValue = (arg: NodeArg, value: unknown) => {
     const type = getNodeArgRawType(arg);
@@ -125,47 +126,20 @@ export const validateInspectorArgValue = (params: {
         return null;
     }
 
-    const integerError = i18n.t("validation.integer", { field: arg.desc || arg.name });
-    const numberError = i18n.t("validation.number", { field: arg.desc || arg.name });
-
-    if (isNodeArgArray(arg)) {
-        if (!Array.isArray(parsedValue)) {
-            return i18n.t("validation.jsonArray", { name: arg.name });
-        }
-
-        if (isIntType(type)) {
-            return parsedValue.every((entry) => Number.isInteger(entry)) ? null : integerError;
-        }
-
-        if (isFloatType(type)) {
-            return parsedValue.every(
-                (entry) => typeof entry === "number" && Number.isFinite(entry)
-            )
-                ? null
-                : numberError;
-        }
-
-        if (isExprType(type)) {
-            const exprValues = parsedValue.filter((entry): entry is string => typeof entry === "string");
-            if (exprValues.length !== parsedValue.length) {
-                return i18n.t("validation.invalidValue");
-            }
-            return validateExpressionValues(exprValues, usingVars, checkExpr);
-        }
-
-        return null;
-    }
-
-    if (isIntType(type)) {
-        return Number.isInteger(parsedValue) ? null : integerError;
-    }
-
-    if (isFloatType(type)) {
-        return typeof parsedValue === "number" && Number.isFinite(parsedValue) ? null : numberError;
+    const argDiagnostics = validateNodeArgValue({
+        arg,
+        value: parsedValue,
+        args: { [arg.name]: parsedValue },
+        validateOptions: false,
+    });
+    if (argDiagnostics.length) {
+        return formatValidationDiagnostic(argDiagnostics[0]);
     }
 
     if (isExprType(type)) {
-        const exprValues = typeof parsedValue === "string" ? [parsedValue] : [];
+        const exprValues = (Array.isArray(parsedValue) ? parsedValue : [parsedValue]).filter(
+            (entry): entry is string => typeof entry === "string"
+        );
         return validateExpressionValues(exprValues, usingVars, checkExpr);
     }
 

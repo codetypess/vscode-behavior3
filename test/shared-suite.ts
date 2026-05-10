@@ -31,7 +31,7 @@ import { handleNativeWheelZoom } from "../webview/adapters/graph/g6-wheel-zoom";
 import { buildResolvedGraphModel } from "../webview/domain/graph-selectors";
 import { resolveDocumentGraph } from "../webview/domain/resolve-graph";
 import { canOpenSubtreeTarget } from "../webview/domain/subtree-navigation";
-import { collectResolvedNodeDiagnostics } from "../webview/domain/tree-validation";
+import { collectResolvedNodeDiagnostics, validateNodeArgValue } from "../webview/shared/validation";
 import {
     cloneInspectorNodeSnapshotForRef,
     resolveCachedInspectorNodeSnapshot,
@@ -1588,6 +1588,41 @@ const tests = registerSharedTestSuites(
                     ),
                     true
                 );
+            },
+        },
+        {
+            name: "validates node arg scalar entries through shared validation",
+            run() {
+                const diagnostics = validateNodeArgValue({
+                    arg: { name: "weights", type: "float[]?", desc: "Weights" },
+                    value: [1, "bad"],
+                    validateOptions: false,
+                });
+
+                assert.equal(diagnostics[0]?.code, "invalid-arg-value");
+                assert.equal(
+                    diagnostics[0]?.code === "invalid-arg-value"
+                        ? diagnostics[0].expected
+                        : undefined,
+                    "number"
+                );
+            },
+        },
+        {
+            name: "validates node arg options through shared validation",
+            run() {
+                const diagnostics = validateNodeArgValue({
+                    arg: {
+                        name: "mode",
+                        type: "string",
+                        desc: "Mode",
+                        options: [{ source: [{ name: "A", value: "a" }] }],
+                    },
+                    value: "b",
+                    args: { mode: "b" },
+                });
+
+                assert.equal(diagnostics[0]?.code, "invalid-arg-option");
             },
         },
         {

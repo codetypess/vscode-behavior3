@@ -1,13 +1,7 @@
 import {
     FileVarDecl,
-    hasArgOptions,
     ImportDecl,
-    isBoolType,
     isExprType,
-    isFloatType,
-    isIntType,
-    isJsonType,
-    isStringType,
     NodeArg,
     NodeData,
     NodeDef,
@@ -21,16 +15,13 @@ import { dfs, isSubtreeRoot } from "./tree-model";
 import {
     checkOneof,
     createNodeDefMap,
-    getNodeArgOptions,
-    getNodeArgRawType,
-    isNodeArgArray,
-    isNodeArgOptional,
     parseSlotDefinition,
 } from "./node-utils";
 import { normalizeNodeDefCollection } from "./schema";
 import {
     parseExpressionVariables,
     validateExpressionEntries,
+    validateNodeArgValue,
     validateVariableReference,
     type TreeValidationDiagnostic,
 } from "./validation";
@@ -150,6 +141,30 @@ const formatBuildDiagnostic = (diagnostic: TreeValidationDiagnostic): string => 
             return `intput field '${diagnostic.label}' is required`;
         case "required-output":
             return `output field '${diagnostic.label}' is required`;
+        case "invalid-arg-value": {
+            const value = JSON.stringify(diagnostic.value);
+            switch (diagnostic.expected) {
+                case "array":
+                    return `'${diagnostic.argName}=${value}' is not an array or empty array`;
+                case "boolean":
+                    return `'${diagnostic.argName}=${value}' is not a boolean`;
+                case "expr":
+                    return `'${diagnostic.argName}=${value}' is not an expr string`;
+                case "integer":
+                    return `'${diagnostic.argName}=${value}' is not a int`;
+                case "json":
+                    return `'${diagnostic.argName}=${diagnostic.value}' is not an invalid object`;
+                case "number":
+                    return `'${diagnostic.argName}=${value}' is not a number`;
+                case "string":
+                    return `'${diagnostic.argName}=${value}' is not a string`;
+            }
+            return "invalid node data";
+        }
+        case "invalid-arg-option":
+            return `'${diagnostic.argName}=${JSON.stringify(diagnostic.value)}' is not a one of the option values`;
+        case "unknown-arg-type":
+            return `unknown arg type '${diagnostic.type}'`;
         case "invalid-children":
             return `expect ${diagnostic.expected} children, but got ${diagnostic.actual}`;
         case "missing-node-def":
@@ -159,98 +174,14 @@ const formatBuildDiagnostic = (diagnostic: TreeValidationDiagnostic): string => 
     }
 };
 
-const checkNodeArgValue = (
-    data: NodeData,
-    arg: NodeArg,
-    value: unknown,
-    printer?: ErrorPrinter
-) => {
-    let hasError = false;
-    const type = getNodeArgRawType(arg);
-    const error = !printer ? () => {} : (msg: string) => printer(formatError(data, msg));
-    if (isFloatType(type)) {
-        const isNumber = typeof value === "number";
-        const isOptional = value === undefined && isNodeArgOptional(arg);
-        if (!(isNumber || isOptional)) {
-            error(`'${arg.name}=${JSON.stringify(value)}' is not a number`);
-            hasError = true;
-        }
-    } else if (isIntType(type)) {
-        const isInt = typeof value === "number" && value === Math.floor(value);
-        const isOptional = value === undefined && isNodeArgOptional(arg);
-        if (!(isInt || isOptional)) {
-            error(`'${arg.name}=${JSON.stringify(value)}' is not a int`);
-            hasError = true;
-        }
-    } else if (isStringType(type)) {
-        const isString = typeof value === "string" && value;
-        const isOptional = (value === undefined || value === "") && isNodeArgOptional(arg);
-        if (!(isString || isOptional)) {
-            error(`'${arg.name}=${JSON.stringify(value)}' is not a string`);
-            hasError = true;
-        }
-    } else if (isExprType(type)) {
-        const isExpr = typeof value === "string" && value;
-        const isOptional = (value === undefined || value === "") && isNodeArgOptional(arg);
-        if (!(isExpr || isOptional)) {
-            error(`'${arg.name}=${JSON.stringify(value)}' is not an expr string`);
-            hasError = true;
-        }
-    } else if (isJsonType(type)) {
-        const isJson = value !== undefined && value !== "";
-        const isOptional = isNodeArgOptional(arg);
-        if (!(isJson || isOptional)) {
-            error(`'${arg.name}=${value}' is not an invalid object`);
-            hasError = true;
-        }
-    } else if (isBoolType(type)) {
-        const isBool = typeof value === "boolean";
-        const isOptional = value === undefined && isNodeArgOptional(arg);
-        if (!(isBool || isOptional)) {
-            error(`'${arg.name}=${JSON.stringify(value)}' is not a boolean`);
-            hasError = true;
-        }
-    } else {
-        hasError = true;
-        error(`unknown arg type '${arg.type}'`);
-    }
-
-    if (hasArgOptions(arg)) {
-        const options = getNodeArgOptions(arg, data.args ?? {});
-        const found = !!options?.find(
-            (option: { name: string; value: unknown }) => option.value === value
-        );
-        const isOptional = value === undefined && isNodeArgOptional(arg);
-        if (!(found || isOptional)) {
-            error(`'${arg.name}=${JSON.stringify(value)}' is not a one of the option values`);
-            hasError = true;
-        }
-    }
-
-    return !hasError;
-};
-
 const checkNodeArg = (data: NodeData, conf: NodeDef, i: number, printer?: ErrorPrinter) => {
-    let hasError = false;
     const arg = conf.args![i] as NodeArg;
     const value = data.args?.[arg.name];
     const error = !printer ? () => {} : (msg: string) => printer(formatError(data, msg));
-    if (isNodeArgArray(arg)) {
-        if (!Array.isArray(value) || value.length === 0) {
-            if (!isNodeArgOptional(arg)) {
-                error(`'${arg.name}=${JSON.stringify(value)}' is not an array or empty array`);
-                hasError = true;
-            }
-        } else {
-            for (let j = 0; j < value.length; j++) {
-                if (!checkNodeArgValue(data, arg, value[j], printer)) {
-                    hasError = true;
-                }
-            }
-        }
-    } else if (!checkNodeArgValue(data, arg, value, printer)) {
-        hasError = true;
-    }
+    const diagnostics = validateNodeArgValue({ arg, value, args: data.args ?? {} });
+    let hasError = diagnostics.length > 0;
+    diagnostics.forEach((diagnostic) => error(formatBuildDiagnostic(diagnostic)));
+
     if (arg.oneof !== undefined) {
         const idx = conf.input?.findIndex((v) => v.startsWith(arg.oneof!)) ?? -1;
         if (!checkOneof(arg, data.args?.[arg.name], data.input?.[idx])) {

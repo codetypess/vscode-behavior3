@@ -8,7 +8,7 @@ import {
     validateVariableReference,
 } from "../../shared/validation";
 
-const formatValidationDiagnostic = (diagnostic: TreeValidationDiagnostic): string => {
+export const formatValidationDiagnostic = (diagnostic: TreeValidationDiagnostic): string => {
     switch (diagnostic.code) {
         case "invalid-variable-name":
             return i18n.t("node.invalidVariableName");
@@ -25,6 +25,20 @@ const formatValidationDiagnostic = (diagnostic: TreeValidationDiagnostic): strin
             return i18n.t("fieldRequired", { field: diagnostic.label });
         case "custom-arg-check":
             return `${diagnostic.argName}: ${diagnostic.message}`;
+        case "invalid-arg-value":
+            if (diagnostic.expected === "integer") {
+                return i18n.t("validation.integer", { field: diagnostic.label });
+            }
+            if (diagnostic.expected === "number") {
+                return i18n.t("validation.number", { field: diagnostic.label });
+            }
+            if (diagnostic.expected === "array") {
+                return i18n.t("validation.jsonArray", { name: diagnostic.argName });
+            }
+            return i18n.t("node.invalidValue");
+        case "invalid-arg-option":
+        case "unknown-arg-type":
+            return i18n.t("node.invalidValue");
         case "invalid-children":
             return i18n.t("node.invalidChildren");
         case "missing-node-def":

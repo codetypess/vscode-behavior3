@@ -255,6 +255,7 @@ Scope: <short boundary>
 - `shared-legacy-facade-removal.md` - `Done` - 移除 `webview/shared/b3util.ts` 兼容 facade 并改为显式 helper 模块
 - `shared-helper-consolidation.md` - `Done` - 收敛 `webview/shared` 中未使用或单消费者的薄 helper
 - `shared-misc-flatten.md` - `Done` - 将 `webview/shared/misc` 扁平化到 `webview/shared`
+- `node-validation-consolidation.md` - `Done` - 将 build、graph 与 Inspector 可复用的节点/参数纯校验收口到 shared validation
 - `host-file-request-handler-split.md` - `Done` - 将 host 侧 `readFile` / `saveSubtree` / `saveSubtreeAs` 文件请求处理抽出 session 主体
 - `architecture-cognitive-load-cleanup.md` - `Done` - 用四层心智模型收敛架构阅读入口与文档噪音
 - `g6-compat-layer.md` - `Done` - 为 G6 adapter 的 unsafe/internal API 访问建立兼容层

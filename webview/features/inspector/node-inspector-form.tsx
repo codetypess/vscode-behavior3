@@ -28,7 +28,7 @@ import {
 } from "../../shared/b3type";
 import { useRuntime } from "../../app/runtime";
 import type { NodeCheckDiagnostic } from "../../shared/contracts";
-import { isRequiredNodeArgValueMissing } from "../../domain/tree-validation";
+import { isRequiredNodeArgValueMissing } from "../../shared/validation";
 import {
     parseArgSubmitValue,
     validateInspectorArgValue,

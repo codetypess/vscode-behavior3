@@ -218,13 +218,13 @@ Adapters / Features
 - `webview/stores/`
     - document / workspace / selection / graph-ui store
 - `webview/domain/`
-    - resolve graph、graph selectors、resolved-node validation、main-document save serialization
+    - resolve graph、graph selectors、main-document save serialization
 - `webview/adapters/`
     - G6 graph adapter、VS Code host adapter
 - `webview/features/`
     - graph、search、inspector UI
 - `webview/shared/`
-    - contracts、protocol、tree、subtree cache、validation、`b3type` model types、shared helpers
+    - contracts、protocol、tree、subtree cache、node/arg validation、`b3type` model types、shared helpers
 
 ## 架构验收标准
 

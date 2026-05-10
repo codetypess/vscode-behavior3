@@ -13,8 +13,7 @@ import type {
 } from "../shared/contracts";
 import { isJsonEqual, stringifyCompactJson5, stringifySearchValueAsJson5 } from "../shared/json";
 import { createNodeDefMap, findNodeDef } from "../shared/node-utils";
-import { parseExpressionVariables } from "../shared/validation";
-import { collectResolvedNodeDiagnostics } from "./tree-validation";
+import { collectResolvedNodeDiagnostics, parseExpressionVariables } from "../shared/validation";
 
 const DEFAULT_NODE_COLORS: Record<GraphNodeVM["nodeStyleKind"], string> = {
     Composite: "#34d800",
