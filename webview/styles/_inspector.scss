@@ -2,20 +2,17 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: var(--b3-panel-content-bg);
 }
 
 .b3-inspector-empty {
     height: 100%;
     padding: 20px 16px;
     text-align: center;
-    background: var(--b3-panel-content-bg);
 }
 
 .b3-inspector-header {
     padding: 12px;
     border-bottom: 1px solid var(--b3-panel-border);
-    background: var(--b3-panel-header-bg);
 }
 
 .b3-inspector-header-row {
@@ -39,7 +36,6 @@
     flex: 1;
     overflow: auto;
     padding: var(--b3-inspector-content-padding);
-    background: var(--b3-panel-content-bg);
 }
 
 .b3-inspector-skeleton-content {
@@ -169,6 +165,15 @@
     display: flex;
     flex-direction: column;
     row-gap: 0;
+}
+
+.b3-inspector .ant-btn.ant-btn-dashed {
+    background: transparent;
+}
+
+.b3-inspector .ant-btn.ant-btn-dashed:not(:disabled):not(.ant-btn-disabled):hover,
+.b3-inspector .ant-btn.ant-btn-dashed:not(:disabled):not(.ant-btn-disabled):focus-visible {
+    background: var(--ant-color-fill-tertiary);
 }
 
 .b3-decl-group {

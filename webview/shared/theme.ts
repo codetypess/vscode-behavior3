@@ -4,8 +4,6 @@ import type { WebviewKind } from "./webview-env";
 type ThemeMode = "dark" | "light";
 
 type ThemePalette = {
-    appBg: string;
-    panelBg: string;
     elevatedBg: string;
     inputBg: string;
     inputBorder: string;
@@ -62,22 +60,6 @@ const getThemePalette = (mode: ThemeMode, webviewKind: WebviewKind): ThemePalett
     const isInspectorSidebar = webviewKind === "inspector-sidebar";
 
     return {
-        appBg: resolveCssVariable(
-            isInspectorSidebar
-                ? ["--vscode-sideBar-background", "--vscode-editor-background"]
-                : ["--vscode-editor-background", "--vscode-sideBar-background"],
-            isDark ? "#0d1117" : "#ffffff"
-        ),
-        panelBg: resolveCssVariable(
-            isInspectorSidebar
-                ? [
-                      "--vscode-sideBar-background",
-                      "--vscode-sideBarSectionHeader-background",
-                      "--vscode-editor-background",
-                  ]
-                : ["--vscode-sideBar-background", "--vscode-editor-background"],
-            isDark ? "#0d1117" : "#ffffff"
-        ),
         elevatedBg: resolveCssVariable(
             isInspectorSidebar
                 ? [
@@ -214,9 +196,6 @@ const buildThemeConfig = (mode: ThemeMode, webviewKind: WebviewKind): ThemeConfi
             colorLink: palette.textLink,
             colorError: palette.error,
             colorWarning: palette.warning,
-            colorBgBase: palette.appBg,
-            colorBgLayout: palette.appBg,
-            colorBgContainer: palette.panelBg,
             colorBgElevated: palette.elevatedBg,
             colorBorder: palette.panelBorder,
             colorBorderDisabled: palette.panelBorder,
@@ -232,18 +211,12 @@ const buildThemeConfig = (mode: ThemeMode, webviewKind: WebviewKind): ThemeConfi
         components: {
             Tree: {
                 borderRadius: 0,
-                colorBgContainer: palette.appBg,
             },
             Tabs: {
                 horizontalMargin: "0",
             },
             Layout: {
-                bodyBg: palette.appBg,
-                headerBg: palette.panelBg,
                 headerColor: palette.text,
-                siderBg: palette.panelBg,
-                lightSiderBg: palette.panelBg,
-                lightTriggerBg: palette.panelBg,
                 lightTriggerColor: palette.text,
             },
             Input: {
@@ -297,7 +270,6 @@ const buildThemeConfig = (mode: ThemeMode, webviewKind: WebviewKind): ThemeConfi
                 defaultShadow: "none",
                 primaryShadow: "none",
                 dangerShadow: "none",
-                defaultBg: palette.panelBg,
                 defaultColor: palette.text,
                 defaultBorderColor: palette.panelBorder,
                 defaultHoverBg: palette.listHoverBg,

@@ -1,6 +1,5 @@
 .b3-shell {
     height: 100%;
-    background: var(--b3-app-bg);
 }
 
 .b3-body {
@@ -8,7 +7,6 @@
     flex-direction: row;
     min-height: 0;
     flex: 1;
-    background: var(--b3-app-bg);
 }
 
 .b3-content {
@@ -23,6 +21,4 @@
 .b3-sider {
     border-left: 1px solid var(--b3-panel-border);
     overflow: hidden;
-    background: var(--b3-panel-bg);
 }
-
