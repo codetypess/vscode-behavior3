@@ -25,9 +25,9 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 28 份 work-item spec
-- 9 份登记中的 active work-item spec
-- 20 份登记中的 done work-item spec
+- 39 份 work-item spec
+- 17 份登记中的 active work-item spec
+- 22 份登记中的 done work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
 目录判断规则：
@@ -50,51 +50,51 @@
 
 ## 按问题找文档
 
-| 你想确认什么 | 优先阅读 |
-| --- | --- |
-| 这个编辑器当前要解决什么问题，哪些不做 | [`01-product-scope.md`](01-product-scope.md) |
-| 当前必须守住哪些回归场景 | [`02-acceptance-scenarios.md`](02-acceptance-scenarios.md) |
-| 模块分层、职责边界、关键事件流 | [`10-architecture.md`](10-architecture.md) |
+| 你想确认什么                                                | 优先阅读                                                                                           |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 这个编辑器当前要解决什么问题，哪些不做                      | [`01-product-scope.md`](01-product-scope.md)                                                       |
+| 当前必须守住哪些回归场景                                    | [`02-acceptance-scenarios.md`](02-acceptance-scenarios.md)                                         |
+| 模块分层、职责边界、关键事件流                              | [`10-architecture.md`](10-architecture.md)                                                         |
 | persisted tree、resolved graph、override、history/save 语义 | [`11-document-model.md`](11-document-model.md), [`17-editor-semantics.md`](17-editor-semantics.md) |
-| store 归属、command catalog、内部稳定接口 | [`12-runtime-and-commands.md`](12-runtime-and-commands.md) |
-| host message、DTO、路径与跨层对象语义 | [`13-host-protocol.md`](13-host-protocol.md) |
-| subtree 解析、identity、display id、selection restore | [`14-resolved-graph.md`](14-resolved-graph.md) |
-| 图层输入输出、layout、selection/search/highlight/drop 契约 | [`15-graph-contract.md`](15-graph-contract.md) |
-| Inspector 布局、提交节奏、override 与变量高亮 | [`16-inspector-contract.md`](16-inspector-contract.md) |
-| command 行为、图刷新、宿主往返、保存/构建语义 | [`17-editor-semantics.md`](17-editor-semantics.md) |
-| 当前实现应按什么阶段落地 | [`90-implementation-plan.md`](90-implementation-plan.md) |
+| store 归属、command catalog、内部稳定接口                   | [`12-runtime-and-commands.md`](12-runtime-and-commands.md)                                         |
+| host message、DTO、路径与跨层对象语义                       | [`13-host-protocol.md`](13-host-protocol.md)                                                       |
+| subtree 解析、identity、display id、selection restore       | [`14-resolved-graph.md`](14-resolved-graph.md)                                                     |
+| 图层输入输出、layout、selection/search/highlight/drop 契约  | [`15-graph-contract.md`](15-graph-contract.md)                                                     |
+| Inspector 布局、提交节奏、override 与变量高亮               | [`16-inspector-contract.md`](16-inspector-contract.md)                                             |
+| command 行为、图刷新、宿主往返、保存/构建语义               | [`17-editor-semantics.md`](17-editor-semantics.md)                                                 |
+| 当前实现应按什么阶段落地                                    | [`90-implementation-plan.md`](90-implementation-plan.md)                                           |
 
 ## 基线 spec 地图
 
 ### 1. 范围与回归
 
-| 文件 | 主要回答的问题 |
-| --- | --- |
-| [`01-product-scope.md`](01-product-scope.md) | 产品目标、固定技术路线、非目标、完成标准是什么 |
-| [`02-acceptance-scenarios.md`](02-acceptance-scenarios.md) | 当前版本至少需要通过哪些黑盒行为场景 |
+| 文件                                                       | 主要回答的问题                                 |
+| ---------------------------------------------------------- | ---------------------------------------------- |
+| [`01-product-scope.md`](01-product-scope.md)               | 产品目标、固定技术路线、非目标、完成标准是什么 |
+| [`02-acceptance-scenarios.md`](02-acceptance-scenarios.md) | 当前版本至少需要通过哪些黑盒行为场景           |
 
 ### 2. 边界、模型与协议
 
-| 文件 | 主要回答的问题 |
-| --- | --- |
-| [`10-architecture.md`](10-architecture.md) | 组件、controller、stores、adapter 的职责怎么切分 |
-| [`11-document-model.md`](11-document-model.md) | 哪些数据是可写真源，哪些只是派生结果 |
-| [`12-runtime-and-commands.md`](12-runtime-and-commands.md) | 每种状态归谁管，所有动作应该走哪些 command |
-| [`13-host-protocol.md`](13-host-protocol.md) | webview 和 host 如何通信，进入内部前怎么归一化 |
+| 文件                                                       | 主要回答的问题                                   |
+| ---------------------------------------------------------- | ------------------------------------------------ |
+| [`10-architecture.md`](10-architecture.md)                 | 组件、controller、stores、adapter 的职责怎么切分 |
+| [`11-document-model.md`](11-document-model.md)             | 哪些数据是可写真源，哪些只是派生结果             |
+| [`12-runtime-and-commands.md`](12-runtime-and-commands.md) | 每种状态归谁管，所有动作应该走哪些 command       |
+| [`13-host-protocol.md`](13-host-protocol.md)               | webview 和 host 如何通信，进入内部前怎么归一化   |
 
 ### 3. 图层、Inspector 与编辑语义
 
-| 文件 | 主要回答的问题 |
-| --- | --- |
-| [`14-resolved-graph.md`](14-resolved-graph.md) | persisted tree 如何解析成 resolved graph，实例 id 怎么生成 |
-| [`15-graph-contract.md`](15-graph-contract.md) | 图层应该接收什么、输出什么、哪些交互归图层负责 |
-| [`16-inspector-contract.md`](16-inspector-contract.md) | Inspector 应该长什么样、按什么节奏提交、override 怎样表达 |
-| [`17-editor-semantics.md`](17-editor-semantics.md) | 每个编辑命令、图刷新和宿主同步的行为语义是什么 |
+| 文件                                                   | 主要回答的问题                                             |
+| ------------------------------------------------------ | ---------------------------------------------------------- |
+| [`14-resolved-graph.md`](14-resolved-graph.md)         | persisted tree 如何解析成 resolved graph，实例 id 怎么生成 |
+| [`15-graph-contract.md`](15-graph-contract.md)         | 图层应该接收什么、输出什么、哪些交互归图层负责             |
+| [`16-inspector-contract.md`](16-inspector-contract.md) | Inspector 应该长什么样、按什么节奏提交、override 怎样表达  |
+| [`17-editor-semantics.md`](17-editor-semantics.md)     | 每个编辑命令、图刷新和宿主同步的行为语义是什么             |
 
 ### 4. 实施顺序
 
-| 文件 | 主要回答的问题 |
-| --- | --- |
+| 文件                                                     | 主要回答的问题                                 |
+| -------------------------------------------------------- | ---------------------------------------------- |
 | [`90-implementation-plan.md`](90-implementation-plan.md) | 这套基线从 spec 落到实现时，应该按什么顺序推进 |
 
 ## 推荐阅读路径
@@ -107,9 +107,9 @@
 2. [`02-acceptance-scenarios.md`](02-acceptance-scenarios.md)
 3. [`10-architecture.md`](10-architecture.md)
 4. 按关注点继续深入：
-   - 数据与保存语义：[`11-document-model.md`](11-document-model.md), [`12-runtime-and-commands.md`](12-runtime-and-commands.md)
-   - 宿主与协议：[`13-host-protocol.md`](13-host-protocol.md)
-   - 图层与 Inspector：[`14-resolved-graph.md`](14-resolved-graph.md), [`15-graph-contract.md`](15-graph-contract.md), [`16-inspector-contract.md`](16-inspector-contract.md), [`17-editor-semantics.md`](17-editor-semantics.md)
+    - 数据与保存语义：[`11-document-model.md`](11-document-model.md), [`12-runtime-and-commands.md`](12-runtime-and-commands.md)
+    - 宿主与协议：[`13-host-protocol.md`](13-host-protocol.md)
+    - 图层与 Inspector：[`14-resolved-graph.md`](14-resolved-graph.md), [`15-graph-contract.md`](15-graph-contract.md), [`16-inspector-contract.md`](16-inspector-contract.md), [`17-editor-semantics.md`](17-editor-semantics.md)
 5. 需要了解实施阶段时再读 [`90-implementation-plan.md`](90-implementation-plan.md)
 
 ### 修 bug
@@ -119,9 +119,9 @@
 1. 先确认根因，至少写清楚当前确认到的根因假设
 2. 对照 [`02-acceptance-scenarios.md`](02-acceptance-scenarios.md) 找到受影响的回归场景
 3. 再读对应边界文档，例如：
-   - 保存 / dirty / undo / reload：[`11-document-model.md`](11-document-model.md), [`17-editor-semantics.md`](17-editor-semantics.md)
-   - host message / 路径 / subtree 文件：[`13-host-protocol.md`](13-host-protocol.md)
-   - graph selection / highlight / drop：[`15-graph-contract.md`](15-graph-contract.md), [`17-editor-semantics.md`](17-editor-semantics.md)
+    - 保存 / dirty / undo / reload：[`11-document-model.md`](11-document-model.md), [`17-editor-semantics.md`](17-editor-semantics.md)
+    - host message / 路径 / subtree 文件：[`13-host-protocol.md`](13-host-protocol.md)
+    - graph selection / highlight / drop：[`15-graph-contract.md`](15-graph-contract.md), [`17-editor-semantics.md`](17-editor-semantics.md)
 4. 创建或更新 work-item spec
 
 ### 做非 trivial 改动
@@ -216,6 +216,14 @@ Scope: <short boundary>
 新增 work-item 时，请继续按以下格式补充：
 
 - `your-work-item-slug.md` - `Draft` - 一句话范围说明
+- `node-definition-slot-utils.md` - `Approved` - 统一 nodeDef map/lookup 与 slot required/variadic/label 解析工具
+- `b3util-state-boundary.md` - `Approved` - 将 shared misc 中的纯 helper 与 legacy 模块级状态继续拆边界
+- `host-request-spec-map.md` - `Approved` - 将 host/webview request-response 映射收口到单一 registry
+- `host-helper-sidebar-style-consistency.md` - `Approved` - 收口 host helper 重复并拆分 Inspector sidebar 专属样式
+- `tree-editor-session-service-split.md` - `Approved` - 继续拆薄 extension-host TreeEditorSession 的 checker、subtree 与 helper 职责
+- `runtime-feature-selector-boundary.md` - `Approved` - 将 app runtime 中的 Inspector/Graph feature selector 移回各 feature
+- `inspector-commit-service.md` - `Approved` - 将 Node Inspector commit/reset 编排抽成 feature-local hook/service
+- `g6-compat-layer.md` - `Approved` - 为 G6 adapter 的 unsafe/internal API 访问建立兼容层
 - `graph-structural-mutation-target-anchor.md` - `Verifying` - drop、insert、delete 后按本地操作上下文稳定画布视图锚点
 - `graph-collapse-render-stability.md` - `Verifying` - 将图节点折叠改为 adapter-owned 本地视觉状态，避免 G6 内部折叠状态与 adapter rebuild 链路打架
 - `tree-custom-inspector-metadata.md` - `Verifying` - 在 Tree Inspector 中新增 tree.custom 的 key:value 编辑与提交语义
@@ -228,6 +236,7 @@ Scope: <short boundary>
 
 ## Done Work Items
 
+- `shared-test-suite-split-format.md` - `Done` - 拆分 shared tests 并补 format quality gate
 - `inspector-variable-usage-count.md` - `Done` - 让 Tree Inspector 的变量使用计数覆盖当前 resolved graph 中的 materialized subtree 实例
 - `inspector-edit-subtree-button.md` - `Done` - 为 Inspector 子树跳转补齐目标子树活动上下文与选中同步
 - `subtree-open-target-selection.md` - `Done` - 打开 subtree 时按双击命中的源节点 stable id 把目标编辑器定位并聚焦到对应 subtree 节点

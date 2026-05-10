@@ -260,7 +260,9 @@
     "prepack": "npm run check && npm run test:shared && npm run build",
     "publish:npm": "npm publish --access public",
     "check": "tsc --noEmit && tsc --project tsconfig.webview.json --noEmit",
-    "test:shared": "node test/run-tests.js"
+    "test:shared": "node test/run-tests.js",
+    "format:check": "prettier --check package.json \"test/**/*.js\" \"test/**/*.ts\"",
+    "format": "prettier --write package.json \"test/**/*.js\" \"test/**/*.ts\""
   },
   "dependencies": {
     "behavior3": "^1.1.0"
