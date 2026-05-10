@@ -36,7 +36,7 @@ Callers import tree helpers from `util.ts`, while `tree.ts` wraps those helpers 
 ## 5. Proposed Behavior
 
 - `tree.ts` owns `readTree`, `writeTree`, `treeDataForPersistence`, `readTreeFromFile`, and `writeTreeToFile`.
-- `build-project-context.ts` owns the small `readJson` helper it needs to load settings.
+- `b3build-context.ts` owns the small `readJson` helper it needs to load settings.
 - `b3build.ts` reads workspace content directly through `getFs()` and `parseWorkspaceModelContent`.
 - Search owns its local class-name join helper.
 - `util.ts` is deleted.

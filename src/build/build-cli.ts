@@ -6,7 +6,7 @@ import {
     type BatchProcessProjectResult,
 } from "../../webview/shared/b3build";
 import { getLogger, setLogger, type Logger } from "../../webview/shared/logger";
-import { createBuildProjectContext } from "../../webview/shared/build-project-context";
+import { createBuildProjectContext } from "../../webview/shared/b3build-context";
 import { setFs } from "../../webview/shared/b3fs";
 import {
     findBehaviorSettingFileSync,
