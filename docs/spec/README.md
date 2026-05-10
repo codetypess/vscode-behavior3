@@ -38,11 +38,12 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 51 份 work-item spec
+- 25 份 work-item spec
 - 9 份登记中的 active work-item spec
-- 41 份登记中的 done work-item spec
-- 1 份登记中的 superseded work-item spec
+- 16 份保留的 done work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
+
+这里不是完整历史档案。纯机械整理、模块拆分、重命名、helper 收口这类 work-item，在长期规则已经同步进编号基线后，可以直接删除，不需要长期保留。
 
 目录判断规则：
 
@@ -225,6 +226,8 @@ Scope: <short boundary>
 - DTO、路径、解析规则或 identity 语义变了
 - 图层 / Inspector / 保存语义成为新的默认行为
 
+相反，如果 work item 只是机械整理、文件搬移、helper 合并、无语义变化的重构，且对应长期规则已经体现在编号基线里，那么在任务完成后可以直接删除该 work-item spec；`README.md` 只保留仍有行为或迁移语义参考价值的已完成条目。
+
 ## Active Work Items
 
 新增 work-item 时，请继续按以下格式补充：
@@ -239,51 +242,21 @@ Scope: <short boundary>
 - `inspector-independent-field-commit.md` - `Verifying` - 将 Inspector 从整表校验提交改为字段级独立提交
 - `graph-resize-viewport-stability.md` - `Verifying` - 调整 inspector 宽度时保持已缩放画布的 viewport 稳定，不让节点整体漂移
 
-## Superseded Work Items
+## Retained Done Work Items
 
-- `b3util-state-boundary.md` - `Superseded` - 已被 `shared-legacy-facade-removal.md` 替代，移除 `b3util.ts` 兼容 facade
-
-## Done Work Items
-
-- `shared-subtree-source-cache-ownership.md` - `Done` - 将 subtree source cache loader 收口到 `tree.ts`
-- `shared-document-helper-consolidation.md` - `Done` - 将 shared document version helper 与 mutation reducer 收口到 `document.ts`
-- `shared-antd-helper-consolidation.md` - `Done` - 将 shared 中 Ant Design app hooks 与 locale helper 合并到 `antd.ts`
-- `shared-json-helper-consolidation.md` - `Done` - 将 shared 中 JSON equality、JSON5 展示和持久化 JSON 序列化 helper 合并到 `json.ts`
-- `shared-model-type-consolidation.md` - `Done` - 将 `b3model.d.ts` 的 tree/model 类型合并进 `b3type.ts`
-- `tree-helper-ownership.md` - `Done` - 将 tree 解析/序列化 helper 从 `util.ts` 收口到 `tree.ts`
-- `shared-adjacent-utils-consolidation.md` - `Done` - 合并 shared 中职责相邻的小型 helper 模块
-- `shared-legacy-facade-removal.md` - `Done` - 移除 `webview/shared/b3util.ts` 兼容 facade 并改为显式 helper 模块
-- `shared-helper-consolidation.md` - `Done` - 收敛 `webview/shared` 中未使用或单消费者的薄 helper
-- `shared-misc-flatten.md` - `Done` - 将 `webview/shared/misc` 扁平化到 `webview/shared`
-- `node-validation-consolidation.md` - `Done` - 将 build、graph 与 Inspector 可复用的节点/参数纯校验收口到 shared validation
-- `host-file-request-handler-split.md` - `Done` - 将 host 侧 `readFile` / `saveSubtree` / `saveSubtreeAs` 文件请求处理抽出 session 主体
-- `architecture-cognitive-load-cleanup.md` - `Done` - 用四层心智模型收敛架构阅读入口与文档噪音
-- `g6-compat-layer.md` - `Done` - 为 G6 adapter 的 unsafe/internal API 访问建立兼容层
-- `inspector-commit-service.md` - `Done` - 将 Node Inspector commit/reset 编排抽成 feature-local hook/service
-- `runtime-feature-selector-boundary.md` - `Done` - 将 app runtime 中的 Inspector/Graph feature selector 移回各 feature
-- `tree-editor-session-service-split.md` - `Done` - 继续拆薄 extension-host TreeEditorSession 的 checker、subtree 与 helper 职责
-- `host-helper-sidebar-style-consistency.md` - `Done` - 收口 host helper 重复并拆分 Inspector sidebar 专属样式
-- `host-request-spec-map.md` - `Done` - 将 host/webview request-response 映射收口到单一 registry
-- `node-definition-slot-utils.md` - `Done` - 统一 nodeDef map/lookup 与 slot required/variadic/label 解析工具
-- `shared-test-suite-split-format.md` - `Done` - 拆分 shared tests 并补 format quality gate
-- `inspector-variable-usage-count.md` - `Done` - 让 Tree Inspector 的变量使用计数覆盖当前 resolved graph 中的 materialized subtree 实例
-- `inspector-edit-subtree-button.md` - `Done` - 为 Inspector 子树跳转补齐目标子树活动上下文与选中同步
-- `subtree-open-target-selection.md` - `Done` - 打开 subtree 时按双击命中的源节点 stable id 把目标编辑器定位并聚焦到对应 subtree 节点
-- `subtree-default-arg-override-alignment.md` - `Done` - 让 subtree `subtreeOriginal` 与当前 resolved node 使用相同的默认参数归一化，避免默认值被误判成 override
-- `helper-boundary-cleanup.md` - `Done` - 收敛 shared/domain/helper 边界，移动保存序列化 helper，并拆分 Inspector 纯 helper
-- `subtree-save-time-writeback.md` - `Done` - 将 legacy subtree 规范化写回从加载期延后到主树保存期，并确定性生成缺失 uuid
-- `architecture-maintainability-refactor.md` - `Done` - 架构、运行时、Inspector 和样式的保持行为不变的可维护性清理
-- `baseline-spec-sync-current-code.md` - `Done` - 按当前实现回写编号基线 spec
-- `document-mutation-selection-internal.md` - `Done` - 将 reducer `nextSelection` helper type 从 public contracts 收口到 host/reducer 内部边界
 - `host-webview-migration-semantics.md` - `Done` - 统一 host/webview/sidebar 迁移后的语义、实现和规范表述
+- `sidebar-host-single-source.md` - `Done` - 将主文档 authority 收口到 extension-host document/session 与统一 snapshot fanout
+- `host-selection-authority.md` - `Done` - 将 tree/node selection authority 收口到 extension-host selection intent 与 host snapshot fanout
+- `selection-snapshot-single-authority.md` - `Done` - 移除公开 `nextSelection` 协议面，让共享选中只通过 host snapshot `selection` 收敛
+- `selection-store-authority-boundary.md` - `Done` - 将 host-projected selection authority 与本地 graph UI state 正式拆分成独立 store/model
+- `selection-visual-hint-host-authority.md` - `Done` - 收掉 editor 普通选中的 optimistic `selectionStore` authority，仅保留 graph-only 本地 hint
 - `focus-variable-wire-rename.md` - `Done` - 将 raw `focusVariable` 协议拆成 request/relay 双向命名
 - `focus-variable-relay-semantics.md` - `Done` - 明确 `focusVariable` 是瞬时变量高亮 relay，不是 host snapshot authority
-- `host-selection-authority.md` - `Done` - 将 tree/node selection authority 收口到 extension-host selection intent 与 host snapshot fanout
-- `inspector-bool-arg-switch.md` - `Done` - 让 Node Inspector 中的 `bool` / `bool?` 参数统一使用 Switch，而不是把 optional bool 渲染成三态下拉
-- `inspector-reset-dead-state-cleanup.md` - `Done` - 修正 Inspector arg reset 字段路径，并移除无消费者的 runtime state 字段
-- `persisted-empty-children-serialization.md` - `Done` - 序列化 persisted node 时省略空 `children` 数组
-- `selection-store-authority-boundary.md` - `Done` - 将 host-projected selection authority 与本地 graph UI state 正式拆分成独立 store/model
-- `selection-snapshot-single-authority.md` - `Done` - 移除公开 `nextSelection` 协议面，让共享选中只通过 host snapshot `selection` 收敛
-- `selection-visual-hint-host-authority.md` - `Done` - 收掉 editor 普通选中的 optimistic `selectionStore` authority，仅保留 graph-only 本地 hint
-- `sidebar-host-single-source.md` - `Done` - 将主文档 authority 收口到 extension-host document/session 与统一 snapshot fanout
 - `project-batch-process-command.md` - `Done` - 新增扩展宿主批处理命令，选择 TS/JS 脚本后对项目行为树源文件做校验后批量回写
+- `persisted-empty-children-serialization.md` - `Done` - 序列化 persisted node 时省略空 `children` 数组
+- `subtree-save-time-writeback.md` - `Done` - 将 legacy subtree 规范化写回从加载期延后到主树保存期，并确定性生成缺失 uuid
+- `subtree-open-target-selection.md` - `Done` - 打开 subtree 时按双击命中的源节点 stable id 把目标编辑器定位并聚焦到对应 subtree 节点
+- `subtree-default-arg-override-alignment.md` - `Done` - 让 subtree `subtreeOriginal` 与当前 resolved node 使用相同的默认参数归一化，避免默认值被误判成 override
+- `inspector-bool-arg-switch.md` - `Done` - 让 Node Inspector 中的 `bool` / `bool?` 参数统一使用 Switch，而不是把 optional bool 渲染成三态下拉
+- `inspector-edit-subtree-button.md` - `Done` - 为 Inspector 子树跳转补齐目标子树活动上下文与选中同步
+- `inspector-variable-usage-count.md` - `Done` - 让 Tree Inspector 的变量使用计数覆盖当前 resolved graph 中的 materialized subtree 实例
