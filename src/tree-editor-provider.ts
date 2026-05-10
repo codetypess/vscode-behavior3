@@ -21,7 +21,7 @@ import { getNewerVersionMessage, getTreeFileVersion } from "./editor-session/ses
 import { getEditorLanguage } from "./editor-session/session-settings";
 import { InspectorSidebarCoordinator } from "./inspector-sidebar-coordinator";
 import { configureBehaviorWebview } from "./webview-html";
-import { isDocumentVersionNewer } from "../webview/shared/document-version";
+import { isDocumentVersionNewer } from "../webview/shared/document";
 import { normalizeHostSelectionState } from "../webview/shared/protocol";
 import { getBehaviorProjectRootFsPath, resolveNodeDefs } from "./setting-resolver";
 

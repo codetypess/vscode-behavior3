@@ -8,7 +8,7 @@ import { inspectorSharedTests } from "./shared-tests/inspector-shared-tests";
 import { nodeDefinitionSlotUtilsSharedTests } from "./shared-tests/node-definition-slot-utils-shared-tests";
 import { sessionFileVersionSharedTests } from "./shared-tests/session-file-version-shared-tests";
 import { defineSharedTests, registerSharedTestSuites } from "./shared-test-types";
-import { createAppHooksStore } from "../webview/shared/hooks";
+import { createAppHooksStore } from "../webview/shared/antd";
 import { createEditorController } from "../webview/commands/create-editor-controller";
 import { createDocumentStore, showDocumentReloadConflict } from "../webview/stores/document-store";
 import { createGraphUiStore } from "../webview/stores/graph-ui-store";
@@ -43,12 +43,12 @@ import {
     preparePersistedTreeForMainDocumentSave,
     serializePersistedTreeForMainDocumentSave,
 } from "../webview/domain/main-document-save";
-import { reduceDocumentMutation } from "../webview/shared/document-mutation-reducer";
+import { reduceDocumentMutation } from "../webview/shared/document";
 import { parseNodeDefsContent, parseWorkspaceModelContent } from "../webview/shared/schema";
-import { loadSubtreeSourceCache } from "../webview/shared/subtree-source-cache";
 import { materializePersistedTree } from "../webview/shared/tree-materializer";
 import {
     collectTransitivePaths,
+    loadSubtreeSourceCache,
     parsePersistedTreeContent,
     serializePersistedTree,
 } from "../webview/shared/tree";

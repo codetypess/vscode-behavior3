@@ -4,10 +4,10 @@ import type {
     PersistedTreeModel,
     WorkdirRelativeJsonPath,
 } from "../shared/contracts";
-import { loadSubtreeSourceCache } from "../shared/subtree-source-cache";
 import {
     applyMainTreeDisplayIds,
     clonePersistedTree,
+    loadSubtreeSourceCache,
     serializePersistedTree,
 } from "../shared/tree";
 

@@ -23,7 +23,7 @@ Other similarly named files should remain split when merging would introduce hea
 ## 3. Non-Goals
 
 - Do not merge `i18n.ts` with `antd-locale.ts`; that would make common i18n imports pull Ant Design locale dependencies.
-- Do not merge `json5-display.ts` with `stringify.ts`; display formatting and persisted serialization have different semantics.
+- Do not merge JSON helpers as part of this work item; `shared-json-helper-consolidation.md` later moved JSON equality, JSON5 display, and persisted serialization helpers into `json.ts` while preserving function-level semantics.
 - Do not merge `graph-contracts.ts` into `contracts.ts`; `GraphAdapter.mount` uses DOM `HTMLElement`, while `contracts.ts` is also compiled by extension-host code without DOM lib types.
 - Do not merge tree persistence helpers with build-only or schema modules.
 - Do not change host/webview protocol shapes.

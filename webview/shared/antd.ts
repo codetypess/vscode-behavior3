@@ -1,6 +1,12 @@
+import enUS from "antd/locale/en_US";
+import zhCN from "antd/locale/zh_CN";
 import type { MessageInstance } from "antd/es/message/interface";
 import type { ModalStaticFunctions } from "antd/es/modal/confirm";
 import type { NotificationInstance } from "antd/es/notification/interface";
+import { normalizeI18nLanguage } from "./i18n";
+
+export const getAntdLocale = (language?: string | null) =>
+    normalizeI18nLanguage(language) === "zh" ? zhCN : enUS;
 
 export interface AppHooks {
     message: MessageInstance;

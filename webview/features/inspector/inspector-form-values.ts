@@ -1,4 +1,4 @@
-import { stringifySearchValueAsJson5 } from "../../shared/json5-display";
+import { stringifySearchValueAsJson5 } from "../../shared/json";
 import { parseSlotDefinition } from "../../shared/node-utils";
 import type { EditNode, UpdateNodeInput, UpdateTreeMetaInput } from "../../shared/contracts";
 import type { NodeArg, NodeDef } from "../../shared/b3type";

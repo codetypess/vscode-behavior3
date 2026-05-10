@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { stringifyJson } from "../../webview/shared/stringify";
+import { stringifyJson } from "../../webview/shared/json";
 import b3path from "../../webview/shared/b3path";
 import { readTree, writeTree } from "../../webview/shared/tree";
 import { DocumentSessionState } from "./document-session-state";

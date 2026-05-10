@@ -1,7 +1,7 @@
 import { App as AntdApp, ConfigProvider, Flex, Layout, Typography } from "antd";
 import React, { useEffect, useLayoutEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { getAntdLocale } from "../shared/antd-locale";
+import { getAntdLocale } from "../shared/antd";
 import i18n, { setI18nLanguage } from "../shared/i18n";
 import { getThemeConfig } from "../shared/theme";
 import { GraphPane } from "../features/graph/graph-pane";

@@ -1,7 +1,7 @@
 import type { StoreApi } from "zustand/vanilla";
 import i18n from "../shared/i18n";
 import { generateUuid } from "../shared/stable-id";
-import type { AppHooksStore } from "../shared/hooks";
+import type { AppHooksStore } from "../shared/antd";
 import type {
     DocumentState,
     EditNode,
@@ -27,11 +27,11 @@ import { parseWorkdirRelativeJsonPath } from "../shared/protocol";
 import { createNodeDefMap, findNodeDef } from "../shared/node-utils";
 import {
     cloneJsonValue,
+    loadSubtreeSourceCache,
     parsePersistedTreeContent,
     serializePersistedTree,
     walkPersistedNodes,
 } from "../shared/tree";
-import { loadSubtreeSourceCache } from "../shared/subtree-source-cache";
 import {
     buildResolvedGraphModel,
     buildSearchState,
@@ -39,7 +39,7 @@ import {
 } from "../domain/graph-selectors";
 import { resolveDocumentGraph } from "../domain/resolve-graph";
 import { createInitialGraphUiState, patchGraphUiSearchState } from "../stores/graph-ui-store";
-import { isJsonEqual } from "../shared/equality";
+import { isJsonEqual } from "../shared/json";
 
 /**
  * Shared controller runtime for the webview editor.

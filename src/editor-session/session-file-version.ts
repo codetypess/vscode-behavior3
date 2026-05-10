@@ -1,4 +1,4 @@
-import { isDocumentVersionNewer } from "../../webview/shared/document-version";
+import { isDocumentVersionNewer } from "../../webview/shared/document";
 import type { EditorLanguage } from "./session-settings";
 
 export function getTreeFileVersion(content: string): string | undefined {

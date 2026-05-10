@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { Context, Node, NodeDef } from "behavior3";
-import { stringifyJson } from "../webview/shared/stringify";
+import { stringifyJson } from "../webview/shared/json";
 import { writeTree } from "../webview/shared/tree";
 import { composeLoggers, createConsoleLogger, setLogger } from "../webview/shared/logger";
 import { runBatchProcess, runBatchProcessScript } from "./build/run-batch-process";

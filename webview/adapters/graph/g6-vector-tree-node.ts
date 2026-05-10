@@ -29,7 +29,7 @@ import status111IconUrl from "../../../media/icons/status111.svg";
 import i18n from "../../shared/i18n";
 import { isMacos } from "../../shared/keys";
 import type { GraphNodeVM } from "../../shared/contracts";
-import { stringifyCompactJson5 } from "../../shared/json5-display";
+import { stringifyCompactJson5 } from "../../shared/json";
 
 export const G6_VECTOR_TREE_NODE_TYPE = "b3-tree-node";
 export const G6_VECTOR_NODE_WIDTH = 260;

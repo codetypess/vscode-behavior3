@@ -8,7 +8,7 @@ import { createDocumentStore } from "../stores/document-store";
 import { createGraphUiStore } from "../stores/graph-ui-store";
 import { createSelectionStore } from "../stores/selection-store";
 import { createWorkspaceStore } from "../stores/workspace-store";
-import { createAppHooksStore, type AppHooksStore } from "../shared/hooks";
+import { createAppHooksStore, type AppHooksStore } from "../shared/antd";
 import { detectWebviewKind, type WebviewKind } from "../shared/webview-env";
 import type {
     DocumentState,

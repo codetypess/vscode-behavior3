@@ -1,4 +1,4 @@
-import { isJsonEqual } from "../../shared/equality";
+import { isJsonEqual } from "../../shared/json";
 import type { NodeDef } from "../../shared/b3type";
 import type { VarDecl } from "../../shared/b3type";
 import i18n from "../../shared/i18n";

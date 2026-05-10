@@ -9,7 +9,7 @@ import type {
     UpdateNodeInput,
     UpdateTreeMetaInput,
 } from "../shared/contracts";
-import { stringifyJson } from "../shared/stringify";
+import { stringifyJson } from "../shared/json";
 import { parseWorkdirRelativeJsonPath } from "../shared/protocol";
 import { clonePersistedNode } from "../shared/tree";
 import { type ControllerRuntime } from "./controller-runtime";

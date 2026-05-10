@@ -5,7 +5,7 @@ import type {
     HostSelectionState,
 } from "../webview/shared/contracts";
 import type { EditorToHostMessage, HostToEditorMessage } from "../webview/shared/message-protocol";
-import { isJsonEqual } from "../webview/shared/equality";
+import { isJsonEqual } from "../webview/shared/json";
 import { InspectorSidebarProvider } from "./inspector-sidebar-provider";
 
 type InitMessage = Extract<HostToEditorMessage, { type: "init" }>;

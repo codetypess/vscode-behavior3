@@ -44,7 +44,7 @@ import {
     formatDocumentMutationReducerError,
     isReducibleDocumentMutation,
     reduceDocumentMutation,
-} from "../../webview/shared/document-mutation-reducer";
+} from "../../webview/shared/document";
 import {
     normalizeHostSelectionState,
     normalizeNodeInstanceRef,
@@ -57,7 +57,7 @@ import {
     parsePersistedTreeContent,
     serializePersistedTree,
 } from "../../webview/shared/tree";
-import { isJsonEqual } from "../../webview/shared/equality";
+import { isJsonEqual } from "../../webview/shared/json";
 import { setFs } from "../../webview/shared/b3fs";
 import { collectNodeArgCheckDiagnostics } from "../../webview/shared/b3build";
 import { VERSION, type NodeData, type TreeData } from "../../webview/shared/b3type";

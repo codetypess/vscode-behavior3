@@ -31,14 +31,14 @@ The reducer returns `nextSelection` for structural mutations such as insert, pas
 
 ## 6. Design
 
-- Define `DocumentMutationSelection` in `webview/shared/document-mutation-reducer.ts`.
+- Define `DocumentMutationSelection` in `webview/shared/document.ts`.
 - Keep `DocumentMutationReducerResult.nextSelection` unchanged.
 - Import the type from the reducer module in the host session.
 - Update the host protocol baseline to state that `nextSelection` helper types belong only to the host/reducer boundary.
 
 ## 7. Implementation Plan
 
-1. Move the type definition from `contracts.ts` to `document-mutation-reducer.ts`.
+1. Move the type definition from `contracts.ts` to `document.ts`.
 2. Update reducer and host-session imports.
 3. Update baseline/work-item spec index entries.
 4. Run TypeScript and shared tests.

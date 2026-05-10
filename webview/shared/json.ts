@@ -1,4 +1,31 @@
+import JSON5 from "json5";
+
 // Adapted from original: removed Node.js fs/path imports (browser-safe version)
+
+export const isJsonEqual = (left: unknown, right: unknown): boolean =>
+    JSON.stringify(left) === JSON.stringify(right);
+
+export const stringifyCompactJson5 = (value: unknown): string | undefined => {
+    if (value == null) {
+        return undefined;
+    }
+
+    try {
+        return JSON5.stringify(value);
+    } catch {
+        return String(value);
+    }
+};
+
+export const stringifySearchValueAsJson5 = (value: unknown): string => {
+    if (typeof value === "string") {
+        return value;
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+        return String(value);
+    }
+    return stringifyCompactJson5(value) ?? "";
+};
 
 export type Tag = {
     // Metadata keys are consumed by this serializer and skipped from output.

@@ -1,5 +1,5 @@
 import { VERSION } from "../shared/b3type";
-import { compareDocumentVersion } from "../shared/document-version";
+import { compareDocumentVersion } from "../shared/document";
 import type {
     EditorCommand,
     HostDocumentSnapshot,

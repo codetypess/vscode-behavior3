@@ -3,10 +3,14 @@ import type { FileVarDecl, ImportDecl, NodeData, NodeDef, TreeData } from "./b3t
 import type { BuildEnv, BuildScript, NodeArgChecker, NodeArgCheckResult } from "./b3build-model";
 import { logger } from "./logger";
 import b3path from "./b3path";
-import { stringifyJson } from "./stringify";
-import { loadSubtreeSourceCache } from "./subtree-source-cache";
+import { stringifyJson } from "./json";
 import { materializePersistedTree, type MaterializedTreeNode } from "./tree-materializer";
-import { parsePersistedTreeContent, readTreeFromFile, writeTree } from "./tree";
+import {
+    loadSubtreeSourceCache,
+    parsePersistedTreeContent,
+    readTreeFromFile,
+    writeTree,
+} from "./tree";
 import { parseWorkspaceModelContent } from "./schema";
 
 /**

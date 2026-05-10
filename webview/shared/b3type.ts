@@ -1,9 +1,11 @@
 import type { NodeDef } from "behavior3";
-export { DOCUMENT_VERSION as VERSION } from "./document-version";
 
 export type { NodeDef };
 export type NodeType = NodeDef["type"] | "Other" | "Error";
 export type NodeArg = Exclude<NodeDef["args"], undefined>[number];
+
+export const DOCUMENT_VERSION = "2.1.0";
+export const VERSION = DOCUMENT_VERSION;
 
 export interface NodeData {
     id: string;

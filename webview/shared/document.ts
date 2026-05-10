@@ -1,4 +1,5 @@
 import { generateUuid } from "./stable-id";
+import { DOCUMENT_VERSION } from "./b3type";
 import type {
     DocumentMutation,
     EditNode,
@@ -7,7 +8,7 @@ import type {
     PersistedTreeModel,
     UpdateNodeInput,
 } from "./contracts";
-import { isJsonEqual } from "./equality";
+import { isJsonEqual } from "./json";
 import { createNodeDefMap, findNodeDef } from "./node-utils";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
 import {
@@ -16,6 +17,29 @@ import {
     clonePersistedTree,
     findPersistedNodeByStableId,
 } from "./tree";
+
+export const compareDocumentVersion = (left: string, right: string): number => {
+    const leftParts = left.split(".").map(Number);
+    const rightParts = right.split(".").map(Number);
+
+    for (let index = 0; index < 3; index += 1) {
+        const leftPart = leftParts[index] ?? 0;
+        const rightPart = rightParts[index] ?? 0;
+
+        if (leftPart > rightPart) {
+            return 1;
+        }
+        if (leftPart < rightPart) {
+            return -1;
+        }
+    }
+
+    return 0;
+};
+
+export const isDocumentVersionNewer = (fileVersion: string): boolean => {
+    return compareDocumentVersion(fileVersion, DOCUMENT_VERSION) > 0;
+};
 
 // Internal reducer follow-up selection consumed by the host session only.
 export type DocumentMutationSelection =
