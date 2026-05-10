@@ -6,19 +6,17 @@ import type {
     HostVarsPayload,
     ImportDecl,
     NodeInstanceRef,
-    NodeDef,
     Settings,
     WorkdirRelativeJsonPath,
 } from "./contracts";
+import { deriveGroupDefs } from "./node-definition-utils";
 
 const URI_SCHEME_PATTERN = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
 const WINDOWS_ABSOLUTE_PATTERN = /^[a-zA-Z]:[\\/]/;
 
 const normalizeSeparators = (value: string): string => value.replace(/\\/g, "/");
 
-export const parseWorkdirRelativeJsonPath = (
-    value: unknown
-): WorkdirRelativeJsonPath | null => {
+export const parseWorkdirRelativeJsonPath = (value: unknown): WorkdirRelativeJsonPath | null => {
     if (typeof value !== "string") {
         return null;
     }
@@ -63,17 +61,6 @@ export const normalizeWorkdirRelativePath = (path: string): WorkdirRelativeJsonP
         throw new Error(`Invalid workdir-relative JSON path: ${path}`);
     }
     return normalized;
-};
-
-export const deriveGroupDefs = (defs: NodeDef[]): string[] => {
-    const groups = new Set<string>();
-    for (const def of defs) {
-        const maybeGroup = (def as NodeDef & { group?: string[] }).group;
-        for (const group of maybeGroup ?? []) {
-            groups.add(group);
-        }
-    }
-    return Array.from(groups).sort();
 };
 
 export const normalizeImportDecl = (decl: {

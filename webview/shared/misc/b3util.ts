@@ -20,7 +20,9 @@ import {
 import { logger } from "./logger";
 import { readJson, readTreeFromFile } from "./util";
 import { createNode, dfs, isSubtreeRoot, subtreeNeedsMissingIds } from "./tree-model";
+import { createNodeDefMap, deriveGroupDefs } from "../node-definition-utils";
 import { normalizeNodeDefCollection } from "../schema";
+import { parseSlotDefinition } from "../slot-definition-utils";
 import { generateUuid } from "../stable-id";
 import {
     hasDeclaredVars as sharedHasDeclaredVars,
@@ -83,10 +85,9 @@ interface BuildProjectState extends BuildValidationState {
 const createNodeDefsState = (
     defs: unknown
 ): Pick<BuildValidationState, "nodeDefs" | "groupDefs"> => {
-    const groups = new Set<string>();
-    const loadedNodeDefs = new NodeDefs();
+    const normalizedNodeDefs = normalizeNodeDefCollection(defs);
 
-    for (const node of normalizeNodeDefCollection(defs)) {
+    for (const node of normalizedNodeDefs) {
         node.args?.forEach((arg) => {
             if (arg.options && !arg.options[0].source) {
                 // Older settings stored options directly; normalize them to source buckets.
@@ -107,14 +108,11 @@ const createNodeDefsState = (
                 });
             });
         });
-
-        loadedNodeDefs.set(node.name, node);
-        node.group?.forEach((group) => groups.add(group));
     }
 
     return {
-        nodeDefs: loadedNodeDefs,
-        groupDefs: Array.from(groups).sort(),
+        nodeDefs: new NodeDefs(createNodeDefMap(normalizedNodeDefs)),
+        groupDefs: deriveGroupDefs(normalizedNodeDefs),
     };
 };
 
@@ -514,7 +512,11 @@ const checkNodeDataWithState = (
                 exprs.forEach((expr) => {
                     parseExprWithCache(expr, state.parsedExprs);
                 });
-                const diagnostic = validateExpressionEntries(exprs, state.usingVars, state.checkExpr);
+                const diagnostic = validateExpressionEntries(
+                    exprs,
+                    state.usingVars,
+                    state.checkExpr
+                );
                 if (diagnostic) {
                     error(formatBuildDiagnostic(diagnostic));
                     hasError = true;
@@ -542,8 +544,7 @@ const checkNodeDataWithState = (
                 error(`intput field '${conf.input[i]}' is required`);
                 hasError = true;
             }
-            const lastInput = conf.input[conf.input.length - 1];
-            if (i === conf.input.length - 1 && lastInput?.endsWith("...")) {
+            if (i === conf.input.length - 1 && isVariadic(conf.input, -1)) {
                 hasVaridicInput = true;
             }
         }
@@ -565,8 +566,7 @@ const checkNodeDataWithState = (
                 error(`output field '${conf.output[i]}' is required`);
                 hasError = true;
             }
-            const lastOutput = conf.output[conf.output.length - 1];
-            if (i === conf.output.length - 1 && lastOutput?.endsWith("...")) {
+            if (i === conf.output.length - 1 && isVariadic(conf.output, -1)) {
                 hasVaridicOutput = true;
             }
         }
@@ -1004,14 +1004,13 @@ export const isValidChildren = (data: NodeData) => {
 };
 
 export const isVariadic = (def: string[], i: number) => {
-    if (i === -1) {
-        i = def.length - 1;
-    }
-    return def[i].endsWith("...") && i === def.length - 1;
+    const index = i === -1 ? def.length - 1 : i;
+    return parseSlotDefinition(def[index] ?? "", def, index).variadic;
 };
 
 const isValidInputOrOutput = (def: string[], data: string[] | undefined, index: number) => {
-    return def[index].includes("?") || data?.[index] || isVariadic(def, index);
+    const slotDefinition = parseSlotDefinition(def[index] ?? "", def, index);
+    return !slotDefinition.required || Boolean(data?.[index]) || slotDefinition.variadic;
 };
 
 export const createNewTree = (name: string) => {

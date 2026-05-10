@@ -2,7 +2,7 @@ import { App as AntdApp, ConfigProvider, Flex, Typography } from "antd";
 import React, { useEffect, useLayoutEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { getAntdLocale } from "../shared/misc/antd-locale";
-import { deriveGroupDefs } from "../shared/protocol";
+import { deriveGroupDefs } from "../shared/node-definition-utils";
 import { applyDocumentTheme } from "../shared/theme-mode";
 import { getThemeConfig } from "../shared/misc/theme";
 import { setI18nLanguage } from "../shared/misc/i18n";
@@ -50,18 +50,12 @@ const blurActiveSidebarElement = () => {
     }
 };
 
-const applySidebarInit = async (
-    runtime: EditorRuntime,
-    payload: HostInitPayload
-) => {
+const applySidebarInit = async (runtime: EditorRuntime, payload: HostInitPayload) => {
     await setI18nLanguage(payload.settings.language);
     await runtime.controller.initFromHost(payload);
 };
 
-const applySidebarVars = (
-    runtime: EditorRuntime,
-    payload: HostVarsPayload
-) => {
+const applySidebarVars = (runtime: EditorRuntime, payload: HostVarsPayload) => {
     runtime.workspaceStore.setState((state) => ({
         ...state,
         usingVars: payload.usingVars,
@@ -71,9 +65,7 @@ const applySidebarVars = (
     }));
 };
 
-const buildCurrentHostSelection = (
-    runtime: EditorRuntime
-): HostSelectionState => {
+const buildCurrentHostSelection = (runtime: EditorRuntime): HostSelectionState => {
     const { selectedNodeRef } = runtime.selectionStore.getState();
     return selectedNodeRef ? { kind: "node", ref: selectedNodeRef } : { kind: "tree" };
 };
@@ -92,10 +84,8 @@ const queueSidebarSelectionBlur = (runtime: EditorRuntime) => {
     }, 0);
 };
 
-const hasIncomingSelectionChange = (
-    runtime: EditorRuntime,
-    selection: HostSelectionState
-) => !isJsonEqual(buildCurrentHostSelection(runtime), selection);
+const hasIncomingSelectionChange = (runtime: EditorRuntime, selection: HostSelectionState) =>
+    !isJsonEqual(buildCurrentHostSelection(runtime), selection);
 
 const isEditableTarget = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) {

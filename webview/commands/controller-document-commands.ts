@@ -7,7 +7,7 @@ import type {
     HostVarsPayload,
     NodeDef,
 } from "../shared/contracts";
-import { deriveGroupDefs } from "../shared/protocol";
+import { deriveGroupDefs } from "../shared/node-definition-utils";
 import { parsePersistedTreeContent } from "../shared/tree";
 import { applyHostDocumentSession, clearDocumentReloadConflict } from "../stores/document-store";
 import { buildUsingGroups, isJsonEqual, type ControllerRuntime } from "./controller-runtime";

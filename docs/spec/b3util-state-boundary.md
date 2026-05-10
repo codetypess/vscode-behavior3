@@ -1,6 +1,6 @@
 # B3Util State Boundary
 
-Status: Approved
+Status: Done
 Date: 2026-05-10
 Scope: shared misc helper globals, pure utility extraction, build/editor compatibility
 

@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { createNodeDefMap, findNodeDef } from "../../webview/shared/node-definition-utils";
+import {
+    createNodeDefMap,
+    deriveGroupDefs,
+    findNodeDef,
+} from "../../webview/shared/node-definition-utils";
 import { parseSlotDefinition } from "../../webview/shared/slot-definition-utils";
 import { defineSharedTests } from "../shared-test-types";
 
@@ -25,6 +29,28 @@ export const nodeDefinitionSlotUtilsSharedTests = defineSharedTests([
             assert.equal(findNodeDef(nodeDefMap, "Wait"), wait);
             assert.equal(findNodeDef(nodeDefMap, "Missing"), null);
             assert.equal(findNodeDef(nodeDefMap, null), null);
+        },
+    },
+    {
+        name: "derives sorted unique group definitions from node definitions",
+        run() {
+            assert.deepEqual(
+                deriveGroupDefs([
+                    {
+                        name: "Wait",
+                        type: "Action",
+                        desc: "",
+                        group: ["combat", "core"],
+                    },
+                    {
+                        name: "Log",
+                        type: "Action",
+                        desc: "",
+                        group: ["core"],
+                    },
+                ]),
+                ["combat", "core"]
+            );
         },
     },
     {
