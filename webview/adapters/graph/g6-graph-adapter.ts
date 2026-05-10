@@ -35,6 +35,18 @@ import {
     registerVectorTreeNode,
 } from "./g6-vector-tree-node";
 import {
+    readG6CanvasPoint,
+    isRenderedG6Graph,
+    readG6EventTargetId,
+    readG6NodeDisplayId,
+    readG6Viewport,
+    readG6VectorTreeNodeDatum,
+    setG6EdgeOptions,
+    setG6NodeOptions,
+    toG6ElementState,
+    toG6NodeDataRecord,
+} from "./g6-compat";
+import {
     expandCollapsedAncestorsForNode,
     getVisibleChildKeys,
     isCollapsedNodeRef,
@@ -51,15 +63,15 @@ const DEFAULT_PORTS = [
     { key: "left", placement: "left" as const },
 ];
 
-const createNodeOptions = () => ({
+const createNodeOptions = (): any => ({
     type: G6_VECTOR_TREE_NODE_TYPE,
     style: {
         ports: DEFAULT_PORTS,
     },
-    state: getVectorTreeNodeStateStyle() as any,
+    state: toG6ElementState(getVectorTreeNodeStateStyle()),
 });
 
-const createEdgeOptions = () => ({
+const createEdgeOptions = (): any => ({
     type: "cubic-horizontal",
     style: {
         lineWidth: 2,
@@ -107,7 +119,7 @@ const toDragState = (position: DropIntent["position"] | null): VectorTreeNodeSta
 };
 
 const getLayoutOrder = (node: G6NodeData): number => {
-    const displayId = (node.data as VectorTreeNodeDatum | undefined)?.vm?.ref.displayId;
+    const displayId = readG6NodeDisplayId(node);
     const order = Number(displayId ?? node.id);
     return Number.isFinite(order) ? order : Number.MAX_SAFE_INTEGER;
 };
@@ -118,12 +130,6 @@ const compareLayoutOrder = (nodeA: G6NodeData, nodeB: G6NodeData): number => {
         return diff;
     }
     return String(nodeA.id).localeCompare(String(nodeB.id));
-};
-
-const getEventTargetId = (event: G6Event): string | null => {
-    const target = (event as { target?: { id?: unknown } }).target;
-    const id = target?.id;
-    return typeof id === "string" || typeof id === "number" ? String(id) : null;
 };
 
 export class G6GraphAdapter implements GraphAdapter {
@@ -158,8 +164,8 @@ export class G6GraphAdapter implements GraphAdapter {
             return;
         }
 
-        this.graph.setNode(createNodeOptions() as any);
-        this.graph.setEdge(createEdgeOptions() as any);
+        setG6NodeOptions(this.graph, createNodeOptions());
+        setG6EdgeOptions(this.graph, createEdgeOptions());
     }
 
     private readonly handleGraphTransform = () => {
@@ -201,43 +207,11 @@ export class G6GraphAdapter implements GraphAdapter {
     };
 
     private isGraphRendered() {
-        const graph = this.graph as unknown as
-            | { rendered?: boolean; destroyed?: boolean }
-            | null;
-        return Boolean(graph?.rendered && !graph?.destroyed);
+        return isRenderedG6Graph(this.graph);
     }
 
     private readViewportFromGraph(): GraphViewport | null {
-        const graph = this.graph as unknown as
-            | {
-                  rendered?: boolean;
-                  destroyed?: boolean;
-                  context?: { viewport?: unknown };
-                  getPosition?: () => [number, number];
-                  getZoom?: () => number;
-              }
-            | null;
-
-        if (
-            !graph?.rendered ||
-            graph.destroyed ||
-            !graph.context?.viewport ||
-            !graph.getPosition ||
-            !graph.getZoom
-        ) {
-            return null;
-        }
-
-        try {
-            const [x, y] = graph.getPosition();
-            const zoom = graph.getZoom();
-            if (![x, y, zoom].every((value) => Number.isFinite(value))) {
-                return null;
-            }
-            return { zoom, x, y };
-        } catch {
-            return null;
-        }
+        return readG6Viewport(this.graph);
     }
 
     private readViewportAnchorCandidate(nodeKey: string): ViewportAnchorCandidate | null {
@@ -487,7 +461,7 @@ export class G6GraphAdapter implements GraphAdapter {
             nodeData: {
                 id: node.ref.instanceKey,
                 type: G6_VECTOR_TREE_NODE_TYPE,
-                data: datum as unknown as Record<string, unknown>,
+                data: toG6NodeDataRecord(datum),
                 style: {
                     size: [datum.width, datum.height],
                     cursor: "pointer",
@@ -668,7 +642,7 @@ export class G6GraphAdapter implements GraphAdapter {
     };
 
     private readonly handleNodeContextMenu = (event: G6PointerEvent<any>) => {
-        const nodeKey = getEventTargetId(event);
+        const nodeKey = readG6EventTargetId(event);
         if (!nodeKey) {
             return;
         }
@@ -680,7 +654,7 @@ export class G6GraphAdapter implements GraphAdapter {
     };
 
     private readonly handleNodeClick = (event: G6PointerEvent<any>) => {
-        const nodeKey = getEventTargetId(event);
+        const nodeKey = readG6EventTargetId(event);
         if (!nodeKey) {
             return;
         }
@@ -727,7 +701,7 @@ export class G6GraphAdapter implements GraphAdapter {
     };
 
     private readonly handleNodeDoubleClick = (event: G6PointerEvent<any>) => {
-        const nodeKey = getEventTargetId(event);
+        const nodeKey = readG6EventTargetId(event);
         if (!nodeKey) {
             return;
         }
@@ -739,7 +713,7 @@ export class G6GraphAdapter implements GraphAdapter {
     };
 
     private readonly handleNodeDragStart = (event: G6PointerEvent<any>) => {
-        const nodeKey = getEventTargetId(event);
+        const nodeKey = readG6EventTargetId(event);
         if (!nodeKey) {
             return;
         }
@@ -766,7 +740,7 @@ export class G6GraphAdapter implements GraphAdapter {
             return;
         }
 
-        const nodeKey = getEventTargetId(event);
+        const nodeKey = readG6EventTargetId(event);
         if (!nodeKey || nodeKey === this.dragIntent.sourceKey) {
             return;
         }
@@ -775,7 +749,7 @@ export class G6GraphAdapter implements GraphAdapter {
     };
 
     private readonly handleNodeDragLeave = (event: G6PointerEvent<any>) => {
-        const nodeKey = getEventTargetId(event);
+        const nodeKey = readG6EventTargetId(event);
         if (!nodeKey || nodeKey === this.dragIntent.sourceKey) {
             return;
         }
@@ -792,19 +766,19 @@ export class G6GraphAdapter implements GraphAdapter {
 
         const targetKey = this.dragIntent.targetKey;
         const targetDatum = this.graph.getNodeData(targetKey);
-        const data = targetDatum?.data as VectorTreeNodeDatum | undefined;
+        const data = readG6VectorTreeNodeDatum(targetDatum);
         if (!data) {
             return;
         }
 
         const position = this.graph.getElementPosition(targetKey);
-        const canvas = (event as { canvas?: { x: number; y: number } }).canvas;
+        const canvas = readG6CanvasPoint(event);
         if (!position || !canvas) {
             return;
         }
 
-        const x = canvas.x - position[0];
-        const y = canvas.y - position[1];
+        const x = canvas[0] - position[0];
+        const y = canvas[1] - position[1];
         // Left half drops around the target; right half nests as a child.
         const nextPosition: DropIntent["position"] =
             x > data.width / 2 ? "child" : y > data.height / 2 ? "after" : "before";
@@ -817,7 +791,7 @@ export class G6GraphAdapter implements GraphAdapter {
             return;
         }
 
-        const targetKey = this.dragIntent.targetKey ?? getEventTargetId(event);
+        const targetKey = this.dragIntent.targetKey ?? readG6EventTargetId(event);
         const sourceKey = this.dragIntent.sourceKey;
         const position = this.dragIntent.position;
 

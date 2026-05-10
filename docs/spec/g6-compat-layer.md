@@ -1,6 +1,6 @@
 # G6 Compat Layer
 
-Status: Approved
+Status: Done
 Date: 2026-05-10
 Scope: G6 adapter unsafe type access and compatibility helpers
 
