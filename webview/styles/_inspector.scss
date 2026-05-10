@@ -5,45 +5,6 @@
     background: var(--b3-panel-content-bg);
 }
 
-body[data-webview-kind="inspector-sidebar"] .b3-inspector {
-    overflow-x: auto;
-    overflow-y: hidden;
-}
-
-body[data-webview-kind="inspector-sidebar"] .b3-inspector-header,
-body[data-webview-kind="inspector-sidebar"] .b3-inspector-banner,
-body[data-webview-kind="inspector-sidebar"] .b3-inspector-content,
-body[data-webview-kind="inspector-sidebar"] .b3-inspector-skeleton-content {
-    min-width: var(--b3-inspector-sidebar-min-width);
-}
-
-body[data-webview-kind="inspector-sidebar"]
-    .b3-inspector-form.ant-form:not(.ant-form-inline)
-    .ant-form-item {
-    flex-wrap: nowrap;
-}
-
-body[data-webview-kind="inspector-sidebar"]
-    .b3-inspector-form.ant-form:not(.ant-form-inline)
-    .ant-form-item
-    .ant-form-item-label {
-    padding: 0 !important;
-    margin: 0 !important;
-}
-
-body[data-webview-kind="inspector-sidebar"] .b3-inspector-form .ant-form-item:last-child {
-    margin-bottom: 0 !important;
-}
-
-body[data-webview-kind="inspector-sidebar"] .b3-inspector-form .b3-section-divider + .ant-form-item,
-body[data-webview-kind="inspector-sidebar"] .b3-inspector-form .b3-section-divider + .b3-list-block,
-body[data-webview-kind="inspector-sidebar"]
-    .b3-inspector-form
-    .b3-section-divider
-    + .b3-override-bar {
-    margin-top: 4px;
-}
-
 .b3-inspector-empty {
     height: 100%;
     padding: 20px 16px;

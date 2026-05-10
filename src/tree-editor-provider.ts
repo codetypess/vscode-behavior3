@@ -17,43 +17,22 @@ import type {
 } from "../webview/shared/message-protocol";
 import type { ActiveTreeEditorWebview } from "./editor-session/tree-editor-webview-session";
 import { resolveTreeEditorSession } from "./editor-session/tree-editor-webview-session";
+import { getNewerVersionMessage, getTreeFileVersion } from "./editor-session/session-file-version";
+import { getEditorLanguage } from "./editor-session/session-settings";
 import { InspectorSidebarCoordinator } from "./inspector-sidebar-coordinator";
 import { configureBehaviorWebview } from "./webview-html";
 import { isDocumentVersionNewer } from "../webview/shared/document-version";
 import { normalizeHostSelectionState } from "../webview/shared/protocol";
 import { getBehaviorProjectRootFsPath, resolveNodeDefs } from "./setting-resolver";
 
-function getTreeFileVersion(content: string): string | undefined {
-    try {
-        const fileData = JSON.parse(content) as { version?: unknown };
-        return typeof fileData.version === "string" ? fileData.version : undefined;
-    } catch {
-        return undefined;
-    }
-}
-
-function getEditorLanguage(setting: string): "zh" | "en" {
-    if (setting === "zh" || setting === "en") {
-        return setting;
-    }
-    const envLanguage = vscode.env.language.toLowerCase();
-    return envLanguage.startsWith("zh") ? "zh" : "en";
-}
-
-function getNewerVersionEditMessage(fileVersion: string): string {
-    const config = vscode.workspace.getConfiguration("behavior3");
-    const language = getEditorLanguage(config.get<string>("language", "auto"));
-    return language === "zh"
-        ? `此文件由新版本 Behavior3(${fileVersion}) 创建，请升级到最新版本后再编辑。`
-        : `This file is created by a newer version of Behavior3(${fileVersion}). Please upgrade to the latest version.`;
-}
-
 function getNewerFileWriteError(content: string): string | null {
     const fileVersion = getTreeFileVersion(content);
     if (!fileVersion || !isDocumentVersionNewer(fileVersion)) {
         return null;
     }
-    return getNewerVersionEditMessage(fileVersion);
+    const config = vscode.workspace.getConfiguration("behavior3");
+    const language = getEditorLanguage(config.get<string>("language", "auto"));
+    return getNewerVersionMessage(language, fileVersion, "edit");
 }
 
 export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEditorDocument> {
