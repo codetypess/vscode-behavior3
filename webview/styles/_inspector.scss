@@ -34,10 +34,11 @@
 }
 
 .b3-inspector-content {
+    --b3-inspector-content-padding: 16px;
     min-height: 0;
     flex: 1;
     overflow: auto;
-    padding: 16px;
+    padding: var(--b3-inspector-content-padding);
     background: var(--b3-panel-content-bg);
 }
 
@@ -287,17 +288,16 @@
 
 .b3-override-bar {
     position: relative;
-    padding-right: 10px;
 }
 
 .b3-override-rail {
     position: absolute;
     top: 0;
-    right: 0;
+    left: calc(-1 * var(--b3-inspector-content-padding, 16px));
     bottom: 0;
     width: 6px;
     cursor: pointer;
-    border-radius: 2px;
+    border-radius: 0;
     background: var(--b3-override-bar);
 }
 

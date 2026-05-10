@@ -1,13 +1,17 @@
 {
   "custom": {
   },
-  "desc": "",
   "export": true,
   "group": [
     "Client"
   ],
   "name": "test-subtree",
   "overrides": {
+    "kqP5JVxXdw": {
+      "output": [
+        "test"
+      ]
+    }
   },
   "prefix": "",
   "root": {
@@ -16,8 +20,6 @@
         "args": {
           "message": "hello"
         },
-        "children": [
-        ],
         "id": "2",
         "name": "Log",
         "uuid": "meewVyRxJx"
@@ -36,8 +38,6 @@
           "status": "RUNNING",
           "time": 1
         },
-        "children": [
-        ],
         "id": "6",
         "name": "TestB3",
         "uuid": "XsAZjDOttC"

@@ -32,7 +32,7 @@ export const OverrideBar: React.FC<{
                 title={t("override.resetTitle")}
                 okText={t("reset")}
                 cancelText={t("cancel")}
-                placement="left"
+                placement="right"
                 onConfirm={onReset}
                 getPopupContainer={getOverridePopupContainer}
             >

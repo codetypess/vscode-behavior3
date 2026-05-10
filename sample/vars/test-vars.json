@@ -1,5 +1,6 @@
 {
   "custom": {
+    "fps": 30
   },
   "export": false,
   "group": [
@@ -8,6 +9,11 @@
   ],
   "name": "test-vars",
   "overrides": {
+    "meewVyRxJx": {
+      "args": {
+        "message": "hello overwrite"
+      }
+    },
     "n4ByJBOzNv": {
       "args": {
         "open": true,
@@ -46,8 +52,6 @@
           "x": 1,
           "y": 1
         },
-        "children": [
-        ],
         "id": "8",
         "name": "FindEnemy",
         "output": [
@@ -56,8 +60,6 @@
         "uuid": "ZpXcZl6oDz"
       },
       {
-        "children": [
-        ],
         "id": "9",
         "input": [
           "target1"
@@ -69,15 +71,11 @@
         "args": {
           "value": "target[0].x > 0 "
         },
-        "children": [
-        ],
         "id": "10",
         "name": "Check",
         "uuid": "vkbssyIliL"
       },
       {
-        "children": [
-        ],
         "id": "11",
         "input": [
           "target"
@@ -86,8 +84,6 @@
         "uuid": "IQrhE8LPc5"
       },
       {
-        "children": [
-        ],
         "id": "12",
         "name": "Clear",
         "output": [
@@ -103,8 +99,6 @@
           "status": "FAILURE",
           "time": 1
         },
-        "children": [
-        ],
         "id": "13",
         "name": "TestB3",
         "uuid": "ofZMb7TDwp"
@@ -117,15 +111,11 @@
           "status": "RUNNING",
           "time": 1
         },
-        "children": [
-        ],
         "id": "14",
         "name": "TestB3",
         "uuid": "0SCKW5eqY6"
       },
       {
-        "children": [
-        ],
         "id": "15",
         "name": "Clear",
         "output": [
@@ -137,17 +127,11 @@
         "args": {
           "builtin": "afterRunFailure"
         },
-        "children": [
-        ],
         "id": "16",
         "name": "Listen",
         "uuid": "3o4RYMLKXE"
       },
       {
-        "args": {
-        },
-        "children": [
-        ],
         "id": "17",
         "input": [
           "context"
@@ -159,12 +143,8 @@
         "args": {
           "time": 1
         },
-        "children": [
-        ],
-        "debug": false,
         "desc": "等待",
-        "disabled": false,
-        "id": "",
+        "id": "18",
         "input": [
           ""
         ],

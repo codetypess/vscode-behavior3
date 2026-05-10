@@ -37,7 +37,7 @@ body[data-theme="dark"] {
     --b3-search-bg: var(--vscode-editorWidget-background, var(--vscode-input-background, #161b22));
     --b3-search-border-accent: var(--vscode-focusBorder, #f78166);
     --b3-search-shadow: #0000005c;
-    --b3-override-bar: var(--vscode-badge-background, #d87a16);
+    --b3-override-bar: #d39a21;
     --b3-node-content-bg: #ffffff;
     --b3-node-text: #111827;
     --b3-node-muted: #4b5563;
@@ -86,7 +86,7 @@ body[data-theme="light"] {
     --b3-search-bg: var(--vscode-editorWidget-background, var(--vscode-input-background, #ffffff));
     --b3-search-border-accent: var(--vscode-focusBorder, #0969da);
     --b3-search-shadow: #1f232826;
-    --b3-override-bar: var(--vscode-badge-background, #bc4c00);
+    --b3-override-bar: #d39a21;
     --b3-node-content-bg: #ffffff;
     --b3-node-text: #111827;
     --b3-node-muted: #4b5563;
@@ -148,4 +148,3 @@ body[data-webview-kind="inspector-sidebar"][data-theme="light"] {
     );
     --b3-panel-title: var(--vscode-sideBarTitle-foreground, var(--vscode-foreground, #3c3c3c));
 }
-

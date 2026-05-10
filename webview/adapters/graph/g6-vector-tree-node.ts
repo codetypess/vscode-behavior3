@@ -141,7 +141,7 @@ const getVectorTreeNodePalette = () => ({
     idText: readThemeCssVariable("--b3-node-id-text", "#ffffff"),
     nodeBg: readThemeCssVariable("--b3-node-content-bg", "#ffffff"),
     nodeText: readThemeCssVariable("--b3-node-text", "#111827"),
-    overrideBar: readThemeCssVariable("--b3-override-bar", "#d87a16"),
+    overrideBar: readThemeCssVariable("--b3-override-bar", "#d39a21"),
     subtreeOutline: readThemeCssVariable("--b3-subtree-outline", "#a5b1be"),
 });
 
