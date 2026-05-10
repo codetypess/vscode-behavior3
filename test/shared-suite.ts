@@ -20,6 +20,7 @@ import {
     resolveBehaviorBuildPaths,
 } from "../src/build/build-cli";
 import { DocumentSessionState } from "../src/editor-session/document-session-state";
+import { applySharedSelectionState } from "../src/editor-session/session-selection";
 import {
     getVisibleChildKeys,
     expandCollapsedAncestorsForNode,
@@ -368,6 +369,56 @@ const tests = registerSharedTestSuites(
                     ),
                     [unrelatedRef]
                 );
+            },
+        },
+        {
+            name: "reasserts equal shared node selection without changing selection payload",
+            run() {
+                const currentSelection: NodeInstanceRef = {
+                    instanceKey: "child",
+                    displayId: "2",
+                    structuralStableId: "child",
+                    sourceStableId: "child",
+                    sourceTreePath: null,
+                    subtreeStack: [],
+                };
+
+                const changed = applySharedSelectionState(
+                    { kind: "tree" },
+                    { kind: "node", ref: currentSelection }
+                );
+                assert.equal(changed.result, "changed");
+                assert.deepEqual(changed.selection, {
+                    kind: "node",
+                    ref: currentSelection,
+                });
+
+                const reasserted = applySharedSelectionState(
+                    changed.selection,
+                    { kind: "node", ref: currentSelection },
+                    { reassertIfEqual: true }
+                );
+                assert.equal(reasserted.result, "reasserted");
+                assert.deepEqual(reasserted.selection, changed.selection);
+
+                const noop = applySharedSelectionState(changed.selection, {
+                    kind: "node",
+                    ref: currentSelection,
+                });
+                assert.equal(noop.result, "noop");
+                assert.deepEqual(noop.selection, changed.selection);
+            },
+        },
+        {
+            name: "reasserts equal shared tree selection without changing selection payload",
+            run() {
+                const reasserted = applySharedSelectionState(
+                    { kind: "tree" },
+                    { kind: "tree" },
+                    { reassertIfEqual: true }
+                );
+                assert.equal(reasserted.result, "reasserted");
+                assert.deepEqual(reasserted.selection, { kind: "tree" });
             },
         },
         {

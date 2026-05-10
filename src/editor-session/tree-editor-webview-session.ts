@@ -21,7 +21,7 @@ import {
     readWorkspaceFileContent,
     uriToWorkdirRelative,
 } from "./session-paths";
-import { buildPendingSelectionRef } from "./session-selection";
+import { applySharedSelectionState, buildPendingSelectionRef } from "./session-selection";
 import { getEditorLanguage, getVSCodeTheme, type EditorLanguage } from "./session-settings";
 import { readExistingNewerFileEditMessage } from "./session-subtree-save-guards";
 import { createSessionFileRequestHandlers } from "./session-file-request-handlers";
@@ -283,14 +283,18 @@ export async function resolveTreeEditorSession({
                   ref: buildPendingSelectionRef(selection.structuralStableId),
               };
 
-    const updateSharedSelection = (selection: HostSelectionState): boolean => {
-        const normalized = normalizeHostSelectionState(selection);
-        if (isJsonEqual(state.sharedSelection, normalized)) {
-            return false;
+    const updateSharedSelection = (
+        selection: HostSelectionState,
+        opts?: { reassertIfEqual?: boolean }
+    ): "noop" | "changed" | "reasserted" => {
+        const applied = applySharedSelectionState(state.sharedSelection, selection, opts);
+        if (applied.result === "noop") {
+            return "noop";
         }
-        state.sharedSelection = normalized;
+
+        state.sharedSelection = applied.selection;
         state.selectionRevision += 1;
-        return true;
+        return applied.result;
     };
 
     const notifyInspectorSessionUpdate = () => {
@@ -1132,7 +1136,15 @@ export async function resolveTreeEditorSession({
 
     const handleSelectTreeMessage = async (): Promise<void> => {
         await enqueueMainDocumentOperation(async () => {
-            if (!updateSharedSelection({ kind: "tree" })) {
+            const result = updateSharedSelection(
+                { kind: "tree" },
+                { reassertIfEqual: true }
+            );
+            if (result === "noop") {
+                return;
+            }
+            if (result === "reasserted") {
+                notifyInspectorSessionUpdate();
                 return;
             }
             await fanoutDocumentSnapshot({
@@ -1145,12 +1157,18 @@ export async function resolveTreeEditorSession({
         msg: Extract<EditorToHostMessage, { type: "selectNode" }>
     ): Promise<void> => {
         await enqueueMainDocumentOperation(async () => {
-            if (
-                !updateSharedSelection({
+            const result = updateSharedSelection(
+                {
                     kind: "node",
                     ref: normalizeNodeInstanceRef(msg.target),
-                })
-            ) {
+                },
+                { reassertIfEqual: true }
+            );
+            if (result === "noop") {
+                return;
+            }
+            if (result === "reasserted") {
+                notifyInspectorSessionUpdate();
                 return;
             }
             await fanoutDocumentSnapshot({

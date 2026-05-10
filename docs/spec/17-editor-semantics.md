@@ -81,6 +81,7 @@
 - 向宿主发送 `selectTree` intent
 - 如有需要，可立即更新 graph-only 本地视觉 hint
 - 后续以宿主 `documentSnapshotChanged.selection` 作为共享选中权威结果
+- 若当前共享选中本来就是 tree，重复的显式 tree 选中手势仍应作为一次 host-side reassert，用于重新激活 Inspector Sidebar；这不会改变共享 selection payload
 
 ### `selectNode(nodeKey, opts?)`
 
@@ -91,6 +92,7 @@
 - 若来自变量热点点击，可选择保留 variable focus
 - 如有需要，可立即更新 graph-only 本地视觉 hint
 - 后续以宿主 `documentSnapshotChanged.selection` 作为共享选中权威结果
+- 若当前共享选中本来就是同一逻辑节点，重复的显式节点选中手势仍应作为一次 host-side reassert，用于重新激活 Inspector Sidebar；这不会改变共享 selection payload
 
 ### `focusVariable(names)`
 
