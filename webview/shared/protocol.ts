@@ -9,7 +9,7 @@ import type {
     Settings,
     WorkdirRelativeJsonPath,
 } from "./contracts";
-import { deriveGroupDefs } from "./node-definition-utils";
+import { deriveGroupDefs } from "./node-utils";
 
 const URI_SCHEME_PATTERN = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
 const WINDOWS_ABSOLUTE_PATTERN = /^[a-zA-Z]:[\\/]/;

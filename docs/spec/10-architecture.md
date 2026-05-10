@@ -224,7 +224,7 @@ Adapters / Features
 - `webview/features/`
     - graph、search、inspector UI
 - `webview/shared/`
-    - contracts、protocol、tree、subtree cache、validation、shared helpers
+    - contracts、protocol、tree、subtree cache、validation、`b3type` model types、shared helpers
 
 ## 架构验收标准
 

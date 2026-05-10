@@ -37,7 +37,7 @@ import {
     resolveCachedInspectorNodeSnapshot,
 } from "../webview/features/inspector/inspector-node-snapshot-cache";
 import { getInspectorPaneMode } from "../webview/features/inspector/inspector-pane-mode";
-import { createNodeDefMap } from "../webview/shared/node-definition-utils";
+import { createNodeDefMap } from "../webview/shared/node-utils";
 import { buildTreeInspectorVariableUsageCount } from "../webview/features/inspector/inspector-variable-options";
 import {
     preparePersistedTreeForMainDocumentSave,

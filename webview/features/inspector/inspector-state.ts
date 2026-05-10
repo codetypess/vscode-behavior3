@@ -6,7 +6,7 @@ import {
     useSelectionStore,
     useWorkspaceStore,
 } from "../../app/runtime";
-import { createNodeDefMap, findNodeDef } from "../../shared/node-definition-utils";
+import { createNodeDefMap, findNodeDef } from "../../shared/node-utils";
 import { getCachedInspectorNodeSnapshot } from "./inspector-node-snapshot-cache";
 import {
     buildTreeInspectorVariableUsageCount,

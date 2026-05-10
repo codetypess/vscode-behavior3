@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import { RiFocus3Line } from "react-icons/ri";
 import { VscCaseSensitive } from "react-icons/vsc";
 import { Hotkey } from "../../shared/keys";
-import { mergeClassNames } from "../../shared/util";
 import { useGraphUiStore, useRuntime } from "../../app/runtime";
 import { patchGraphUiSearchState, resetGraphUiSearchState } from "../../stores/graph-ui-store";
 
@@ -13,6 +12,9 @@ interface SearchBarProps {
     focusToken: number;
     onClose?: () => void;
 }
+
+const mergeClassNames = (...classNames: Array<string | false>): string =>
+    classNames.filter(Boolean).join(" ");
 
 export const SearchBar: React.FC<SearchBarProps> = ({ focusToken, onClose }) => {
     const runtime = useRuntime();

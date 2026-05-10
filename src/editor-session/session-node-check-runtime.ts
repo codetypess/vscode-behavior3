@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import type { NodeDef } from "../../webview/shared/message-protocol";
-import { createNodeDefMap } from "../../webview/shared/node-definition-utils";
+import { createNodeDefMap } from "../../webview/shared/node-utils";
 import { parseWorkspaceModelContent } from "../../webview/shared/schema";
 import b3path from "../../webview/shared/b3path";
 import {

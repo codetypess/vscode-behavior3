@@ -38,9 +38,9 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 44 份 work-item spec
+- 47 份 work-item spec
 - 9 份登记中的 active work-item spec
-- 34 份登记中的 done work-item spec
+- 37 份登记中的 done work-item spec
 - 1 份登记中的 superseded work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
@@ -245,6 +245,9 @@ Scope: <short boundary>
 
 ## Done Work Items
 
+- `shared-model-type-consolidation.md` - `Done` - 将 `b3model.d.ts` 的 tree/model 类型合并进 `b3type.ts`
+- `tree-helper-ownership.md` - `Done` - 将 tree 解析/序列化 helper 从 `util.ts` 收口到 `tree.ts`
+- `shared-adjacent-utils-consolidation.md` - `Done` - 合并 shared 中职责相邻的小型 helper 模块
 - `shared-legacy-facade-removal.md` - `Done` - 移除 `webview/shared/b3util.ts` 兼容 facade 并改为显式 helper 模块
 - `shared-helper-consolidation.md` - `Done` - 收敛 `webview/shared` 中未使用或单消费者的薄 helper
 - `shared-misc-flatten.md` - `Done` - 将 `webview/shared/misc` 扁平化到 `webview/shared`

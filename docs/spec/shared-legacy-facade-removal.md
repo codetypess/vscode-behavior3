@@ -35,7 +35,7 @@ The current codebase is a rewritten implementation and does not need to preserve
 ## 5. Proposed Behavior
 
 - `webview/shared/build-project-context.ts` owns `createBuildProjectContext`.
-- `webview/shared/node-arg-utils.ts` owns argument type/options/oneof helpers.
+- `webview/shared/node-utils.ts` owns argument type/options/oneof helpers.
 - `document-mutation-reducer.ts` owns subtree override diffing.
 - Callers import concrete modules directly.
 
@@ -51,7 +51,7 @@ This change favors explicit ownership over compatibility facades:
 ## 7. Implementation Plan
 
 1. Rename `b3util.ts` to `build-project-context.ts` and strip unused legacy exports/state.
-2. Add `node-arg-utils.ts` and update Inspector/validation callers.
+2. Add `node-utils.ts` and update Inspector/validation callers.
 3. Move `computeNodeOverride` into `document-mutation-reducer.ts`.
 4. Update source comments and specs that still describe `b3util` as current structure.
 5. Run `npm run check` and `npm run test:shared`.

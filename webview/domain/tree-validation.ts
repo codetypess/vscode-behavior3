@@ -6,7 +6,7 @@ import {
     type VarDecl,
 } from "../shared/b3type";
 import type { ResolvedNodeModel } from "../shared/contracts";
-import { parseSlotDefinition } from "../shared/node-definition-utils";
+import { parseSlotDefinition } from "../shared/node-utils";
 import {
     validateExpressionEntries,
     validateVariableReference,

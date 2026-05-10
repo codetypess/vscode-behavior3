@@ -4,10 +4,10 @@ import type { BuildEnv, BuildScript, NodeArgChecker, NodeArgCheckResult } from "
 import { logger } from "./logger";
 import b3path from "./b3path";
 import { stringifyJson } from "./stringify";
-import { readTreeFromFile, readWorkspace, writeTree } from "./util";
 import { loadSubtreeSourceCache } from "./subtree-source-cache";
 import { materializePersistedTree, type MaterializedTreeNode } from "./tree-materializer";
-import { parsePersistedTreeContent } from "./tree";
+import { parsePersistedTreeContent, readTreeFromFile, writeTree } from "./tree";
+import { parseWorkspaceModelContent } from "./schema";
 
 /**
  * Shared build pipeline helpers.
@@ -42,6 +42,11 @@ export const isBehaviorTreeJsonPath = (filePath: string): boolean => {
     return !["/.vscode/", "/.git/", "/node_modules/", "/dist/", "/build/"].some((marker) =>
         lowerPath.includes(marker)
     );
+};
+
+const readWorkspaceSettings = (path: string) => {
+    const content = getFs().readFileSync(path, "utf-8");
+    return parseWorkspaceModelContent(content).settings;
 };
 
 export type {
@@ -1231,7 +1236,7 @@ export const buildProjectWithContext = async (
     }
 
     let hasError = false;
-    const settings = readWorkspace(project).settings;
+    const settings = readWorkspaceSettings(project);
     const buildSetting = settings.buildScript;
     const checkScriptSetting = settings.checkScripts ?? [];
     let buildScriptModule: unknown;
@@ -1366,7 +1371,7 @@ export const batchProcessProjectWithContext = async (
     let skippedFiles = 0;
     let failedFiles = 0;
     let writtenFiles = 0;
-    const settings = readWorkspace(project).settings;
+    const settings = readWorkspaceSettings(project);
     const checkScriptSetting = settings.checkScripts ?? [];
     const allErrors: string[] = [];
     const stagedWrites: Array<{ path: string; tree: TreeData; content: string }> = [];

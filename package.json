@@ -40,7 +40,8 @@
     "package.nls.json",
     "package.nls.zh-cn.json",
     "webview/shared/b3build-model.d.ts",
-    "webview/shared/b3model.d.ts"
+    "webview/shared/b3type.ts",
+    "webview/shared/document-version.ts"
   ],
   "publishConfig": {
     "access": "public",

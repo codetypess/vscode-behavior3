@@ -1,5 +1,5 @@
 import { ThemeConfig, theme } from "antd";
-import type { WebviewKind } from "./webview-kind";
+import type { WebviewKind } from "./webview-env";
 
 type ThemeMode = "dark" | "light";
 

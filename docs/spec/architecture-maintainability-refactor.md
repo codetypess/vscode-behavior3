@@ -71,7 +71,7 @@ Update baseline specs so they describe the current authority model:
 
 ### Webview Runtime Context
 
-Create a webview-kind context owned by the app shell. Feature code asks the runtime context for the kind instead of reading `window.__B3_WEBVIEW_KIND__`.
+Create a webview-env context owned by the app shell. Feature code asks the runtime context for the kind instead of reading `window.__B3_WEBVIEW_KIND__`.
 
 The main entrypoint creates exactly one runtime for the active webview kind and passes it into the selected app frame.
 
@@ -103,7 +103,7 @@ Keep `webview/style.scss` as the entrypoint and split its content into partials 
 ## 7. Implementation Plan
 
 1. Add this work-item spec and update affected baseline specs.
-2. Add shared equality, webview-kind, inspector commit queue, and inspector payload helper modules.
+2. Add shared equality, webview-env, inspector commit queue, and inspector payload helper modules.
 3. Update editor/sidebar app setup and feature call sites to use runtime context.
 4. Extract host-session helpers and wire imports without changing message flow.
 5. Split `style.scss` into partials.

@@ -3,9 +3,12 @@ import ReactDOM from "react-dom/client";
 import "./style.scss";
 import { App } from "./app/app";
 import { createEditorRuntime, RuntimeProvider } from "./app/runtime";
-import { applyDocumentTheme, detectInitialThemeMode } from "./shared/theme-mode";
+import {
+    applyDocumentTheme,
+    detectInitialThemeMode,
+    detectWebviewKind,
+} from "./shared/webview-env";
 import { InspectorSidebarApp } from "./app/inspector-sidebar-app";
-import { detectWebviewKind } from "./shared/webview-kind";
 
 const webviewKind = detectWebviewKind();
 const runtime = createEditorRuntime(webviewKind);

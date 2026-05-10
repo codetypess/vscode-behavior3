@@ -9,7 +9,7 @@ import { createGraphUiStore } from "../stores/graph-ui-store";
 import { createSelectionStore } from "../stores/selection-store";
 import { createWorkspaceStore } from "../stores/workspace-store";
 import { createAppHooksStore, type AppHooksStore } from "../shared/hooks";
-import { detectWebviewKind, type WebviewKind } from "../shared/webview-kind";
+import { detectWebviewKind, type WebviewKind } from "../shared/webview-env";
 import type {
     DocumentState,
     EditorCommand,

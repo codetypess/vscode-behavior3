@@ -8,7 +8,7 @@ import {
     type NodeArg,
     type VarDecl,
 } from "../../shared/b3type";
-import { getNodeArgRawType, isNodeArgArray, isNodeArgOptional } from "../../shared/node-arg-utils";
+import { getNodeArgRawType, isNodeArgArray, isNodeArgOptional } from "../../shared/node-utils";
 import i18n from "../../shared/i18n";
 import { validateExpressionValues } from "./inspector-validation";
 

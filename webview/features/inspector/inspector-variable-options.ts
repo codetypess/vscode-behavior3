@@ -5,8 +5,7 @@ import type {
     SubtreeSourceCacheEntry,
     WorkdirRelativeJsonPath,
 } from "../../shared/contracts";
-import { findNodeDef, parseSlotDefinition } from "../../shared/node-definition-utils";
-import { getNodeArgRawType } from "../../shared/node-arg-utils";
+import { findNodeDef, getNodeArgRawType, parseSlotDefinition } from "../../shared/node-utils";
 import { dfs } from "../../shared/tree-model";
 import {
     hasDeclaredVars as hasSharedDeclaredVars,

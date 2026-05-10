@@ -1,5 +1,9 @@
-import { basenameWithoutExt, readTree, treeDataForPersistence, writeTree } from "./util";
-import { subtreeNeedsMissingIds } from "./tree-model";
+import { VERSION, type TreeData } from "./b3type";
+import { getFs } from "./b3fs";
+import b3path from "./b3path";
+import { parseTreeContent } from "./schema";
+import { stringifyJson } from "./stringify";
+import { createNode, subtreeNeedsMissingIds } from "./tree-model";
 import type { PersistedNodeModel, PersistedTreeModel, WorkdirRelativeJsonPath } from "./contracts";
 
 export const cloneJsonValue = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -10,6 +14,39 @@ export const clonePersistedTree = (tree: PersistedTreeModel): PersistedTreeModel
 export const clonePersistedNode = (node: PersistedNodeModel): PersistedNodeModel =>
     cloneJsonValue(node);
 
+export const treeDataForPersistence = (data: TreeData, name: string): TreeData => {
+    return {
+        version: VERSION,
+        name,
+        desc: data.desc?.trim() || undefined,
+        prefix: data.prefix ?? "",
+        export: data.export,
+        group: data.group ?? [],
+        variables: {
+            imports: data.variables?.imports ?? [],
+            locals: data.variables?.locals ?? [],
+        },
+        root: createNode(data.root),
+        custom: data.custom ?? {},
+        overrides: data.overrides ?? {},
+    };
+};
+
+export const writeTree = (data: TreeData, name: string): string => {
+    return stringifyJson(treeDataForPersistence(data, name), { indent: 2 });
+};
+
+/** Parse tree JSON from editor / postMessage string content. */
+export const readTree = (text: string, opts?: { stableIdSeed?: string }): TreeData => {
+    return parseTreeContent(text, opts);
+};
+
+/** Load tree from disk path. */
+export const readTreeFromFile = (path: string): TreeData => {
+    const str = getFs().readFileSync(path, "utf-8");
+    return parseTreeContent(str, { stableIdSeed: path.replace(/\\/g, "/") });
+};
+
 export const parsePersistedTreeContent = (
     content: string,
     filePath?: string
@@ -19,7 +56,7 @@ export const parsePersistedTreeContent = (
         filePath ? { stableIdSeed: filePath.replace(/\\/g, "/") } : undefined
     );
     if (filePath) {
-        tree.name = basenameWithoutExt(filePath);
+        tree.name = b3path.basenameWithoutExt(filePath);
     }
     return treeDataForPersistence(tree, tree.name) as PersistedTreeModel;
 };

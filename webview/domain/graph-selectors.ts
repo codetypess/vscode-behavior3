@@ -13,7 +13,7 @@ import type {
 } from "../shared/contracts";
 import { stringifyCompactJson5, stringifySearchValueAsJson5 } from "../shared/json5-display";
 import { isJsonEqual } from "../shared/equality";
-import { createNodeDefMap, findNodeDef } from "../shared/node-definition-utils";
+import { createNodeDefMap, findNodeDef } from "../shared/node-utils";
 import { parseExpressionVariables } from "../shared/validation";
 import { collectResolvedNodeDiagnostics } from "./tree-validation";
 

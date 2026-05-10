@@ -5,7 +5,15 @@ import React, { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import { canOpenSubtreeTarget } from "../../domain/subtree-navigation";
-import { findNodeDef, parseSlotDefinition } from "../../shared/node-definition-utils";
+import {
+    checkOneof,
+    findNodeDef,
+    getNodeArgOptions,
+    getNodeArgRawType,
+    isNodeArgArray,
+    isNodeArgOptional,
+    parseSlotDefinition,
+} from "../../shared/node-utils";
 import {
     hasArgOptions,
     isBoolType,
@@ -18,13 +26,6 @@ import {
     type NodeDef,
     type VarDecl,
 } from "../../shared/b3type";
-import {
-    checkOneof,
-    getNodeArgOptions,
-    getNodeArgRawType,
-    isNodeArgArray,
-    isNodeArgOptional,
-} from "../../shared/node-arg-utils";
 import { useRuntime } from "../../app/runtime";
 import type { NodeCheckDiagnostic } from "../../shared/contracts";
 import { isRequiredNodeArgValueMissing } from "../../domain/tree-validation";

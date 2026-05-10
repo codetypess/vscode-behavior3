@@ -15,9 +15,18 @@ import {
     VarDecl,
 } from "./b3type";
 import { logger } from "./logger";
-import { readJson, readTreeFromFile } from "./util";
+import { getFs } from "./b3fs";
+import { readTreeFromFile } from "./tree";
 import { dfs, isSubtreeRoot } from "./tree-model";
-import { createNodeDefMap, parseSlotDefinition } from "./node-definition-utils";
+import {
+    checkOneof,
+    createNodeDefMap,
+    getNodeArgOptions,
+    getNodeArgRawType,
+    isNodeArgArray,
+    isNodeArgOptional,
+    parseSlotDefinition,
+} from "./node-utils";
 import { normalizeNodeDefCollection } from "./schema";
 import {
     parseExpressionVariables,
@@ -25,13 +34,6 @@ import {
     validateVariableReference,
     type TreeValidationDiagnostic,
 } from "./validation";
-import {
-    checkOneof,
-    getNodeArgOptions,
-    getNodeArgRawType,
-    isNodeArgArray,
-    isNodeArgOptional,
-} from "./node-arg-utils";
 
 const unknownNodeDef: NodeDef = {
     name: "unknown",
@@ -40,6 +42,11 @@ const unknownNodeDef: NodeDef = {
 };
 
 type BuildAlertHandler = (msg: string, duration?: number) => void;
+
+const readJson = <T>(path: string): T => {
+    const content = getFs().readFileSync(path, "utf-8");
+    return JSON.parse(content) as T;
+};
 
 interface BuildValidationState {
     nodeDefs: ReadonlyMap<string, NodeDef>;

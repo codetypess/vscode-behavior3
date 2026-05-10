@@ -15,7 +15,9 @@
 
 ### PersistedTreeModel
 
-`PersistedTreeModel` 是当前主文档的结构化表示，字段以 [`contracts.ts`](../../webview/shared/contracts.ts) 为准：
+`PersistedTreeModel` 是当前主文档的结构化表示，字段以 [`contracts.ts`](../../webview/shared/contracts.ts) 为准。
+
+基础 tree/model TypeScript 形状由 [`b3type.ts`](../../webview/shared/b3type.ts) 直接持有，`contracts.ts` 在此基础上定义 host/webview 稳定 DTO。
 
 - `version`
 - `name`

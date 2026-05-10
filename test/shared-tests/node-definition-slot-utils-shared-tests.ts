@@ -4,7 +4,7 @@ import {
     deriveGroupDefs,
     findNodeDef,
     parseSlotDefinition,
-} from "../../webview/shared/node-definition-utils";
+} from "../../webview/shared/node-utils";
 import { defineSharedTests } from "../shared-test-types";
 
 export const nodeDefinitionSlotUtilsSharedTests = defineSharedTests([

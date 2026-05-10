@@ -5,7 +5,7 @@ import { getAntdLocale } from "../shared/antd-locale";
 import i18n, { setI18nLanguage } from "../shared/i18n";
 import { getThemeConfig } from "../shared/theme";
 import { GraphPane } from "../features/graph/graph-pane";
-import { applyDocumentTheme } from "../shared/theme-mode";
+import { applyDocumentTheme } from "../shared/webview-env";
 import type { HostEvent } from "../shared/contracts";
 import { applyWorkspaceTheme, mergeWorkspaceSettings } from "../stores/workspace-store";
 import { GlobalHooksBridge } from "./global-hooks-bridge";

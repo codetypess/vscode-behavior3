@@ -6,7 +6,7 @@ import type {
     SubtreeSourceCacheEntry,
     WorkdirRelativeJsonPath,
 } from "./contracts";
-import { createNodeDefMap } from "./node-definition-utils";
+import { createNodeDefMap } from "./node-utils";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
 import { clonePersistedNode } from "./tree";
 

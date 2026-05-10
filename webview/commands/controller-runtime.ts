@@ -24,7 +24,7 @@ import type {
 } from "../shared/contracts";
 import type { GraphAdapter } from "../shared/graph-contracts";
 import { parseWorkdirRelativeJsonPath } from "../shared/protocol";
-import { createNodeDefMap, findNodeDef } from "../shared/node-definition-utils";
+import { createNodeDefMap, findNodeDef } from "../shared/node-utils";
 import {
     cloneJsonValue,
     parsePersistedTreeContent,

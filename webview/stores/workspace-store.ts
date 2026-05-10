@@ -1,6 +1,6 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { WorkspaceState } from "../shared/contracts";
-import { detectInitialThemeMode } from "../shared/theme-mode";
+import { detectInitialThemeMode } from "../shared/webview-env";
 
 export const applyWorkspaceTheme = (
     store: StoreApi<WorkspaceState>,

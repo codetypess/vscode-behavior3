@@ -1,5 +1,5 @@
 import type { NodeDef } from "behavior3";
-import type { NodeData, TreeData } from "./b3model";
+import type { NodeData, TreeData } from "./b3type";
 
 export type NodeArg = Exclude<NodeDef["args"], undefined>[number];
 

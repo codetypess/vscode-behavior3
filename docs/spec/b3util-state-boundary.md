@@ -31,13 +31,13 @@ Superseded By: [`shared-legacy-facade-removal.md`](shared-legacy-facade-removal.
 
 ## 5. Proposed Behavior
 
-- Pure node definition and slot helpers live in `webview/shared/node-definition-utils.ts`.
+- Pure node definition and slot helpers live in `webview/shared/node-utils.ts`.
 - Follow-up behavior removes the `b3util.ts` facade entirely and routes callers to explicit modules.
 - New feature/domain code imports state-free helpers directly.
 
 ## 6. Design
 
-- Add `node-definition-utils.ts` for nodeDef map/group/lookup helpers plus `?`, `...`, and clean label parsing.
+- Add `node-utils.ts` for nodeDef map/group/lookup helpers plus `?`, `...`, and clean label parsing.
 - This intermediate step kept `b3util` exports for compatibility; the follow-up removes that compatibility surface.
 
 ## 7. Implementation Plan

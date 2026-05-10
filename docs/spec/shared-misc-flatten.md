@@ -50,7 +50,7 @@ Files with legacy names remain as-is:
 
 - `b3util.ts` remained the compatibility/state facade for this flattening step; follow-up work removes it.
 - `b3build.ts` remains the build runtime helper.
-- `b3type.ts` / `b3model.d.ts` remain model compatibility surfaces.
+- `b3type.ts` remains the model type surface; `b3model.d.ts` was removed by `shared-model-type-consolidation.md`.
 
 ## 7. Implementation Plan
 

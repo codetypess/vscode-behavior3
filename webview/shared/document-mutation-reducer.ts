@@ -8,7 +8,7 @@ import type {
     UpdateNodeInput,
 } from "./contracts";
 import { isJsonEqual } from "./equality";
-import { createNodeDefMap, findNodeDef } from "./node-definition-utils";
+import { createNodeDefMap, findNodeDef } from "./node-utils";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
 import {
     cloneJsonValue,

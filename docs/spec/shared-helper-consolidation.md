@@ -12,7 +12,7 @@ Current scan results:
 
 - `array.ts` only mutates `Array.prototype` and no source code calls the added methods.
 - `drop-preflight.ts` is only consumed by `webview/commands/controller-mutation-commands.ts`.
-- `slot-definition-utils.ts` and `node-definition-utils.ts` are both node-definition helper surfaces and are often read together.
+- `slot-definition-utils.ts` and `node-utils.ts` are both node-definition helper surfaces and are often read together.
 
 ## 2. Goals
 
@@ -42,8 +42,8 @@ Implementation changes:
 
 - Delete the unused `array.ts` prototype extension and its side-effect import.
 - Inline drop preflight types and function into `controller-mutation-commands.ts`.
-- Move `ParsedSlotDefinition` and `parseSlotDefinition` into `node-definition-utils.ts`.
-- Update imports and tests to use `node-definition-utils.ts` for slot parsing.
+- Move `ParsedSlotDefinition` and `parseSlotDefinition` into `node-utils.ts`.
+- Update imports and tests to use `node-utils.ts` for slot parsing.
 
 ## 6. Design
 
@@ -61,7 +61,7 @@ Rejected alternatives:
 ## 7. Implementation Plan
 
 1. Add this work-item spec and register it in `docs/spec/README.md`.
-2. Merge slot parsing into `node-definition-utils.ts` and rewrite imports.
+2. Merge slot parsing into `node-utils.ts` and rewrite imports.
 3. Inline drop preflight into `controller-mutation-commands.ts` and delete the shared file.
 4. Remove `array.ts` and its unused side-effect import.
 5. Run `npm run check` and `npm run test:shared`.
