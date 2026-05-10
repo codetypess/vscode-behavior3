@@ -20,14 +20,27 @@
 
 更完整的流程见 [../spec-driven-development.md](../spec-driven-development.md)。
 
+## 第一遍阅读：四层心智模型
+
+先按下面四层理解当前实现，不要从 work-item 清单或所有 helper 文件开始读。
+
+| 层                         | 先看哪里                                                                                              | 主要回答的问题                                           |
+| -------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| Host authority             | [`10-architecture.md`](10-architecture.md), [`13-host-protocol.md`](13-host-protocol.md), `src/`      | 谁拥有保存、撤销、reload、selection 和磁盘 IO 的权威状态 |
+| Webview runtime            | [`12-runtime-and-commands.md`](12-runtime-and-commands.md), `webview/app`, `webview/commands`        | UI intent 如何进入 controller，store 只保存什么投影      |
+| Pure model / contracts     | [`11-document-model.md`](11-document-model.md), [`14-resolved-graph.md`](14-resolved-graph.md), `webview/shared`, `webview/domain` | DTO、path、reducer、resolved graph 和持久化模型怎么定义  |
+| Adapters / feature UI      | [`15-graph-contract.md`](15-graph-contract.md), [`16-inspector-contract.md`](16-inspector-contract.md), `webview/adapters`, `webview/features` | G6、VS Code bridge、Inspector、Graph/Search 怎么投影交互 |
+
+薄 helper 文件通常是某一层内部的实现细节。除非你正在改对应 flow，否则优先从上表入口进入。
+
 ## 当前目录快照
 
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 39 份 work-item spec
+- 41 份 work-item spec
 - 9 份登记中的 active work-item spec
-- 30 份登记中的 done work-item spec
+- 32 份登记中的 done work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
 目录判断规则：
@@ -215,7 +228,6 @@ Scope: <short boundary>
 
 新增 work-item 时，请继续按以下格式补充：
 
-- `your-work-item-slug.md` - `Draft` - 一句话范围说明
 - `graph-structural-mutation-target-anchor.md` - `Verifying` - drop、insert、delete 后按本地操作上下文稳定画布视图锚点
 - `graph-collapse-render-stability.md` - `Verifying` - 将图节点折叠改为 adapter-owned 本地视觉状态，避免 G6 内部折叠状态与 adapter rebuild 链路打架
 - `tree-custom-inspector-metadata.md` - `Verifying` - 在 Tree Inspector 中新增 tree.custom 的 key:value 编辑与提交语义
@@ -228,6 +240,8 @@ Scope: <short boundary>
 
 ## Done Work Items
 
+- `host-file-request-handler-split.md` - `Done` - 将 host 侧 `readFile` / `saveSubtree` / `saveSubtreeAs` 文件请求处理抽出 session 主体
+- `architecture-cognitive-load-cleanup.md` - `Done` - 用四层心智模型收敛架构阅读入口与文档噪音
 - `g6-compat-layer.md` - `Done` - 为 G6 adapter 的 unsafe/internal API 访问建立兼容层
 - `inspector-commit-service.md` - `Done` - 将 Node Inspector commit/reset 编排抽成 feature-local hook/service
 - `runtime-feature-selector-boundary.md` - `Done` - 将 app runtime 中的 Inspector/Graph feature selector 移回各 feature

@@ -2,11 +2,16 @@
 
 ## 总体结构
 
-当前架构由三层组成：
+第一遍阅读时，先按四层理解当前实现：
 
-1. Extension-host 层
-2. Webview runtime 层
-3. Shared domain / protocol 层
+| 层                    | 代码入口                                                                                           | 主要职责                                             |
+| --------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Host authority        | `src/tree-editor-provider.ts`, `src/editor-session/`, `src/inspector-sidebar-coordinator.ts`       | VS Code 生命周期、IO、保存/回滚、history、selection  |
+| Webview runtime       | `webview/app/`, `webview/commands/`, `webview/stores/`                                             | store projection、command intent、graph/Inspector 编排 |
+| Pure model/contracts  | `webview/shared/`, `webview/domain/`                                                               | DTO、path、reducer、tree/graph 解析、保存序列化      |
+| Adapters / feature UI | `webview/adapters/`, `webview/features/`, `webview/styles/`                                        | G6/VS Code bridge、Inspector/Graph/Search UI 与样式  |
+
+这四层是阅读模型，不是新的运行时边界。实际依赖仍遵守下面的职责规则：host 拥有权威文档会话，webview 只表达 intent 和本地投影，shared/domain 保持纯模型，adapter/feature 负责外部库与 UI 细节。
 
 推荐理解方式：
 
@@ -40,6 +45,12 @@ Shared Layer
   -> protocol.ts
   -> tree / subtree / validation utilities
   -> state-free node definition, node arg, slot and override helpers
+
+Adapters / Features
+  -> VS Code host adapter
+  -> G6 graph adapter
+  -> Inspector / Graph / Search UI
+  -> SCSS partials
 ```
 
 ## 层职责
@@ -89,6 +100,21 @@ Shared Layer
 - `webview/shared/**` 不应依赖 `webview/domain/**`、`webview/features/**` 或 adapter 实现。
 - resolved graph、图视图模型转换与主文档 save 前 display id 回写属于 `webview/domain/**`。
 
+### Adapters / Feature UI
+
+职责：
+
+- 将外部运行时细节限制在边界内，例如 G6 public/compat API、VS Code `postMessage`、Ant Design 表单与样式组织
+- 把用户交互转换成 `EditorCommand` 调用或 adapter event，不直接提交 persisted tree
+- 消费 controller/runtime 提供的 resolved graph、selection、validation、search 与变量高亮投影
+- 保持 className、graph view model 和 Inspector DTO 的兼容性
+
+约束：
+
+- 图层不能成为文档真源。
+- feature UI 不应直接绕过 `EditorCommand` 修改主文档。
+- adapter 兼容逻辑留在 adapter-local helper 中，不扩散到 domain/shared。
+
 ## 关键组件
 
 ### TreeEditorProvider
@@ -107,6 +133,7 @@ Shared Layer
 
 - 是 extension-host 侧的文档会话核心
 - 负责消息分发、监听器、项目索引、文档版本保护、host document session 与主文档操作队列
+- `readFile` / `saveSubtree` / `saveSubtreeAs` 这类 host 文件请求委托给 session-local helper，session 仍保留 raw message 路由权
 
 ### EditorCommand + Controller Runtime
 

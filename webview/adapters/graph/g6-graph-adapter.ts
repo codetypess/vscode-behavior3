@@ -132,6 +132,11 @@ const compareLayoutOrder = (nodeA: G6NodeData, nodeB: G6NodeData): number => {
     return String(nodeA.id).localeCompare(String(nodeB.id));
 };
 
+/**
+ * G6 boundary implementation.
+ * It receives resolved graph/view state from the controller and keeps G6
+ * layout, viewport, drag, and visual selection details out of domain code.
+ */
 export class G6GraphAdapter implements GraphAdapter {
     private container: HTMLElement | null = null;
     private handlers: GraphEventHandlers | null = null;

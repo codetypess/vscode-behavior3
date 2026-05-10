@@ -35,6 +35,11 @@ function getNewerFileWriteError(content: string): string | null {
     return getNewerVersionMessage(language, fileVersion, "edit");
 }
 
+/**
+ * VS Code custom-editor facade.
+ * Keep lifecycle/save/revert ownership here; per-webview message orchestration
+ * belongs in `editor-session/tree-editor-webview-session.ts`.
+ */
 export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEditorDocument> {
     public static readonly viewType = "behavior3.treeEditor";
     private static readonly activeWebviews = new Set<ActiveTreeEditorWebview>();

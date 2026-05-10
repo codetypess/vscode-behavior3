@@ -4,6 +4,11 @@ import { createMutationCommands } from "./controller-mutation-commands";
 import { createSelectionCommands } from "./controller-selection-commands";
 import { createControllerRuntime, type ControllerDeps } from "./controller-runtime";
 
+/**
+ * Public command catalog for feature UI.
+ * Feature code should enter document, selection, and graph behavior through
+ * this facade rather than reaching into stores or host messages directly.
+ */
 export const createEditorController = (deps: ControllerDeps): EditorCommand => {
     const runtime = createControllerRuntime(deps);
     return {

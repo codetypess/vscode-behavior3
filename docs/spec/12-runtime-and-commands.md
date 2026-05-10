@@ -129,12 +129,7 @@
 
 - 设置 `persistedTree`
 - 视情况同步 reachable subtree sources
-- 视情况 rebuild graph 或仅重放 visual state
-
-### `applyDocumentTree(tree, opts?)`
-
 - 可在提交前准备下一次选中状态
-- 应用新树
 - 视情况同步 subtree cache、重建 graph 或仅重放 visual state
 - 不维护 webview-local history 镜像
 

@@ -31,7 +31,14 @@ export interface EditorRuntime {
     appHooks: AppHooksStore;
 }
 
-export const createEditorRuntime = (webviewKind: WebviewKind = detectWebviewKind()): EditorRuntime => {
+/**
+ * Composition root for one webview instance.
+ * Stores, adapters, hooks, and the command facade are created here and shared
+ * through RuntimeProvider instead of hidden module globals.
+ */
+export const createEditorRuntime = (
+    webviewKind: WebviewKind = detectWebviewKind()
+): EditorRuntime => {
     // Each webview gets isolated stores/adapters; host messages are the only shared boundary.
     const documentStore = createDocumentStore();
     const workspaceStore = createWorkspaceStore();

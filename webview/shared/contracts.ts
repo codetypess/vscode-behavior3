@@ -1,3 +1,8 @@
+/**
+ * Stable internal DTO surface shared by host, webview runtime, domain helpers,
+ * and adapters. UI and VS Code transport code should normalize data before it
+ * crosses into these shapes.
+ */
 import type { NodeDef, VarDecl, ImportDecl } from "./misc/b3type";
 
 export type { NodeDef, VarDecl, ImportDecl };
