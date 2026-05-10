@@ -1,5 +1,5 @@
 import type { NodeData } from "./b3type";
-import { generateUuid } from "../stable-id";
+import { generateUuid } from "./stable-id";
 
 export const dfs = <T extends { children?: T[] }>(
     node: T,

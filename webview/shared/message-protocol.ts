@@ -2,7 +2,7 @@
  * Shared message protocol types between Extension Host and Webview.
  */
 
-import type { NodeDef } from "./misc/b3type";
+import type { NodeDef } from "./b3type";
 import type {
     DocumentMutation,
     HostDocumentSnapshot,

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import b3path from "../../webview/shared/misc/b3path";
+import b3path from "../../webview/shared/b3path";
 import {
     normalizeHostDocumentSnapshot,
     parseWorkdirRelativeJsonPath,
@@ -100,7 +100,7 @@ export const hostProtocolSharedTests = defineSharedTests([
                 setState() {},
             });
 
-            const { getLogger, setLogger } = await import("../../webview/shared/misc/logger");
+            const { getLogger, setLogger } = await import("../../webview/shared/logger");
             const previousLogger = getLogger();
             try {
                 const { createVsCodeHostAdapter } =

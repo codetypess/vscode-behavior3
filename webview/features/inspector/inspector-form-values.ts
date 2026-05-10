@@ -1,7 +1,7 @@
 import { stringifySearchValueAsJson5 } from "../../shared/json5-display";
-import { parseSlotDefinition } from "../../shared/slot-definition-utils";
+import { parseSlotDefinition } from "../../shared/node-definition-utils";
 import type { EditNode, UpdateNodeInput, UpdateTreeMetaInput } from "../../shared/contracts";
-import type { NodeArg, NodeDef } from "../../shared/misc/b3type";
+import type { NodeArg, NodeDef } from "../../shared/b3type";
 import { formatArgInitialValue, parseArgSubmitValue } from "./inspector-arg-values";
 import { type VariableRowValue } from "./inspector-variable-options";
 import { formatChildrenLabel } from "./inspector-validation";

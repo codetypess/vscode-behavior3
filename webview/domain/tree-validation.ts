@@ -4,9 +4,9 @@ import {
     type NodeArg,
     type NodeDef,
     type VarDecl,
-} from "../shared/misc/b3type";
+} from "../shared/b3type";
 import type { ResolvedNodeModel } from "../shared/contracts";
-import { parseSlotDefinition } from "../shared/slot-definition-utils";
+import { parseSlotDefinition } from "../shared/node-definition-utils";
 import {
     validateExpressionEntries,
     validateVariableReference,

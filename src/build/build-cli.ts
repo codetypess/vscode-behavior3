@@ -4,10 +4,10 @@ import {
     batchProcessProjectWithContext,
     buildProjectWithContext,
     type BatchProcessProjectResult,
-} from "../../webview/shared/misc/b3build";
-import { getLogger, setLogger, type Logger } from "../../webview/shared/misc/logger";
-import { createBuildProjectContext } from "../../webview/shared/misc/b3util";
-import { setFs } from "../../webview/shared/misc/b3fs";
+} from "../../webview/shared/b3build";
+import { getLogger, setLogger, type Logger } from "../../webview/shared/logger";
+import { createBuildProjectContext } from "../../webview/shared/build-project-context";
+import { setFs } from "../../webview/shared/b3fs";
 import {
     findBehaviorSettingFileSync,
     findBehaviorWorkspaceFileSync,

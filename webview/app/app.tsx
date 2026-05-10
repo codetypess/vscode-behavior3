@@ -1,9 +1,9 @@
 import { App as AntdApp, ConfigProvider, Flex, Layout, Typography } from "antd";
 import React, { useEffect, useLayoutEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { getAntdLocale } from "../shared/misc/antd-locale";
-import i18n, { setI18nLanguage } from "../shared/misc/i18n";
-import { getThemeConfig } from "../shared/misc/theme";
+import { getAntdLocale } from "../shared/antd-locale";
+import i18n, { setI18nLanguage } from "../shared/i18n";
+import { getThemeConfig } from "../shared/theme";
 import { GraphPane } from "../features/graph/graph-pane";
 import { applyDocumentTheme } from "../shared/theme-mode";
 import type { HostEvent } from "../shared/contracts";

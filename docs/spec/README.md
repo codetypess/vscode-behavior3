@@ -38,9 +38,10 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 41 份 work-item spec
+- 44 份 work-item spec
 - 9 份登记中的 active work-item spec
-- 32 份登记中的 done work-item spec
+- 34 份登记中的 done work-item spec
+- 1 份登记中的 superseded work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
 目录判断规则：
@@ -238,8 +239,15 @@ Scope: <short boundary>
 - `inspector-independent-field-commit.md` - `Verifying` - 将 Inspector 从整表校验提交改为字段级独立提交
 - `graph-resize-viewport-stability.md` - `Verifying` - 调整 inspector 宽度时保持已缩放画布的 viewport 稳定，不让节点整体漂移
 
+## Superseded Work Items
+
+- `b3util-state-boundary.md` - `Superseded` - 已被 `shared-legacy-facade-removal.md` 替代，移除 `b3util.ts` 兼容 facade
+
 ## Done Work Items
 
+- `shared-legacy-facade-removal.md` - `Done` - 移除 `webview/shared/b3util.ts` 兼容 facade 并改为显式 helper 模块
+- `shared-helper-consolidation.md` - `Done` - 收敛 `webview/shared` 中未使用或单消费者的薄 helper
+- `shared-misc-flatten.md` - `Done` - 将 `webview/shared/misc` 扁平化到 `webview/shared`
 - `host-file-request-handler-split.md` - `Done` - 将 host 侧 `readFile` / `saveSubtree` / `saveSubtreeAs` 文件请求处理抽出 session 主体
 - `architecture-cognitive-load-cleanup.md` - `Done` - 用四层心智模型收敛架构阅读入口与文档噪音
 - `g6-compat-layer.md` - `Done` - 为 G6 adapter 的 unsafe/internal API 访问建立兼容层
@@ -248,7 +256,6 @@ Scope: <short boundary>
 - `tree-editor-session-service-split.md` - `Done` - 继续拆薄 extension-host TreeEditorSession 的 checker、subtree 与 helper 职责
 - `host-helper-sidebar-style-consistency.md` - `Done` - 收口 host helper 重复并拆分 Inspector sidebar 专属样式
 - `host-request-spec-map.md` - `Done` - 将 host/webview request-response 映射收口到单一 registry
-- `b3util-state-boundary.md` - `Done` - 将 shared misc 中的纯 helper 与 legacy 模块级状态继续拆边界
 - `node-definition-slot-utils.md` - `Done` - 统一 nodeDef map/lookup 与 slot required/variadic/label 解析工具
 - `shared-test-suite-split-format.md` - `Done` - 拆分 shared tests 并补 format quality gate
 - `inspector-variable-usage-count.md` - `Done` - 让 Tree Inspector 的变量使用计数覆盖当前 resolved graph 中的 materialized subtree 实例

@@ -1,19 +1,21 @@
 # B3Util State Boundary
 
-Status: Done
+Status: Superseded
 Date: 2026-05-10
-Scope: shared misc helper globals, pure utility extraction, build/editor compatibility
+Scope: shared helper globals, pure utility extraction, build/editor compatibility
+
+Superseded By: [`shared-legacy-facade-removal.md`](shared-legacy-facade-removal.md)
 
 ## 1. Context
 
-`webview/shared/misc/b3util.ts` still contains module-level mutable state such as `nodeDefs`, `usingGroups`, `usingVars`, `files`, `checkExpr`, and `workdir`. Some of this exists for legacy runtime/build APIs, but the modern webview runtime already uses explicit stores and context.
+`webview/shared/b3util.ts` used to contain module-level mutable state such as `nodeDefs`, `usingGroups`, `usingVars`, `files`, `checkExpr`, and `workdir`. This work item was an intermediate cleanup before the follow-up removal of the facade.
 
 ## 2. Goals
 
 - Separate pure helpers from legacy mutable runtime state.
-- Move reusable node definition and slot parsing helpers into state-free shared modules.
+- Move reusable node definition and slot parsing helpers into state-free shared helpers.
 - Avoid widening this work into a complete rewrite of the legacy build compatibility layer.
-- Make feature/domain code prefer explicit helper inputs over `b3util` globals.
+- Make feature/domain code prefer explicit helper inputs over shared globals.
 
 ## 3. Non-Goals
 
@@ -23,21 +25,20 @@ Scope: shared misc helper globals, pure utility extraction, build/editor compati
 
 ## 4. Current Behavior
 
-- Feature/domain code imports a mixture of pure helpers and stateful helpers from `b3util.ts`.
+- Feature/domain code imported a mixture of pure helpers and stateful helpers from `b3util.ts`.
 - `createBuildProjectContext()` already provides a partial state-local path for offline builds.
 - Node definition map creation is currently defined inside Inspector feature code.
 
 ## 5. Proposed Behavior
 
-- Pure node definition and slot helpers live under `webview/shared/`.
-- `b3util.ts` reuses those helpers where possible and remains only as a compatibility façade for legacy/stateful APIs.
+- Pure node definition and slot helpers live in `webview/shared/node-definition-utils.ts`.
+- Follow-up behavior removes the `b3util.ts` facade entirely and routes callers to explicit modules.
 - New feature/domain code imports state-free helpers directly.
 
 ## 6. Design
 
-- Add `node-definition-utils.ts` for nodeDef map/group/lookup helpers.
-- Add `slot-definition-utils.ts` for `?`, `...`, and clean label parsing.
-- Keep `b3util` exports for compatibility by delegating to the new helpers where safe.
+- Add `node-definition-utils.ts` for nodeDef map/group/lookup helpers plus `?`, `...`, and clean label parsing.
+- This intermediate step kept `b3util` exports for compatibility; the follow-up removes that compatibility surface.
 
 ## 7. Implementation Plan
 
@@ -46,7 +47,7 @@ Scope: shared misc helper globals, pure utility extraction, build/editor compati
 2. Update feature/domain imports.
    Exit: Inspector/domain code no longer defines nodeDef map or slot parsing locally.
 3. Delegate from `b3util` where compatible.
-   Exit: legacy callers keep compiling.
+   Exit: legacy callers keep compiling during this intermediate step.
 4. Verify.
    Exit: `npm run check` and `npm run test:shared` pass.
 
@@ -57,8 +58,8 @@ Scope: shared misc helper globals, pure utility extraction, build/editor compati
 
 ## 9. Acceptance Criteria
 
-- Feature/domain modules use shared pure helper modules for nodeDef maps and slot parsing.
-- `b3util.ts` keeps existing public API but no longer owns duplicated slot parsing logic.
+- Feature/domain modules use shared pure helpers for nodeDef maps and slot parsing.
+- Superseded follow-up removes `b3util.ts`; this original criterion only applied to the intermediate cleanup.
 - No behavior change in shared tests.
 
 ## 10. Risks and Rollback

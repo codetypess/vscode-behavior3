@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { buildBehaviorProject } from "./build-cli";
-import { getLogger, logger, setLogger, type Logger } from "../../webview/shared/misc/logger";
+import { getLogger, logger, setLogger, type Logger } from "../../webview/shared/logger";
 import { getBehavior3OutputChannel } from "../output-channel";
 import {
     findBehaviorSettingFileSync,
@@ -19,7 +19,7 @@ function createBuildScopedLogger(prev: Logger): Logger {
     return {
         log: (...args: unknown[]) => prev.log(...args),
         debug: () => {
-            /* suppress noisy debug from b3util during build */
+            /* suppress noisy debug from build validation during build */
         },
         info: (...args: unknown[]) => prev.info(...args),
         warn: (...args: unknown[]) => prev.warn(...args),

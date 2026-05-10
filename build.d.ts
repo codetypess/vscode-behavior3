@@ -1,6 +1,6 @@
-import type { BuildRuntime } from "./webview/shared/misc/b3build-model";
+import type { BuildRuntime } from "./webview/shared/b3build-model";
 export type { NodeDef } from "behavior3";
-export type { NodeData, TreeData } from "./webview/shared/misc/b3model";
+export type { NodeData, TreeData } from "./webview/shared/b3model";
 export type {
   BuildEnv,
   CheckDecorator,
@@ -17,7 +17,7 @@ export type {
   NodeArgCheckerClass,
   NodeArgCheckResult,
   PathLike,
-} from "./webview/shared/misc/b3build-model";
+} from "./webview/shared/b3build-model";
 
 declare global {
   const behavior3: BuildRuntime;

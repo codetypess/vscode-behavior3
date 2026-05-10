@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
-import { stringifyJson } from "../../webview/shared/misc/stringify";
-import { basenameWithoutExt, readTree, writeTree } from "../../webview/shared/misc/util";
+import { stringifyJson } from "../../webview/shared/stringify";
+import { basenameWithoutExt, readTree, writeTree } from "../../webview/shared/util";
 import { DocumentSessionState } from "./document-session-state";
 
 interface SuppressedDocumentChange {

@@ -1,7 +1,7 @@
 import type { StoreApi } from "zustand/vanilla";
-import i18n from "../shared/misc/i18n";
+import i18n from "../shared/i18n";
 import { generateUuid } from "../shared/stable-id";
-import type { AppHooksStore } from "../shared/misc/hooks";
+import type { AppHooksStore } from "../shared/hooks";
 import type {
     DocumentState,
     EditNode,

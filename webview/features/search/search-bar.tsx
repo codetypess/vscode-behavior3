@@ -4,8 +4,8 @@ import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { RiFocus3Line } from "react-icons/ri";
 import { VscCaseSensitive } from "react-icons/vsc";
-import { Hotkey } from "../../shared/misc/keys";
-import { mergeClassNames } from "../../shared/misc/util";
+import { Hotkey } from "../../shared/keys";
+import { mergeClassNames } from "../../shared/util";
 import { useGraphUiStore, useRuntime } from "../../app/runtime";
 import { patchGraphUiSearchState, resetGraphUiSearchState } from "../../stores/graph-ui-store";
 

@@ -1,6 +1,6 @@
 import * as path from "path";
 import * as vscode from "vscode";
-import { logger } from "../webview/shared/misc/logger";
+import { logger } from "../webview/shared/logger";
 import type { NodeDef } from "../webview/shared/message-protocol";
 import { parseNodeDefsContent, parseWorkspaceModelContent } from "../webview/shared/schema";
 import {
@@ -36,7 +36,7 @@ export function findB3WorkspacePath(
 
 /**
  * Behavior-tree project root: the directory containing the resolved `*.b3-workspace` file
- * (same as build `process.chdir` / `b3util.workdir`). Subtree `path` and imports are relative to this.
+ * (same as build `process.chdir` / build context workdir). Subtree `path` and imports are relative to this.
  * Falls back to the VS Code workspace folder when no `.b3-workspace` is found walking up from the document.
  */
 export function getBehaviorProjectRootFsPath(

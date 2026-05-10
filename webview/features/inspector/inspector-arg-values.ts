@@ -7,9 +7,9 @@ import {
     isJsonType,
     type NodeArg,
     type VarDecl,
-} from "../../shared/misc/b3type";
-import { getNodeArgRawType, isNodeArgArray, isNodeArgOptional } from "../../shared/misc/b3util";
-import i18n from "../../shared/misc/i18n";
+} from "../../shared/b3type";
+import { getNodeArgRawType, isNodeArgArray, isNodeArgOptional } from "../../shared/node-arg-utils";
+import i18n from "../../shared/i18n";
 import { validateExpressionValues } from "./inspector-validation";
 
 export const formatArgInitialValue = (arg: NodeArg, value: unknown) => {

@@ -4,7 +4,7 @@ import * as vscode from "vscode";
 import type { NodeDef } from "../../webview/shared/message-protocol";
 import { createNodeDefMap } from "../../webview/shared/node-definition-utils";
 import { parseWorkspaceModelContent } from "../../webview/shared/schema";
-import b3path from "../../webview/shared/misc/b3path";
+import b3path from "../../webview/shared/b3path";
 import {
     createBuildScriptRuntime,
     createBuildScriptRuntimeWithCheckModules,
@@ -13,7 +13,7 @@ import {
     type BuildEnv,
     type BuildScriptRuntime,
     type CheckScriptModule,
-} from "../../webview/shared/misc/b3build";
+} from "../../webview/shared/b3build";
 import { findB3WorkspacePath } from "../setting-resolver";
 import { createBuildScriptLogger } from "./session-logging";
 

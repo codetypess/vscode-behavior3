@@ -1,4 +1,3 @@
-import { computeNodeOverride } from "./misc/b3util";
 import { generateUuid } from "./stable-id";
 import type {
     DocumentMutation,
@@ -143,6 +142,61 @@ const assignFreshStableIds = (node: PersistedNodeModel): void => {
 
 const getNodeDef = (nodeDefs: NodeDef[], name: string): NodeDef | null => {
     return findNodeDef(createNodeDefMap(nodeDefs), name);
+};
+
+const computeNodeOverride = (
+    original: PersistedNodeModel,
+    edited: PersistedNodeModel,
+    def: Pick<NodeDef, "args"> | null | undefined
+): Pick<PersistedNodeModel, "desc" | "input" | "output" | "args" | "debug" | "disabled"> | null => {
+    const diff: Pick<PersistedNodeModel, "desc" | "input" | "output" | "args" | "debug" | "disabled"> = {};
+    let hasDiff = false;
+
+    if ((edited.desc || undefined) !== (original.desc || undefined)) {
+        diff.desc = edited.desc || undefined;
+        hasDiff = true;
+    }
+
+    if ((edited.debug || undefined) !== (original.debug || undefined)) {
+        diff.debug = edited.debug || undefined;
+        hasDiff = true;
+    }
+
+    if ((edited.disabled || undefined) !== (original.disabled || undefined)) {
+        diff.disabled = edited.disabled || undefined;
+        hasDiff = true;
+    }
+
+    if (def?.args?.length) {
+        const diffArgs: Record<string, unknown> = {};
+        for (const arg of def.args) {
+            const originalValue = original.args?.[arg.name];
+            const editedValue = edited.args?.[arg.name];
+            if (!isJsonEqual(originalValue, editedValue)) {
+                diffArgs[arg.name] = editedValue;
+            }
+        }
+        if (Object.keys(diffArgs).length > 0) {
+            diff.args = diffArgs;
+            hasDiff = true;
+        }
+    }
+
+    const originalInput = (original.input ?? []).filter(Boolean);
+    const editedInput = (edited.input ?? []).filter(Boolean);
+    if (!isJsonEqual(originalInput, editedInput)) {
+        diff.input = editedInput.length ? edited.input : undefined;
+        hasDiff = true;
+    }
+
+    const originalOutput = (original.output ?? []).filter(Boolean);
+    const editedOutput = (edited.output ?? []).filter(Boolean);
+    if (!isJsonEqual(originalOutput, editedOutput)) {
+        diff.output = editedOutput.length ? edited.output : undefined;
+        hasDiff = true;
+    }
+
+    return hasDiff ? diff : null;
 };
 
 const matchesSelectedNodeTarget = (selectedNode: EditNode, payload: UpdateNodeInput): boolean => {
@@ -325,11 +379,7 @@ const reduceUpdateNode = (
             path: selectedNode.data.path,
         };
 
-        const diff = computeNodeOverride(
-            original as never,
-            editedNode as never,
-            { args: nextNodeDef?.args } as { args?: NodeDef["args"] } as never
-        );
+        const diff = computeNodeOverride(original, editedNode, nextNodeDef);
 
         if (diff) {
             tree.overrides[payload.target.sourceStableId] = diff;

@@ -1,12 +1,12 @@
 import { App as AntdApp, ConfigProvider, Flex, Typography } from "antd";
 import React, { useEffect, useLayoutEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { getAntdLocale } from "../shared/misc/antd-locale";
+import { getAntdLocale } from "../shared/antd-locale";
 import { deriveGroupDefs } from "../shared/node-definition-utils";
 import { applyDocumentTheme } from "../shared/theme-mode";
-import { getThemeConfig } from "../shared/misc/theme";
-import { setI18nLanguage } from "../shared/misc/i18n";
-import { isMacos } from "../shared/misc/keys";
+import { getThemeConfig } from "../shared/theme";
+import { setI18nLanguage } from "../shared/i18n";
+import { isMacos } from "../shared/keys";
 import { isJsonEqual } from "../shared/equality";
 import type {
     HostEvent,

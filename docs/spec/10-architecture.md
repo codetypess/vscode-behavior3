@@ -93,7 +93,7 @@ Adapters / Features
 - 维护 host request/response registry、timeout fallback 与结果解析映射
 - 统一 persisted tree 的解析、序列化、subtree 遍历与 stable id 生成
 - 提供无 UI / 无 domain 依赖的共享校验与纯 helper
-- `misc/b3util.ts` 只作为 legacy/build 兼容 façade 持有模块级状态；现代 feature/domain 代码应优先依赖 state-free shared helper
+- build-only 状态只保留在显式 build context 中；feature/domain 代码应直接依赖 state-free shared helper
 
 约束：
 

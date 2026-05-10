@@ -1,5 +1,3 @@
-import "./array";
-import { hasFs } from "./b3fs";
 import {
     FileVarDecl,
     hasArgOptions,
@@ -15,48 +13,25 @@ import {
     NodeDef,
     TreeData,
     VarDecl,
-    VERSION,
 } from "./b3type";
 import { logger } from "./logger";
 import { readJson, readTreeFromFile } from "./util";
-import { createNode, dfs, isSubtreeRoot, subtreeNeedsMissingIds } from "./tree-model";
-import { createNodeDefMap, deriveGroupDefs } from "../node-definition-utils";
-import { normalizeNodeDefCollection } from "../schema";
-import { parseSlotDefinition } from "../slot-definition-utils";
-import { generateUuid } from "../stable-id";
+import { dfs, isSubtreeRoot } from "./tree-model";
+import { createNodeDefMap, parseSlotDefinition } from "./node-definition-utils";
+import { normalizeNodeDefCollection } from "./schema";
 import {
-    hasDeclaredVars as sharedHasDeclaredVars,
-    isValidVariableName as sharedIsValidVariableName,
     parseExpressionVariables,
     validateExpressionEntries,
     validateVariableReference,
     type TreeValidationDiagnostic,
-} from "../validation";
-
-/**
- * Shared editor/runtime utilities plus reusable validation helpers.
- * The editor still keeps module-level state here, while offline builds create
- * isolated validation contexts via `createBuildProjectContext`.
- */
-export class NodeDefs extends Map<string, NodeDef> {
-    override get(key: string): NodeDef {
-        // Callers can render/validate unknown node names without null-checking every lookup.
-        return super.get(key) ?? unknownNodeDef;
-    }
-}
-
-export let calcSize: (d: NodeData) => number[] = () => [0, 0];
-export let nodeDefs: NodeDefs = new NodeDefs();
-export let groupDefs: string[] = [];
-export let usingGroups: Record<string, boolean> | null = null;
-export let usingVars: Record<string, VarDecl> | null = null;
-export const files: Record<string, number> = {};
-
-const parsedVarDecl: Record<string, ImportDecl> = {};
-const parsedExprs: Record<string, string[]> = {};
-let checkExpr: boolean = false;
-let workdir: string = "";
-let alertError: (msg: string, duration?: number) => void = () => {};
+} from "./validation";
+import {
+    checkOneof,
+    getNodeArgOptions,
+    getNodeArgRawType,
+    isNodeArgArray,
+    isNodeArgOptional,
+} from "./node-arg-utils";
 
 const unknownNodeDef: NodeDef = {
     name: "unknown",
@@ -67,8 +42,7 @@ const unknownNodeDef: NodeDef = {
 type BuildAlertHandler = (msg: string, duration?: number) => void;
 
 interface BuildValidationState {
-    nodeDefs: NodeDefs;
-    groupDefs: string[];
+    nodeDefs: ReadonlyMap<string, NodeDef>;
     usingGroups: Record<string, boolean> | null;
     usingVars: Record<string, VarDecl> | null;
     parsedExprs: Record<string, string[]>;
@@ -84,7 +58,7 @@ interface BuildProjectState extends BuildValidationState {
 
 const createNodeDefsState = (
     defs: unknown
-): Pick<BuildValidationState, "nodeDefs" | "groupDefs"> => {
+): Pick<BuildValidationState, "nodeDefs"> => {
     const normalizedNodeDefs = normalizeNodeDefCollection(defs);
 
     for (const node of normalizedNodeDefs) {
@@ -111,9 +85,12 @@ const createNodeDefsState = (
     }
 
     return {
-        nodeDefs: new NodeDefs(createNodeDefMap(normalizedNodeDefs)),
-        groupDefs: deriveGroupDefs(normalizedNodeDefs),
+        nodeDefs: createNodeDefMap(normalizedNodeDefs),
     };
+};
+
+const getBuildNodeDef = (nodeDefs: ReadonlyMap<string, NodeDef>, name: string): NodeDef => {
+    return nodeDefs.get(name) ?? unknownNodeDef;
 };
 
 const toUsingGroups = (group: string[]): Record<string, boolean> | null => {
@@ -134,51 +111,6 @@ const toUsingVars = (vars: VarDecl[]): Record<string, VarDecl> | null => {
     return next;
 };
 
-export const hasDeclaredVars = sharedHasDeclaredVars;
-
-export const initWorkdir = (path: string, handler: typeof alertError) => {
-    const posix = path.replace(/\\/g, "/");
-    initWorkdirFromSettingFile(posix, `${posix}/node-config.b3-setting`, handler);
-};
-
-/** Load node defs from an explicit `.b3-setting` path (VS Code auto-discovered `*.b3-setting`). */
-export const initWorkdirFromSettingFile = (
-    workdirPath: string,
-    settingFilePath: string,
-    handler: typeof alertError
-) => {
-    workdir = workdirPath.replace(/\\/g, "/");
-    alertError = handler;
-    const loaded = createNodeDefsState(readJson(settingFilePath) as unknown);
-    nodeDefs = loaded.nodeDefs;
-    groupDefs = loaded.groupDefs;
-};
-
-/** Webview: receive pre-loaded defs from extension host (no disk). */
-export const initWithNodeDefs = (defs: NodeDef[], handler: typeof alertError, check: boolean) => {
-    alertError = handler;
-    checkExpr = check;
-    const loaded = createNodeDefsState(defs as unknown);
-    nodeDefs = loaded.nodeDefs;
-    groupDefs = loaded.groupDefs;
-};
-
-export const setSizeCalculator = (calc: (d: NodeData) => number[]) => {
-    calcSize = calc;
-};
-
-export const updateUsingGroups = (group: string[]) => {
-    usingGroups = toUsingGroups(group);
-};
-
-export const updateUsingVars = (vars: VarDecl[]) => {
-    usingVars = toUsingVars(vars);
-};
-
-export const setCheckExpr = (check: boolean) => {
-    checkExpr = check;
-};
-
 const parseExprWithCache = (expr: string, exprCache: Record<string, string[]>) => {
     if (exprCache[expr]) {
         return exprCache[expr];
@@ -187,49 +119,6 @@ const parseExprWithCache = (expr: string, exprCache: Record<string, string[]>) =
     const result = parseExpressionVariables(expr);
     exprCache[expr] = result;
     return result;
-};
-
-export const parseExpr = (expr: string) => parseExprWithCache(expr, parsedExprs);
-
-export const isValidVariableName = sharedIsValidVariableName;
-
-export const isNodeEqual = (node1: NodeData, node2: NodeData) => {
-    if (
-        node1.name === node2.name &&
-        node1.desc === node2.desc &&
-        node1.path === node2.path &&
-        node1.debug === node2.debug &&
-        node1.disabled === node2.disabled
-    ) {
-        const def = nodeDefs.get(node1.name);
-
-        for (const arg of def.args ?? []) {
-            if (node1.args?.[arg.name] !== node2.args?.[arg.name]) {
-                return false;
-            }
-        }
-
-        if (def.input?.length) {
-            const len = Math.max(node1.input?.length ?? 0, node2.input?.length ?? 0);
-            for (let i = 0; i < len; i++) {
-                if (node1.input?.[i] !== node2.input?.[i]) {
-                    return false;
-                }
-            }
-        }
-
-        if (def.output?.length) {
-            const len = Math.max(node1.output?.length ?? 0, node2.output?.length ?? 0);
-            for (let i = 0; i < len; i++) {
-                if (node1.output?.[i] !== node2.output?.[i]) {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-    return false;
 };
 
 type ErrorPrinter = (msg: string) => void;
@@ -263,51 +152,7 @@ const formatBuildDiagnostic = (diagnostic: TreeValidationDiagnostic): string => 
     }
 };
 
-export const getNodeArgRawType = (arg: NodeArg) => {
-    return arg.type.match(/^\w+/)![0] as NodeArg["type"];
-};
-
-export const isNodeArgArray = (arg: NodeArg) => {
-    return arg.type.includes("[]");
-};
-
-export const isNodeArgOptional = (arg: NodeArg) => {
-    return arg.type.includes("?");
-};
-
-/** Normalized shape after init (see initWorkdir / initWithNodeDefs). */
-type ArgOptionBucket = {
-    match?: Record<string, string[]>;
-    source: Array<{ name: string; value: unknown }>;
-};
-
-function argOptionBuckets(arg: NodeArg): ArgOptionBucket[] | undefined {
-    const o = arg.options;
-    if (!Array.isArray(o)) {
-        return undefined;
-    }
-    return o as ArgOptionBucket[];
-}
-
-export const getNodeArgOptions = (arg: NodeArg, args: Record<string, unknown>) => {
-    const opts = argOptionBuckets(arg);
-    if (!opts?.length) {
-        return;
-    }
-    const defaultMatch = opts.find((option) => !option.match);
-    if (defaultMatch) {
-        return defaultMatch.source;
-    }
-    return opts.find((entry) =>
-        Object.entries(entry.match!).every(([key, value]) => {
-            const arr = value as unknown[];
-            const a = args[key];
-            return Array.isArray(arr) && arr.includes(a);
-        })
-    )?.source;
-};
-
-export const checkNodeArgValue = (
+const checkNodeArgValue = (
     data: NodeData,
     arg: NodeArg,
     value: unknown,
@@ -378,7 +223,7 @@ export const checkNodeArgValue = (
     return !hasError;
 };
 
-export const checkNodeArg = (data: NodeData, conf: NodeDef, i: number, printer?: ErrorPrinter) => {
+const checkNodeArg = (data: NodeData, conf: NodeDef, i: number, printer?: ErrorPrinter) => {
     let hasError = false;
     const arg = conf.args![i] as NodeArg;
     const value = data.args?.[arg.name];
@@ -413,52 +258,14 @@ export const checkNodeArg = (data: NodeData, conf: NodeDef, i: number, printer?:
     return !hasError;
 };
 
-export const checkOneof = (arg: NodeArg, argValue: unknown, inputValue: unknown) => {
-    if (isNodeArgArray(arg)) {
-        if (argValue instanceof Array && argValue.length === 0) {
-            argValue = undefined;
-        }
-    }
-    argValue = argValue === undefined ? "" : argValue;
-    inputValue = inputValue ?? "";
-    return (argValue !== "" && inputValue === "") || (argValue === "" && inputValue !== "");
-};
-
-const isValidChildrenWithNodeDefs = (data: NodeData, defs: NodeDefs) => {
-    const def = defs.get(data.name);
+const isValidChildrenWithNodeDefs = (
+    data: NodeData,
+    nodeDefs: ReadonlyMap<string, NodeDef>
+) => {
+    const def = getBuildNodeDef(nodeDefs, data.name);
     if (def.children !== undefined && def.children !== -1) {
         return (data.children?.filter((child) => !child.disabled).length || 0) === def.children;
     }
-    return true;
-};
-
-export const isValidNodeData = (data: NodeData) => {
-    const def = nodeDefs.get(data.name);
-    if (def.input) {
-        for (let i = 0; i < def.input.length; i++) {
-            if (!isValidInputOrOutput(def.input, data.input, i)) {
-                return false;
-            }
-        }
-    }
-    if (def.output) {
-        for (let i = 0; i < def.output.length; i++) {
-            if (!isValidInputOrOutput(def.output, data.output, i)) {
-                return false;
-            }
-        }
-    }
-    if (!isValidChildrenWithNodeDefs(data, nodeDefs)) {
-        return false;
-    }
-    if (def.args) {
-        for (let i = 0; i < def.args.length; i++) {
-            if (!checkNodeArg(data, def, i)) {
-                return false;
-            }
-        }
-    }
-
     return true;
 };
 
@@ -474,7 +281,7 @@ const checkNodeDataWithState = (
         return false;
     }
     const error = !printer ? () => {} : (msg: string) => printer(formatError(data, msg));
-    const conf = state.nodeDefs.get(data.name);
+    const conf = getBuildNodeDef(state.nodeDefs, data.name);
     if (conf.name === unknownNodeDef.name) {
         error(`undefined node: ${data.name}`);
         return false;
@@ -608,17 +415,8 @@ const checkNodeDataWithState = (
     return !hasError;
 };
 
-export const checkNodeData = (data: NodeData | null | undefined, printer: ErrorPrinter) =>
-    checkNodeDataWithState(data, printer, {
-        nodeDefs,
-        usingGroups,
-        usingVars,
-        parsedExprs,
-        checkExpr,
-    });
-
 /** Align with extension `tree-editor-provider.normalizePathKey` for subtree path lookup. */
-export const normalizeSubtreePathKey = (p: string) =>
+const normalizeSubtreePathKey = (p: string) =>
     p
         .replace(/\\/g, "/")
         .replace(/^[/\\]+/, "")
@@ -741,37 +539,6 @@ const loadVarDecl = (list: ImportDecl[], arr: Array<VarDecl>, context: RefreshVa
     list.forEach((entry) => arr.push(...entry.vars));
 };
 
-const refreshVarDeclWebview = (
-    root: NodeData,
-    group: string[],
-    declare: FileVarDecl,
-    context: RefreshVarDeclContext
-) => {
-    const prevSubtreeByPath = new Map(
-        declare.subtree.map((entry) => [context.normalizeSubtreePathKey(entry.path), entry])
-    );
-    declare.subtree = collectSubtreePaths(root, context.dfs).map((subtreePath) => {
-        const previous = prevSubtreeByPath.get(context.normalizeSubtreePathKey(subtreePath));
-        return {
-            path: subtreePath,
-            vars: previous?.vars?.length ? previous.vars.map((variable) => ({ ...variable })) : [],
-            depends: previous?.depends ?? [],
-        };
-    });
-
-    const lastGroup = Array.from(Object.keys(context.usingGroups ?? {})).sort();
-    const sortedGroup = [...group].sort();
-    if (
-        lastGroup.length !== sortedGroup.length ||
-        lastGroup.some((value, index) => value !== sortedGroup[index])
-    ) {
-        context.updateUsingGroups(group);
-        return true;
-    }
-
-    return false;
-};
-
 const refreshVarDeclNode = (
     root: NodeData,
     group: string[],
@@ -850,28 +617,6 @@ const createRefreshVarDeclContext = (
     logger,
 });
 
-const refreshVarDecl = (root: NodeData, group: string[], declare: FileVarDecl) => {
-    const context = createRefreshVarDeclContext(
-        {
-            files,
-            workdir,
-            usingGroups,
-            usingVars,
-            parsedVarDecl,
-            alertError,
-        },
-        {
-            updateUsingGroups,
-            updateUsingVars,
-        }
-    );
-
-    if (hasFs()) {
-        return refreshVarDeclNode(root, group, declare, context);
-    }
-    return refreshVarDeclWebview(root, group, declare, context);
-};
-
 export const createBuildProjectContext = (options: {
     workdir: string;
     settingFile: string;
@@ -886,7 +631,6 @@ export const createBuildProjectContext = (options: {
     const loaded = createNodeDefsState(readJson(options.settingFile) as unknown);
     const state: BuildProjectState = {
         nodeDefs: loaded.nodeDefs,
-        groupDefs: loaded.groupDefs,
         usingGroups: null,
         usingVars: null,
         parsedExprs: {},
@@ -934,76 +678,7 @@ export const createBuildProjectContext = (options: {
     };
 };
 
-/**
- * Compute the diff between the original subtree node data and the edited node data.
- * Returns only the fields that differ (keyed by field name). Empty input/output arrays
- * are treated as "no data" (same as undefined).
- */
-export const computeNodeOverride = (
-    original: NodeData,
-    edited: NodeData,
-    def: ReturnType<typeof nodeDefs.get>
-): Pick<NodeData, "desc" | "input" | "output" | "args" | "debug" | "disabled"> | null => {
-    const diff: Pick<NodeData, "desc" | "input" | "output" | "args" | "debug" | "disabled"> = {};
-    let hasDiff = false;
-
-    if ((edited.desc || undefined) !== (original.desc || undefined)) {
-        diff.desc = edited.desc || undefined;
-        hasDiff = true;
-    }
-
-    if ((edited.debug || undefined) !== (original.debug || undefined)) {
-        diff.debug = edited.debug || undefined;
-        hasDiff = true;
-    }
-
-    if ((edited.disabled || undefined) !== (original.disabled || undefined)) {
-        diff.disabled = edited.disabled || undefined;
-        hasDiff = true;
-    }
-
-    // args: k/v comparison; only track keys defined in the node def
-    if (def.args?.length) {
-        let argsDiff = false;
-        const diffArgs: { [key: string]: unknown } = {};
-        for (const arg of def.args) {
-            const origVal = original.args?.[arg.name];
-            const editVal = edited.args?.[arg.name];
-            if (JSON.stringify(origVal) !== JSON.stringify(editVal)) {
-                diffArgs[arg.name] = editVal;
-                argsDiff = true;
-            }
-        }
-        if (argsDiff) {
-            diff.args = diffArgs;
-            hasDiff = true;
-        }
-    }
-
-    // input: empty array [] treated as no data
-    const origInput = (original.input ?? []).filter((v) => v);
-    const editInput = (edited.input ?? []).filter((v) => v);
-    if (JSON.stringify(origInput) !== JSON.stringify(editInput)) {
-        diff.input = editInput.length ? edited.input : undefined;
-        hasDiff = true;
-    }
-
-    // output: same as input
-    const origOutput = (original.output ?? []).filter((v) => v);
-    const editOutput = (edited.output ?? []).filter((v) => v);
-    if (JSON.stringify(origOutput) !== JSON.stringify(editOutput)) {
-        diff.output = editOutput.length ? edited.output : undefined;
-        hasDiff = true;
-    }
-
-    return hasDiff ? diff : null;
-};
-
-export const isValidChildren = (data: NodeData) => {
-    return isValidChildrenWithNodeDefs(data, nodeDefs);
-};
-
-export const isVariadic = (def: string[], i: number) => {
+const isVariadic = (def: string[], i: number) => {
     const index = i === -1 ? def.length - 1 : i;
     return parseSlotDefinition(def[index] ?? "", def, index).variadic;
 };
@@ -1012,32 +687,3 @@ const isValidInputOrOutput = (def: string[], data: string[] | undefined, index: 
     const slotDefinition = parseSlotDefinition(def[index] ?? "", def, index);
     return !slotDefinition.required || Boolean(data?.[index]) || slotDefinition.variadic;
 };
-
-export const createNewTree = (name: string) => {
-    const tree: TreeData = {
-        version: VERSION,
-        name,
-        prefix: "",
-        group: [],
-        variables: {
-            imports: [],
-            locals: [],
-        },
-        root: {
-            id: "1",
-            name: "Sequence",
-            uuid: generateUuid(),
-        },
-        custom: {},
-        overrides: {},
-    };
-    return tree;
-};
-
-export const isTreeFile = (path: string) => {
-    const lower = path.toLocaleLowerCase();
-    return lower.endsWith(".json");
-};
-
-export { createNode, dfs, isSubtreeRoot, subtreeNeedsMissingIds };
-export { getFs, setFs, hasFs } from "./b3fs";

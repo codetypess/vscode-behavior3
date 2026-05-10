@@ -5,8 +5,7 @@ import React, { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import { canOpenSubtreeTarget } from "../../domain/subtree-navigation";
-import { findNodeDef } from "../../shared/node-definition-utils";
-import { parseSlotDefinition } from "../../shared/slot-definition-utils";
+import { findNodeDef, parseSlotDefinition } from "../../shared/node-definition-utils";
 import {
     hasArgOptions,
     isBoolType,
@@ -18,14 +17,14 @@ import {
     type NodeArg,
     type NodeDef,
     type VarDecl,
-} from "../../shared/misc/b3type";
+} from "../../shared/b3type";
 import {
     checkOneof,
     getNodeArgOptions,
     getNodeArgRawType,
     isNodeArgArray,
     isNodeArgOptional,
-} from "../../shared/misc/b3util";
+} from "../../shared/node-arg-utils";
 import { useRuntime } from "../../app/runtime";
 import type { NodeCheckDiagnostic } from "../../shared/contracts";
 import { isRequiredNodeArgValueMissing } from "../../domain/tree-validation";

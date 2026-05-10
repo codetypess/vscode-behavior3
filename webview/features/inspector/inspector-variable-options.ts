@@ -5,14 +5,14 @@ import type {
     SubtreeSourceCacheEntry,
     WorkdirRelativeJsonPath,
 } from "../../shared/contracts";
-import { findNodeDef } from "../../shared/node-definition-utils";
-import { parseSlotDefinition } from "../../shared/slot-definition-utils";
-import { dfs, getNodeArgRawType } from "../../shared/misc/b3util";
+import { findNodeDef, parseSlotDefinition } from "../../shared/node-definition-utils";
+import { getNodeArgRawType } from "../../shared/node-arg-utils";
+import { dfs } from "../../shared/tree-model";
 import {
     hasDeclaredVars as hasSharedDeclaredVars,
     parseExpressionVariables,
 } from "../../shared/validation";
-import { isExprType, type NodeDef, type VarDecl } from "../../shared/misc/b3type";
+import { isExprType, type NodeDef, type VarDecl } from "../../shared/b3type";
 
 export type VariableOption = {
     label: string;

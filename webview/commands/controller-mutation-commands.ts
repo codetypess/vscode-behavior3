@@ -1,4 +1,4 @@
-import i18n from "../shared/misc/i18n";
+import i18n from "../shared/i18n";
 import type {
     DropIntent,
     DocumentMutation,
@@ -9,13 +9,9 @@ import type {
     UpdateNodeInput,
     UpdateTreeMetaInput,
 } from "../shared/contracts";
-import { stringifyJson } from "../shared/misc/stringify";
+import { stringifyJson } from "../shared/stringify";
 import { parseWorkdirRelativeJsonPath } from "../shared/protocol";
 import { clonePersistedNode } from "../shared/tree";
-import {
-    preflightDropIntent,
-    type DropPreflightDenialReason,
-} from "../shared/drop-preflight";
 import { type ControllerRuntime } from "./controller-runtime";
 
 type MutationCommandKeys =
@@ -30,6 +26,78 @@ type MutationCommandKeys =
     | "openSubtreePath"
     | "openSelectedSubtree"
     | "saveSelectedAsSubtree";
+
+type DropPreflightDenialReason =
+    | "missing-context"
+    | "same-node"
+    | "move-subtree-denied"
+    | "drop-subtree-internal-denied"
+    | "move-root-denied"
+    | "drop-around-root-denied"
+    | "add-child-to-subtree-ref-denied"
+    | "move-into-descendant-denied";
+
+type DropPreflightResult =
+    | { allowed: true }
+    | { allowed: false; reason: DropPreflightDenialReason };
+
+type DropPreflightNode = {
+    ref: Pick<NodeInstanceRef, "instanceKey" | "sourceTreePath">;
+    parentKey: string | null;
+    subtreeNode: boolean;
+};
+
+const preflightDropIntent = (params: {
+    hasDocument: boolean;
+    intent: Pick<DropIntent, "position">;
+    source: DropPreflightNode | null;
+    target: DropPreflightNode | null;
+    isDescendant: (ancestorKey: string, targetKey: string) => boolean;
+}): DropPreflightResult => {
+    const { hasDocument, intent, source, target, isDescendant } = params;
+
+    // This is a UI-side fast guard; the reducer repeats structural checks before persisting.
+    if (!hasDocument || !source || !target) {
+        return { allowed: false, reason: "missing-context" };
+    }
+
+    if (source.ref.instanceKey === target.ref.instanceKey) {
+        return { allowed: false, reason: "same-node" };
+    }
+
+    if (source.subtreeNode) {
+        return { allowed: false, reason: "move-subtree-denied" };
+    }
+
+    if (target.subtreeNode) {
+        return { allowed: false, reason: "drop-subtree-internal-denied" };
+    }
+
+    if (source.parentKey === null) {
+        return { allowed: false, reason: "move-root-denied" };
+    }
+
+    if (
+        (intent.position === "before" || intent.position === "after") &&
+        target.parentKey === null
+    ) {
+        return { allowed: false, reason: "drop-around-root-denied" };
+    }
+
+    if (
+        intent.position === "child" &&
+        target.ref.sourceTreePath !== null &&
+        !target.subtreeNode
+    ) {
+        return { allowed: false, reason: "add-child-to-subtree-ref-denied" };
+    }
+
+    if (isDescendant(source.ref.instanceKey, target.ref.instanceKey)) {
+        return { allowed: false, reason: "move-into-descendant-denied" };
+    }
+
+    return { allowed: true };
+};
 
 const forwardDocumentMutation = async (
     runtime: ControllerRuntime,

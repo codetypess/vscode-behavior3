@@ -1,7 +1,7 @@
 import { isJsonEqual } from "../../shared/equality";
-import type { NodeDef } from "../../shared/misc/b3type";
-import type { VarDecl } from "../../shared/misc/b3type";
-import i18n from "../../shared/misc/i18n";
+import type { NodeDef } from "../../shared/b3type";
+import type { VarDecl } from "../../shared/b3type";
+import i18n from "../../shared/i18n";
 import {
     type TreeValidationDiagnostic,
     validateExpressionEntries,

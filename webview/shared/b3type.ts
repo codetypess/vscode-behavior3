@@ -1,5 +1,5 @@
 import type { NodeDef } from "behavior3";
-export { DOCUMENT_VERSION as VERSION } from "../document-version";
+export { DOCUMENT_VERSION as VERSION } from "./document-version";
 
 export type { NodeDef };
 export type {

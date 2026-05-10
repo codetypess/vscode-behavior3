@@ -3,8 +3,8 @@ import {
     createNodeDefMap,
     deriveGroupDefs,
     findNodeDef,
+    parseSlotDefinition,
 } from "../../webview/shared/node-definition-utils";
-import { parseSlotDefinition } from "../../webview/shared/slot-definition-utils";
 import { defineSharedTests } from "../shared-test-types";
 
 export const nodeDefinitionSlotUtilsSharedTests = defineSharedTests([

@@ -1,4 +1,4 @@
-import type { NodeDef } from "../shared/misc/b3type";
+import type { NodeDef } from "../shared/b3type";
 import type {
     PersistedTreeModel,
     ResolveGraphResult,

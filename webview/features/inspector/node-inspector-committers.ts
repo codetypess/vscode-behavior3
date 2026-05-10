@@ -1,9 +1,8 @@
 import type { FormInstance } from "antd/es/form";
 import type { EditorRuntime } from "../../app/runtime";
-import { findNodeDef } from "../../shared/node-definition-utils";
-import { parseSlotDefinition } from "../../shared/slot-definition-utils";
+import { findNodeDef, parseSlotDefinition } from "../../shared/node-definition-utils";
 import type { EditNode, UpdateNodeInput } from "../../shared/contracts";
-import type { NodeArg, NodeDef } from "../../shared/misc/b3type";
+import type { NodeArg, NodeDef } from "../../shared/b3type";
 import { formatArgInitialValue } from "./inspector-arg-values";
 import { queueInspectorTask, trackPendingInspectorEdit } from "./inspector-commit-queue";
 import {

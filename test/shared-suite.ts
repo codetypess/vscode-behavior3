@@ -8,7 +8,7 @@ import { inspectorSharedTests } from "./shared-tests/inspector-shared-tests";
 import { nodeDefinitionSlotUtilsSharedTests } from "./shared-tests/node-definition-slot-utils-shared-tests";
 import { sessionFileVersionSharedTests } from "./shared-tests/session-file-version-shared-tests";
 import { defineSharedTests, registerSharedTestSuites } from "./shared-test-types";
-import { createAppHooksStore } from "../webview/shared/misc/hooks";
+import { createAppHooksStore } from "../webview/shared/hooks";
 import { createEditorController } from "../webview/commands/create-editor-controller";
 import { createDocumentStore, showDocumentReloadConflict } from "../webview/stores/document-store";
 import { createGraphUiStore } from "../webview/stores/graph-ui-store";
@@ -53,7 +53,7 @@ import {
     serializePersistedTree,
 } from "../webview/shared/tree";
 import { parseWorkdirRelativeJsonPath } from "../webview/shared/protocol";
-import { loadRuntimeModule } from "../webview/shared/misc/b3build";
+import { loadRuntimeModule } from "../webview/shared/b3build";
 import type { GraphAdapter } from "../webview/shared/graph-contracts";
 import type {
     DocumentMutation,

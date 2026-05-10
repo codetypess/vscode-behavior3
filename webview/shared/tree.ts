@@ -1,5 +1,5 @@
-import { basenameWithoutExt, readTree, treeDataForPersistence, writeTree } from "./misc/util";
-import { subtreeNeedsMissingIds } from "./misc/tree-model";
+import { basenameWithoutExt, readTree, treeDataForPersistence, writeTree } from "./util";
+import { subtreeNeedsMissingIds } from "./tree-model";
 import type { PersistedNodeModel, PersistedTreeModel, WorkdirRelativeJsonPath } from "./contracts";
 
 export const cloneJsonValue = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;

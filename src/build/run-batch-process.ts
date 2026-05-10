@@ -1,7 +1,7 @@
 import * as path from "path";
 import * as vscode from "vscode";
-import { getLogger, logger, setLogger, type Logger } from "../../webview/shared/misc/logger";
-import { isBehaviorTreeJsonPath } from "../../webview/shared/misc/b3build";
+import { getLogger, logger, setLogger, type Logger } from "../../webview/shared/logger";
+import { isBehaviorTreeJsonPath } from "../../webview/shared/b3build";
 import { batchProcessBehaviorProject } from "./build-cli";
 import { getBehavior3OutputChannel } from "../output-channel";
 import {

@@ -1,5 +1,5 @@
-import { getNodeType, isExprType, type NodeDef } from "../shared/misc/b3type";
-import i18n from "../shared/misc/i18n";
+import { getNodeType, isExprType, type NodeDef } from "../shared/b3type";
+import i18n from "../shared/i18n";
 import type {
     GraphHighlightState,
     GraphNodeVM,

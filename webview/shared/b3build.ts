@@ -5,9 +5,9 @@ import { logger } from "./logger";
 import b3path from "./b3path";
 import { stringifyJson } from "./stringify";
 import { readTreeFromFile, readWorkspace, writeTree } from "./util";
-import { loadSubtreeSourceCache } from "../subtree-source-cache";
-import { materializePersistedTree, type MaterializedTreeNode } from "../tree-materializer";
-import { parsePersistedTreeContent } from "../tree";
+import { loadSubtreeSourceCache } from "./subtree-source-cache";
+import { materializePersistedTree, type MaterializedTreeNode } from "./tree-materializer";
+import { parsePersistedTreeContent } from "./tree";
 
 /**
  * Shared build pipeline helpers.

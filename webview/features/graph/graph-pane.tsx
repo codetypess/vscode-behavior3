@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useRuntime } from "../../app/runtime";
 import { canOpenSubtreeTarget } from "../../domain/subtree-navigation";
-import { Hotkey, isMacos, useKeyPress } from "../../shared/misc/keys";
+import { Hotkey, isMacos, useKeyPress } from "../../shared/keys";
 import { useGraphPaneState } from "./graph-pane-state";
 import { SearchBar } from "../search/search-bar";
 

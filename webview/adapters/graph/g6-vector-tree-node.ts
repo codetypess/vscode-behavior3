@@ -26,8 +26,8 @@ import status100IconUrl from "../../../media/icons/status100.svg";
 import status101IconUrl from "../../../media/icons/status101.svg";
 import status110IconUrl from "../../../media/icons/status110.svg";
 import status111IconUrl from "../../../media/icons/status111.svg";
-import i18n from "../../shared/misc/i18n";
-import { isMacos } from "../../shared/misc/keys";
+import i18n from "../../shared/i18n";
+import { isMacos } from "../../shared/keys";
 import type { GraphNodeVM } from "../../shared/contracts";
 import { stringifyCompactJson5 } from "../../shared/json5-display";
 

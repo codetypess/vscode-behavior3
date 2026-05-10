@@ -39,8 +39,8 @@
     "media/icons/icon.svg",
     "package.nls.json",
     "package.nls.zh-cn.json",
-    "webview/shared/misc/b3build-model.d.ts",
-    "webview/shared/misc/b3model.d.ts"
+    "webview/shared/b3build-model.d.ts",
+    "webview/shared/b3model.d.ts"
   ],
   "publishConfig": {
     "access": "public",

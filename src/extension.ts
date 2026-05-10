@@ -2,9 +2,9 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { Context, Node, NodeDef } from "behavior3";
-import { stringifyJson } from "../webview/shared/misc/stringify";
-import { writeTree } from "../webview/shared/misc/util";
-import { composeLoggers, createConsoleLogger, setLogger } from "../webview/shared/misc/logger";
+import { stringifyJson } from "../webview/shared/stringify";
+import { writeTree } from "../webview/shared/util";
+import { composeLoggers, createConsoleLogger, setLogger } from "../webview/shared/logger";
 import { runBatchProcess, runBatchProcessScript } from "./build/run-batch-process";
 import { runBuild } from "./build/run-build";
 import { InspectorSidebarCoordinator } from "./inspector-sidebar-coordinator";
@@ -105,7 +105,7 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
-    // Command: build (same pipeline as desktop behavior3editor `b3util.buildProject`)
+    // Command: build (same project build pipeline as the desktop behavior3 editor)
     context.subscriptions.push(
         vscode.commands.registerCommand(
             "behavior3.build",

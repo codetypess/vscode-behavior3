@@ -58,9 +58,9 @@ import {
     serializePersistedTree,
 } from "../../webview/shared/tree";
 import { isJsonEqual } from "../../webview/shared/equality";
-import { setFs } from "../../webview/shared/misc/b3fs";
-import { collectNodeArgCheckDiagnostics } from "../../webview/shared/misc/b3build";
-import { VERSION, type NodeData, type TreeData } from "../../webview/shared/misc/b3type";
+import { setFs } from "../../webview/shared/b3fs";
+import { collectNodeArgCheckDiagnostics } from "../../webview/shared/b3build";
+import { VERSION, type NodeData, type TreeData } from "../../webview/shared/b3type";
 import type { InspectorSessionSnapshot } from "../inspector-sidebar-coordinator";
 
 setFs(fs);

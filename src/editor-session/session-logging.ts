@@ -1,5 +1,5 @@
 import { formatConsoleArgs, getBehavior3OutputChannel } from "../output-channel";
-import type { BuildEnv } from "../../webview/shared/misc/b3build";
+import type { BuildEnv } from "../../webview/shared/b3build";
 
 function formatRuntimeError(error: unknown): string {
     if (error instanceof Error) {

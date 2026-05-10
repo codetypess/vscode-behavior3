@@ -1,5 +1,5 @@
 import { resolveDocumentGraph } from "./resolve-graph";
-import type { NodeDef } from "../shared/misc/b3type";
+import type { NodeDef } from "../shared/b3type";
 import type {
     PersistedTreeModel,
     WorkdirRelativeJsonPath,

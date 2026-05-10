@@ -11,7 +11,7 @@ import {
     createConsoleLogger,
     setLogger,
     type Logger,
-} from "../../shared/misc/logger";
+} from "../../shared/logger";
 import type {
     HostAdapter,
     DocumentMutationResponse,

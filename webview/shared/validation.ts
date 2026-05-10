@@ -1,5 +1,5 @@
 import { ExpressionEvaluator } from "behavior3";
-import { keyWords, type VarDecl } from "./misc/b3type";
+import { keyWords, type VarDecl } from "./b3type";
 
 export type TreeValidationDiagnostic =
     | { code: "missing-node-def"; nodeName: string }

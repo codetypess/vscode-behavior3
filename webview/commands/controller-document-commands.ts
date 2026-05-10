@@ -1,4 +1,4 @@
-import { VERSION } from "../shared/misc/b3type";
+import { VERSION } from "../shared/b3type";
 import { compareDocumentVersion } from "../shared/document-version";
 import type {
     EditorCommand,

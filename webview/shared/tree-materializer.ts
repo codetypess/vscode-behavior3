@@ -1,4 +1,4 @@
-import type { NodeDef } from "./misc/b3type";
+import type { NodeDef } from "./b3type";
 import type {
     InvalidSubtreeSource,
     PersistedNodeModel,
