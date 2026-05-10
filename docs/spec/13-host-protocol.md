@@ -15,9 +15,9 @@
 编辑器内部当前只承认两类路径：
 
 - `AbsoluteFsPath`
-  - 仅用于宿主返回或持有的绝对文件路径，例如主文档 `filePath`
+    - 仅用于宿主返回或持有的绝对文件路径，例如主文档 `filePath`
 - `WorkdirRelativeJsonPath`
-  - 编辑器内部对 subtree、import、allFiles、`NodeInstanceRef.sourceTreePath` 使用的相对 `.json` 路径
+    - 编辑器内部对 subtree、import、allFiles、`NodeInstanceRef.sourceTreePath` 使用的相对 `.json` 路径
 
 规则：
 
@@ -34,42 +34,42 @@
 - `undo`
 - `redo`
 - `saveDocument`
-  - payload: `{ requestId }`
+    - payload: `{ requestId }`
 - `revertDocument`
-  - payload: `{ requestId }`
+    - payload: `{ requestId }`
 
 ### 代理与同步
 
 - `mutateDocument`
-  - payload: `{ requestId, mutation }`
+    - payload: `{ requestId, mutation }`
 - `selectTree`
 - `selectNode`
-  - payload: `{ target: NodeInstanceRef }`
+    - payload: `{ target: NodeInstanceRef }`
 - `requestFocusVariable`
-  - payload: `{ names }`
-  - 语义：sidebar 请求把变量聚焦作为一次性视觉 intent relay 给当前 active editor；不是共享状态同步
+    - payload: `{ names }`
+    - 语义：sidebar 请求把变量聚焦作为一次性视觉 intent relay 给当前 active editor；不是共享状态同步
 
 ### 项目与设置
 
 - `requestSetting`
 - `build`
-  - payload: `{ buildScriptDebug? }`
+    - payload: `{ buildScriptDebug? }`
 - `validateNodeChecks`
-  - payload: `{ requestId, content, treePath, nodes }`
+    - payload: `{ requestId, content, treePath, nodes }`
 
 ### 文件读写
 
 - `readFile`
-  - payload: `{ requestId, path, openIfSubtree? }`
+    - payload: `{ requestId, path, openIfSubtree? }`
 - `saveSubtree`
-  - payload: `{ requestId, path, content }`
+    - payload: `{ requestId, path, content }`
 - `saveSubtreeAs`
-  - payload: `{ requestId, content, suggestedBaseName }`
+    - payload: `{ requestId, content, suggestedBaseName }`
 
 ### 诊断与日志
 
 - `webviewLog`
-  - payload: `{ level, message }`
+    - payload: `{ level, message }`
 
 ## Host -> Editor Raw Messages
 
@@ -81,25 +81,25 @@
 语义区别：
 
 - `init`
-  - 宿主返回当前 committed `content`、`HostDocumentSessionState`、`HostSelectionState`
-  - 用于 editor / sidebar 的统一启动快照
+    - 宿主返回当前 committed `content`、`HostDocumentSessionState`、`HostSelectionState`
+    - 用于 editor / sidebar 的统一启动快照
 - `documentSnapshotChanged`
-  - 宿主把权威 committed document snapshot 广播给 editor 或 sidebar
-  - payload 同时包含：
-    - committed `content`
-    - `HostDocumentSessionState`
-    - `HostSelectionState`
-    - `syncKind` (`update` / `reload`)
-  - 外部文件 dirty 冲突也通过这条消息提升 session 冲突态，而不是另发一条内容消息
+    - 宿主把权威 committed document snapshot 广播给 editor 或 sidebar
+    - payload 同时包含：
+        - committed `content`
+        - `HostDocumentSessionState`
+        - `HostSelectionState`
+        - `syncKind` (`update` / `reload`)
+    - 外部文件 dirty 冲突也通过这条消息提升 session 冲突态，而不是另发一条内容消息
 
 ### 编辑命令代理
 
 - `relayFocusVariable`
-  - 语义：宿主向 editor 投递一次新鲜变量聚焦 relay
-  - 不属于 `init` / `documentSnapshotChanged` 的 snapshot 内容
+    - 语义：宿主向 editor 投递一次新鲜变量聚焦 relay
+    - 不属于 `init` / `documentSnapshotChanged` 的 snapshot 内容
 - `relayFocusNode`
-  - 语义：宿主向 editor 投递一次新鲜节点 reveal relay，用于把目标节点带入视图
-  - 不属于 `init` / `documentSnapshotChanged` 的 snapshot 内容
+    - 语义：宿主向 editor 投递一次新鲜节点 reveal relay，用于把目标节点带入视图
+    - 不属于 `init` / `documentSnapshotChanged` 的 snapshot 内容
 
 ### 环境与依赖变化
 
@@ -123,34 +123,36 @@
 - `revertDocumentResult`
 - `validateNodeChecksResult`
 
+这些 request/response pair 必须登记在 shared `HostRequestSpec` registry 中。registry 是 request type、result message type、timeout fallback 与 result payload resolver 的单一映射表；adapter 的 pending request map 只能通过该 registry 解析 result message，不能另写一份平行 switch。
+
 ## Normalized DTOs
 
 ### HostInitPayload
 
 - `filePath`
-  - 当前主文档绝对路径
+    - 当前主文档绝对路径
 - `workdir`
-  - 当前行为树项目根目录，不一定等于 VS Code workspace folder
+    - 当前行为树项目根目录，不一定等于 VS Code workspace folder
 - `content`
-  - 当前主文档文本
+    - 当前主文档文本
 - `nodeDefs`
 - `allFiles`
 - `settings`
 - `documentSession`
-  - 当前宿主 document session 元数据
+    - 当前宿主 document session 元数据
 - `selection`
-  - 当前宿主共享选中快照
-  - 只承载 tree/node selection，不承载 variable focus
+    - 当前宿主共享选中快照
+    - 只承载 tree/node selection，不承载 variable focus
 
 ## `readFile` Open Relay
 
 `readFile` 除了普通读取，还允许在 `openIfSubtree = true` 时携带可选 `openSelection`：
 
 - `openSelection`
-  - 语义：目标 subtree 文档打开后希望落到的共享 node selection
-  - 仅用于 subtree 打开 relay，不改变 `readFileResult` 的返回结构
-  - 宿主可在打开前先为目标文档暂存该 selection，或对已打开的目标文档直接转发 `selectNode`
-  - 若该 subtree 打开还需要把节点带入视图，则宿主再额外发一次 `relayFocusNode`
+    - 语义：目标 subtree 文档打开后希望落到的共享 node selection
+    - 仅用于 subtree 打开 relay，不改变 `readFileResult` 的返回结构
+    - 宿主可在打开前先为目标文档暂存该 selection，或对已打开的目标文档直接转发 `selectNode`
+    - 若该 subtree 打开还需要把节点带入视图，则宿主再额外发一次 `relayFocusNode`
 
 ### HostDocumentSessionState
 
@@ -164,13 +166,13 @@
 ### HostVarsPayload
 
 - `usingVars`
-  - 合并后的变量可见视图
+    - 合并后的变量可见视图
 - `allFiles`
-  - 可选更新后的文件列表
+    - 可选更新后的文件列表
 - `importDecls`
-  - import 文件的有序变量声明视图
+    - import 文件的有序变量声明视图
 - `subtreeDecls`
-  - subtree 文件的有序变量声明视图
+    - subtree 文件的有序变量声明视图
 
 ### HostSelectionState
 
@@ -212,15 +214,15 @@
 当前 `mutation` intent 包含两组：
 
 1. shared reducer 已直接支持的 mutation：
-   - `updateTreeMeta`
-   - `updateNode`
+    - `updateTreeMeta`
+    - `updateNode`
 2. 已迁入 host intent，并默认由宿主直接提交的结构命令：
-   - `performDrop`
-   - `pasteNode`
-   - `insertNode`
-   - `replaceNode`
-   - `deleteNode`
-   - `saveSelectedAsSubtree`
+    - `performDrop`
+    - `pasteNode`
+    - `insertNode`
+    - `replaceNode`
+    - `deleteNode`
+    - `saveSelectedAsSubtree`
 
 这些 intent 既可以来自 Inspector Sidebar，也可以来自主编辑器 canvas。
 
@@ -267,6 +269,8 @@
 
 `HostAdapter` 对 request/response 风格调用设置超时保护；超时后返回失败结果或空内容，而不是无限等待。
 
+timeout fallback 由 `HostRequestSpec` registry 创建；新增 request 时必须同时补齐 registry 条目、raw protocol message 与 host handler。`saveSubtreeAsResult.savedPath` 这类需要 branded path 归一化的字段在 registry resolver 中通过 adapter 提供的 protocol context 转换，转换失败时返回 `savedPath: null` 与明确错误。
+
 ## 版本保护规则
 
 当前宿主协议还承担“新版本文件保护”：
@@ -281,3 +285,4 @@
 - 任意 host message 的 raw shape 都能只靠本文件理解
 - 任意 DTO 字段都能指出它属于宿主原始数据还是归一化内部语义
 - 任一路径值都能判断它是绝对路径还是 workdir-relative `.json` 路径
+- 任意带 `requestId` 的 result message 都能在 `HostRequestSpec` 中找到唯一 request/result 映射

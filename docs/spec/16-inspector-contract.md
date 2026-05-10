@@ -227,6 +227,7 @@ Inspector 不只是字段表单，还需要表达：
 - 文本输入：`onBlur`
 - `Switch` / `Select`：立即排队提交
 - 列表增删：立即排队提交
+- Node Inspector 的 commit/reset 编排由 feature-local `useNodeInspectorCommitters` 持有；JSX 组件只接入字段渲染和回调
 
 提交粒度规则：
 
@@ -234,6 +235,7 @@ Inspector 不只是字段表单，还需要表达：
 - 某个字段的校验错误不会阻断无关字段的提交
 - 非法字段保留本地错误提示，不得静默写入主文档
 - `oneof` 这类显式耦合字段允许继续按局部约束拒绝提交
+- slot label、required、variadic 与 node arg type/oneof/options 解析使用 shared state-free helper，不能在 Inspector 局部再实现一套平行规则
 
 Sidebar 在执行保存、撤销、重做前，会先 flush 待提交的 Inspector 编辑。
 

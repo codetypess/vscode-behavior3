@@ -17,6 +17,7 @@
 - [`contracts.ts`](../../webview/shared/contracts.ts)
 - [`graph-contracts.ts`](../../webview/shared/graph-contracts.ts)
 - [`message-protocol.ts`](../../webview/shared/message-protocol.ts)
+- [`host-request-spec.ts`](../../webview/shared/host-request-spec.ts)
 - [`protocol.ts`](../../webview/shared/protocol.ts)
 
 当前稳定关注点：
@@ -29,18 +30,20 @@
 - `HostAdapter`
 - `EditorCommand`
 
+运行时基础 hook 由 `webview/app/runtime.tsx` 提供；Inspector 与 Graph 的 projection selector 属于各自 feature 目录，不能反向塞回 app runtime。
+
 ## 状态归属表
 
-| 状态 | 当前归属 |
-| --- | --- |
-| `persistedTree` / host-projected `dirty` / reload conflict | `documentStore` |
-| `nodeDefs` / `allFiles` / `settings` / `usingVars` / `subtreeSources` / `nodeCheckDiagnostics` | `workspaceStore` |
-| host-projected tree/node 选中、本地 Inspector selection projection | `selectionStore` |
-| `activeVariableNames` / `search` / `selectionVisualHint` | `graphUiStore` |
-| `ResolvedDocumentGraph` | controller runtime 私有缓存 |
-| 图节点尺寸、布局结果、视口、选中视觉态、drag intent | `graphAdapter` |
-| 主文档序列化文本、custom editor dirty、磁盘写入抑制 | extension-host `TreeEditorDocument` |
-| 文件监听、项目索引、build、check scripts、当前激活 inspector 会话、共享 selection snapshot | extension-host session / coordinator |
+| 状态                                                                                           | 当前归属                             |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `persistedTree` / host-projected `dirty` / reload conflict                                     | `documentStore`                      |
+| `nodeDefs` / `allFiles` / `settings` / `usingVars` / `subtreeSources` / `nodeCheckDiagnostics` | `workspaceStore`                     |
+| host-projected tree/node 选中、本地 Inspector selection projection                             | `selectionStore`                     |
+| `activeVariableNames` / `search` / `selectionVisualHint`                                       | `graphUiStore`                       |
+| `ResolvedDocumentGraph`                                                                        | controller runtime 私有缓存          |
+| 图节点尺寸、布局结果、视口、选中视觉态、drag intent                                            | `graphAdapter`                       |
+| 主文档序列化文本、custom editor dirty、磁盘写入抑制                                            | extension-host `TreeEditorDocument`  |
+| 文件监听、项目索引、build、check scripts、当前激活 inspector 会话、共享 selection snapshot     | extension-host session / coordinator |
 
 ## EditorCommand Catalog
 
@@ -164,7 +167,8 @@
 - 管理带 `requestId` 的异步请求
 - 发送 `selectTree` / `selectNode` 这类轻量宿主 intent
 - 为 `readFile` / `saveSubtree` / `saveDocument` / `mutateDocument` / `validateNodeChecks` 提供 Promise 风格 API
-- 对 host request 设置超时保护
+- 通过共享 host request registry 创建 timeout fallback 并解析 result message
+- 对 host request 设置超时保护，且 stale response id 不能解析成错误的 request payload shape
 
 ## Host-First Mutation 规则
 
@@ -188,6 +192,6 @@
 ## 验收标准
 
 - 任意 persisted tree 写入都能指出唯一的 `EditorCommand` intent 入口与 extension-host session 提交点
-- 任意宿主请求都能指出唯一的 `HostAdapter` 方法
+- 任意宿主请求都能指出唯一的 `HostAdapter` 方法与唯一的 shared registry 条目
 - 任意图视觉状态变化都能指出唯一的 `graphAdapter` 入口
 - 任一字段只存在于一个明确的可写真源中

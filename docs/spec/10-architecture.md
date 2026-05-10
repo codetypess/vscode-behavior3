@@ -31,13 +31,15 @@ Webview Runtime
   -> graphUiStore
   -> controller runtime + EditorCommand
   -> G6GraphAdapter
-  -> Inspector forms / GraphPane / SearchBar
+  -> feature-owned Inspector / Graph selectors and UI
 
 Shared Layer
   -> contracts.ts
   -> message-protocol.ts
+  -> host-request-spec.ts
   -> protocol.ts
   -> tree / subtree / validation utilities
+  -> state-free node definition, node arg, slot and override helpers
 ```
 
 ## 层职责
@@ -65,6 +67,7 @@ Shared Layer
 - 持有结构化文档状态、工作区状态、host-projected selection authority 与本地 graph UI state
 - 解析 `persistedTree + subtreeSources + nodeDefs` 为 resolved graph
 - 将 resolved graph 投影到 G6 画布模型
+- `app/runtime.tsx` 只提供 runtime/provider、基础 store hook 和应用壳层状态；Inspector / Graph 的 selector 归各自 feature 模块所有
 - 执行本地 UI / graph / Inspector projection 命令；主文档编辑命令只组装 intent 与必要 payload context
 - 把 save、undo、redo 作为用户 intent 发给宿主，再消费宿主回推的权威 session/content
 - editor / sidebar 的 `updateTreeMeta` / `updateNode` 都只发送 intent，不再先在本地 reducer 判定提交结果或提交主文档状态
@@ -76,8 +79,10 @@ Shared Layer
 
 - 定义 host/webview 协议和内部稳定 DTO
 - 封装 workdir-relative path 规范
+- 维护 host request/response registry、timeout fallback 与结果解析映射
 - 统一 persisted tree 的解析、序列化、subtree 遍历与 stable id 生成
 - 提供无 UI / 无 domain 依赖的共享校验与纯 helper
+- `misc/b3util.ts` 只作为 legacy/build 兼容 façade 持有模块级状态；现代 feature/domain 代码应优先依赖 state-free shared helper
 
 约束：
 
@@ -112,6 +117,7 @@ Shared Layer
 
 - 是唯一图层运行时
 - 只接收 `ResolvedGraphModel` 和视觉状态，不直接接触 persisted tree
+- 对 G6 public type 缺口或内部 shape 的读取必须通过 adapter-local compat helper 隔离
 
 ## 关键事件流
 
@@ -177,21 +183,21 @@ Shared Layer
 ## 当前目录落点
 
 - `src/`
-  - provider、session、coordinator、build、settings、project index
+    - provider、session、coordinator、build、settings、project index
 - `webview/app/`
-  - runtime 创建、host bridge、应用壳层
+    - runtime 创建、host bridge、应用壳层
 - `webview/commands/`
-  - controller runtime 与命令实现
+    - controller runtime 与命令实现
 - `webview/stores/`
-  - document / workspace / selection / graph-ui store
+    - document / workspace / selection / graph-ui store
 - `webview/domain/`
-  - resolve graph、graph selectors、resolved-node validation、main-document save serialization
+    - resolve graph、graph selectors、resolved-node validation、main-document save serialization
 - `webview/adapters/`
-  - G6 graph adapter、VS Code host adapter
+    - G6 graph adapter、VS Code host adapter
 - `webview/features/`
-  - graph、search、inspector UI
+    - graph、search、inspector UI
 - `webview/shared/`
-  - contracts、protocol、tree、subtree cache、validation、shared helpers
+    - contracts、protocol、tree、subtree cache、validation、shared helpers
 
 ## 架构验收标准
 
