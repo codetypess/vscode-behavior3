@@ -23,7 +23,7 @@ docs/spec/<short-slug>.md
 
 Use lowercase kebab-case slugs such as:
 
-- `docs/spec/sidebar-host-single-source.md`
+- `docs/spec/inspector-array-arg-validation.md`
 - `docs/spec/save-lifecycle-regression.md`
 
 ## Baseline vs Work-Item
