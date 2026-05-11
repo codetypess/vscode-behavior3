@@ -10,7 +10,11 @@ import { getBehavior3OutputChannel } from "../output-channel";
 import { mapNodeDefsIconsForWebview } from "../node-def-icons";
 import { ProjectIndex, type VarDeclResult } from "./project/project-index";
 import { getNewerFileVersion, getNewerVersionMessage } from "./document/file-version";
-import { logAsyncRuntimeError, logRuntimeError } from "./runtime/logging";
+import {
+    logAsyncRuntimeError,
+    logRuntimeError,
+    writeWebviewLogMessage,
+} from "./runtime/logging";
 import {
     createSessionBuildScriptEnv,
     createSessionNodeCheckRuntime,
@@ -21,7 +25,7 @@ import {
     readWorkspaceFileContent,
     uriToWorkdirRelative,
 } from "./files/paths";
-import { applySharedSelectionState, buildPendingSelectionRef } from "./selection";
+import { applySharedSelectionState } from "./selection";
 import { getVSCodeTheme } from "./settings/editor-settings";
 import { readExistingNewerFileEditMessage } from "./document/subtree-save-guards";
 import { createSessionFileRequestHandlers } from "./files/file-request-handlers";
@@ -29,6 +33,16 @@ import {
     createLiveSettingsResolver,
     type EditorLiveSettings,
 } from "./settings/live-settings";
+import {
+    buildDocumentSnapshotChangedMessage,
+    buildHostSelectionFromMutationSelection,
+    buildInitMessage,
+    buildVarDeclLoadedMessage,
+} from "./session-messages";
+import {
+    mutationMayAffectSubtreeOverrideReachability,
+    normalizeReachableSubtreeOverrides,
+} from "./document/subtree-overrides";
 import {
     getBehaviorProjectRootFsPath,
     getResolvedB3SettingDir,
@@ -44,7 +58,6 @@ import type {
 import type {
     HostSelectionState,
     NodeInstanceRef,
-    PersistedNodeModel,
 } from "../../webview/shared/contracts";
 import {
     type DocumentMutationSelection,
@@ -61,13 +74,9 @@ import {
     clonePersistedNode,
     clonePersistedTree,
     findPersistedNodeByStableId,
-    loadSubtreeSourceCache,
     parsePersistedTreeContent,
-    pruneStaleSubtreeOverrides,
     serializePersistedTree,
-    walkPersistedNodes,
 } from "../../webview/shared/tree";
-import { isJsonEqual } from "../../webview/shared/json";
 import { setFs } from "../../webview/shared/b3fs";
 import { collectNodeArgCheckDiagnostics } from "../../webview/shared/b3build";
 import { VERSION, type NodeData, type TreeData } from "../../webview/shared/b3type";
@@ -145,13 +154,7 @@ function postVarDeclLoaded(
     result: VarDeclResult,
     allFiles?: string[]
 ): Thenable<boolean> {
-    return postMessage({
-        type: "varDeclLoaded",
-        usingVars: Object.values(result.usingVars),
-        allFiles,
-        importDecls: result.importDecls,
-        subtreeDecls: result.subtreeDecls,
-    });
+    return postMessage(buildVarDeclLoadedMessage(result, allFiles));
 }
 
 function clearRefreshTimer(timer: ReturnType<typeof setTimeout> | undefined): undefined {
@@ -229,41 +232,21 @@ export async function resolveTreeEditorSession({
             defs
         );
 
-    const buildInspectorVarsMessage = (): Extract<
-        HostToEditorMessage,
-        { type: "varDeclLoaded" }
-    > => ({
-        type: "varDeclLoaded",
-        usingVars: Object.values(state.latestVarDecls.usingVars),
-        allFiles: state.latestAllFiles,
-        importDecls: state.latestVarDecls.importDecls,
-        subtreeDecls: state.latestVarDecls.subtreeDecls,
-    });
+    const buildInspectorVarsMessage = () =>
+        buildVarDeclLoadedMessage(state.latestVarDecls, state.latestAllFiles);
 
     const buildDocumentSnapshotMessage = (opts?: {
         content?: string;
         documentSession?: ReturnType<typeof buildDocumentSessionMessage>;
         syncKind?: "update" | "reload";
         selection?: HostSelectionState;
-    }): Extract<HostToEditorMessage, { type: "documentSnapshotChanged" }> => ({
-        type: "documentSnapshotChanged",
-        snapshot: {
+    }) =>
+        buildDocumentSnapshotChangedMessage({
             content: opts?.content ?? document.content,
             documentSession: opts?.documentSession ?? buildDocumentSessionMessage(),
             selection: opts?.selection ?? state.sharedSelection,
             syncKind: opts?.syncKind ?? state.inspectorContentSyncKind,
-        },
-    });
-
-    const buildHostSelectionFromMutationSelection = (
-        selection: DocumentMutationSelection
-    ): HostSelectionState =>
-        selection.kind === "tree"
-            ? { kind: "tree" }
-            : {
-                  kind: "node",
-                  ref: buildPendingSelectionRef(selection.structuralStableId),
-              };
+        });
 
     const updateSharedSelection = (
         selection: HostSelectionState,
@@ -283,22 +266,17 @@ export async function resolveTreeEditorSession({
         const documentSession = buildDocumentSessionMessage();
         onInspectorSessionUpdate({
             documentUri: document.uri.toString(),
-            initMessage: {
-                type: "init",
+            initMessage: buildInitMessage({
                 content: document.content,
                 filePath: document.uri.fsPath,
                 workdir: projectRootUri.fsPath,
                 nodeDefs: mapDefsForWebview(),
-                checkExpr: state.currentSettings.checkExpr,
-                subtreeEditable: state.currentSettings.subtreeEditable,
-                language: state.currentSettings.language,
+                settings: state.currentSettings,
                 theme: getVSCodeTheme(),
-                inspectorMode: state.currentSettings.inspectorMode,
                 allFiles: state.latestAllFiles,
-                nodeColors: state.currentSettings.nodeColors,
                 documentSession,
                 selection: state.sharedSelection,
-            },
+            }),
             varsMessage: buildInspectorVarsMessage(),
             documentSnapshot: buildDocumentSnapshotMessage({
                 documentSession,
@@ -416,91 +394,12 @@ export async function resolveTreeEditorSession({
         state.cachedSubtreeRefs = null;
     };
 
-    const branchContainsSubtreeLink = (node: PersistedNodeModel | null | undefined): boolean => {
-        if (!node) {
-            return false;
-        }
-
-        let found = false;
-        walkPersistedNodes(node, (entry) => {
-            if (entry.path) {
-                found = true;
-            }
-        });
-        return found;
-    };
-
-    const normalizeReachableSubtreeOverrides = async (
-        tree: ReturnType<typeof parsePersistedTreeContent>
-    ): Promise<void> => {
-        if (Object.keys(tree.overrides).length === 0) {
-            return;
-        }
-
-        const subtreeSources = await loadSubtreeSourceCache({
-            root: tree.root,
-            readContent: async (relativePath) => {
-                const subtreeUri = vscode.Uri.file(path.join(projectRootUri.fsPath, relativePath));
-                try {
-                    return await readWorkspaceFileContent(subtreeUri);
-                } catch {
-                    return null;
-                }
-            },
-        });
-        pruneStaleSubtreeOverrides({
+    const pruneReachableSubtreeOverrides = (tree: ReturnType<typeof parsePersistedTreeContent>) =>
+        normalizeReachableSubtreeOverrides({
             tree,
-            subtreeSources,
+            projectRootFsPath: projectRootUri.fsPath,
+            readWorkspaceFileContent,
         });
-    };
-
-    const mutationMayAffectSubtreeOverrideReachability = (
-        mutation: Extract<EditorToHostMessage, { type: "mutateDocument" }>["mutation"],
-        currentTree: ReturnType<typeof parsePersistedTreeContent>
-    ): boolean => {
-        switch (mutation.type) {
-            case "updateNode": {
-                if (mutation.payload.currentNodeSnapshot?.subtreeNode) {
-                    return false;
-                }
-
-                const currentNode =
-                    findPersistedNodeByStableId(
-                        currentTree.root,
-                        mutation.payload.target.structuralStableId
-                    ) ?? mutation.payload.currentNodeSnapshot?.data;
-                if (!currentNode) {
-                    return false;
-                }
-
-                const currentPath = currentNode.path;
-                const nextPath = mutation.payload.data.path?.trim() || undefined;
-                return currentPath !== nextPath;
-            }
-
-            case "replaceNode": {
-                const currentNode = findPersistedNodeByStableId(
-                    currentTree.root,
-                    mutation.payload.target.structuralStableId
-                );
-                return (
-                    branchContainsSubtreeLink(currentNode) ||
-                    branchContainsSubtreeLink(mutation.payload.snapshot)
-                );
-            }
-
-            case "deleteNode": {
-                const currentNode = findPersistedNodeByStableId(
-                    currentTree.root,
-                    mutation.payload.target.structuralStableId
-                );
-                return branchContainsSubtreeLink(currentNode);
-            }
-
-            default:
-                return false;
-        }
-    };
 
     /** Cache the transitive subtree closure of the current main document. */
     const refreshTrackedSubtreeRefs = async () => {
@@ -676,22 +575,19 @@ export async function resolveTreeEditorSession({
 
         await Promise.all([refreshLatestVarDeclsFromContent(content), refreshTrackedSubtreeRefs()]);
 
-        await reply({
-            type: "init",
-            content,
-            filePath: document.uri.fsPath,
-            workdir: projectRootUri.fsPath,
-            nodeDefs: mapDefsForWebview(),
-            checkExpr: state.currentSettings.checkExpr,
-            subtreeEditable: state.currentSettings.subtreeEditable,
-            language: state.currentSettings.language,
-            theme,
-            inspectorMode: state.currentSettings.inspectorMode,
-            allFiles: state.latestAllFiles,
-            nodeColors: state.currentSettings.nodeColors,
-            documentSession: buildDocumentSessionMessage(),
-            selection: state.sharedSelection,
-        });
+        await reply(
+            buildInitMessage({
+                content,
+                filePath: document.uri.fsPath,
+                workdir: projectRootUri.fsPath,
+                nodeDefs: mapDefsForWebview(),
+                settings: state.currentSettings,
+                theme,
+                allFiles: state.latestAllFiles,
+                documentSession: buildDocumentSessionMessage(),
+                selection: state.sharedSelection,
+            })
+        );
 
         await postVarDeclLoaded(reply, state.latestVarDecls, state.latestAllFiles);
         if (pendingInitialRevealTarget) {
@@ -835,7 +731,7 @@ export async function resolveTreeEditorSession({
 
         nextTargetNode.path = savedPath;
         nextTargetNode.children = undefined;
-        await normalizeReachableSubtreeOverrides(nextTree);
+        await pruneReachableSubtreeOverrides(nextTree);
         const nextSelection: DocumentMutationSelection = {
             kind: "node",
             structuralStableId: nextTargetNode.uuid,
@@ -939,7 +835,7 @@ export async function resolveTreeEditorSession({
                 currentTree &&
                 mutationMayAffectSubtreeOverrideReachability(msg.mutation, currentTree)
             ) {
-                await normalizeReachableSubtreeOverrides(reduced.tree);
+                await pruneReachableSubtreeOverrides(reduced.tree);
             }
 
             const changed = applyContentFromWebview(serializePersistedTree(reduced.tree));
@@ -1105,28 +1001,6 @@ export async function resolveTreeEditorSession({
         });
     };
 
-    const handleWebviewLogMessage = (
-        msg: Extract<EditorToHostMessage, { type: "webviewLog" }>
-    ): void => {
-        const out = getBehavior3OutputChannel();
-        switch (msg.level) {
-            case "debug":
-                out.debug(msg.message);
-                break;
-            case "warn":
-                out.warn(msg.message);
-                break;
-            case "error":
-                out.error(msg.message);
-                break;
-            case "log":
-            case "info":
-            default:
-                out.info(msg.message);
-                break;
-        }
-    };
-
     const handleSelectTreeMessage = async (): Promise<void> => {
         await enqueueMainDocumentOperation(async () => {
             const result = updateSharedSelection(
@@ -1235,7 +1109,7 @@ export async function resolveTreeEditorSession({
                 return;
 
             case "webviewLog":
-                handleWebviewLogMessage(msg);
+                writeWebviewLogMessage(msg);
                 return;
 
             case "readFile":

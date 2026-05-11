@@ -213,11 +213,12 @@ Adapters / Features
     - provider、coordinator、build、project/settings discovery
 - `src/editor-session/`
     - `tree-editor-webview-session.ts` owns host session orchestration
-    - `document/` owns main document sync/session state, file version guards, and subtree write guards
+    - `session-messages.ts` owns host/editor message DTO construction helpers
+    - `document/` owns main document sync/session state, file version guards, subtree write guards, and subtree override pruning helpers
     - `settings/` owns editor language/theme helpers and live VS Code setting resolution
     - `files/` owns workdir-relative path helpers and editor file request handlers
     - `project/` owns project indexing and session node-check runtime helpers
-    - `runtime/` owns operation queue and session runtime logging helpers
+    - `runtime/` owns operation queue, session runtime logging helpers, and webview log forwarding
 - `webview/app/`
     - runtime 创建、host bridge、应用壳层
 - `webview/commands/`

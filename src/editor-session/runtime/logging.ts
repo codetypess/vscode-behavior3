@@ -1,5 +1,6 @@
 import { formatConsoleArgs, getBehavior3OutputChannel } from "../../output-channel";
 import type { BuildEnv } from "../../../webview/shared/b3build";
+import type { EditorToHostMessage } from "../../../webview/shared/message-protocol";
 
 function formatRuntimeError(error: unknown): string {
     if (error instanceof Error) {
@@ -30,4 +31,26 @@ export function createBuildScriptLogger(): BuildEnv["logger"] {
         warn: write("warn"),
         error: write("error"),
     };
+}
+
+export function writeWebviewLogMessage(
+    msg: Extract<EditorToHostMessage, { type: "webviewLog" }>
+): void {
+    const out = getBehavior3OutputChannel();
+    switch (msg.level) {
+        case "debug":
+            out.debug(msg.message);
+            break;
+        case "warn":
+            out.warn(msg.message);
+            break;
+        case "error":
+            out.error(msg.message);
+            break;
+        case "log":
+        case "info":
+        default:
+            out.info(msg.message);
+            break;
+    }
 }
