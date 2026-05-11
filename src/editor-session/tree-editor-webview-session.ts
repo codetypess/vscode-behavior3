@@ -24,6 +24,7 @@ import {
 } from "./session-context";
 import { createSessionInspectorSync } from "./session-inspector-sync";
 import { createSessionNodeChecks } from "./session-node-checks";
+import { createSessionReadyHandshake } from "./session-ready-handshake";
 import { createSessionSelectionSync } from "./session-selection-sync";
 import { createSessionSettingsSync } from "./session-settings-sync";
 import { createSessionSubtreeTracking } from "./session-subtree-tracking";
@@ -75,7 +76,6 @@ export async function resolveTreeEditorSession(
         document,
         webviewPanel,
         viewType,
-        initialRevealTarget,
         writeDocumentContentToDisk,
         revertDocument,
         onDidChangeDocument,
@@ -92,14 +92,8 @@ export async function resolveTreeEditorSession(
         buildDocumentSessionMessage,
         enqueueMainDocumentOperation,
     } = context;
-    let pendingInitialRevealTarget = initialRevealTarget;
     const inspectorSync = createSessionInspectorSync(context);
-    const {
-        buildInspectorVarsMessage,
-        fanoutDocumentSnapshot,
-        notifyInspectorSessionUpdate,
-        refreshLatestVarDeclsFromContent,
-    } = inspectorSync;
+    const { fanoutDocumentSnapshot } = inspectorSync;
     const subtreeTracking = createSessionSubtreeTracking(context, inspectorSync);
     const {
         invalidateSubtreeRefs,
@@ -121,6 +115,12 @@ export async function resolveTreeEditorSession(
         handleSelectTreeMessage,
         handleSelectNodeMessage,
     } = createSessionSelectionSync(context, inspectorSync);
+    const { handleReadyMessage } = createSessionReadyHandshake(
+        context,
+        inspectorSync,
+        subtreeTracking,
+        fileVersionGuard
+    );
 
     const activeWebviewEntry: ActiveTreeEditorWebview = {
         workspaceFsPath: workspaceFolderUri.fsPath,
@@ -191,31 +191,6 @@ export async function resolveTreeEditorSession(
         getActiveNewerFileEditMessage,
         getExistingNewerFileEditMessage,
     });
-
-    /**
-     * Handshake entry point: send immutable bootstrap state first, then follow
-     * up with computed var/subtree metadata that depends on project indexing.
-     */
-    const handleReadyMessage = async (reply: HostMessageSink = postMessage): Promise<void> => {
-        const content = document.content;
-
-        updateFileVersionState(content, { showWarning: true });
-
-        await Promise.all([refreshLatestVarDeclsFromContent(content), refreshTrackedSubtreeRefs()]);
-
-        await reply(inspectorSync.buildInitMessage({ content }));
-
-        await reply(buildInspectorVarsMessage());
-        if (pendingInitialRevealTarget) {
-            await reply({
-                type: "relayFocusNode",
-                target: pendingInitialRevealTarget,
-            });
-            pendingInitialRevealTarget = null;
-        }
-
-        notifyInspectorSessionUpdate();
-    };
 
     const handleSaveSelectedAsSubtreeMutation = async (
         msg: Extract<EditorToHostMessage, { type: "mutateDocument" }>
