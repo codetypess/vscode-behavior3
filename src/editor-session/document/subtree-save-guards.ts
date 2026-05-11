@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
-import { getNewerFileEditMessage } from "./session-file-version";
-import type { EditorLanguage } from "./session-settings";
+import { getNewerFileEditMessage } from "./file-version";
+import type { EditorLanguage } from "../settings/editor-settings";
 
 export async function readExistingNewerFileEditMessage(
     fileUri: vscode.Uri,

@@ -5,30 +5,30 @@ import {
     normalizeTreeContentForWrite,
     readFileContentFromDisk,
     TreeEditorDocument,
-} from "./document-sync";
+} from "./document/document-sync";
 import { getBehavior3OutputChannel } from "../output-channel";
 import { mapNodeDefsIconsForWebview } from "../node-def-icons";
-import { ProjectIndex, type VarDeclResult } from "./project-index";
-import { getNewerFileVersion, getNewerVersionMessage } from "./session-file-version";
-import { logAsyncRuntimeError, logRuntimeError } from "./session-logging";
+import { ProjectIndex, type VarDeclResult } from "./project/project-index";
+import { getNewerFileVersion, getNewerVersionMessage } from "./document/file-version";
+import { logAsyncRuntimeError, logRuntimeError } from "./runtime/logging";
 import {
     createSessionBuildScriptEnv,
     createSessionNodeCheckRuntime,
-} from "./session-node-check-runtime";
-import { createSerialOperationQueue } from "./operation-queue";
+} from "./project/node-check-runtime";
+import { createSerialOperationQueue } from "./runtime/operation-queue";
 import {
     getWorkdir,
     readWorkspaceFileContent,
     uriToWorkdirRelative,
-} from "./session-paths";
-import { applySharedSelectionState, buildPendingSelectionRef } from "./session-selection";
-import { getVSCodeTheme } from "./session-settings";
-import { readExistingNewerFileEditMessage } from "./session-subtree-save-guards";
-import { createSessionFileRequestHandlers } from "./session-file-request-handlers";
+} from "./files/paths";
+import { applySharedSelectionState, buildPendingSelectionRef } from "./selection";
+import { getVSCodeTheme } from "./settings/editor-settings";
+import { readExistingNewerFileEditMessage } from "./document/subtree-save-guards";
+import { createSessionFileRequestHandlers } from "./files/file-request-handlers";
 import {
     createLiveSettingsResolver,
     type EditorLiveSettings,
-} from "./session-live-settings";
+} from "./settings/live-settings";
 import {
     getBehaviorProjectRootFsPath,
     getResolvedB3SettingDir,

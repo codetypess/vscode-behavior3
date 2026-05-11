@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
-import { resolveWorkspaceNodeColors } from "../setting-resolver";
-import { getEditorLanguage, type EditorLanguage } from "./session-settings";
+import { resolveWorkspaceNodeColors } from "../../setting-resolver";
+import { getEditorLanguage, type EditorLanguage } from "./editor-settings";
 
 export interface EditorLiveSettings {
     checkExpr: boolean;

@@ -1,6 +1,6 @@
-import { isDocumentVersionNewer } from "../../webview/shared/document";
-import { translateRuntimeMessage } from "../../webview/shared/runtime-i18n";
-import type { EditorLanguage } from "./session-settings";
+import { isDocumentVersionNewer } from "../../../webview/shared/document";
+import { translateRuntimeMessage } from "../../../webview/shared/runtime-i18n";
+import type { EditorLanguage } from "../settings/editor-settings";
 
 export function getTreeFileVersion(content: string): string | undefined {
     try {

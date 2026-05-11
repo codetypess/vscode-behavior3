@@ -42,7 +42,7 @@ Scope: host-safe runtime localization for shared and extension-host flows
 
 - `webview/shared/i18n.ts` 依赖 `i18next`、`react-i18next`、`document`、`navigator`，只适合 webview runtime。
 - `webview/shared/document.ts` 中的 reducer error formatter 直接内嵌中英文模板。
-- `src/editor-session/session-file-version.ts` 与 `tree-editor-webview-session.ts` 中的 host 运行时消息也直接内嵌中英文分支。
+- `src/editor-session/document/file-version.ts` 与 `tree-editor-webview-session.ts` 中的 host 运行时消息也直接内嵌中英文分支。
 - 这导致：
   - 运行时文案散落在多个 host/shared helper 中
   - 相同语言选择逻辑被重复实现

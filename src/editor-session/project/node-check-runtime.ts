@@ -1,10 +1,10 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import type { NodeDef } from "../../webview/shared/message-protocol";
-import { createNodeDefMap } from "../../webview/shared/node-utils";
-import { parseWorkspaceModelContent } from "../../webview/shared/schema";
-import b3path from "../../webview/shared/b3path";
+import type { NodeDef } from "../../../webview/shared/message-protocol";
+import { createNodeDefMap } from "../../../webview/shared/node-utils";
+import { parseWorkspaceModelContent } from "../../../webview/shared/schema";
+import b3path from "../../../webview/shared/b3path";
 import {
     createBuildScriptRuntime,
     createBuildScriptRuntimeWithCheckModules,
@@ -13,9 +13,9 @@ import {
     type BuildEnv,
     type BuildScriptRuntime,
     type CheckScriptModule,
-} from "../../webview/shared/b3build";
-import { findB3WorkspacePath } from "../setting-resolver";
-import { createBuildScriptLogger } from "./session-logging";
+} from "../../../webview/shared/b3build";
+import { findB3WorkspacePath } from "../../setting-resolver";
+import { createBuildScriptLogger } from "../runtime/logging";
 
 export interface SessionNodeCheckRuntimeResult {
     buildScriptRuntime: BuildScriptRuntime;

@@ -1,13 +1,13 @@
 import * as path from "path";
 import * as vscode from "vscode";
-import type { PersistedNodeModel, PersistedTreeModel } from "../../webview/shared/contracts";
-import { isBehaviorTreeJsonPath } from "../../webview/shared/b3build";
-import { parseWorkdirRelativeJsonPath } from "../../webview/shared/protocol";
+import type { PersistedNodeModel, PersistedTreeModel } from "../../../webview/shared/contracts";
+import { isBehaviorTreeJsonPath } from "../../../webview/shared/b3build";
+import { parseWorkdirRelativeJsonPath } from "../../../webview/shared/protocol";
 import {
     collectReachableSubtreePaths,
     collectTransitivePaths,
     parsePersistedTreeContent,
-} from "../../webview/shared/tree";
+} from "../../../webview/shared/tree";
 
 /**
  * Extension-host cache for project tree files.

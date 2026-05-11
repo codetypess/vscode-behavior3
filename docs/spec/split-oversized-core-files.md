@@ -39,7 +39,7 @@ All current behavior is expected to remain unchanged.
 From the system and user point of view, behavior remains the same. Internally:
 
 - Check script glob/path resolution lives in `webview/shared/b3build-check-scripts.ts` and remains re-exported from `b3build.ts`.
-- Live editor settings resolution lives in `src/editor-session/session-live-settings.ts`.
+- Live editor settings resolution lives in `src/editor-session/settings/live-settings.ts`.
 - Node Inspector args and variable sections live in dedicated feature-local modules, while `NodeInspectorForm` remains the external component.
 - Low-coupling graph node helpers live in adapter-local modules, while `g6-graph-node.ts` remains the custom node class and registration facade.
 
@@ -51,7 +51,7 @@ From the system and user point of view, behavior remains the same. Internally:
 
 ### Host session layer
 
-`src/editor-session/session-live-settings.ts` contains `EditorLiveSettings` and `createLiveSettingsResolver`. It may depend on VS Code configuration APIs and existing settings/color helpers, but it must not own webview posting, message routing, or session state.
+`src/editor-session/settings/live-settings.ts` contains `EditorLiveSettings` and `createLiveSettingsResolver`. It may depend on VS Code configuration APIs and existing settings/color helpers, but it must not own webview posting, message routing, or session state.
 
 ### Inspector feature UI
 

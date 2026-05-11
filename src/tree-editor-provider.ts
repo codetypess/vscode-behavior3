@@ -4,7 +4,7 @@ import {
     normalizeTreeContentForWrite,
     readFileContentFromDisk,
     TreeEditorDocument,
-} from "./editor-session/document-sync";
+} from "./editor-session/document/document-sync";
 import {
     preparePersistedTreeForMainDocumentSave,
     type MainDocumentSubtreeWriteback,
@@ -17,8 +17,8 @@ import type {
 } from "../webview/shared/message-protocol";
 import type { ActiveTreeEditorWebview } from "./editor-session/tree-editor-webview-session";
 import { resolveTreeEditorSession } from "./editor-session/tree-editor-webview-session";
-import { getNewerVersionMessage, getTreeFileVersion } from "./editor-session/session-file-version";
-import { getEditorLanguage } from "./editor-session/session-settings";
+import { getNewerVersionMessage, getTreeFileVersion } from "./editor-session/document/file-version";
+import { getEditorLanguage } from "./editor-session/settings/editor-settings";
 import { InspectorSidebarCoordinator } from "./inspector-sidebar-coordinator";
 import { configureBehaviorWebview } from "./webview-html";
 import { isDocumentVersionNewer } from "../webview/shared/document";

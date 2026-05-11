@@ -20,8 +20,8 @@ import {
     buildBehaviorProject,
     resolveBehaviorBuildPaths,
 } from "../src/build/build-cli";
-import { DocumentSessionState } from "../src/editor-session/document-session-state";
-import { applySharedSelectionState } from "../src/editor-session/session-selection";
+import { DocumentSessionState } from "../src/editor-session/document/document-session-state";
+import { applySharedSelectionState } from "../src/editor-session/selection";
 import {
     getVisibleChildKeys,
     expandCollapsedAncestorsForNode,

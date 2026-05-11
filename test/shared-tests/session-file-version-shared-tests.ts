@@ -4,7 +4,7 @@ import {
     getNewerFileVersion,
     getNewerVersionMessage,
     getTreeFileVersion,
-} from "../../src/editor-session/session-file-version";
+} from "../../src/editor-session/document/file-version";
 import { defineSharedTests } from "../shared-test-types";
 
 export const sessionFileVersionSharedTests = defineSharedTests([

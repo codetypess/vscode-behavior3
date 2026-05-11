@@ -1,16 +1,16 @@
 import * as vscode from "vscode";
-import { getBehavior3OutputChannel } from "../output-channel";
+import { getBehavior3OutputChannel } from "../../output-channel";
 import type {
     EditorToHostMessage,
     HostToEditorMessage,
-} from "../../webview/shared/message-protocol";
-import type { HostSelectionState } from "../../webview/shared/contracts";
-import { normalizeNodeInstanceRef } from "../../webview/shared/protocol";
+} from "../../../webview/shared/message-protocol";
+import type { HostSelectionState } from "../../../webview/shared/contracts";
+import { normalizeNodeInstanceRef } from "../../../webview/shared/protocol";
 import {
     readWorkspaceFileContent,
     resolvePathInWorkdir,
     uriToWorkdirRelative,
-} from "./session-paths";
+} from "./paths";
 
 type HostMessageSink = (message: HostToEditorMessage) => Thenable<boolean>;
 

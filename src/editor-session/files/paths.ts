@@ -1,6 +1,6 @@
 import * as path from "path";
 import * as vscode from "vscode";
-import { parseWorkdirRelativeJsonPath } from "../../webview/shared/protocol";
+import { parseWorkdirRelativeJsonPath } from "../../../webview/shared/protocol";
 
 export function getWorkdir(documentUri: vscode.Uri): vscode.Uri {
     const workspaceFolder = vscode.workspace.getWorkspaceFolder(documentUri);
