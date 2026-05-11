@@ -4,11 +4,9 @@ import * as vscode from "vscode";
 import {
     normalizeTreeContentForWrite,
     readFileContentFromDisk,
-    TreeEditorDocument,
 } from "./document/document-sync";
 import { getBehavior3OutputChannel } from "../output-channel";
-import { mapNodeDefsIconsForWebview } from "../node-def-icons";
-import { ProjectIndex, type VarDeclResult } from "./project/project-index";
+import type { ProjectIndex, VarDeclResult } from "./project/project-index";
 import { getNewerFileVersion, getNewerVersionMessage } from "./document/file-version";
 import {
     logAsyncRuntimeError,
@@ -19,20 +17,18 @@ import {
     createSessionBuildScriptEnv,
     createSessionNodeCheckRuntime,
 } from "./project/node-check-runtime";
-import { createSerialOperationQueue } from "./runtime/operation-queue";
-import {
-    getWorkdir,
-    readWorkspaceFileContent,
-    uriToWorkdirRelative,
-} from "./files/paths";
+import { readWorkspaceFileContent, uriToWorkdirRelative } from "./files/paths";
 import { applySharedSelectionState } from "./selection";
 import { getVSCodeTheme } from "./settings/editor-settings";
 import { readExistingNewerFileEditMessage } from "./document/subtree-save-guards";
 import { createSessionFileRequestHandlers } from "./files/file-request-handlers";
 import {
-    createLiveSettingsResolver,
-    type EditorLiveSettings,
-} from "./settings/live-settings";
+    createTreeEditorSessionContext,
+    type ActiveTreeEditorWebview,
+    type HostMessageSink,
+    type MessageSource,
+    type ResolveTreeEditorSessionParams,
+} from "./session-context";
 import {
     buildDocumentSnapshotChangedMessage,
     buildHostSelectionFromMutationSelection,
@@ -44,21 +40,13 @@ import {
     normalizeReachableSubtreeOverrides,
 } from "./document/subtree-overrides";
 import {
-    getBehaviorProjectRootFsPath,
     getResolvedB3SettingDir,
     resolveNodeDefs,
     watchSettingFile,
     watchWorkspaceFile,
 } from "../setting-resolver";
-import type {
-    EditorToHostMessage,
-    HostToEditorMessage,
-    NodeDef,
-} from "../../webview/shared/message-protocol";
-import type {
-    HostSelectionState,
-    NodeInstanceRef,
-} from "../../webview/shared/contracts";
+import type { EditorToHostMessage, HostToEditorMessage } from "../../webview/shared/message-protocol";
+import type { HostSelectionState } from "../../webview/shared/contracts";
 import {
     type DocumentMutationSelection,
     formatDocumentMutationReducerError,
@@ -66,7 +54,6 @@ import {
     reduceDocumentMutation,
 } from "../../webview/shared/document";
 import {
-    normalizeHostSelectionState,
     normalizeNodeInstanceRef,
     parseWorkdirRelativeJsonPath,
 } from "../../webview/shared/protocol";
@@ -81,7 +68,8 @@ import { setFs } from "../../webview/shared/b3fs";
 import { collectNodeArgCheckDiagnostics } from "../../webview/shared/b3build";
 import { VERSION, type NodeData, type TreeData } from "../../webview/shared/b3type";
 import { translateRuntimeMessage } from "../../webview/shared/runtime-i18n";
-import type { InspectorSessionSnapshot } from "../inspector-sidebar-coordinator";
+
+export type { ActiveTreeEditorWebview } from "./session-context";
 
 setFs(fs);
 
@@ -90,54 +78,6 @@ setFs(fs);
  * It serializes document mutations, bridges file/watcher events into the
  * webview protocol, and keeps project-level caches in sync with editor state.
  */
-export interface ActiveTreeEditorWebview {
-    workspaceFsPath: string;
-    documentUri: string;
-    postMessage: (message: HostToEditorMessage) => Thenable<boolean>;
-    dispatchMessage: (
-        message: EditorToHostMessage,
-        reply?: (message: HostToEditorMessage) => Thenable<boolean>
-    ) => Promise<void>;
-}
-
-type HostMessageSink = (message: HostToEditorMessage) => Thenable<boolean>;
-type MessageSource = "editor" | "external";
-
-interface TreeEditorSessionState {
-    nodeDefs: NodeDef[];
-    settingDir?: string;
-    currentSettings: EditorLiveSettings;
-    fileVersionIsNewer: boolean;
-    newerFileVersion: string | null;
-    cachedSubtreeRefs: Set<string> | null;
-    subtreeRefreshTimer?: ReturnType<typeof setTimeout>;
-    latestAllFiles: string[];
-    latestVarDecls: VarDeclResult;
-    sharedSelection: HostSelectionState;
-    selectionRevision: number;
-    inspectorContentSyncKind: "update" | "reload";
-}
-
-interface ResolveTreeEditorSessionParams {
-    document: TreeEditorDocument;
-    webviewPanel: vscode.WebviewPanel;
-    viewType: string;
-    initialSelection: HostSelectionState;
-    initialRevealTarget: NodeInstanceRef | null;
-    configureWebview(webview: vscode.Webview, workspaceFolderUri: vscode.Uri): void;
-    writeDocumentContentToDisk(targetUri: vscode.Uri, content: string): Promise<string>;
-    revertDocument(
-        document: TreeEditorDocument,
-        cancellation: vscode.CancellationToken
-    ): Promise<void>;
-    onDidChangeDocument(document: TreeEditorDocument): void;
-    addActiveWebview(entry: ActiveTreeEditorWebview): void;
-    removeActiveWebview(entry: ActiveTreeEditorWebview): void;
-    stageDocumentSelection(documentUri: string, selection: HostSelectionState): void;
-    onInspectorSessionUpdate(snapshot: InspectorSessionSnapshot): void;
-    onInspectorSessionDispose(documentUri: string): void;
-}
-
 async function parseUsingVarsFromContent(
     projectIndex: ProjectIndex,
     content: string
@@ -172,65 +112,35 @@ function disposeAll(disposables: vscode.Disposable[]): void {
 
 const toNodeData = (node: unknown): NodeData => node as NodeData;
 
-export async function resolveTreeEditorSession({
-    document,
-    webviewPanel,
-    viewType,
-    initialSelection,
-    initialRevealTarget,
-    configureWebview,
-    writeDocumentContentToDisk,
-    revertDocument,
-    onDidChangeDocument,
-    addActiveWebview,
-    removeActiveWebview,
-    stageDocumentSelection,
-    onInspectorSessionUpdate,
-    onInspectorSessionDispose,
-}: ResolveTreeEditorSessionParams): Promise<void> {
-    const workspaceFolderUri = getWorkdir(document.uri);
-    const projectRootUri = vscode.Uri.file(
-        getBehaviorProjectRootFsPath(document.uri, workspaceFolderUri)
-    );
-    const projectIndex = new ProjectIndex(projectRootUri);
-    const resolveLiveSettings = createLiveSettingsResolver(workspaceFolderUri, document.uri);
-    const [nodeDefs, settingDir, currentSettings] = await Promise.all([
-        resolveNodeDefs(workspaceFolderUri, document.uri),
-        getResolvedB3SettingDir(workspaceFolderUri, document.uri),
-        resolveLiveSettings(),
-    ]);
-
-    const state: TreeEditorSessionState = {
-        nodeDefs,
-        settingDir,
-        currentSettings,
-        fileVersionIsNewer: false,
-        newerFileVersion: null,
-        cachedSubtreeRefs: null,
-        latestAllFiles: [],
-        latestVarDecls: {
-            usingVars: {},
-            importDecls: [],
-            subtreeDecls: [],
-        },
-        sharedSelection: normalizeHostSelectionState(initialSelection),
-        selectionRevision: 0,
-        inspectorContentSyncKind: "reload",
-    };
-    const documentSession = document.sessionState;
+export async function resolveTreeEditorSession(
+    params: ResolveTreeEditorSessionParams
+): Promise<void> {
+    const context = await createTreeEditorSessionContext(params);
+    const {
+        document,
+        webviewPanel,
+        viewType,
+        initialRevealTarget,
+        writeDocumentContentToDisk,
+        revertDocument,
+        onDidChangeDocument,
+        addActiveWebview,
+        removeActiveWebview,
+        stageDocumentSelection,
+        onInspectorSessionUpdate,
+        onInspectorSessionDispose,
+        workspaceFolderUri,
+        projectRootUri,
+        projectIndex,
+        state,
+        documentSession,
+        resolveLiveSettings,
+        postMessage,
+        mapDefsForWebview,
+        buildDocumentSessionMessage,
+        enqueueMainDocumentOperation,
+    } = context;
     let pendingInitialRevealTarget = initialRevealTarget;
-    const buildDocumentSessionMessage = () => documentSession.getSnapshot();
-
-    configureWebview(webviewPanel.webview, workspaceFolderUri);
-
-    const postMessage = (message: HostToEditorMessage) => webviewPanel.webview.postMessage(message);
-    const mapDefsForWebview = (defs: NodeDef[] = state.nodeDefs) =>
-        mapNodeDefsIconsForWebview(
-            webviewPanel.webview,
-            workspaceFolderUri,
-            state.settingDir,
-            defs
-        );
 
     const buildInspectorVarsMessage = () =>
         buildVarDeclLoadedMessage(state.latestVarDecls, state.latestAllFiles);
@@ -309,7 +219,6 @@ export async function resolveTreeEditorSession({
         },
     };
     addActiveWebview(activeWebviewEntry);
-    const enqueueMainDocumentOperation = createSerialOperationQueue();
     const createNodeCheckRuntime = async () => {
         // Custom checkers run in the extension host so they can use fs/path and workspace scripts.
         return createSessionNodeCheckRuntime({

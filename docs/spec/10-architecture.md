@@ -213,6 +213,7 @@ Adapters / Features
     - provider、coordinator、build、project/settings discovery
 - `src/editor-session/`
     - `tree-editor-webview-session.ts` owns host session orchestration
+    - `session-context.ts` owns explicit session startup context, derived workspace/project state, and shared session runtime dependencies
     - `session-messages.ts` owns host/editor message DTO construction helpers
     - `document/` owns main document sync/session state, file version guards, subtree write guards, and subtree override pruning helpers
     - `settings/` owns editor language/theme helpers and live VS Code setting resolution
