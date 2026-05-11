@@ -16,7 +16,7 @@ import {
     createSessionBuildScriptEnv,
     createSessionNodeCheckRuntime,
 } from "./project/node-check-runtime";
-import { readWorkspaceFileContent, uriToWorkdirRelative } from "./files/paths";
+import { readWorkspaceFileContent } from "./files/paths";
 import { applySharedSelectionState } from "./selection";
 import { getVSCodeTheme } from "./settings/editor-settings";
 import { readExistingNewerFileEditMessage } from "./document/subtree-save-guards";
@@ -29,6 +29,7 @@ import {
     type ResolveTreeEditorSessionParams,
 } from "./session-context";
 import { createSessionInspectorSync } from "./session-inspector-sync";
+import { createSessionSubtreeTracking } from "./session-subtree-tracking";
 import { buildHostSelectionFromMutationSelection } from "./session-messages";
 import {
     mutationMayAffectSubtreeOverrideReachability,
@@ -73,13 +74,6 @@ setFs(fs);
  * It serializes document mutations, bridges file/watcher events into the
  * webview protocol, and keeps project-level caches in sync with editor state.
  */
-function clearRefreshTimer(timer: ReturnType<typeof setTimeout> | undefined): undefined {
-    if (timer) {
-        clearTimeout(timer);
-    }
-    return undefined;
-}
-
 function disposeAll(disposables: vscode.Disposable[]): void {
     for (const disposable of disposables) {
         disposable.dispose();
@@ -124,6 +118,14 @@ export async function resolveTreeEditorSession(
         notifyInspectorSessionUpdate,
         refreshLatestVarDeclsFromContent,
     } = inspectorSync;
+    const subtreeTracking = createSessionSubtreeTracking(context, inspectorSync);
+    const {
+        invalidateSubtreeRefs,
+        refreshTrackedSubtreeRefs,
+        scheduleTrackedSubtreeRefresh,
+        flushTrackedSubtreeRefresh,
+        clearSubtreeRefreshTimer,
+    } = subtreeTracking;
 
     const updateSharedSelection = (
         selection: HostSelectionState,
@@ -228,23 +230,12 @@ export async function resolveTreeEditorSession(
         notifyInspectorSessionUpdate();
     };
 
-    const invalidateSubtreeRefs = () => {
-        state.cachedSubtreeRefs = null;
-    };
-
     const pruneReachableSubtreeOverrides = (tree: ReturnType<typeof parsePersistedTreeContent>) =>
         normalizeReachableSubtreeOverrides({
             tree,
             projectRootFsPath: projectRootUri.fsPath,
             readWorkspaceFileContent,
         });
-
-    /** Cache the transitive subtree closure of the current main document. */
-    const refreshTrackedSubtreeRefs = async () => {
-        state.cachedSubtreeRefs = await projectIndex.getTransitiveSubtreeRelativePaths(
-            document.content
-        );
-    };
 
     const updateFileVersionState = (content: string, opts?: { showWarning?: boolean }): void => {
         state.fileVersionIsNewer = false;
@@ -262,46 +253,6 @@ export async function resolveTreeEditorSession(
                 getNewerVersionMessage(state.currentSettings.language, fileVersion, "warn")
             );
         }
-    };
-
-    const isTrackedSubtreeDocument = (uri: vscode.Uri): boolean => {
-        const rel = uriToWorkdirRelative(uri, projectRootUri);
-        return !!rel && Boolean(state.cachedSubtreeRefs?.has(rel));
-    };
-
-    const flushParentSubtreeRefresh = () => {
-        void (async () => {
-            await refreshLatestVarDeclsFromContent(document.content);
-            await postMessage(buildInspectorVarsMessage());
-            notifyInspectorSessionUpdate();
-            await postMessage({ type: "subtreeFileChanged" });
-        })();
-    };
-
-    const isMainDocumentUri = (uri: vscode.Uri): boolean =>
-        uri.toString() === document.uri.toString();
-
-    const scheduleParentSubtreeRefresh = () => {
-        state.subtreeRefreshTimer = clearRefreshTimer(state.subtreeRefreshTimer);
-        state.subtreeRefreshTimer = setTimeout(() => {
-            state.subtreeRefreshTimer = undefined;
-            flushParentSubtreeRefresh();
-        }, 450);
-    };
-
-    const scheduleTrackedSubtreeRefresh = (uri: vscode.Uri): void => {
-        if (isMainDocumentUri(uri) || !isTrackedSubtreeDocument(uri)) {
-            return;
-        }
-        scheduleParentSubtreeRefresh();
-    };
-
-    const flushTrackedSubtreeRefresh = (uri: vscode.Uri): void => {
-        if (isMainDocumentUri(uri) || !isTrackedSubtreeDocument(uri)) {
-            return;
-        }
-        state.subtreeRefreshTimer = clearRefreshTimer(state.subtreeRefreshTimer);
-        flushParentSubtreeRefresh();
     };
 
     /**
@@ -1021,7 +972,7 @@ export async function resolveTreeEditorSession(
     );
 
     webviewPanel.onDidDispose(() => {
-        state.subtreeRefreshTimer = clearRefreshTimer(state.subtreeRefreshTimer);
+        clearSubtreeRefreshTimer();
         projectIndex.clear();
         removeActiveWebview(activeWebviewEntry);
         onInspectorSessionDispose(document.uri.toString());
