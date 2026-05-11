@@ -1,9 +1,9 @@
 import {
     getResolvedB3SettingDir,
     resolveNodeDefs,
-} from "../setting-resolver";
-import type { SessionInspectorSync } from "./session-inspector-sync";
-import type { TreeEditorSessionContext } from "./session-context";
+} from "../../setting-resolver";
+import type { SessionInspectorSync } from "./inspector-sync";
+import type { TreeEditorSessionContext } from "./context";
 
 export interface SessionSettingsSync {
     refreshSettings(opts?: { refreshDefs?: boolean }): Promise<void>;

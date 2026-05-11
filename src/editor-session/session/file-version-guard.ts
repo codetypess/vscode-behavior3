@@ -1,11 +1,11 @@
 import * as vscode from "vscode";
 import { readWorkspaceFileContent } from "../files/paths";
-import type { TreeEditorSessionContext } from "../session-context";
+import type { TreeEditorSessionContext } from "./context";
 import {
     getNewerFileEditMessage,
     getNewerFileVersion,
     getNewerVersionMessage,
-} from "./file-version";
+} from "../document/file-version";
 
 export interface FileVersionGuard {
     updateFileVersionState(content: string, opts?: { showWarning?: boolean }): void;

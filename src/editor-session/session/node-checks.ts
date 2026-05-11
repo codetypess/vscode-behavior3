@@ -1,13 +1,13 @@
-import { collectNodeArgCheckDiagnostics } from "../../webview/shared/b3build";
-import type { NodeData, TreeData } from "../../webview/shared/b3type";
-import type { EditorToHostMessage } from "../../webview/shared/message-protocol";
-import { translateRuntimeMessage } from "../../webview/shared/runtime-i18n";
-import { readWorkspaceFileContent } from "./files/paths";
+import { collectNodeArgCheckDiagnostics } from "../../../webview/shared/b3build";
+import type { NodeData, TreeData } from "../../../webview/shared/b3type";
+import type { EditorToHostMessage } from "../../../webview/shared/message-protocol";
+import { translateRuntimeMessage } from "../../../webview/shared/runtime-i18n";
+import { readWorkspaceFileContent } from "../files/paths";
 import {
     createSessionBuildScriptEnv,
     createSessionNodeCheckRuntime,
-} from "./project/node-check-runtime";
-import type { HostMessageSink, TreeEditorSessionContext } from "./session-context";
+} from "../project/node-check-runtime";
+import type { HostMessageSink, TreeEditorSessionContext } from "./context";
 
 export interface SessionNodeChecks {
     handleValidateNodeChecksMessage(

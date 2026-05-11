@@ -21,7 +21,7 @@ import {
     resolveBehaviorBuildPaths,
 } from "../src/build/build-cli";
 import { DocumentSessionState } from "../src/editor-session/document/document-session-state";
-import { applySharedSelectionState } from "../src/editor-session/selection";
+import { applySharedSelectionState } from "../src/editor-session/session/selection-state";
 import {
     getVisibleChildKeys,
     expandCollapsedAncestorsForNode,

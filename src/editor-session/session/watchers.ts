@@ -1,15 +1,15 @@
 import * as path from "path";
 import * as vscode from "vscode";
-import { watchSettingFile, watchWorkspaceFile } from "../setting-resolver";
-import type { EditorToHostMessage } from "../../webview/shared/message-protocol";
+import { watchSettingFile, watchWorkspaceFile } from "../../setting-resolver";
+import type { EditorToHostMessage } from "../../../webview/shared/message-protocol";
 import {
     logAsyncRuntimeError,
     logRuntimeError,
-} from "./runtime/logging";
-import { getVSCodeTheme } from "./settings/editor-settings";
-import type { ActiveTreeEditorWebview, TreeEditorSessionContext } from "./session-context";
-import type { SessionDispatcher } from "./session-dispatcher";
-import type { SessionSubtreeTracking } from "./session-subtree-tracking";
+} from "../runtime/logging";
+import { getVSCodeTheme } from "../settings/editor-settings";
+import type { ActiveTreeEditorWebview, TreeEditorSessionContext } from "./context";
+import type { SessionDispatcher } from "./dispatcher";
+import type { SessionSubtreeTracking } from "./subtree-tracking";
 
 interface RegisterSessionWatchersParams {
     context: TreeEditorSessionContext;

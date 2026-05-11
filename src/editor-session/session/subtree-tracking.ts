@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
-import { uriToWorkdirRelative } from "./files/paths";
-import type { SessionInspectorSync } from "./session-inspector-sync";
-import type { TreeEditorSessionContext } from "./session-context";
+import { uriToWorkdirRelative } from "../files/paths";
+import type { SessionInspectorSync } from "./inspector-sync";
+import type { TreeEditorSessionContext } from "./context";
 
 export interface SessionSubtreeTracking {
     invalidateSubtreeRefs(): void;

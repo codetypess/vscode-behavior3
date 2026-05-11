@@ -15,8 +15,8 @@ import type {
     EditorToHostMessage,
     HostToEditorMessage,
 } from "../webview/shared/message-protocol";
-import type { ActiveTreeEditorWebview } from "./editor-session/tree-editor-webview-session";
-import { resolveTreeEditorSession } from "./editor-session/tree-editor-webview-session";
+import type { ActiveTreeEditorWebview } from "./editor-session/webview-session";
+import { resolveTreeEditorSession } from "./editor-session/webview-session";
 import { getNewerVersionMessage, getTreeFileVersion } from "./editor-session/document/file-version";
 import { getEditorLanguage } from "./editor-session/settings/editor-settings";
 import { InspectorSidebarCoordinator } from "./inspector-sidebar-coordinator";
@@ -38,7 +38,7 @@ function getNewerFileWriteError(content: string): string | null {
 /**
  * VS Code custom-editor facade.
  * Keep lifecycle/save/revert ownership here; per-webview message orchestration
- * belongs in `editor-session/tree-editor-webview-session.ts`.
+ * belongs in `editor-session/webview-session.ts`.
  */
 export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEditorDocument> {
     public static readonly viewType = "behavior3.treeEditor";

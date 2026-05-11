@@ -1,6 +1,6 @@
-import type { HostSelectionState, NodeInstanceRef } from "../../webview/shared/contracts";
-import { isJsonEqual } from "../../webview/shared/json";
-import { normalizeHostSelectionState } from "../../webview/shared/protocol";
+import type { HostSelectionState, NodeInstanceRef } from "../../../webview/shared/contracts";
+import { isJsonEqual } from "../../../webview/shared/json";
+import { normalizeHostSelectionState } from "../../../webview/shared/protocol";
 
 export const buildPendingSelectionRef = (structuralStableId: string): NodeInstanceRef => ({
     instanceKey: structuralStableId,

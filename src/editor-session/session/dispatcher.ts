@@ -1,10 +1,10 @@
 import * as vscode from "vscode";
-import type { EditorToHostMessage } from "../../webview/shared/message-protocol";
+import type { EditorToHostMessage } from "../../../webview/shared/message-protocol";
 import {
     logAsyncRuntimeError,
     writeWebviewLogMessage,
-} from "./runtime/logging";
-import type { HostMessageSink, MessageSource } from "./session-context";
+} from "../runtime/logging";
+import type { HostMessageSink, MessageSource } from "./context";
 
 interface SessionDispatcherFileRequestHandlers {
     handleReadFileMessage(

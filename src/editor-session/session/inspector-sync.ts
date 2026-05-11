@@ -1,6 +1,6 @@
-import type { HostSelectionState } from "../../webview/shared/contracts";
-import type { DocumentSessionSnapshot } from "./document/document-session-state";
-import type { VarDeclResult } from "./project/project-index";
+import type { HostSelectionState } from "../../../webview/shared/contracts";
+import type { DocumentSessionSnapshot } from "../document/document-session-state";
+import type { VarDeclResult } from "../project/project-index";
 import {
     buildDocumentSnapshotChangedMessage,
     buildInitMessage as buildHostInitMessage,
@@ -8,9 +8,9 @@ import {
     type DocumentSnapshotChangedMessage,
     type InitMessage,
     type VarDeclLoadedMessage,
-} from "./session-messages";
-import type { TreeEditorSessionContext } from "./session-context";
-import { getVSCodeTheme } from "./settings/editor-settings";
+} from "./messages";
+import type { TreeEditorSessionContext } from "./context";
+import { getVSCodeTheme } from "../settings/editor-settings";
 
 async function parseUsingVarsFromContent(
     context: TreeEditorSessionContext,

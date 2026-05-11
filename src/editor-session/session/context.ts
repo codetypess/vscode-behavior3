@@ -1,27 +1,27 @@
 import * as vscode from "vscode";
-import { mapNodeDefsIconsForWebview } from "../node-def-icons";
+import { mapNodeDefsIconsForWebview } from "../../node-def-icons";
 import {
     getBehaviorProjectRootFsPath,
     getResolvedB3SettingDir,
     resolveNodeDefs,
-} from "../setting-resolver";
-import type { InspectorSessionSnapshot } from "../inspector-sidebar-coordinator";
-import type { HostSelectionState, NodeInstanceRef } from "../../webview/shared/contracts";
+} from "../../setting-resolver";
+import type { InspectorSessionSnapshot } from "../../inspector-sidebar-coordinator";
+import type { HostSelectionState, NodeInstanceRef } from "../../../webview/shared/contracts";
 import type {
     EditorToHostMessage,
     HostToEditorMessage,
     NodeDef,
-} from "../../webview/shared/message-protocol";
-import { normalizeHostSelectionState } from "../../webview/shared/protocol";
-import { TreeEditorDocument } from "./document/document-sync";
-import { createSerialOperationQueue, type SerialOperationQueue } from "./runtime/operation-queue";
-import { getWorkdir } from "./files/paths";
-import { ProjectIndex, type VarDeclResult } from "./project/project-index";
+} from "../../../webview/shared/message-protocol";
+import { normalizeHostSelectionState } from "../../../webview/shared/protocol";
+import { TreeEditorDocument } from "../document/document-sync";
+import { createSerialOperationQueue, type SerialOperationQueue } from "../runtime/operation-queue";
+import { getWorkdir } from "../files/paths";
+import { ProjectIndex, type VarDeclResult } from "../project/project-index";
 import {
     createLiveSettingsResolver,
     type EditorLiveSettings,
-} from "./settings/live-settings";
-import type { DocumentSessionSnapshot } from "./document/document-session-state";
+} from "../settings/live-settings";
+import type { DocumentSessionSnapshot } from "../document/document-session-state";
 
 export type HostMessageSink = (message: HostToEditorMessage) => Thenable<boolean>;
 export type MessageSource = "editor" | "external";

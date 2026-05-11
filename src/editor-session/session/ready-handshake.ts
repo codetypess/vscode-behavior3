@@ -1,7 +1,7 @@
-import type { FileVersionGuard } from "./document/file-version-guard";
-import type { SessionInspectorSync } from "./session-inspector-sync";
-import type { HostMessageSink, TreeEditorSessionContext } from "./session-context";
-import type { SessionSubtreeTracking } from "./session-subtree-tracking";
+import type { FileVersionGuard } from "./file-version-guard";
+import type { SessionInspectorSync } from "./inspector-sync";
+import type { HostMessageSink, TreeEditorSessionContext } from "./context";
+import type { SessionSubtreeTracking } from "./subtree-tracking";
 
 export interface SessionReadyHandshake {
     handleReadyMessage(reply?: HostMessageSink): Promise<void>;

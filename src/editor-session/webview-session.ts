@@ -1,24 +1,24 @@
 import * as fs from "fs";
-import { createFileVersionGuard } from "./document/file-version-guard";
 import { createSessionFileRequestHandlers } from "./files/file-request-handlers";
 import {
     createTreeEditorSessionContext,
     type ActiveTreeEditorWebview,
     type ResolveTreeEditorSessionParams,
-} from "./session-context";
-import { createSessionDocumentLifecycle } from "./session-document-lifecycle";
-import { createSessionDocumentMutations } from "./session-document-mutations";
-import { createSessionDispatcher } from "./session-dispatcher";
-import { createSessionInspectorSync } from "./session-inspector-sync";
-import { createSessionNodeChecks } from "./session-node-checks";
-import { createSessionReadyHandshake } from "./session-ready-handshake";
-import { createSessionSelectionSync } from "./session-selection-sync";
-import { createSessionSettingsSync } from "./session-settings-sync";
-import { createSessionSubtreeTracking } from "./session-subtree-tracking";
-import { registerSessionWatchers } from "./session-watchers";
+} from "./session/context";
+import { createSessionDocumentLifecycle } from "./session/document-lifecycle";
+import { createSessionDocumentMutations } from "./session/document-mutations";
+import { createSessionDispatcher } from "./session/dispatcher";
+import { createFileVersionGuard } from "./session/file-version-guard";
+import { createSessionInspectorSync } from "./session/inspector-sync";
+import { createSessionNodeChecks } from "./session/node-checks";
+import { createSessionReadyHandshake } from "./session/ready-handshake";
+import { createSessionSelectionSync } from "./session/selection-sync";
+import { createSessionSettingsSync } from "./session/settings-sync";
+import { createSessionSubtreeTracking } from "./session/subtree-tracking";
+import { registerSessionWatchers } from "./session/watchers";
 import { setFs } from "../../webview/shared/b3fs";
 
-export type { ActiveTreeEditorWebview } from "./session-context";
+export type { ActiveTreeEditorWebview } from "./session/context";
 
 setFs(fs);
 

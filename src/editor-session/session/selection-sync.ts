@@ -1,12 +1,12 @@
-import type { HostSelectionState } from "../../webview/shared/contracts";
-import type { EditorToHostMessage } from "../../webview/shared/message-protocol";
-import { normalizeNodeInstanceRef } from "../../webview/shared/protocol";
+import type { HostSelectionState } from "../../../webview/shared/contracts";
+import type { EditorToHostMessage } from "../../../webview/shared/message-protocol";
+import { normalizeNodeInstanceRef } from "../../../webview/shared/protocol";
 import {
     applySharedSelectionState,
     type SharedSelectionApplyResult,
-} from "./selection";
-import type { SessionInspectorSync } from "./session-inspector-sync";
-import type { TreeEditorSessionContext } from "./session-context";
+} from "./selection-state";
+import type { SessionInspectorSync } from "./inspector-sync";
+import type { TreeEditorSessionContext } from "./context";
 
 export interface SessionSelectionSync {
     updateSharedSelection(

@@ -1,14 +1,14 @@
-import type { HostSelectionState } from "../../webview/shared/contracts";
-import type { DocumentMutationSelection } from "../../webview/shared/document";
+import type { HostSelectionState } from "../../../webview/shared/contracts";
+import type { DocumentMutationSelection } from "../../../webview/shared/document";
 import type {
     HostToEditorMessage,
     NodeDef,
-} from "../../webview/shared/message-protocol";
-import type { DocumentSessionSnapshot } from "./document/document-session-state";
-import type { VarDeclResult } from "./project/project-index";
-import { buildPendingSelectionRef } from "./selection";
-import type { EditorTheme } from "./settings/editor-settings";
-import type { EditorLiveSettings } from "./settings/live-settings";
+} from "../../../webview/shared/message-protocol";
+import type { DocumentSessionSnapshot } from "../document/document-session-state";
+import type { VarDeclResult } from "../project/project-index";
+import { buildPendingSelectionRef } from "./selection-state";
+import type { EditorTheme } from "../settings/editor-settings";
+import type { EditorLiveSettings } from "../settings/live-settings";
 
 export type VarDeclLoadedMessage = Extract<HostToEditorMessage, { type: "varDeclLoaded" }>;
 export type DocumentSnapshotChangedMessage = Extract<

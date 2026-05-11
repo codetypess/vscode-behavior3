@@ -212,20 +212,22 @@ Adapters / Features
 - `src/`
     - provider、coordinator、build、project/settings discovery
 - `src/editor-session/`
-    - `tree-editor-webview-session.ts` owns host session orchestration
-    - `session-context.ts` owns explicit session startup context, derived workspace/project state, and shared session runtime dependencies
-    - `session-dispatcher.ts` owns host/editor message routing across session capabilities
-    - `session-document-lifecycle.ts` owns save/revert/history navigation and main document external-file-change handling
-    - `session-document-mutations.ts` owns host-first `mutateDocument` handling and `saveSelectedAsSubtree`
-    - `session-inspector-sync.ts` owns Inspector/sidebar session snapshot fanout and latest var metadata refresh
-    - `session-messages.ts` owns host/editor message DTO construction helpers
-    - `session-node-checks.ts` owns `validateNodeChecks` runtime creation and response formatting
-    - `session-ready-handshake.ts` owns the webview `ready` bootstrap response and one-shot initial reveal relay
-    - `session-selection-sync.ts` owns host shared selection state updates and `selectTree` / `selectNode` fanout
-    - `session-settings-sync.ts` owns settings/nodeDefs refresh and `settingLoaded` fanout
-    - `session-subtree-tracking.ts` owns reachable subtree reference cache refresh and tracked subtree file debounce scheduling
-    - `session-watchers.ts` owns VS Code watcher registration, webview message subscription, and dispose cleanup
-    - `document/` owns main document sync/session state, pure file version helpers, session file version guards, and subtree override pruning helpers
+    - `webview-session.ts` owns host session orchestration
+    - `session/` owns host session capabilities:
+        - `context.ts` owns explicit session startup context, derived workspace/project state, and shared session runtime dependencies
+        - `dispatcher.ts` owns host/editor message routing across session capabilities
+        - `document-lifecycle.ts` owns save/revert/history navigation and main document external-file-change handling
+        - `document-mutations.ts` owns host-first `mutateDocument` handling and `saveSelectedAsSubtree`
+        - `file-version-guard.ts` owns session newer-file version guards and warning/error fanout
+        - `inspector-sync.ts` owns Inspector/sidebar session snapshot fanout and latest var metadata refresh
+        - `messages.ts` owns host/editor message DTO construction helpers
+        - `node-checks.ts` owns `validateNodeChecks` runtime creation and response formatting
+        - `ready-handshake.ts` owns the webview `ready` bootstrap response and one-shot initial reveal relay
+        - `selection-sync.ts` owns host shared selection state updates and `selectTree` / `selectNode` fanout
+        - `settings-sync.ts` owns settings/nodeDefs refresh and `settingLoaded` fanout
+        - `subtree-tracking.ts` owns reachable subtree reference cache refresh and tracked subtree file debounce scheduling
+        - `watchers.ts` owns VS Code watcher registration, webview message subscription, and dispose cleanup
+    - `document/` owns main document sync/session state, pure file version helpers, and subtree override pruning helpers
     - `settings/` owns editor language/theme helpers and live VS Code setting resolution
     - `files/` owns workdir-relative path helpers and editor file request handlers
     - `project/` owns project indexing and session node-check runtime helpers
