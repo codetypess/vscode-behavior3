@@ -22,25 +22,25 @@ import type {
 } from "../../shared/contracts";
 import type { GraphAdapter, GraphRenderOptions } from "../../shared/graph-contracts";
 import {
-    G6_VECTOR_NODE_H_GAP,
-    G6_VECTOR_NODE_MIN_HEIGHT,
-    G6_VECTOR_NODE_V_GAP,
-    G6_VECTOR_NODE_WIDTH,
-    G6_VECTOR_TREE_NODE_TYPE,
+    G6_GRAPH_NODE_H_GAP,
+    G6_GRAPH_NODE_MIN_HEIGHT,
+    G6_GRAPH_NODE_V_GAP,
+    G6_GRAPH_NODE_WIDTH,
+    G6_GRAPH_NODE_TYPE,
     getGraphThemeColor,
-    getVectorTreeNodeStateStyle,
-    type VectorTreeNodeDatum,
-    type VectorTreeNodeState,
-    measureVectorTreeNode,
-    registerVectorTreeNode,
-} from "./g6-vector-tree-node";
+    getGraphNodeStateStyle,
+    type GraphNodeDatum,
+    type GraphNodeState,
+    measureGraphNode,
+    registerGraphNode,
+} from "./g6-graph-node";
 import {
     readG6CanvasPoint,
     isRenderedG6Graph,
     readG6EventTargetId,
     readG6NodeDisplayId,
     readG6Viewport,
-    readG6VectorTreeNodeDatum,
+    readG6NodeDatum,
     setG6EdgeOptions,
     setG6NodeOptions,
     toG6ElementState,
@@ -64,11 +64,11 @@ const DEFAULT_PORTS = [
 ];
 
 const createNodeOptions = (): any => ({
-    type: G6_VECTOR_TREE_NODE_TYPE,
+    type: G6_GRAPH_NODE_TYPE,
     style: {
         ports: DEFAULT_PORTS,
     },
-    state: toG6ElementState(getVectorTreeNodeStateStyle()),
+    state: toG6ElementState(getGraphNodeStateStyle()),
 });
 
 const createEdgeOptions = (): any => ({
@@ -105,7 +105,7 @@ const isDefaultViewport = (viewport: GraphViewport) =>
     viewport.x === DEFAULT_VIEWPORT.x &&
     viewport.y === DEFAULT_VIEWPORT.y;
 
-const toDragState = (position: DropIntent["position"] | null): VectorTreeNodeState | null => {
+const toDragState = (position: DropIntent["position"] | null): GraphNodeState | null => {
     if (position === "before") {
         return "dragup";
     }
@@ -386,8 +386,8 @@ export class G6GraphAdapter implements GraphAdapter {
         await this.renderGraphData(anchor);
     }
 
-    private getNodeDatum(node: GraphNodeVM): VectorTreeNodeDatum {
-        const size = measureVectorTreeNode(node);
+    private getNodeDatum(node: GraphNodeVM): GraphNodeDatum {
+        const size = measureGraphNode(node);
         return {
             vm: node,
             width: size.width,
@@ -395,8 +395,8 @@ export class G6GraphAdapter implements GraphAdapter {
         };
     }
 
-    private getNodeStates(node: GraphNodeVM): VectorTreeNodeState[] {
-        const states: VectorTreeNodeState[] = [];
+    private getNodeStates(node: GraphNodeVM): GraphNodeState[] {
+        const states: GraphNodeState[] = [];
         const nodeKey = node.ref.instanceKey;
         const variableHits = this.highlights.variableHits[nodeKey] ?? [];
         const shouldGrayForVariableHighlight =
@@ -465,7 +465,7 @@ export class G6GraphAdapter implements GraphAdapter {
             id: nodeKey,
             nodeData: {
                 id: node.ref.instanceKey,
-                type: G6_VECTOR_TREE_NODE_TYPE,
+                type: G6_GRAPH_NODE_TYPE,
                 data: toG6NodeDataRecord(datum),
                 style: {
                     size: [datum.width, datum.height],
@@ -771,7 +771,7 @@ export class G6GraphAdapter implements GraphAdapter {
 
         const targetKey = this.dragIntent.targetKey;
         const targetDatum = this.graph.getNodeData(targetKey);
-        const data = readG6VectorTreeNodeDatum(targetDatum);
+        const data = readG6NodeDatum(targetDatum);
         if (!data) {
             return;
         }
@@ -822,7 +822,7 @@ export class G6GraphAdapter implements GraphAdapter {
     async mount(container: HTMLElement, handlers: GraphEventHandlers): Promise<void> {
         this.container = container;
         this.handlers = handlers;
-        registerVectorTreeNode();
+        registerGraphNode();
 
         const graph = new G6Graph({
             container,
@@ -839,15 +839,15 @@ export class G6GraphAdapter implements GraphAdapter {
                 getHeight: (datum: G6NodeData) =>
                     Number(
                         (datum.data as { height?: number } | undefined)?.height ??
-                            G6_VECTOR_NODE_MIN_HEIGHT
+                            G6_GRAPH_NODE_MIN_HEIGHT
                     ),
                 getWidth: (datum: G6NodeData) =>
                     Number(
                         (datum.data as { width?: number } | undefined)?.width ??
-                            G6_VECTOR_NODE_WIDTH
+                            G6_GRAPH_NODE_WIDTH
                     ),
-                getVGap: () => G6_VECTOR_NODE_V_GAP,
-                getHGap: () => G6_VECTOR_NODE_H_GAP,
+                getVGap: () => G6_GRAPH_NODE_V_GAP,
+                getHGap: () => G6_GRAPH_NODE_H_GAP,
             },
         });
 

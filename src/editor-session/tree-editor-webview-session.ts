@@ -22,14 +22,17 @@ import {
     uriToWorkdirRelative,
 } from "./session-paths";
 import { applySharedSelectionState, buildPendingSelectionRef } from "./session-selection";
-import { getEditorLanguage, getVSCodeTheme, type EditorLanguage } from "./session-settings";
+import { getVSCodeTheme } from "./session-settings";
 import { readExistingNewerFileEditMessage } from "./session-subtree-save-guards";
 import { createSessionFileRequestHandlers } from "./session-file-request-handlers";
+import {
+    createLiveSettingsResolver,
+    type EditorLiveSettings,
+} from "./session-live-settings";
 import {
     getBehaviorProjectRootFsPath,
     getResolvedB3SettingDir,
     resolveNodeDefs,
-    resolveWorkspaceNodeColors,
     watchSettingFile,
     watchWorkspaceFile,
 } from "../setting-resolver";
@@ -91,14 +94,6 @@ export interface ActiveTreeEditorWebview {
 type HostMessageSink = (message: HostToEditorMessage) => Thenable<boolean>;
 type MessageSource = "editor" | "external";
 
-interface EditorLiveSettings {
-    checkExpr: boolean;
-    subtreeEditable: boolean;
-    language: EditorLanguage;
-    inspectorMode: "sidebar" | "embedded";
-    nodeColors?: Record<string, string>;
-}
-
 interface TreeEditorSessionState {
     nodeDefs: NodeDef[];
     settingDir?: string;
@@ -132,22 +127,6 @@ interface ResolveTreeEditorSessionParams {
     stageDocumentSelection(documentUri: string, selection: HostSelectionState): void;
     onInspectorSessionUpdate(snapshot: InspectorSessionSnapshot): void;
     onInspectorSessionDispose(documentUri: string): void;
-}
-
-function createLiveSettingsResolver(
-    workspaceFolderUri: vscode.Uri,
-    documentUri: vscode.Uri
-): () => Promise<EditorLiveSettings> {
-    return async () => {
-        const config = vscode.workspace.getConfiguration("behavior3");
-        return {
-            checkExpr: config.get<boolean>("checkExpr", true),
-            subtreeEditable: config.get<boolean>("subtreeEditable", true),
-            language: getEditorLanguage(config.get<string>("language", "auto")),
-            inspectorMode: config.get<"sidebar" | "embedded">("inspectorMode", "sidebar"),
-            nodeColors: await resolveWorkspaceNodeColors(workspaceFolderUri, documentUri),
-        };
-    };
 }
 
 async function parseUsingVarsFromContent(

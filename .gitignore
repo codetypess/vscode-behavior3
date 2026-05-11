@@ -5,3 +5,4 @@ dist/
 .DS_Store
 behavior3editor/
 tsconfig.webview.tsbuildinfo
+.claude/settings.local.json

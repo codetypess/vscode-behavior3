@@ -1,6 +1,6 @@
 import type { Graph as G6Graph, IEvent as G6Event, NodeData as G6NodeData } from "@antv/g6";
 import type { GraphViewport } from "../../shared/contracts";
-import type { VectorTreeNodeDatum, VectorTreeNodeStateStyleMap } from "./g6-vector-tree-node";
+import type { GraphNodeDatum, GraphNodeStateStyleMap } from "./g6-graph-node";
 
 type G6GraphInternal = {
     rendered?: boolean;
@@ -16,11 +16,11 @@ type G6EventTarget = {
 };
 
 type G6NodeWithVectorDatum = G6NodeData & {
-    data?: Partial<VectorTreeNodeDatum>;
+    data?: Partial<GraphNodeDatum>;
 };
 
 export const toG6ElementState = (
-    state: VectorTreeNodeStateStyleMap
+    state: GraphNodeStateStyleMap
 ): Record<string, unknown> => state as unknown as Record<string, unknown>;
 
 export const setG6NodeOptions = (graph: G6Graph, options: Record<string, unknown>): void => {
@@ -81,14 +81,14 @@ export const readG6NodeDisplayId = (node: G6NodeData): string | number | null =>
     return typeof displayId === "string" || typeof displayId === "number" ? displayId : null;
 };
 
-export const toG6NodeDataRecord = (datum: VectorTreeNodeDatum): Record<string, unknown> => datum;
+export const toG6NodeDataRecord = (datum: GraphNodeDatum): Record<string, unknown> => datum;
 
-export const readG6VectorTreeNodeDatum = (
+export const readG6NodeDatum = (
     node: G6NodeData | null | undefined
-): VectorTreeNodeDatum | null => {
+): GraphNodeDatum | null => {
     const data = (node as G6NodeWithVectorDatum | null | undefined)?.data;
     if (!data || typeof data.width !== "number" || typeof data.height !== "number" || !data.vm) {
         return null;
     }
-    return data as VectorTreeNodeDatum;
+    return data as GraphNodeDatum;
 };

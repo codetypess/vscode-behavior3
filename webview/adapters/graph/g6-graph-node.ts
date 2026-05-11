@@ -9,79 +9,57 @@ import {
     UpsertHooks,
     register,
 } from "@antv/g6";
-import { NodeStyle } from "@antv/g6/lib/spec/element/node";
-import actionIconUrl from "../../../media/icons/Action.svg";
-import compositeIconUrl from "../../../media/icons/Composite.svg";
-import conditionIconUrl from "../../../media/icons/Condition.svg";
-import debugIconUrl from "../../../media/icons/Debug.svg";
-import decoratorIconUrl from "../../../media/icons/Decorator.svg";
-import disabledIconUrl from "../../../media/icons/Disabled.svg";
-import errorIconUrl from "../../../media/icons/Error.svg";
-import otherIconUrl from "../../../media/icons/Other.svg";
-import status000IconUrl from "../../../media/icons/status000.svg";
-import status001IconUrl from "../../../media/icons/status001.svg";
-import status010IconUrl from "../../../media/icons/status010.svg";
-import status011IconUrl from "../../../media/icons/status011.svg";
-import status100IconUrl from "../../../media/icons/status100.svg";
-import status101IconUrl from "../../../media/icons/status101.svg";
-import status110IconUrl from "../../../media/icons/status110.svg";
-import status111IconUrl from "../../../media/icons/status111.svg";
 import i18n from "../../shared/i18n";
 import { isMacos } from "../../shared/keys";
 import type { GraphNodeVM } from "../../shared/contracts";
-import { stringifyCompactJson5 } from "../../shared/json";
+import {
+    G6_GRAPH_NODE_MIN_HEIGHT,
+    G6_GRAPH_NODE_WIDTH,
+} from "./g6-graph-node-constants";
+import {
+    accentColorMap,
+    debugIconUrl,
+    disabledIconUrl,
+    fallbackNodeIconMap,
+    getGraphNodePalette,
+    status000IconUrl,
+    statusIconMap,
+    type GraphNodePalette,
+} from "./g6-graph-node-theme";
+import {
+    cutWordTo,
+    getInputText,
+    getOutputText,
+    toBreakWord,
+} from "./g6-graph-node-measure";
+import {
+    type GraphNodeShapeName,
+    type GraphNodeState,
+    type GraphNodeStateStyleMap,
+} from "./g6-graph-node-style";
 
-export const G6_VECTOR_TREE_NODE_TYPE = "b3-tree-node";
-export const G6_VECTOR_NODE_WIDTH = 260;
-export const G6_VECTOR_NODE_MIN_HEIGHT = 52;
-export const G6_VECTOR_NODE_H_GAP = 30;
-export const G6_VECTOR_NODE_V_GAP = 10;
+export const G6_GRAPH_NODE_TYPE = "b3-tree-node";
+export {
+    G6_GRAPH_NODE_H_GAP,
+    G6_GRAPH_NODE_MIN_HEIGHT,
+    G6_GRAPH_NODE_V_GAP,
+    G6_GRAPH_NODE_WIDTH,
+} from "./g6-graph-node-constants";
+export { getGraphThemeColor } from "./g6-graph-node-theme";
+export { measureGraphNode } from "./g6-graph-node-measure";
+export {
+    getGraphNodeStateStyle,
+    type GraphNodeState,
+    type GraphNodeStateStyleMap,
+} from "./g6-graph-node-style";
 
-export interface VectorTreeNodeDatum extends Record<string, unknown> {
+export interface GraphNodeDatum extends Record<string, unknown> {
     vm: GraphNodeVM;
     width: number;
     height: number;
 }
 
-export type VectorTreeNodeState =
-    | "dragdown"
-    | "dragright"
-    | "dragsrc"
-    | "dragup"
-    | "focused"
-    | "highlightargs"
-    | "highlightgray"
-    | "highlightinput"
-    | "highlightoutput"
-    | "selected";
-
-type ShapeName =
-    | "args-bg"
-    | "args-text"
-    | "debug"
-    | "desc-text"
-    | "disabled"
-    | "collapse"
-    | "drag-down"
-    | "drag-right"
-    | "drag-src"
-    | "drag-up"
-    | "focus-halo"
-    | "icon"
-    | "id-text"
-    | "input-bg"
-    | "input-text"
-    | "key-shape"
-    | "name-bg"
-    | "name-line"
-    | "name-text"
-    | "override-bar"
-    | "output-bg"
-    | "output-text"
-    | "path-text"
-    | "selection-halo"
-    | "status"
-    | "subtree";
+type ShapeName = GraphNodeShapeName;
 
 type Constructor<T> = new (...args: any[]) => T;
 
@@ -92,305 +70,17 @@ const ROW_HEIGHT = 20;
 const LEFT_RAIL_WIDTH = 40;
 const RADIUS = 4;
 
-const readThemeCssVariable = (name: string, fallback: string): string => {
-    if (typeof document === "undefined") {
-        return fallback;
-    }
+let didRegisterGraphNode = false;
 
-    for (const element of [document.body, document.documentElement]) {
-        if (!element) {
-            continue;
-        }
-
-        const value = getComputedStyle(element).getPropertyValue(name).trim();
-        if (value) {
-            return value;
-        }
-    }
-
-    return fallback;
-};
-
-const readThemeCssNumber = (name: string, fallback: number): number => {
-    const rawValue = readThemeCssVariable(name, `${fallback}`);
-    const value = Number(rawValue);
-    return Number.isFinite(value) ? value : fallback;
-};
-
-export const getGraphThemeColor = (name: string, fallback: string): string =>
-    readThemeCssVariable(name, fallback);
-
-const getVectorTreeNodePalette = () => ({
-    // Keep the collapse control aligned with the V1 editor look instead of
-    // inheriting a themed dark pill from VS Code widget colors.
-    collapseBg: "#ffffff",
-    collapseBorder: "#666666",
-    collapseText: "#666666",
-    divider: readThemeCssVariable("--b3-node-divider", "#666666"),
-    dragSource: readThemeCssVariable("--b3-drag-source", "#ffa500"),
-    dropChild: readThemeCssVariable("--b3-drop-child", "#ff4d4f"),
-    focusColor: readThemeCssVariable("--b3-node-focus-color", "#ffab00"),
-    focusOpacity: readThemeCssNumber("--b3-node-focus-opacity", 0.45),
-    grayBorder: readThemeCssVariable("--b3-node-gray-border", "#30363d"),
-    grayFill: readThemeCssVariable("--b3-node-gray-fill", "#0d1117"),
-    grayRail: readThemeCssVariable("--b3-node-gray-rail", "#30363d"),
-    grayText: readThemeCssVariable("--b3-node-gray-text", "#666666"),
-    highlightBg: readThemeCssVariable("--b3-node-highlight-bg", "#0d1117"),
-    highlightText: readThemeCssVariable("--b3-node-highlight-text", "#ffffff"),
-    idStroke: readThemeCssVariable("--b3-node-id-stroke", "#000000"),
-    idText: readThemeCssVariable("--b3-node-id-text", "#ffffff"),
-    nodeBg: readThemeCssVariable("--b3-node-content-bg", "#ffffff"),
-    nodeText: readThemeCssVariable("--b3-node-text", "#111827"),
-    overrideBar: readThemeCssVariable("--b3-override-bar", "#d39a21"),
-    subtreeOutline: readThemeCssVariable("--b3-subtree-outline", "#a5b1be"),
-});
-
-type VectorTreeNodePalette = ReturnType<typeof getVectorTreeNodePalette>;
-
-const accentColorMap: Record<GraphNodeVM["nodeStyleKind"], string> = {
-    Action: "#1769dd",
-    Composite: "#34d800",
-    Condition: "#f72585",
-    Decorator: "#b2eb35",
-    Error: "#ff0000",
-    Other: "#707070",
-};
-
-const fallbackNodeIconMap: Record<GraphNodeVM["nodeStyleKind"], string> = {
-    Action: actionIconUrl,
-    Composite: compositeIconUrl,
-    Condition: conditionIconUrl,
-    Decorator: decoratorIconUrl,
-    Error: errorIconUrl,
-    Other: otherIconUrl,
-};
-
-const statusIconMap: Record<number, string> = {
-    0: status000IconUrl,
-    1: status001IconUrl,
-    2: status010IconUrl,
-    3: status011IconUrl,
-    4: status100IconUrl,
-    5: status101IconUrl,
-    6: status110IconUrl,
-    7: status111IconUrl,
-};
-
-let textMeasureContext: CanvasRenderingContext2D | null = null;
-let defaultFontSize = "";
-let defaultFontFamily = "";
-const textWidthCache = new Map<string, number>();
-const textLineCache = new Map<string, string[]>();
-let didRegisterVectorTreeNode = false;
-
-const getMeasureHost = (): HTMLElement | null =>
-    document.querySelector<HTMLElement>(".b3-shell") ?? document.body;
-
-const ensureMeasureStyle = (fontSize?: string) => {
-    const host = getMeasureHost();
-    const css = host ? getComputedStyle(host) : null;
-
-    if (!defaultFontSize) {
-        defaultFontSize = css?.fontSize || "13px";
-    }
-    if (!defaultFontFamily) {
-        defaultFontFamily = css?.fontFamily || "sans-serif";
-    }
-
-    return {
-        fontSize: fontSize ?? defaultFontSize,
-        fontFamily: defaultFontFamily,
-    };
-};
-
-const calcTextWidth = (text: string, fontSize?: string) => {
-    const { fontSize: resolvedFontSize, fontFamily } = ensureMeasureStyle(fontSize);
-    const key = `${text}-${resolvedFontSize}-${fontFamily}`;
-    const cachedWidth = textWidthCache.get(key);
-    if (cachedWidth !== undefined) {
-        return cachedWidth;
-    }
-
-    textMeasureContext ||= document.createElement("canvas").getContext("2d");
-    if (!textMeasureContext) {
-        return text.length * 13;
-    }
-
-    textMeasureContext.font = `${resolvedFontSize} ${fontFamily}`;
-    textMeasureContext.wordSpacing = "0px";
-    textMeasureContext.letterSpacing = "-0.5px";
-
-    let width = textMeasureContext.measureText(text).width;
-    width *= isMacos ? 0.88 : 0.98;
-    textWidthCache.set(key, width);
-
-    return width;
-};
-
-const calcTextLines = (value: string, maxWidth: number, fontSize?: string): string[] => {
-    const key = `${value}-${maxWidth}-${fontSize ?? ""}`;
-    const cachedLines = textLineCache.get(key);
-    if (cachedLines) {
-        return cachedLines;
-    }
-
-    const lines: string[] = [];
-    let remaining = value;
-
-    while (remaining.length > 0) {
-        let left = 0;
-        let right = remaining.length;
-
-        while (left < right) {
-            const middle = Math.floor((left + right + 1) / 2);
-            const chunk = remaining.slice(0, middle);
-            if (calcTextWidth(chunk, fontSize) <= maxWidth) {
-                left = middle;
-            } else {
-                right = middle - 1;
-            }
-        }
-
-        if (left > 0) {
-            lines.push(remaining.slice(0, left));
-            remaining = remaining.slice(left);
-            continue;
-        }
-
-        lines.push(remaining.slice(0, 1));
-        remaining = remaining.slice(1);
-    }
-
-    textLineCache.set(key, lines);
-    return lines;
-};
-
-const cutWordTo = (value: string, maxWidth: number, fontSize?: string) => {
-    const lines = calcTextLines(value, maxWidth, fontSize);
-    if (lines.length > 1) {
-        return `${lines[0].slice(0, -1)}...`;
-    }
-    return lines[0] ?? "";
-};
-
-const toBreakWord = (value: string, maxWidth: number, fontSize?: string) => {
-    const lines = calcTextLines(value, maxWidth, fontSize);
-    return {
-        str: lines.join("\n"),
-        line: lines.length,
-    };
-};
-
-const getInputText = (node: GraphNodeVM) => {
-    const labels = node.inputs.map((entry) => entry.label).filter(Boolean);
-    if (labels.length === 0) {
-        return { str: "", line: 0 };
-    }
-    return toBreakWord(`${i18n.t("regnode.input")}${stringifyCompactJson5(labels) ?? "[]"}`, 200);
-};
-
-const getOutputText = (node: GraphNodeVM) => {
-    const labels = node.outputs.map((entry) => entry.label).filter(Boolean);
-    if (labels.length === 0) {
-        return { str: "", line: 0 };
-    }
-    return toBreakWord(`${i18n.t("regnode.output")}${stringifyCompactJson5(labels) ?? "[]"}`, 200);
-};
-
-export const measureVectorTreeNode = (node: GraphNodeVM) => {
-    let height = 50 + 2;
-
-    if (node.subtreePath) {
-        height += ROW_HEIGHT;
-    }
-    if (node.argsText) {
-        height += toBreakWord(`${i18n.t("regnode.args")}${node.argsText}`, 200).line * ROW_HEIGHT;
-    }
-
-    const inputText = getInputText(node);
-    if (inputText.line > 0) {
-        height += inputText.line * ROW_HEIGHT;
-    }
-
-    const outputText = getOutputText(node);
-    if (outputText.line > 0) {
-        height += outputText.line * ROW_HEIGHT;
-    }
-
-    return {
-        width: G6_VECTOR_NODE_WIDTH,
-        height: Math.max(G6_VECTOR_NODE_MIN_HEIGHT, height),
-    };
-};
-
-export type VectorTreeNodeStateStyleMap = {
-    [s in VectorTreeNodeState]?: { [n in ShapeName]?: NodeStyle };
-};
-
-export const getVectorTreeNodeStateStyle = (): VectorTreeNodeStateStyleMap => {
-    const palette = getVectorTreeNodePalette();
-
-    return {
-        dragsrc: {
-            "drag-src": { visibility: "visible" },
-        },
-        dragup: {
-            "drag-up": { visibility: "visible" },
-        },
-        dragdown: {
-            "drag-down": { visibility: "visible" },
-        },
-        dragright: {
-            "drag-right": { visibility: "visible" },
-        },
-        focused: {
-            "focus-halo": { visibility: "visible" },
-        },
-        highlightargs: {
-            "args-bg": { visibility: "visible" },
-            "args-text": { fill: palette.highlightText },
-        },
-        highlightinput: {
-            "input-bg": { visibility: "visible" },
-            "input-text": { fill: palette.highlightText },
-        },
-        highlightoutput: {
-            "output-bg": { visibility: "visible" },
-            "output-text": { fill: palette.highlightText },
-        },
-        highlightgray: {
-            collapse: { opacity: 0.45 },
-            "desc-text": { fill: palette.grayText },
-            debug: { opacity: 0.45 },
-            disabled: { opacity: 0.45 },
-            icon: { opacity: 0.45 },
-            "id-text": { fill: palette.grayText, stroke: palette.idStroke },
-            "input-text": { fill: palette.grayText },
-            "key-shape": { fill: palette.grayFill, stroke: palette.grayBorder },
-            "name-bg": { fill: palette.grayRail },
-            "name-line": { stroke: palette.divider },
-            "name-text": { fill: palette.grayText },
-            "override-bar": { opacity: 0.45 },
-            "output-text": { fill: palette.grayText },
-            "path-text": { fill: palette.grayText },
-            status: { opacity: 0.45 },
-            "args-text": { fill: palette.grayText },
-        },
-        selected: {
-            "selection-halo": { visibility: "visible" },
-        },
-    };
-};
-
-class VectorTreeNode extends Rect {
-    private width = G6_VECTOR_NODE_WIDTH;
-    private height = G6_VECTOR_NODE_MIN_HEIGHT;
+class GraphNode extends Rect {
+    private width = G6_GRAPH_NODE_WIDTH;
+    private height = G6_GRAPH_NODE_MIN_HEIGHT;
     private radius = RADIUS;
     private node!: GraphNodeVM;
     private accent = accentColorMap.Other;
     private contentY = CONTENT_Y;
-    private states: VectorTreeNodeState[] = [];
-    private palette: VectorTreeNodePalette = getVectorTreeNodePalette();
+    private states: GraphNodeState[] = [];
+    private palette: GraphNodePalette = getGraphNodePalette();
 
     protected override getKeyStyle(attributes: Required<RectStyleProps>) {
         const style = super.getKeyStyle(attributes);
@@ -892,10 +582,10 @@ class VectorTreeNode extends Rect {
 
     render(attributes?: Required<RectStyleProps>, container?: Group): void {
         const node = this.context.model.getNodeLikeDatum(this.id) as G6NodeData;
-        const data = node.data as unknown as VectorTreeNodeDatum;
+        const data = node.data as unknown as GraphNodeDatum;
 
         this.node = data.vm;
-        this.palette = getVectorTreeNodePalette();
+        this.palette = getGraphNodePalette();
         this.width = data.width;
         this.height = data.height;
         this.accent =
@@ -903,7 +593,7 @@ class VectorTreeNode extends Rect {
             accentColorMap[this.node.nodeStyleKind] ??
             accentColorMap.Other;
         this.contentY = CONTENT_Y;
-        this.states = this.context.graph.getElementState(this.id) as VectorTreeNodeState[];
+        this.states = this.context.graph.getElementState(this.id) as GraphNodeState[];
         this.resetStyle();
 
         if (!attributes || !container) {
@@ -959,7 +649,7 @@ class VectorTreeNode extends Rect {
 
     private resetStyle() {
         const style = this.context.graph.getOptions().node?.state as
-            | VectorTreeNodeStateStyleMap
+            | GraphNodeStateStyleMap
             | undefined;
         if (!style) {
             return;
@@ -967,7 +657,7 @@ class VectorTreeNode extends Rect {
 
         const keys: Set<string> = new Set();
         Object.keys(style).forEach((state) => {
-            for (const key in style[state as VectorTreeNodeState]) {
+            for (const key in style[state as GraphNodeState]) {
                 keys.add(key);
             }
         });
@@ -988,11 +678,11 @@ class VectorTreeNode extends Rect {
     }
 }
 
-export const registerVectorTreeNode = () => {
-    if (didRegisterVectorTreeNode) {
+export const registerGraphNode = () => {
+    if (didRegisterGraphNode) {
         return;
     }
 
-    register(ExtensionCategory.NODE, G6_VECTOR_TREE_NODE_TYPE, VectorTreeNode);
-    didRegisterVectorTreeNode = true;
+    register(ExtensionCategory.NODE, G6_GRAPH_NODE_TYPE, GraphNode);
+    didRegisterGraphNode = true;
 };
