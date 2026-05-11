@@ -6,7 +6,7 @@ import {
     readFileContentFromDisk,
 } from "./document/document-sync";
 import { getBehavior3OutputChannel } from "../output-channel";
-import { getNewerFileVersion, getNewerVersionMessage } from "./document/file-version";
+import { createFileVersionGuard } from "./document/file-version-guard";
 import {
     logAsyncRuntimeError,
     logRuntimeError,
@@ -19,7 +19,6 @@ import {
 import { readWorkspaceFileContent } from "./files/paths";
 import { applySharedSelectionState } from "./selection";
 import { getVSCodeTheme } from "./settings/editor-settings";
-import { readExistingNewerFileEditMessage } from "./document/subtree-save-guards";
 import { createSessionFileRequestHandlers } from "./files/file-request-handlers";
 import {
     createTreeEditorSessionContext,
@@ -126,6 +125,13 @@ export async function resolveTreeEditorSession(
         flushTrackedSubtreeRefresh,
         clearSubtreeRefreshTimer,
     } = subtreeTracking;
+    const fileVersionGuard = createFileVersionGuard(context);
+    const {
+        updateFileVersionState,
+        getActiveNewerFileEditMessage,
+        blockEditingForNewerFile,
+        getExistingNewerFileEditMessage,
+    } = fileVersionGuard;
 
     const updateSharedSelection = (
         selection: HostSelectionState,
@@ -237,24 +243,6 @@ export async function resolveTreeEditorSession(
             readWorkspaceFileContent,
         });
 
-    const updateFileVersionState = (content: string, opts?: { showWarning?: boolean }): void => {
-        state.fileVersionIsNewer = false;
-        state.newerFileVersion = null;
-
-        const fileVersion = getNewerFileVersion(content);
-        if (!fileVersion) {
-            return;
-        }
-
-        state.fileVersionIsNewer = true;
-        state.newerFileVersion = fileVersion;
-        if (opts?.showWarning) {
-            vscode.window.showWarningMessage(
-                getNewerVersionMessage(state.currentSettings.language, fileVersion, "warn")
-            );
-        }
-    };
-
     /**
      * Normalize webview JSON before it becomes the document source of truth.
      * This is the earliest point where we can refresh subtree tracking and
@@ -296,34 +284,6 @@ export async function resolveTreeEditorSession(
             syncKind: "update",
         });
         return true;
-    };
-
-    const getActiveNewerFileEditMessage = (): string | null => {
-        updateFileVersionState(document.content);
-        const fileVersion = state.newerFileVersion;
-        if (!state.fileVersionIsNewer || !fileVersion) {
-            return null;
-        }
-
-        return getNewerVersionMessage(state.currentSettings.language, fileVersion, "edit");
-    };
-
-    const blockEditingForNewerFile = (): string | null => {
-        const message = getActiveNewerFileEditMessage();
-        if (!message) {
-            return null;
-        }
-
-        vscode.window.showErrorMessage(message);
-        return message;
-    };
-
-    const getExistingNewerFileEditMessage = async (fileUri: vscode.Uri): Promise<string | null> => {
-        return readExistingNewerFileEditMessage(
-            fileUri,
-            state.currentSettings.language,
-            readWorkspaceFileContent
-        );
     };
 
     const fileRequestHandlers = createSessionFileRequestHandlers({
