@@ -110,6 +110,7 @@ export const normalizeHostInitMessage = (
         subtreeEditable: message.subtreeEditable,
         language: message.language,
         theme: message.theme,
+        inspectorMode: message.inspectorMode,
         nodeColors: message.nodeColors,
     };
 

@@ -166,6 +166,7 @@
   "editor.reloadFromDisk": "重新载入",
   "editor.dismissConflict": "忽略",
   "inspector.noActiveDocument": "打开一个 Behavior3 编辑器后，这里会显示当前行为树的 Inspector，并支持直接编辑。",
+  "inspector.embeddedModeNotice": "Inspector 当前配置为在 Behavior3 编辑器内部显示。",
 
   "override.resetTitle": "重置此覆盖？",
 

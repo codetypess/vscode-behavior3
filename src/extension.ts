@@ -22,6 +22,7 @@ const getVSCodeTheme = (): "dark" | "light" => {
 };
 
 export function activate(context: vscode.ExtensionContext) {
+    const config = vscode.workspace.getConfiguration("behavior3");
     const out = getBehavior3OutputChannel();
     context.subscriptions.push(out);
     setLogger(composeLoggers(createConsoleLogger(), createLogOutputChannelLogger(out)));
@@ -31,6 +32,9 @@ export function activate(context: vscode.ExtensionContext) {
     const inspectorProvider = new InspectorSidebarProvider(
         context.extensionUri,
         inspectorCoordinator
+    );
+    inspectorCoordinator.setInspectorMode(
+        config.get<"sidebar" | "embedded">("inspectorMode", "sidebar")
     );
     inspectorCoordinator.setMessageDispatcher((documentUri, message, reply) =>
         TreeEditorProvider.dispatchMessageToDocument(documentUri, message, reply)
@@ -74,6 +78,16 @@ export function activate(context: vscode.ExtensionContext) {
     }));
     context.subscriptions.push(vscode.window.onDidChangeActiveColorTheme(() => {
         inspectorCoordinator.setTheme(getVSCodeTheme());
+    }));
+    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((event) => {
+        if (!event.affectsConfiguration("behavior3.inspectorMode")) {
+            return;
+        }
+        inspectorCoordinator.setInspectorMode(
+            vscode.workspace
+                .getConfiguration("behavior3")
+                .get<"sidebar" | "embedded">("inspectorMode", "sidebar")
+        );
     }));
 
     // Auto-open JSON files with Behavior3 editor only when they look like trees and

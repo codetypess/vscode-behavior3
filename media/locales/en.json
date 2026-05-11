@@ -167,6 +167,7 @@
   "editor.reloadFromDisk": "Reload",
   "editor.dismissConflict": "Dismiss",
   "inspector.noActiveDocument": "Open a Behavior3 editor to inspect and edit the active tree.",
+  "inspector.embeddedModeNotice": "Inspector is configured to appear inside the Behavior3 editor.",
 
   "override.resetTitle": "Reset this override?",
 

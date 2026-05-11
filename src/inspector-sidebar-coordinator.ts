@@ -40,11 +40,26 @@ const stripSnapshotTransportFields = (
     return rest;
 };
 
+const buildEmbeddedModeSettingsMessage = (
+    snapshot: InspectorSessionSnapshot | null
+): Extract<HostToEditorMessage, { type: "settingLoaded" }> => ({
+    type: "settingLoaded",
+    nodeDefs: snapshot?.initMessage.nodeDefs ?? [],
+    settings: {
+        checkExpr: snapshot?.initMessage.checkExpr,
+        subtreeEditable: snapshot?.initMessage.subtreeEditable,
+        language: snapshot?.initMessage.language,
+        inspectorMode: "embedded",
+        nodeColors: snapshot?.initMessage.nodeColors,
+    },
+});
+
 export class InspectorSidebarCoordinator {
     private readonly sessionSnapshots = new Map<string, InspectorSessionSnapshot>();
     private view: vscode.WebviewView | null = null;
     private viewReady = false;
     private activeDocumentUri: string | null = null;
+    private inspectorMode: "sidebar" | "embedded" = "sidebar";
     private revealInFlight = false;
     private sessionMessageDispatcher:
         | ((
@@ -79,6 +94,14 @@ export class InspectorSidebarCoordinator {
         this.viewReady = false;
     }
 
+    setInspectorMode(mode: "sidebar" | "embedded"): void {
+        this.inspectorMode = mode;
+        if (!this.viewReady) {
+            return;
+        }
+        void this.postActiveSnapshot();
+    }
+
     setTheme(theme: "dark" | "light"): void {
         for (const [documentUri, snapshot] of this.sessionSnapshots) {
             this.sessionSnapshots.set(documentUri, {
@@ -105,7 +128,18 @@ export class InspectorSidebarCoordinator {
             return;
         }
 
-        if (!previous || previous.selectionRevision !== snapshot.selectionRevision) {
+        if (this.inspectorMode === "embedded") {
+            if (!this.viewReady) {
+                return;
+            }
+            void this.postEmbeddedModeState(snapshot);
+            return;
+        }
+
+        if (
+            this.inspectorMode === "sidebar" &&
+            (!previous || previous.selectionRevision !== snapshot.selectionRevision)
+        ) {
             void this.revealInspectorView();
         }
 
@@ -160,7 +194,11 @@ export class InspectorSidebarCoordinator {
             this.sessionSnapshots.set(documentUri, nextSnapshot);
         }
 
-        if (documentUri !== this.activeDocumentUri || !this.viewReady) {
+        if (
+            this.inspectorMode === "embedded" ||
+            documentUri !== this.activeDocumentUri ||
+            !this.viewReady
+        ) {
             return;
         }
         if (!snapshot) {
@@ -181,7 +219,11 @@ export class InspectorSidebarCoordinator {
         const previousDocumentUri = this.activeDocumentUri;
         this.activeDocumentUri = documentUri;
 
-        if (documentUri && documentUri !== previousDocumentUri) {
+        if (
+            this.inspectorMode === "sidebar" &&
+            documentUri &&
+            documentUri !== previousDocumentUri
+        ) {
             void this.revealInspectorView();
         }
 
@@ -217,6 +259,14 @@ export class InspectorSidebarCoordinator {
     }
 
     private async postActiveSnapshot(): Promise<void> {
+        if (this.inspectorMode === "embedded") {
+            const snapshot = this.activeDocumentUri
+                ? this.sessionSnapshots.get(this.activeDocumentUri) ?? null
+                : null;
+            await this.postEmbeddedModeState(snapshot);
+            return;
+        }
+
         const snapshot =
             (this.activeDocumentUri && this.sessionSnapshots.get(this.activeDocumentUri)) ?? null;
 
@@ -231,6 +281,11 @@ export class InspectorSidebarCoordinator {
     private async postFullSnapshot(snapshot: InspectorSessionSnapshot): Promise<void> {
         await this.postMessage(snapshot.initMessage);
         await this.postMessage(snapshot.varsMessage);
+    }
+
+    private async postEmbeddedModeState(snapshot: InspectorSessionSnapshot | null): Promise<void> {
+        await this.postMessage(buildEmbeddedModeSettingsMessage(snapshot));
+        await this.postMessage({ type: "inspectorContextCleared" });
     }
 
     private async postMessage(message: HostToEditorMessage): Promise<void> {

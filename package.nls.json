@@ -21,5 +21,8 @@
   "configuration.language.auto": "Follow VS Code display language",
   "configuration.language.zh": "Force Chinese",
   "configuration.language.en": "Force English",
-  "configuration.subtreeEditable.description": "Allow editing subtree node properties in the Inspector, including input, output, and arguments. When enabled, $override can override node properties inside subtrees. When disabled, subtree internal nodes are read-only."
+  "configuration.subtreeEditable.description": "Allow editing subtree node properties in the Inspector, including input, output, and arguments. When enabled, $override can override node properties inside subtrees. When disabled, subtree internal nodes are read-only.",
+  "configuration.inspectorMode.description": "Choose where the Inspector is shown.",
+  "configuration.inspectorMode.sidebar": "Show the Inspector in the dedicated VS Code sidebar.",
+  "configuration.inspectorMode.embedded": "Show the Inspector inside the Behavior3 editor."
 }

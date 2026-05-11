@@ -53,6 +53,7 @@ export interface Settings {
     subtreeEditable: boolean;
     language: "zh" | "en";
     theme: "dark" | "light";
+    inspectorMode: "sidebar" | "embedded";
     nodeColors?: Record<string, string>;
 }
 

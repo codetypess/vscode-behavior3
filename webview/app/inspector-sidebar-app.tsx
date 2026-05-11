@@ -200,6 +200,7 @@ const SidebarShell: React.FC = () => {
     const runtime = useRuntime();
     const { t } = useTranslation();
     const theme = useWorkspaceStore((state) => state.settings.theme);
+    const inspectorMode = useWorkspaceStore((state) => state.settings.inspectorMode);
     const hasDocument = useDocumentStore((state) => state.persistedTree !== null);
 
     useLayoutEffect(() => {
@@ -258,6 +259,16 @@ const SidebarShell: React.FC = () => {
             window.removeEventListener("keydown", handleKeyDown, true);
         };
     }, [hasDocument, runtime]);
+
+    if (inspectorMode === "embedded") {
+        return (
+            <Flex className="b3-inspector-empty" justify="center" align="center">
+                <Typography.Text type="secondary">
+                    {t("inspector.embeddedModeNotice")}
+                </Typography.Text>
+            </Flex>
+        );
+    }
 
     return hasDocument ? (
         <InspectorModeProvider>

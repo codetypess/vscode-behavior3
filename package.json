@@ -243,6 +243,19 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.subtreeEditable.description%"
+        },
+        "behavior3.inspectorMode": {
+          "type": "string",
+          "default": "sidebar",
+          "enum": [
+            "sidebar",
+            "embedded"
+          ],
+          "enumDescriptions": [
+            "%configuration.inspectorMode.sidebar%",
+            "%configuration.inspectorMode.embedded%"
+          ],
+          "description": "%configuration.inspectorMode.description%"
         }
       }
     }

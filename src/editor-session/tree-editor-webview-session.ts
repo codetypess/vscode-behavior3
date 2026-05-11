@@ -94,6 +94,7 @@ interface EditorLiveSettings {
     checkExpr: boolean;
     subtreeEditable: boolean;
     language: EditorLanguage;
+    inspectorMode: "sidebar" | "embedded";
     nodeColors?: Record<string, string>;
 }
 
@@ -142,6 +143,7 @@ function createLiveSettingsResolver(
             checkExpr: config.get<boolean>("checkExpr", true),
             subtreeEditable: config.get<boolean>("subtreeEditable", true),
             language: getEditorLanguage(config.get<string>("language", "auto")),
+            inspectorMode: config.get<"sidebar" | "embedded">("inspectorMode", "sidebar"),
             nodeColors: await resolveWorkspaceNodeColors(workspaceFolderUri, documentUri),
         };
     };
@@ -311,6 +313,7 @@ export async function resolveTreeEditorSession({
                 subtreeEditable: state.currentSettings.subtreeEditable,
                 language: state.currentSettings.language,
                 theme: getVSCodeTheme(),
+                inspectorMode: state.currentSettings.inspectorMode,
                 allFiles: state.latestAllFiles,
                 nodeColors: state.currentSettings.nodeColors,
                 documentSession,
@@ -700,6 +703,7 @@ export async function resolveTreeEditorSession({
             subtreeEditable: state.currentSettings.subtreeEditable,
             language: state.currentSettings.language,
             theme,
+            inspectorMode: state.currentSettings.inspectorMode,
             allFiles: state.latestAllFiles,
             nodeColors: state.currentSettings.nodeColors,
             documentSession: buildDocumentSessionMessage(),

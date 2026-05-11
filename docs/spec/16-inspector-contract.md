@@ -2,24 +2,36 @@
 
 ## 目的
 
-当前 Inspector 是一个独立的 VS Code Sidebar webview，用于展示并编辑当前激活 Behavior3 编辑器的树与节点上下文。
+当前 Inspector 用于展示并编辑当前 Behavior3 编辑器的树与节点上下文。
+
+它支持两种展示模式：
+
+- `sidebar`
+- `embedded`
 
 它与主编辑器共享同一套业务语义，但不直接拥有主文档真源。
 
 ## 总体原则
 
-### Principle 1. Inspector 是独立侧栏，而不是主编辑器内面板
+### Principle 1. Inspector 只启用一个展示入口
 
-当前主编辑器只显示画布；Tree Inspector 与 Node Inspector 运行在独立 sidebar 中。
+当前产品通过配置在两种模式中二选一：
+
+- `sidebar`：Tree Inspector 与 Node Inspector 运行在独立 sidebar 中
+- `embedded`：Tree Inspector 与 Node Inspector 运行在主编辑器内嵌面板中
+
+不支持两处同时作为活跃编辑入口。
 
 ### Principle 2. Inspector 通过宿主代理修改主文档
 
-侧栏中的树/节点编辑不会直接改 `persistedTree`，而是通过：
+`sidebar` 模式下的树/节点编辑不会直接改 `persistedTree`，而是通过：
 
 1. `mutateDocument`
 2. 宿主定位当前激活主编辑器对应的 extension-host session
 3. host session 执行真实 mutation 并提交权威文档状态
 4. 宿主再把结果与最新上下文回传侧栏
+
+`embedded` 模式下的 Inspector 运行在当前 editor webview 内，直接复用当前 runtime/controller，但最终 mutation 仍走相同的 host-first 提交流程。
 
 ### Principle 3. Inspector 既展示结构，也展示校验与降级信息
 
@@ -37,15 +49,19 @@ Inspector 不只是字段表单，还需要表达：
 - 显示空状态文案
 - 不保留上一份文档的陈旧字段
 
+### Embedded Mode Notice
+
+- 当当前入口不是启用的 Inspector 模式时，显示提示态而不是第二个可编辑入口
+
 ### Tree Selected
 
 - 显示 Tree Inspector
-- 即使当前共享选中仍然是同一棵 tree，重复的显式 tree 选中手势也应重新激活 Inspector Sidebar，而不是要求用户先切到别的选中目标
+- `sidebar` 模式下，即使当前共享选中仍然是同一棵 tree，重复的显式 tree 选中手势也应重新激活 Inspector Sidebar，而不是要求用户先切到别的选中目标
 
 ### Node Selected
 
 - 显示 Node Inspector
-- 即使当前共享选中仍然是同一逻辑节点，重复的显式节点选中手势也应重新激活 Inspector Sidebar，而不是要求用户先切到别的节点
+- `sidebar` 模式下，即使当前共享选中仍然是同一逻辑节点，重复的显式节点选中手势也应重新激活 Inspector Sidebar，而不是要求用户先切到别的节点
 - 若 host 已确认当前为 node selection，但新文档 graph 仍在重建、`selectedNodeSnapshot` 尚未恢复，Inspector 仍停留在 node 通道，并显示 pending/loading 态，而不是闪回 Tree Inspector
 - 若当前文档此前已经成功渲染过同一逻辑节点，Inspector 可先复用该文档缓存的 node snapshot，待真实 snapshot 恢复后再覆盖，从而避免重复 loading 动画
 
@@ -239,17 +255,17 @@ Inspector 不只是字段表单，还需要表达：
 - `oneof` 这类显式耦合字段允许继续按局部约束拒绝提交
 - slot label、required、variadic 与 node arg type/options 校验使用 shared state-free validation helper；`oneof` 这类局部耦合校验可在 Inspector 侧组合 shared helper 与当前表单上下文，不能在 Inspector 局部再实现一套平行基础规则
 
-Sidebar 在执行保存、撤销、重做前，会先 flush 待提交的 Inspector 编辑。
+`sidebar` 模式下，在执行保存、撤销、重做前，会先 flush 待提交的 Inspector 编辑。
 
 ## 变量聚焦契约
 
-- 侧栏中点击变量行时，发送 raw `requestFocusVariable`，请求宿主把变量聚焦 relay 给当前主编辑器
+- `sidebar` 模式下点击变量行时，发送 raw `requestFocusVariable`，请求宿主把变量聚焦 relay 给当前主编辑器
 - 主编辑器图层热点点击也会驱动相同变量聚焦语义
 - 变量聚焦不直接修改文档，只影响 editor-local graph UI 视觉状态
 - 变量聚焦不写入 `init` / `documentSnapshotChanged`，也不跨 reload/save/undo/redo 持久化
 
 ## 验收要点
 
-- 侧栏永远展示当前激活 Behavior3 编辑器的上下文
+- 当前启用的 Inspector 展示面永远展示当前激活 Behavior3 编辑器的上下文
 - Tree Inspector 与 Node Inspector 的字段、校验和提交路径稳定
 - subtree override 与 resolution error 能在 UI 中明确表达

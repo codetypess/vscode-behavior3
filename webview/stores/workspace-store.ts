@@ -41,6 +41,7 @@ export const createInitialWorkspaceState = (): WorkspaceState => ({
         subtreeEditable: true,
         language: "zh",
         theme: detectInitialThemeMode(),
+        inspectorMode: "sidebar",
     },
     themeVersion: 0,
     usingVars: null,

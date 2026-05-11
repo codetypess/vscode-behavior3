@@ -1,6 +1,8 @@
 import { App as AntdApp, ConfigProvider, Flex, Layout, Typography } from "antd";
 import React, { useEffect, useLayoutEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { InspectorPane } from "../features/inspector/inspector-pane";
+import { InspectorModeProvider } from "../features/inspector/inspector-mode";
 import { getAntdLocale } from "../shared/antd";
 import i18n, { setI18nLanguage } from "../shared/i18n";
 import { getThemeConfig } from "../shared/theme";
@@ -9,15 +11,16 @@ import { applyDocumentTheme } from "../shared/webview-env";
 import type { HostEvent } from "../shared/contracts";
 import { applyWorkspaceTheme, mergeWorkspaceSettings } from "../stores/workspace-store";
 import { GlobalHooksBridge } from "./global-hooks-bridge";
-import { useAppShellState, useAppThemeState, useRuntime } from "./runtime";
+import { useAppShellState, useAppThemeState, useRuntime, useWorkspaceStore } from "./runtime";
 
-const { Content } = Layout;
+const { Content, Sider } = Layout;
 
 const AppShell: React.FC = () => {
     const runtime = useRuntime();
     const { message: messageApi } = AntdApp.useApp();
     const { t } = useTranslation();
     const { theme, language, hasDocument } = useAppShellState();
+    const inspectorMode = useWorkspaceStore((state) => state.settings.inspectorMode);
 
     useEffect(() => {
         const applyThemeChange = (theme: "dark" | "light") => {
@@ -148,6 +151,13 @@ const AppShell: React.FC = () => {
                         </Flex>
                     )}
                 </Content>
+                {inspectorMode === "embedded" ? (
+                    <Sider width={380} className="b3-sider b3-sider-embedded">
+                        <InspectorModeProvider>
+                            <InspectorPane />
+                        </InspectorModeProvider>
+                    </Sider>
+                ) : null}
             </Layout>
         </Layout>
     );

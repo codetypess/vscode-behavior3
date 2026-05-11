@@ -21,5 +21,8 @@
   "configuration.language.auto": "跟随 VS Code 显示语言",
   "configuration.language.zh": "强制中文",
   "configuration.language.en": "强制英文",
-  "configuration.subtreeEditable.description": "允许在 Inspector 中编辑子树节点的属性，包括输入、输出和参数。启用时可通过 $override 覆盖子树中的节点属性；禁用时子树内部节点为只读。"
+  "configuration.subtreeEditable.description": "允许在 Inspector 中编辑子树节点的属性，包括输入、输出和参数。启用时可通过 $override 覆盖子树中的节点属性；禁用时子树内部节点为只读。",
+  "configuration.inspectorMode.description": "选择 Inspector 的显示位置。",
+  "configuration.inspectorMode.sidebar": "在独立的 VS Code 侧栏中显示 Inspector。",
+  "configuration.inspectorMode.embedded": "在 Behavior3 编辑器内部显示 Inspector。"
 }

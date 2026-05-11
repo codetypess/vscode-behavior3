@@ -241,6 +241,7 @@ Scope: <short boundary>
 - `node-required-arg-error-state.md` - `Verifying` - 让节点必填参数缺失时同步进入 graph Error 风格
 - `inspector-independent-field-commit.md` - `Verifying` - 将 Inspector 从整表校验提交改为字段级独立提交
 - `graph-resize-viewport-stability.md` - `Verifying` - 调整 inspector 宽度时保持已缩放画布的 viewport 稳定，不让节点整体漂移
+- `inspector-mode-config.md` - `Implementing` - 让 Inspector 支持 `sidebar` 与 `embedded` 二选一配置
 ## Retained Done Work Items
 
 - `selection-reassert-reveals-inspector.md` - `Done` - 同一 tree/node 重复点击时仍要重新激活 inspector sidebar

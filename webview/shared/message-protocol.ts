@@ -59,6 +59,7 @@ export type HostToEditorMessage =
           subtreeEditable: boolean;
           language: "zh" | "en";
           theme: "dark" | "light";
+          inspectorMode: "sidebar" | "embedded";
           allFiles: string[];
           nodeColors?: Record<string, string>;
           documentSession: HostDocumentSessionState;
@@ -80,6 +81,7 @@ export type HostToEditorMessage =
               checkExpr?: boolean;
               subtreeEditable?: boolean;
               language?: "zh" | "en";
+              inspectorMode?: "sidebar" | "embedded";
               nodeColors?: Record<string, string>;
           };
       }
