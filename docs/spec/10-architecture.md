@@ -214,6 +214,7 @@ Adapters / Features
 - `src/editor-session/`
     - `tree-editor-webview-session.ts` owns host session orchestration
     - `session-context.ts` owns explicit session startup context, derived workspace/project state, and shared session runtime dependencies
+    - `session-document-lifecycle.ts` owns save/revert/history navigation and main document external-file-change handling
     - `session-inspector-sync.ts` owns Inspector/sidebar session snapshot fanout and latest var metadata refresh
     - `session-messages.ts` owns host/editor message DTO construction helpers
     - `session-node-checks.ts` owns `validateNodeChecks` runtime creation and response formatting
