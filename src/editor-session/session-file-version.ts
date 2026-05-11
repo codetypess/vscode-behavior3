@@ -1,4 +1,5 @@
 import { isDocumentVersionNewer } from "../../webview/shared/document";
+import { translateRuntimeMessage } from "../../webview/shared/runtime-i18n";
 import type { EditorLanguage } from "./session-settings";
 
 export function getTreeFileVersion(content: string): string | undefined {
@@ -21,14 +22,14 @@ export function getNewerVersionMessage(
     mode: "warn" | "edit"
 ): string {
     if (mode === "warn") {
-        return language === "zh"
-            ? `此文件由新版本 Behavior3(${fileVersion}) 创建，请升级到最新版本。`
-            : `This file is created by a newer version of Behavior3(${fileVersion}), please upgrade to the latest version.`;
+        return translateRuntimeMessage(language, "alertNewVersion", {
+            version: fileVersion,
+        });
     }
 
-    return language === "zh"
-        ? `此文件由新版本 Behavior3(${fileVersion}) 创建，请升级到最新版本后再编辑。`
-        : `This file is created by a newer version of Behavior3(${fileVersion}). Please upgrade to the latest version.`;
+    return translateRuntimeMessage(language, "editor.newerVersionEditDenied", {
+        version: fileVersion,
+    });
 }
 
 export function getNewerFileEditMessage(language: EditorLanguage, content: string): string | null {

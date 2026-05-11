@@ -19,6 +19,7 @@
 - [`message-protocol.ts`](../../webview/shared/message-protocol.ts)
 - [`host-request-spec.ts`](../../webview/shared/host-request-spec.ts)
 - [`protocol.ts`](../../webview/shared/protocol.ts)
+- [`runtime-i18n.ts`](../../webview/shared/runtime-i18n.ts)
 
 当前稳定关注点：
 
@@ -31,6 +32,12 @@
 - `EditorCommand`
 
 运行时基础 hook 由 `webview/app/runtime.tsx` 提供；Inspector 与 Graph 的 projection selector 属于各自 feature 目录，不能反向塞回 app runtime。
+
+shared runtime 文案约束：
+
+- `webview/shared/runtime-i18n.ts` 是 host-safe / shared-safe 的纯运行时翻译 helper。
+- extension-host 与 `webview/shared/**` 的运行时错误/提示文案若需要尊重 `settings.language`，应走这个 pure helper，而不是依赖 `webview/shared/i18n.ts`。
+- `webview/shared/i18n.ts` 只负责 webview React runtime 的 `i18next` 初始化、语言切换与浏览器环境对接。
 
 ## 状态归属表
 

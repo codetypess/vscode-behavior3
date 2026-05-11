@@ -3,6 +3,11 @@ import { initReactI18next } from "react-i18next";
 
 import enTranslation from "../../media/locales/en.json";
 import zhTranslation from "../../media/locales/zh.json";
+import {
+    normalizeI18nLanguage,
+    supportedLanguages,
+    type SupportedLanguage,
+} from "./runtime-i18n";
 
 declare module "i18next" {
     interface CustomTypeOptions {
@@ -10,13 +15,7 @@ declare module "i18next" {
     }
 }
 
-export const supportedLanguages = ["en", "zh"] as const;
-export type SupportedLanguage = (typeof supportedLanguages)[number];
-
-export const normalizeI18nLanguage = (language?: string | null): SupportedLanguage => {
-    const value = (language ?? "").toLowerCase();
-    return value.startsWith("zh") ? "zh" : "en";
-};
+export { supportedLanguages, type SupportedLanguage, normalizeI18nLanguage } from "./runtime-i18n";
 
 const getInitialLanguage = (): SupportedLanguage => {
     if (typeof document !== "undefined" && document.documentElement.lang) {

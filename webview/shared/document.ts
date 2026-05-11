@@ -11,6 +11,7 @@ import type {
 import { isJsonEqual } from "./json";
 import { createNodeDefMap, findNodeDef } from "./node-utils";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
+import { translateRuntimeMessage, type SupportedLanguage } from "./runtime-i18n";
 import {
     cloneJsonValue,
     clonePersistedNode,
@@ -722,68 +723,48 @@ export const reduceDocumentMutation = (
 
 export const formatDocumentMutationReducerError = (
     error: DocumentMutationReducerError,
-    language: "zh" | "en"
+    language: SupportedLanguage
 ): string => {
     switch (error.code) {
         case "invalid-json-path":
-            return language === "zh"
-                ? `无效的 JSON 路径: ${error.path}`
-                : `Invalid JSON path: ${error.path}`;
+            return translateRuntimeMessage(language, "mutation.invalidJsonPath", {
+                path: error.path,
+            });
 
         case "missing-selected-node":
-            return language === "zh"
-                ? "当前没有可用于提交此修改的选中节点。"
-                : "No selected node is available for this mutation.";
+            return translateRuntimeMessage(language, "mutation.missingSelectedNode");
 
         case "selected-node-mismatch":
-            return language === "zh"
-                ? "当前选中节点已变化，请重试。"
-                : "The selected node changed before the mutation was applied.";
+            return translateRuntimeMessage(language, "mutation.selectedNodeMismatch");
 
         case "missing-target-node":
-            return language === "zh"
-                ? "未找到目标节点，请重试。"
-                : "The target node could not be found.";
+            return translateRuntimeMessage(language, "mutation.missingTargetNode");
 
         case "missing-source-node":
-            return language === "zh"
-                ? "未找到源节点，请重试。"
-                : "The source node could not be found.";
+            return translateRuntimeMessage(language, "mutation.missingSourceNode");
 
         case "missing-subtree-original":
-            return language === "zh"
-                ? "缺少 subtree 原始节点快照，请重试。"
-                : "Missing subtree original snapshot for this mutation.";
+            return translateRuntimeMessage(language, "mutation.missingSubtreeOriginal");
 
         case "missing-detached-subtree-root":
-            return language === "zh"
-                ? "缺少用于解绑 subtree 引用的快照，请重试。"
-                : "Missing detached subtree snapshot for this mutation.";
+            return translateRuntimeMessage(language, "mutation.missingDetachedSubtreeRoot");
 
         case "move-root-denied":
-            return language === "zh" ? "不能移动根节点。" : "Cannot move the root node.";
+            return translateRuntimeMessage(language, "mutation.moveRootDenied");
 
         case "drop-around-root-denied":
-            return language === "zh"
-                ? "不能围绕根节点插入。"
-                : "Cannot drop before or after the root node.";
+            return translateRuntimeMessage(language, "mutation.dropAroundRootDenied");
 
         case "add-child-to-subtree-ref-denied":
-            return language === "zh"
-                ? "不能直接向 subtree 引用添加子节点。"
-                : "Cannot add a child directly to a subtree reference.";
+            return translateRuntimeMessage(language, "mutation.addChildToSubtreeRefDenied");
 
         case "move-into-descendant-denied":
-            return language === "zh"
-                ? "不能移动到自己的后代下。"
-                : "Cannot move a node into its own descendant.";
+            return translateRuntimeMessage(language, "mutation.moveIntoDescendantDenied");
 
         case "delete-root-node-denied":
-            return language === "zh" ? "不能删除根节点。" : "Cannot delete the root node.";
+            return translateRuntimeMessage(language, "mutation.deleteRootNodeDenied");
 
         case "edit-subtree-denied":
-            return language === "zh"
-                ? "不能在 subtree 引用上直接修改结构。"
-                : "Cannot edit structure on a subtree reference.";
+            return translateRuntimeMessage(language, "mutation.editSubtreeDenied");
     }
 };

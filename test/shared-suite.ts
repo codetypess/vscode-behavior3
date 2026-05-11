@@ -6,6 +6,7 @@ import { hostProtocolSharedTests } from "./shared-tests/host-protocol-shared-tes
 import { hostRequestSpecSharedTests } from "./shared-tests/host-request-spec-shared-tests";
 import { inspectorSharedTests } from "./shared-tests/inspector-shared-tests";
 import { nodeDefinitionSlotUtilsSharedTests } from "./shared-tests/node-definition-slot-utils-shared-tests";
+import { runtimeI18nSharedTests } from "./shared-tests/runtime-i18n-shared-tests";
 import { sessionFileVersionSharedTests } from "./shared-tests/session-file-version-shared-tests";
 import { defineSharedTests, registerSharedTestSuites } from "./shared-test-types";
 import { createAppHooksStore } from "../webview/shared/antd";
@@ -91,6 +92,7 @@ const tests = registerSharedTestSuites(
     hostProtocolSharedTests,
     hostRequestSpecSharedTests,
     nodeDefinitionSlotUtilsSharedTests,
+    runtimeI18nSharedTests,
     sessionFileVersionSharedTests,
     defineSharedTests([
         {

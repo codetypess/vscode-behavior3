@@ -68,6 +68,7 @@ import { isJsonEqual } from "../../webview/shared/json";
 import { setFs } from "../../webview/shared/b3fs";
 import { collectNodeArgCheckDiagnostics } from "../../webview/shared/b3build";
 import { VERSION, type NodeData, type TreeData } from "../../webview/shared/b3type";
+import { translateRuntimeMessage } from "../../webview/shared/runtime-i18n";
 import type { InspectorSessionSnapshot } from "../inspector-sidebar-coordinator";
 
 setFs(fs);
@@ -395,7 +396,10 @@ export async function resolveTreeEditorSession({
                         message: diagnostic.message,
                     })),
                 error: runtimeResult.buildScriptRuntime.hasError
-                    ? "checker runtime has errors"
+                    ? translateRuntimeMessage(
+                          state.currentSettings.language,
+                          "runtime.nodeCheckRuntimeHasErrors"
+                      )
                     : undefined,
             });
         } catch (error) {
@@ -744,10 +748,10 @@ export async function resolveTreeEditorSession({
                     type: "mutateDocumentResult",
                     requestId: msg.requestId,
                     success: false,
-                    error:
-                        state.currentSettings.language === "zh"
-                            ? "根节点不能另存为 subtree。"
-                            : "The root node cannot be saved as a subtree.",
+                    error: translateRuntimeMessage(
+                        state.currentSettings.language,
+                        "mutation.saveSelectedAsSubtreeRootDenied"
+                    ),
                 },
             };
         }
@@ -763,10 +767,10 @@ export async function resolveTreeEditorSession({
                     type: "mutateDocumentResult",
                     requestId: msg.requestId,
                     success: false,
-                    error:
-                        state.currentSettings.language === "zh"
-                            ? "未找到可另存为 subtree 的目标节点。"
-                            : "The target node could not be saved as a subtree.",
+                    error: translateRuntimeMessage(
+                        state.currentSettings.language,
+                        "mutation.saveSelectedAsSubtreeMissingTarget"
+                    ),
                 },
             };
         }
@@ -822,7 +826,10 @@ export async function resolveTreeEditorSession({
                     type: "mutateDocumentResult",
                     requestId: msg.requestId,
                     success: false,
-                    error: "Host returned an invalid saved subtree path.",
+                    error: translateRuntimeMessage(
+                        state.currentSettings.language,
+                        "runtime.invalidSavedSubtreePath"
+                    ),
                 },
             };
         }
@@ -839,10 +846,10 @@ export async function resolveTreeEditorSession({
                     type: "mutateDocumentResult",
                     requestId: msg.requestId,
                     success: false,
-                    error:
-                        state.currentSettings.language === "zh"
-                            ? "提交 subtree 保存结果时未找到目标节点。"
-                            : "The target node could not be found after saving the subtree.",
+                    error: translateRuntimeMessage(
+                        state.currentSettings.language,
+                        "mutation.saveSelectedAsSubtreePostSaveMissingTarget"
+                    ),
                 },
             };
         }
@@ -901,7 +908,10 @@ export async function resolveTreeEditorSession({
                     type: "mutateDocumentResult",
                     requestId: msg.requestId,
                     success: false,
-                    error: "Unsupported document mutation.",
+                    error: translateRuntimeMessage(
+                        state.currentSettings.language,
+                        "runtime.unsupportedDocumentMutation"
+                    ),
                 } satisfies HostToEditorMessage);
                 return;
             }
