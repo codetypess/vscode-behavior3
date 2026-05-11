@@ -216,6 +216,8 @@ Adapters / Features
     - `session-context.ts` owns explicit session startup context, derived workspace/project state, and shared session runtime dependencies
     - `session-inspector-sync.ts` owns Inspector/sidebar session snapshot fanout and latest var metadata refresh
     - `session-messages.ts` owns host/editor message DTO construction helpers
+    - `session-node-checks.ts` owns `validateNodeChecks` runtime creation and response formatting
+    - `session-settings-sync.ts` owns settings/nodeDefs refresh and `settingLoaded` fanout
     - `session-subtree-tracking.ts` owns reachable subtree reference cache refresh and tracked subtree file debounce scheduling
     - `document/` owns main document sync/session state, pure file version helpers, session file version guards, and subtree override pruning helpers
     - `settings/` owns editor language/theme helpers and live VS Code setting resolution

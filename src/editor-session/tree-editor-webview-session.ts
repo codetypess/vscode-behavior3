@@ -12,10 +12,6 @@ import {
     logRuntimeError,
     writeWebviewLogMessage,
 } from "./runtime/logging";
-import {
-    createSessionBuildScriptEnv,
-    createSessionNodeCheckRuntime,
-} from "./project/node-check-runtime";
 import { readWorkspaceFileContent } from "./files/paths";
 import { applySharedSelectionState } from "./selection";
 import { getVSCodeTheme } from "./settings/editor-settings";
@@ -28,18 +24,15 @@ import {
     type ResolveTreeEditorSessionParams,
 } from "./session-context";
 import { createSessionInspectorSync } from "./session-inspector-sync";
+import { createSessionNodeChecks } from "./session-node-checks";
+import { createSessionSettingsSync } from "./session-settings-sync";
 import { createSessionSubtreeTracking } from "./session-subtree-tracking";
 import { buildHostSelectionFromMutationSelection } from "./session-messages";
 import {
     mutationMayAffectSubtreeOverrideReachability,
     normalizeReachableSubtreeOverrides,
 } from "./document/subtree-overrides";
-import {
-    getResolvedB3SettingDir,
-    resolveNodeDefs,
-    watchSettingFile,
-    watchWorkspaceFile,
-} from "../setting-resolver";
+import { watchSettingFile, watchWorkspaceFile } from "../setting-resolver";
 import type { EditorToHostMessage, HostToEditorMessage } from "../../webview/shared/message-protocol";
 import type { HostSelectionState } from "../../webview/shared/contracts";
 import {
@@ -60,8 +53,7 @@ import {
     serializePersistedTree,
 } from "../../webview/shared/tree";
 import { setFs } from "../../webview/shared/b3fs";
-import { collectNodeArgCheckDiagnostics } from "../../webview/shared/b3build";
-import { VERSION, type NodeData, type TreeData } from "../../webview/shared/b3type";
+import { VERSION } from "../../webview/shared/b3type";
 import { translateRuntimeMessage } from "../../webview/shared/runtime-i18n";
 
 export type { ActiveTreeEditorWebview } from "./session-context";
@@ -79,8 +71,6 @@ function disposeAll(disposables: vscode.Disposable[]): void {
     }
 }
 
-const toNodeData = (node: unknown): NodeData => node as NodeData;
-
 export async function resolveTreeEditorSession(
     params: ResolveTreeEditorSessionParams
 ): Promise<void> {
@@ -96,16 +86,13 @@ export async function resolveTreeEditorSession(
         addActiveWebview,
         removeActiveWebview,
         stageDocumentSelection,
-        onInspectorSessionUpdate,
         onInspectorSessionDispose,
         workspaceFolderUri,
         projectRootUri,
         projectIndex,
         state,
         documentSession,
-        resolveLiveSettings,
         postMessage,
-        mapDefsForWebview,
         buildDocumentSessionMessage,
         enqueueMainDocumentOperation,
     } = context;
@@ -132,6 +119,7 @@ export async function resolveTreeEditorSession(
         blockEditingForNewerFile,
         getExistingNewerFileEditMessage,
     } = fileVersionGuard;
+    const { refreshSettings } = createSessionSettingsSync(context, inspectorSync);
 
     const updateSharedSelection = (
         selection: HostSelectionState,
@@ -156,85 +144,7 @@ export async function resolveTreeEditorSession(
         },
     };
     addActiveWebview(activeWebviewEntry);
-    const createNodeCheckRuntime = async () => {
-        // Custom checkers run in the extension host so they can use fs/path and workspace scripts.
-        return createSessionNodeCheckRuntime({
-            documentUri: document.uri,
-            workspaceFolderUri,
-            nodeDefs: state.nodeDefs,
-            readWorkspaceFileContent,
-        });
-    };
-
-    const handleValidateNodeChecksMessage = async (
-        msg: Extract<EditorToHostMessage, { type: "validateNodeChecks" }>,
-        reply: HostMessageSink = postMessage
-    ) => {
-        try {
-            const runtimeResult = await createNodeCheckRuntime();
-            const tree = JSON.parse(msg.content) as TreeData;
-            const diagnostics = collectNodeArgCheckDiagnostics({
-                tree,
-                treePath: msg.treePath || runtimeResult.treePath,
-                env: createSessionBuildScriptEnv(runtimeResult.treePath, state.nodeDefs),
-                checkers: runtimeResult.buildScriptRuntime.nodeArgCheckers,
-                targets: msg.nodes.map((entry) => ({
-                    instanceKey: entry.instanceKey,
-                    treePath: entry.treePath,
-                    node: toNodeData(entry.node),
-                })),
-            });
-            await reply({
-                type: "validateNodeChecksResult",
-                requestId: msg.requestId,
-                diagnostics: diagnostics
-                    .filter(
-                        (diagnostic): diagnostic is typeof diagnostic & { instanceKey: string } =>
-                            typeof diagnostic.instanceKey === "string"
-                    )
-                    .map((diagnostic) => ({
-                        instanceKey: diagnostic.instanceKey,
-                        argName: diagnostic.argName,
-                        checker: diagnostic.checker,
-                        message: diagnostic.message,
-                    })),
-                error: runtimeResult.buildScriptRuntime.hasError
-                    ? translateRuntimeMessage(
-                          state.currentSettings.language,
-                          "runtime.nodeCheckRuntimeHasErrors"
-                      )
-                    : undefined,
-            });
-        } catch (error) {
-            await reply({
-                type: "validateNodeChecksResult",
-                requestId: msg.requestId,
-                diagnostics: [],
-                error: String(error),
-            });
-        }
-    };
-
-    const refreshSettings = async ({
-        refreshDefs = false,
-    }: { refreshDefs?: boolean } = {}): Promise<void> => {
-        if (refreshDefs) {
-            const [freshDefs, freshSettingDir] = await Promise.all([
-                resolveNodeDefs(workspaceFolderUri, document.uri),
-                getResolvedB3SettingDir(workspaceFolderUri, document.uri),
-            ]);
-            state.nodeDefs = freshDefs;
-            state.settingDir = freshSettingDir;
-        }
-
-        state.currentSettings = await resolveLiveSettings();
-        await postMessage({
-            type: "settingLoaded",
-            nodeDefs: mapDefsForWebview(),
-            settings: state.currentSettings,
-        });
-        notifyInspectorSessionUpdate();
-    };
+    const { handleValidateNodeChecksMessage } = createSessionNodeChecks(context);
 
     const pruneReachableSubtreeOverrides = (tree: ReturnType<typeof parsePersistedTreeContent>) =>
         normalizeReachableSubtreeOverrides({
