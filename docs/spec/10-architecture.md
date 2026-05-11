@@ -214,6 +214,7 @@ Adapters / Features
 - `src/editor-session/`
     - `tree-editor-webview-session.ts` owns host session orchestration
     - `session-context.ts` owns explicit session startup context, derived workspace/project state, and shared session runtime dependencies
+    - `session-inspector-sync.ts` owns Inspector/sidebar session snapshot fanout and latest var metadata refresh
     - `session-messages.ts` owns host/editor message DTO construction helpers
     - `document/` owns main document sync/session state, file version guards, subtree write guards, and subtree override pruning helpers
     - `settings/` owns editor language/theme helpers and live VS Code setting resolution

@@ -6,7 +6,6 @@ import {
     readFileContentFromDisk,
 } from "./document/document-sync";
 import { getBehavior3OutputChannel } from "../output-channel";
-import type { ProjectIndex, VarDeclResult } from "./project/project-index";
 import { getNewerFileVersion, getNewerVersionMessage } from "./document/file-version";
 import {
     logAsyncRuntimeError,
@@ -29,12 +28,8 @@ import {
     type MessageSource,
     type ResolveTreeEditorSessionParams,
 } from "./session-context";
-import {
-    buildDocumentSnapshotChangedMessage,
-    buildHostSelectionFromMutationSelection,
-    buildInitMessage,
-    buildVarDeclLoadedMessage,
-} from "./session-messages";
+import { createSessionInspectorSync } from "./session-inspector-sync";
+import { buildHostSelectionFromMutationSelection } from "./session-messages";
 import {
     mutationMayAffectSubtreeOverrideReachability,
     normalizeReachableSubtreeOverrides,
@@ -78,25 +73,6 @@ setFs(fs);
  * It serializes document mutations, bridges file/watcher events into the
  * webview protocol, and keeps project-level caches in sync with editor state.
  */
-async function parseUsingVarsFromContent(
-    projectIndex: ProjectIndex,
-    content: string
-): Promise<VarDeclResult | undefined> {
-    try {
-        return (await projectIndex.buildUsingVars(content)) ?? undefined;
-    } catch {
-        return undefined;
-    }
-}
-
-function postVarDeclLoaded(
-    postMessage: (message: HostToEditorMessage) => Thenable<boolean>,
-    result: VarDeclResult,
-    allFiles?: string[]
-): Thenable<boolean> {
-    return postMessage(buildVarDeclLoadedMessage(result, allFiles));
-}
-
 function clearRefreshTimer(timer: ReturnType<typeof setTimeout> | undefined): undefined {
     if (timer) {
         clearTimeout(timer);
@@ -141,22 +117,13 @@ export async function resolveTreeEditorSession(
         enqueueMainDocumentOperation,
     } = context;
     let pendingInitialRevealTarget = initialRevealTarget;
-
-    const buildInspectorVarsMessage = () =>
-        buildVarDeclLoadedMessage(state.latestVarDecls, state.latestAllFiles);
-
-    const buildDocumentSnapshotMessage = (opts?: {
-        content?: string;
-        documentSession?: ReturnType<typeof buildDocumentSessionMessage>;
-        syncKind?: "update" | "reload";
-        selection?: HostSelectionState;
-    }) =>
-        buildDocumentSnapshotChangedMessage({
-            content: opts?.content ?? document.content,
-            documentSession: opts?.documentSession ?? buildDocumentSessionMessage(),
-            selection: opts?.selection ?? state.sharedSelection,
-            syncKind: opts?.syncKind ?? state.inspectorContentSyncKind,
-        });
+    const inspectorSync = createSessionInspectorSync(context);
+    const {
+        buildInspectorVarsMessage,
+        fanoutDocumentSnapshot,
+        notifyInspectorSessionUpdate,
+        refreshLatestVarDeclsFromContent,
+    } = inspectorSync;
 
     const updateSharedSelection = (
         selection: HostSelectionState,
@@ -170,44 +137,6 @@ export async function resolveTreeEditorSession(
         state.sharedSelection = applied.selection;
         state.selectionRevision += 1;
         return applied.result;
-    };
-
-    const notifyInspectorSessionUpdate = () => {
-        const documentSession = buildDocumentSessionMessage();
-        onInspectorSessionUpdate({
-            documentUri: document.uri.toString(),
-            initMessage: buildInitMessage({
-                content: document.content,
-                filePath: document.uri.fsPath,
-                workdir: projectRootUri.fsPath,
-                nodeDefs: mapDefsForWebview(),
-                settings: state.currentSettings,
-                theme: getVSCodeTheme(),
-                allFiles: state.latestAllFiles,
-                documentSession,
-                selection: state.sharedSelection,
-            }),
-            varsMessage: buildInspectorVarsMessage(),
-            documentSnapshot: buildDocumentSnapshotMessage({
-                documentSession,
-            }).snapshot,
-            selectionRevision: state.selectionRevision,
-        });
-    };
-
-    const refreshLatestVarDeclsFromContent = async (content: string): Promise<void> => {
-        // Vars and all-files are paired because inspector path pickers depend on the same index pass.
-        const [allFiles, result] = await Promise.all([
-            projectIndex.getAllFiles(),
-            parseUsingVarsFromContent(projectIndex, content),
-        ]);
-
-        state.latestAllFiles = allFiles;
-        state.latestVarDecls = result ?? {
-            usingVars: {},
-            importDecls: [],
-            subtreeDecls: [],
-        };
     };
 
     const activeWebviewEntry: ActiveTreeEditorWebview = {
@@ -400,23 +329,6 @@ export async function resolveTreeEditorSession(
         return true;
     };
 
-    const fanoutDocumentSnapshot = async (opts?: {
-        syncKind?: "update" | "reload";
-        refreshVars?: boolean;
-    }): Promise<void> => {
-        // Editor and sidebar both consume the same host snapshot to avoid divergent dirty/selection state.
-        await postMessage(
-            buildDocumentSnapshotMessage({
-                syncKind: opts?.syncKind,
-            })
-        );
-        if (opts?.refreshVars !== false) {
-            await refreshLatestVarDeclsFromContent(document.content);
-            await postMessage(buildInspectorVarsMessage());
-        }
-        notifyInspectorSessionUpdate();
-    };
-
     const applySessionHistorySnapshot = async (snapshot: string): Promise<boolean> => {
         const sessionSnapshot = buildDocumentSessionMessage();
         const changed = document.syncContentState(snapshot, sessionSnapshot.dirty);
@@ -477,28 +389,15 @@ export async function resolveTreeEditorSession(
      * up with computed var/subtree metadata that depends on project indexing.
      */
     const handleReadyMessage = async (reply: HostMessageSink = postMessage): Promise<void> => {
-        const theme = getVSCodeTheme();
         const content = document.content;
 
         updateFileVersionState(content, { showWarning: true });
 
         await Promise.all([refreshLatestVarDeclsFromContent(content), refreshTrackedSubtreeRefs()]);
 
-        await reply(
-            buildInitMessage({
-                content,
-                filePath: document.uri.fsPath,
-                workdir: projectRootUri.fsPath,
-                nodeDefs: mapDefsForWebview(),
-                settings: state.currentSettings,
-                theme,
-                allFiles: state.latestAllFiles,
-                documentSession: buildDocumentSessionMessage(),
-                selection: state.sharedSelection,
-            })
-        );
+        await reply(inspectorSync.buildInitMessage({ content }));
 
-        await postVarDeclLoaded(reply, state.latestVarDecls, state.latestAllFiles);
+        await reply(buildInspectorVarsMessage());
         if (pendingInitialRevealTarget) {
             await reply({
                 type: "relayFocusNode",
