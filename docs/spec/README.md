@@ -38,7 +38,7 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 10 份 active work-item spec
+- 0 份 active work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
 这里不是完整历史档案。纯机械整理、模块拆分、重命名、helper 收口这类 work-item，在长期规则已经同步进编号基线后，可以直接删除，不需要长期保留。
@@ -159,8 +159,8 @@
 
 例如：
 
-- `docs/spec/inspector-array-arg-validation.md`
-- `docs/spec/graph-structural-mutation-target-anchor.md`
+- `docs/spec/save-lifecycle-regression.md`
+- `docs/spec/editor-selection-regression.md`
 
 ### 最小头部
 
@@ -230,17 +230,4 @@ Scope: <short boundary>
 
 ## Active Work Items
 
-新增 work-item 时，请继续按以下格式补充。完成后如果长期规则已同步进编号基线 spec，删除该 work-item。
-
-| 文件 | 状态 | 范围 |
-| ---- | ---- | ---- |
-| `graph-collapse-render-stability.md` | `Verifying` | 将图节点折叠改为 adapter-owned 本地视觉状态，避免 G6 内部折叠状态与 adapter rebuild 链路打架 |
-| `graph-resize-viewport-stability.md` | `Verifying` | 调整 inspector 宽度时保持已缩放画布的 viewport 稳定，不让节点整体漂移 |
-| `graph-structural-mutation-target-anchor.md` | `Verifying` | drop、insert、delete 后按本地操作上下文稳定画布视图锚点 |
-| `inspector-array-arg-validation.md` | `Implementing` | 修复 Inspector 把数组参数误判成单值类型的校验问题 |
-| `inspector-independent-field-commit.md` | `Verifying` | 将 Inspector 从整表校验提交改为字段级独立提交 |
-| `inspector-mode-config.md` | `Verifying` | 让 Inspector 支持 `sidebar` 与 `embedded` 二选一配置 |
-| `inspector-required-arg-unset-initial-state.md` | `Verifying` | 让必填节点参数在首次出现时保持 unset，而不是静默写成空值 |
-| `main-document-save-display-id-writeback.md` | `Implementing` | 在主文档保存时把当前主树 display id 回写到 persisted `id` |
-| `node-required-arg-error-state.md` | `Verifying` | 让节点必填参数缺失时同步进入 graph Error 风格 |
-| `tree-custom-inspector-metadata.md` | `Verifying` | 在 Tree Inspector 中新增 tree.custom 的 key:value 编辑与提交语义 |
+当前没有 active work-item spec。新增 work-item 时，请继续按以下格式补充；完成后如果长期规则已同步进编号基线 spec，删除该 work-item。

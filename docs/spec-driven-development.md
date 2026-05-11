@@ -24,7 +24,7 @@ An SDD is optional for tiny mechanical changes such as typo fixes, comment-only 
 - Work-item specifications: `docs/spec/<short-slug>.md`
 - Current baseline specs: the numbered files already listed in `docs/spec/README.md`
 
-Use lowercase kebab-case slugs for work-item specs, for example `docs/spec/inspector-array-arg-validation.md` or `docs/spec/save-lifecycle-regression.md`.
+Use lowercase kebab-case slugs for work-item specs, for example `docs/spec/save-lifecycle-regression.md` or `docs/spec/editor-selection-regression.md`.
 
 ## Baseline Specs vs Work-Item Specs
 
