@@ -38,9 +38,9 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 43 份 work-item spec
+- 44 份 work-item spec
 - 10 份登记中的 active work-item spec
-- 33 份保留的 done work-item spec
+- 34 份保留的 done work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
 这里不是完整历史档案。纯机械整理、模块拆分、重命名、helper 收口这类 work-item，在长期规则已经同步进编号基线后，可以直接删除，不需要长期保留。

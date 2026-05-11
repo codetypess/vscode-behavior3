@@ -224,6 +224,7 @@ Adapters / Features
     - `session-selection-sync.ts` owns host shared selection state updates and `selectTree` / `selectNode` fanout
     - `session-settings-sync.ts` owns settings/nodeDefs refresh and `settingLoaded` fanout
     - `session-subtree-tracking.ts` owns reachable subtree reference cache refresh and tracked subtree file debounce scheduling
+    - `session-watchers.ts` owns VS Code watcher registration, webview message subscription, and dispose cleanup
     - `document/` owns main document sync/session state, pure file version helpers, session file version guards, and subtree override pruning helpers
     - `settings/` owns editor language/theme helpers and live VS Code setting resolution
     - `files/` owns workdir-relative path helpers and editor file request handlers
