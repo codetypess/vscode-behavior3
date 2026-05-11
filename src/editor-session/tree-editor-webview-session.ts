@@ -13,7 +13,6 @@ import {
     writeWebviewLogMessage,
 } from "./runtime/logging";
 import { readWorkspaceFileContent } from "./files/paths";
-import { applySharedSelectionState } from "./selection";
 import { getVSCodeTheme } from "./settings/editor-settings";
 import { createSessionFileRequestHandlers } from "./files/file-request-handlers";
 import {
@@ -25,6 +24,7 @@ import {
 } from "./session-context";
 import { createSessionInspectorSync } from "./session-inspector-sync";
 import { createSessionNodeChecks } from "./session-node-checks";
+import { createSessionSelectionSync } from "./session-selection-sync";
 import { createSessionSettingsSync } from "./session-settings-sync";
 import { createSessionSubtreeTracking } from "./session-subtree-tracking";
 import { buildHostSelectionFromMutationSelection } from "./session-messages";
@@ -34,17 +34,13 @@ import {
 } from "./document/subtree-overrides";
 import { watchSettingFile, watchWorkspaceFile } from "../setting-resolver";
 import type { EditorToHostMessage, HostToEditorMessage } from "../../webview/shared/message-protocol";
-import type { HostSelectionState } from "../../webview/shared/contracts";
 import {
     type DocumentMutationSelection,
     formatDocumentMutationReducerError,
     isReducibleDocumentMutation,
     reduceDocumentMutation,
 } from "../../webview/shared/document";
-import {
-    normalizeNodeInstanceRef,
-    parseWorkdirRelativeJsonPath,
-} from "../../webview/shared/protocol";
+import { parseWorkdirRelativeJsonPath } from "../../webview/shared/protocol";
 import {
     clonePersistedNode,
     clonePersistedTree,
@@ -120,20 +116,11 @@ export async function resolveTreeEditorSession(
         getExistingNewerFileEditMessage,
     } = fileVersionGuard;
     const { refreshSettings } = createSessionSettingsSync(context, inspectorSync);
-
-    const updateSharedSelection = (
-        selection: HostSelectionState,
-        opts?: { reassertIfEqual?: boolean }
-    ): "noop" | "changed" | "reasserted" => {
-        const applied = applySharedSelectionState(state.sharedSelection, selection, opts);
-        if (applied.result === "noop") {
-            return "noop";
-        }
-
-        state.sharedSelection = applied.selection;
-        state.selectionRevision += 1;
-        return applied.result;
-    };
+    const {
+        updateSharedSelection,
+        handleSelectTreeMessage,
+        handleSelectNodeMessage,
+    } = createSessionSelectionSync(context, inspectorSync);
 
     const activeWebviewEntry: ActiveTreeEditorWebview = {
         workspaceFsPath: workspaceFolderUri.fsPath,
@@ -625,49 +612,6 @@ export async function resolveTreeEditorSession(
             documentSession.showReloadConflict(content);
             await fanoutDocumentSnapshot({
                 syncKind: "update",
-                refreshVars: false,
-            });
-        });
-    };
-
-    const handleSelectTreeMessage = async (): Promise<void> => {
-        await enqueueMainDocumentOperation(async () => {
-            const result = updateSharedSelection(
-                { kind: "tree" },
-                { reassertIfEqual: true }
-            );
-            if (result === "noop") {
-                return;
-            }
-            if (result === "reasserted") {
-                notifyInspectorSessionUpdate();
-                return;
-            }
-            await fanoutDocumentSnapshot({
-                refreshVars: false,
-            });
-        });
-    };
-
-    const handleSelectNodeMessage = async (
-        msg: Extract<EditorToHostMessage, { type: "selectNode" }>
-    ): Promise<void> => {
-        await enqueueMainDocumentOperation(async () => {
-            const result = updateSharedSelection(
-                {
-                    kind: "node",
-                    ref: normalizeNodeInstanceRef(msg.target),
-                },
-                { reassertIfEqual: true }
-            );
-            if (result === "noop") {
-                return;
-            }
-            if (result === "reasserted") {
-                notifyInspectorSessionUpdate();
-                return;
-            }
-            await fanoutDocumentSnapshot({
                 refreshVars: false,
             });
         });
