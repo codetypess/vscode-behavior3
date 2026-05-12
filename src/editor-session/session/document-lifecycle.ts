@@ -41,6 +41,7 @@ export function createSessionDocumentLifecycle(
     const { updateFileVersionState, blockEditingForNewerFile } = fileVersionGuard;
 
     const applySessionHistorySnapshot = async (snapshot: string): Promise<boolean> => {
+        // Undo/redo snapshots are host-authoritative and must refresh every cached view of the main tree.
         const sessionSnapshot = buildDocumentSessionMessage();
         const changed = document.syncContentState(snapshot, sessionSnapshot.dirty);
         if (!changed) {
@@ -97,6 +98,7 @@ export function createSessionDocumentLifecycle(
                 } satisfies HostToEditorMessage);
 
                 if (success) {
+                    // The VS Code custom-editor save path sends the persisted reload snapshot.
                     state.inspectorContentSyncKind = "reload";
                 }
             } catch (error) {
@@ -139,6 +141,7 @@ export function createSessionDocumentLifecycle(
             const cancellation = new vscode.CancellationTokenSource();
             try {
                 await revertDocument(document, cancellation.token);
+                // Revert delegates the document reset and reload fanout to the custom-editor provider.
                 state.inspectorContentSyncKind = "reload";
                 await reply({
                     type: "revertDocumentResult",

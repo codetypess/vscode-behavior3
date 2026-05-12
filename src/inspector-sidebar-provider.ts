@@ -27,6 +27,7 @@ export class InspectorSidebarProvider implements vscode.WebviewViewProvider {
 
         webviewView.webview.onDidReceiveMessage((message: EditorToHostMessage) => {
             if (message.type === "ready") {
+                // Sidebar readiness is local; other messages must route through the active editor session.
                 this.coordinator.markViewReady();
                 return;
             }

@@ -59,6 +59,7 @@ const suppressedDocumentChangesMatch = (
         return true;
     }
 
+    // This matches watcher echoes from our own write, not arbitrary semantic tree equality.
     return (
         left.canonicalJson !== null &&
         right.canonicalJson !== null &&

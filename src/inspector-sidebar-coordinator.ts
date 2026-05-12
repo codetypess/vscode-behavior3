@@ -30,6 +30,8 @@ const buildReloadDocumentSnapshot = (
     syncKind: "reload",
 });
 
+// content/documentSession/selection replay through documentSnapshotChanged; the rest
+// of init must stay equal for incremental sidebar updates to be safe.
 const stripSnapshotTransportFields = (
     initMessage: InspectorSessionSnapshot["initMessage"]
 ): Omit<InspectorSessionSnapshot["initMessage"], "content" | "documentSession" | "selection"> => {
@@ -132,6 +134,7 @@ export class InspectorSidebarCoordinator {
             if (!this.viewReady) {
                 return;
             }
+            // Embedded inspector state belongs to the editor webview, so the sidebar only keeps settings.
             void this.postEmbeddedModeState(snapshot);
             return;
         }
@@ -140,6 +143,8 @@ export class InspectorSidebarCoordinator {
             this.inspectorMode === "sidebar" &&
             (!previous || previous.selectionRevision !== snapshot.selectionRevision)
         ) {
+            // selectionRevision only signals an observable selection change that may need reveal/focus.
+
             void this.revealInspectorView();
         }
 
@@ -255,6 +260,7 @@ export class InspectorSidebarCoordinator {
     ): boolean {
         const prevInitWithoutContent = stripSnapshotTransportFields(previous.initMessage);
         const nextInitWithoutContent = stripSnapshotTransportFields(next.initMessage);
+        // Incremental reuse is safe only when the non-transport init metadata still matches.
         return isJsonEqual(prevInitWithoutContent, nextInitWithoutContent);
     }
 
@@ -284,6 +290,7 @@ export class InspectorSidebarCoordinator {
     }
 
     private async postEmbeddedModeState(snapshot: InspectorSessionSnapshot | null): Promise<void> {
+        // Keep sidebar settings fresh while clearing document-bound context owned by the editor webview.
         await this.postMessage(buildEmbeddedModeSettingsMessage(snapshot));
         await this.postMessage({ type: "inspectorContextCleared" });
     }
@@ -303,6 +310,8 @@ export class InspectorSidebarCoordinator {
         this.revealInFlight = true;
         try {
             if (!this.view || !this.view.visible) {
+                // Focus the contributed view/container, then restore editor focus so typing is not stolen.
+
                 try {
                     await vscode.commands.executeCommand(
                         `${InspectorSidebarProvider.viewId}.focus`

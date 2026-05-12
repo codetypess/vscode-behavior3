@@ -693,6 +693,7 @@ export const isReducibleDocumentMutation = (
     mutation.type === "replaceNode" ||
     mutation.type === "deleteNode";
 
+// Reducers stay filesystem-free; host session code handles saves, subtree files, and watcher state.
 export const reduceDocumentMutation = (
     mutation: ReducibleDocumentMutation,
     context: DocumentMutationReducerContext

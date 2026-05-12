@@ -211,6 +211,7 @@ export const computeNodeStatusBits = (
     return buildStatusFlag(status, nodeName, mergedChildStatus, defsByName);
 };
 
+// Materialization resolves persisted references into runtime identity without mutating source trees.
 export const materializePersistedTree = (params: {
     persistedTree: PersistedTreeModel;
     subtreeSources: Record<WorkdirRelativeJsonPath, SubtreeSourceCacheEntry>;

@@ -25,6 +25,7 @@ setFs(fs);
 export async function resolveTreeEditorSession(
     params: ResolveTreeEditorSessionParams
 ): Promise<void> {
+    // Composition root for one editor webview; behavior stays in the focused session modules below.
     const context = await createTreeEditorSessionContext(params);
     const {
         document,

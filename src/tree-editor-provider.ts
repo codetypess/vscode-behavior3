@@ -101,6 +101,7 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
     ) {}
 
     private stageDocumentSelection(documentUri: string, selection: HostSelectionState): void {
+        // Sidebar/external selections may arrive before an editor exists, so keep a staged reveal target.
         const normalized = normalizeHostSelectionState(selection);
         this.documentSelections.set(documentUri, normalized);
 
@@ -236,7 +237,9 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         document: TreeEditorDocument,
         opts?: { notifyReload?: boolean }
     ): Promise<string> {
-        // This is the single VS Code save path that marks sessions saved and suppresses our watcher echo.
+        // This is the single VS Code save path that marks sessions saved, suppresses our watcher echo,
+        // and notifies the active editor/sidebar snapshot cache.
+
         const savePlan = await this.buildMainDocumentSavePlan(document);
         this.assertCanWriteTreeContent(savePlan.content);
         await this.assertCanWriteSubtreeWritebacks(

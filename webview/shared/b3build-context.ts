@@ -12,11 +12,7 @@ import { logger } from "./logger";
 import { getFs } from "./b3fs";
 import { readTreeFromFile } from "./tree";
 import { dfs, isSubtreeRoot } from "./tree-model";
-import {
-    checkOneof,
-    createNodeDefMap,
-    parseSlotDefinition,
-} from "./node-utils";
+import { checkOneof, createNodeDefMap, parseSlotDefinition } from "./node-utils";
 import { normalizeNodeDefCollection } from "./schema";
 import {
     parseExpressionVariables,
@@ -54,9 +50,7 @@ interface BuildProjectState extends BuildValidationState {
     alertError: BuildAlertHandler;
 }
 
-const createNodeDefsState = (
-    defs: unknown
-): Pick<BuildValidationState, "nodeDefs"> => {
+const createNodeDefsState = (defs: unknown): Pick<BuildValidationState, "nodeDefs"> => {
     const normalizedNodeDefs = normalizeNodeDefCollection(defs);
 
     for (const node of normalizedNodeDefs) {
@@ -196,10 +190,7 @@ const checkNodeArg = (data: NodeData, conf: NodeDef, i: number, printer?: ErrorP
     return !hasError;
 };
 
-const isValidChildrenWithNodeDefs = (
-    data: NodeData,
-    nodeDefs: ReadonlyMap<string, NodeDef>
-) => {
+const isValidChildrenWithNodeDefs = (data: NodeData, nodeDefs: ReadonlyMap<string, NodeDef>) => {
     const def = getBuildNodeDef(nodeDefs, data.name);
     if (def.children !== undefined && def.children !== -1) {
         return (data.children?.filter((child) => !child.disabled).length || 0) === def.children;
@@ -453,7 +444,6 @@ const loadVarDecl = (list: ImportDecl[], arr: Array<VarDecl>, context: RefreshVa
                     load(subtreePath);
                     depends.add(subtreePath);
                 });
-                context.logger.debug(`load var: ${relativePath}`);
             } catch {
                 context.alertError(`parsing error: ${relativePath}`);
             }
@@ -515,7 +505,6 @@ const refreshVarDeclNode = (
         lastGroup.some((value, index) => value !== group[index])
     ) {
         changed = true;
-        context.logger.debug("refresh group:", lastGroup, group);
         context.updateUsingGroups(group);
     }
 
@@ -526,7 +515,6 @@ const refreshVarDeclNode = (
         lastVars.some((value, index) => value !== vars[index].name)
     ) {
         changed = true;
-        context.logger.debug("refresh vars:", lastVars, vars);
         context.updateUsingVars(vars);
     }
 

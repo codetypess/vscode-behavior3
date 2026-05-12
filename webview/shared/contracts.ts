@@ -87,8 +87,10 @@ export interface HostVarsPayload {
 export interface NodeInstanceRef {
     instanceKey: string;
     displayId: string;
+    // Structural identity points at the slot in the main tree; source identity points at copied/subtree content.
     structuralStableId: string;
     sourceStableId: string;
+    // Subtree context lets host reducers distinguish an external source node from its rendered reference.
     sourceTreePath: WorkdirRelativeJsonPath | null;
     subtreeStack: WorkdirRelativeJsonPath[];
 }

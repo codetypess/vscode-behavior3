@@ -10,6 +10,7 @@ import {
 } from "./shared/webview-env";
 import { InspectorSidebarApp } from "./app/inspector-sidebar-app";
 
+// One bundle serves both the editor and the inspector sidebar; runtime kind decides which shell renders.
 const webviewKind = detectWebviewKind();
 const runtime = createEditorRuntime(webviewKind);
 

@@ -36,6 +36,7 @@ export function createSessionSelectionSync(
         }
 
         state.sharedSelection = applied.selection;
+        // External inspector UI uses this as an event revision, not as document content versioning.
         state.selectionRevision += 1;
         return applied.result;
     };
