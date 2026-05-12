@@ -42,6 +42,17 @@ Inspector 不只是字段表单，还需要表达：
 - subtree override 差异
 - 当前无激活文档时的空状态
 
+## Sidebar Title Actions
+
+`sidebar` 模式下，Behavior3 Inspector view title 暴露以下 VS Code command 快捷按钮：
+
+- `behavior3.build`
+- `behavior3.toggleEditorMode`
+- `behavior3.createProject`
+- `behavior3.createTree`
+
+这些按钮只复用 extension-host command，不通过 Inspector webview 新增协议或直接修改文档真源。若当前没有合适的 active editor、workspace 或目标路径，仍由对应 command 自己给出提示。
+
 ## 外层状态
 
 ### No Active Document

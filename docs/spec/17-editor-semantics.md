@@ -290,6 +290,12 @@ host reducer 当前分三条路径：
 - 只是把 build 请求交给宿主
 - 结果通过 `buildResult` 回推
 - `Ctrl+B` / `Cmd+B` 与 `Ctrl+Shift+B` / `Cmd+Shift+B` 由 VS Code contributed keybindings 直接触发 extension-host build command；webview 不应重复绑定同一组 build 快捷键
+- Inspector view title 中的 build action 同样触发 `behavior3.build` extension-host command，不新增 webview 内部 build 入口
+
+### Inspector view title project actions
+
+- `behavior3.toggleEditorMode`、`behavior3.createProject`、`behavior3.createTree` 是 extension-host command，不经过 editor `EditorCommand` catalog
+- Inspector view title 可以暴露这些 command 作为快捷入口，但不得绕过对应 command 内部的 active editor、workspace 与文件路径校验
 
 ### `behavior3.batchProcess`
 

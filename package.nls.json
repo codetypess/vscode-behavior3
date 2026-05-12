@@ -12,7 +12,7 @@
   "command.runBatchProcessScript.title": "Run as Batch Process",
   "command.createProject.title": "Create Project",
   "command.openSettings.title": "Open Node Config (.b3-setting)",
-  "command.createTree.title": "Create Behavior3 File",
+  "command.createTree.title": "Create Behavior Tree File",
   "command.openWithEditor.title": "Open with Behavior3",
   "command.toggleEditorMode.title": "Toggle Text / Behavior3",
   "configuration.title": "Behavior3 Editor",

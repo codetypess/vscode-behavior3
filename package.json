@@ -2,7 +2,7 @@
   "name": "vscode-behavior3",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "2.1.4",
+  "version": "2.1.5",
   "publisher": "codetypess",
   "repository": {
     "type": "git",
@@ -124,12 +124,14 @@
       {
         "command": "behavior3.createProject",
         "title": "%command.createProject.title%",
-        "category": "%command.category%"
+        "category": "%command.category%",
+        "icon": "$(new-collection)"
       },
       {
         "command": "behavior3.createTree",
         "title": "%command.createTree.title%",
-        "category": "%command.category%"
+        "category": "%command.category%",
+        "icon": "$(new-file)"
       },
       {
         "command": "behavior3.openSettings",
@@ -168,12 +170,29 @@
       }
     ],
     "menus": {
-      "editor/title": [
+      "view/title": [
+        {
+          "command": "behavior3.build",
+          "when": "view == behavior3.inspectorView",
+          "group": "navigation@1"
+        },
         {
           "command": "behavior3.toggleEditorMode",
-          "when": "activeCustomEditorId == 'behavior3.treeEditor' || resourceExtname == .json",
-          "group": "navigation@0"
+          "when": "view == behavior3.inspectorView",
+          "group": "navigation@2"
         },
+        {
+          "command": "behavior3.createProject",
+          "when": "view == behavior3.inspectorView",
+          "group": "navigation@3"
+        },
+        {
+          "command": "behavior3.createTree",
+          "when": "view == behavior3.inspectorView",
+          "group": "navigation@4"
+        }
+      ],
+      "editor/title": [
         {
           "command": "behavior3.build",
           "when": "activeCustomEditorId == 'behavior3.treeEditor'",

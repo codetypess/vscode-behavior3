@@ -12,7 +12,7 @@
   "command.runBatchProcessScript.title": "作为批处理运行",
   "command.createProject.title": "创建项目",
   "command.openSettings.title": "打开节点配置 (.b3-setting)",
-  "command.createTree.title": "创建 Behavior3 文件",
+  "command.createTree.title": "创建行为树文件",
   "command.openWithEditor.title": "使用 Behavior3 打开",
   "command.toggleEditorMode.title": "切换文本 / Behavior3",
   "configuration.title": "Behavior3 编辑器",
