@@ -217,6 +217,10 @@ Inspector 不只是字段表单，还需要表达：
 - host reducer 会重新计算 override diff
 - 若 diff 为空，则从主文档 `overrides` 中删除
 
+## 标签交互
+
+Inspector 表单 label 只用于展示字段名、必填标记和冒号；点击 label 不应聚焦字段或进入编辑。字段只能通过直接点击输入框、选择器、开关等控件进入交互。
+
 ## 可编辑性规则
 
 当前 Inspector 中有两类“不可编辑”：

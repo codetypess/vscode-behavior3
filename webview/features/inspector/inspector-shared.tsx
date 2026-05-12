@@ -69,12 +69,10 @@ export const InspectorLabel: React.FC<{ text: string; required?: boolean }> = ({
 export const createInspectorLabelProps = (text: string, required = false) => ({
     label: <InspectorLabel text={text} required={required} />,
     colon: false as const,
-});
-
-export const createInspectorSwitchLabelProps = (text: string, required = false) => ({
-    ...createInspectorLabelProps(text, required),
     htmlFor: undefined,
 });
+
+export const createInspectorSwitchLabelProps = createInspectorLabelProps;
 
 export const VariableDeclRow: React.FC<{
     value?: VariableRowValue;
