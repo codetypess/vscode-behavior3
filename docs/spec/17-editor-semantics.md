@@ -294,13 +294,15 @@ host reducer 当前分三条路径：
 
 - 这是 extension-host 项目命令，不经过 editor `EditorCommand` catalog
 - 选择一次性批处理脚本后，对当前 project 的 persisted tree 源文件做批量处理
-- 仅当整次批处理通过校验时才统一写回源文件，避免部分写盘
+- 批处理只执行所选 batch script 的转换流程；不运行内置节点合法性校验，也不加载或执行 workspace `settings.checkScripts`
+- 默认只在所选脚本改变规范化树语义时写回；所选脚本 `shouldUpgradeTree()` 返回 true 时，也会把解析/序列化产生的输入树升级作为 staged write
+- 若 batch script 自身通过 `errors` 参数报告错误或 hook 抛错，则整次批处理失败并放弃所有 staged writes；否则即使转换结果不满足普通构建校验，也按统一写回语义写入
 
 ### `behavior3.runBatchProcessScript`
 
 - 这是 extension-host 项目命令，不经过 editor `EditorCommand` catalog
 - 直接把当前选择的 `.ts` / `.mts` / `.js` / `.mjs` 文件当成批处理脚本执行
-- 与 `behavior3.batchProcess` 共享同一套项目解析、校验和统一写回语义
+- 与 `behavior3.batchProcess` 共享同一套项目解析、batch-script-only 处理和统一写回语义
 
 ## Subtree 相关命令
 

@@ -65,6 +65,7 @@ import type {
     NodeDef,
     NodeInstanceRef,
     PersistedTreeModel,
+    Settings,
 } from "../webview/shared/contracts";
 
 const createTestTree = (): PersistedTreeModel => ({
@@ -85,6 +86,14 @@ const createTestTree = (): PersistedTreeModel => ({
         name: "Sequence",
         children: [],
     },
+});
+
+const createHostInitSettings = (): Settings => ({
+    checkExpr: true,
+    subtreeEditable: true,
+    language: "en",
+    theme: "light",
+    inspectorMode: "sidebar",
 });
 
 const tests = registerSharedTestSuites(
@@ -710,7 +719,9 @@ const tests = registerSharedTestSuites(
                     tree,
                     nodeDefs: [],
                     readSubtreeContent: async () => {
-                        throw new Error("save should not read subtree content when no subtree links exist");
+                        throw new Error(
+                            "save should not read subtree content when no subtree links exist"
+                        );
                     },
                 });
 
@@ -1677,23 +1688,9 @@ const tests = registerSharedTestSuites(
             run() {
                 const diagnostics = collectResolvedNodeDiagnostics({
                     node: {
-                        ref: {
-                            instanceKey: "1",
-                            displayId: "1",
-                            structuralStableId: "root",
-                            sourceStableId: "root",
-                            sourceTreePath: null,
-                            subtreeStack: [],
-                        },
-                        parentKey: null,
-                        childKeys: [],
-                        depth: 0,
-                        renderedIdLabel: "1",
                         name: "Check",
                         input: ["missing"],
                         args: { expr: "missing > 0" },
-                        subtreeNode: false,
-                        subtreeEditable: true,
                     },
                     def: {
                         name: "Check",
@@ -1723,22 +1720,8 @@ const tests = registerSharedTestSuites(
             run() {
                 const diagnostics = collectResolvedNodeDiagnostics({
                     node: {
-                        ref: {
-                            instanceKey: "1",
-                            displayId: "1",
-                            structuralStableId: "root",
-                            sourceStableId: "root",
-                            sourceTreePath: null,
-                            subtreeStack: [],
-                        },
-                        parentKey: null,
-                        childKeys: [],
-                        depth: 0,
-                        renderedIdLabel: "1",
                         name: "Wait",
                         args: {},
-                        subtreeNode: false,
-                        subtreeEditable: true,
                     },
                     def: {
                         name: "Wait",
@@ -1799,22 +1782,8 @@ const tests = registerSharedTestSuites(
             run() {
                 const diagnostics = collectResolvedNodeDiagnostics({
                     node: {
-                        ref: {
-                            instanceKey: "1",
-                            displayId: "1",
-                            structuralStableId: "root",
-                            sourceStableId: "root",
-                            sourceTreePath: null,
-                            subtreeStack: [],
-                        },
-                        parentKey: null,
-                        childKeys: [],
-                        depth: 0,
-                        renderedIdLabel: "1",
                         name: "Flag",
                         args: { enabled: false },
-                        subtreeNode: false,
-                        subtreeEditable: true,
                     },
                     def: {
                         name: "Flag",
@@ -2181,7 +2150,7 @@ const tests = registerSharedTestSuites(
                 const usageCount = buildTreeInspectorVariableUsageCount({
                     document: mainTree,
                     subtreeSources: {
-                        "sub.json": subtreeTree,
+                        [parseWorkdirRelativeJsonPath("sub.json")!]: subtreeTree,
                     },
                     nodeDefs,
                     nodeDefMap: createNodeDefMap(nodeDefs),
@@ -2289,7 +2258,7 @@ const tests = registerSharedTestSuites(
                 const usageCount = buildTreeInspectorVariableUsageCount({
                     document: mainTree,
                     subtreeSources: {
-                        "sub.json": subtreeTree,
+                        [parseWorkdirRelativeJsonPath("sub.json")!]: subtreeTree,
                     },
                     nodeDefs,
                     nodeDefMap: createNodeDefMap(nodeDefs),
@@ -2730,12 +2699,7 @@ const tests = registerSharedTestSuites(
                         },
                     ],
                     allFiles: ["sub/tree.json" as any],
-                    settings: {
-                        checkExpr: true,
-                        subtreeEditable: true,
-                        language: "en",
-                        theme: "light",
-                    },
+                    settings: createHostInitSettings(),
                     documentSession: {
                         dirty: false,
                         historyIndex: 0,
@@ -2879,12 +2843,7 @@ const tests = registerSharedTestSuites(
                         },
                     ],
                     allFiles: ["sub/tree.json" as any],
-                    settings: {
-                        checkExpr: true,
-                        subtreeEditable: true,
-                        language: "en",
-                        theme: "light",
-                    },
+                    settings: createHostInitSettings(),
                     documentSession: {
                         dirty: false,
                         historyIndex: 0,
@@ -3018,6 +2977,8 @@ const tests = registerSharedTestSuites(
                     graphAdapter,
                     appHooks,
                 });
+                const subtreePath = parseWorkdirRelativeJsonPath("sub/tree.json");
+                assert.ok(subtreePath);
 
                 await controller.initFromHost({
                     filePath: "/tmp/main.json",
@@ -3053,12 +3014,7 @@ const tests = registerSharedTestSuites(
                         { name: "SubAction", type: "Action", desc: "" },
                     ],
                     allFiles: ["sub/tree.json" as any],
-                    settings: {
-                        checkExpr: true,
-                        subtreeEditable: true,
-                        language: "en",
-                        theme: "light",
-                    },
+                    settings: createHostInitSettings(),
                     documentSession: {
                         dirty: false,
                         historyIndex: 0,
@@ -3071,7 +3027,7 @@ const tests = registerSharedTestSuites(
                 });
 
                 assert.equal(saveSubtreeCalls.length, 0);
-                assert.ok(workspaceStore.getState().subtreeSources["sub/tree.json"]);
+                assert.ok(workspaceStore.getState().subtreeSources[subtreePath]);
             },
         },
         {
@@ -3169,12 +3125,7 @@ const tests = registerSharedTestSuites(
                         },
                     ],
                     allFiles: [],
-                    settings: {
-                        checkExpr: true,
-                        subtreeEditable: true,
-                        language: "en",
-                        theme: "light",
-                    },
+                    settings: createHostInitSettings(),
                     documentSession: {
                         dirty: false,
                         historyIndex: 0,
@@ -3244,7 +3195,10 @@ const tests = registerSharedTestSuites(
                 const graphUiStore = createGraphUiStore();
                 const appHooks = createAppHooksStore();
                 let requestedVariableNames: string[] | null = null;
-                let lastHighlights: GraphHighlightState | null = null;
+                let lastHighlights: GraphHighlightState = {
+                    activeVariableNames: [],
+                    variableHits: {},
+                };
 
                 appHooks.bind({
                     message: {
@@ -3329,12 +3283,7 @@ const tests = registerSharedTestSuites(
                         },
                     ],
                     allFiles: [],
-                    settings: {
-                        checkExpr: true,
-                        subtreeEditable: true,
-                        language: "en",
-                        theme: "light",
-                    },
+                    settings: createHostInitSettings(),
                     documentSession: {
                         dirty: false,
                         historyIndex: 0,
@@ -3354,8 +3303,8 @@ const tests = registerSharedTestSuites(
 
                 assert.deepEqual(graphUiStore.getState().activeVariableNames, ["hp"]);
                 assert.equal(selectionStore.getState().selectedNodeRef, null);
-                assert.deepEqual(lastHighlights?.activeVariableNames, ["hp"]);
-                assert.deepEqual(lastHighlights?.variableHits["1"], ["input"]);
+                assert.deepEqual(lastHighlights.activeVariableNames, ["hp"]);
+                assert.deepEqual(lastHighlights.variableHits["1"], ["input"]);
             },
         },
         {
@@ -3476,12 +3425,7 @@ const tests = registerSharedTestSuites(
                         },
                     ],
                     allFiles: [],
-                    settings: {
-                        checkExpr: true,
-                        subtreeEditable: true,
-                        language: "en",
-                        theme: "light",
-                    },
+                    settings: createHostInitSettings(),
                     documentSession: {
                         dirty: false,
                         historyIndex: 0,
@@ -3619,12 +3563,7 @@ const tests = registerSharedTestSuites(
                         },
                     ],
                     allFiles: [],
-                    settings: {
-                        checkExpr: true,
-                        subtreeEditable: true,
-                        language: "en",
-                        theme: "light",
-                    },
+                    settings: createHostInitSettings(),
                     documentSession: {
                         dirty: false,
                         historyIndex: 0,
@@ -3757,12 +3696,7 @@ const tests = registerSharedTestSuites(
                         },
                     ],
                     allFiles: [],
-                    settings: {
-                        checkExpr: true,
-                        subtreeEditable: true,
-                        language: "en",
-                        theme: "light",
-                    },
+                    settings: createHostInitSettings(),
                     documentSession: {
                         dirty: false,
                         historyIndex: 0,
@@ -3940,12 +3874,7 @@ const tests = registerSharedTestSuites(
                         },
                     ],
                     allFiles: [],
-                    settings: {
-                        checkExpr: true,
-                        subtreeEditable: true,
-                        language: "en",
-                        theme: "light",
-                    },
+                    settings: createHostInitSettings(),
                     documentSession: {
                         dirty: false,
                         historyIndex: 0,
@@ -4236,12 +4165,7 @@ const tests = registerSharedTestSuites(
                         content,
                         nodeDefs: createNodeDefs(),
                         allFiles: [],
-                        settings: {
-                            checkExpr: true,
-                            subtreeEditable: true,
-                            language: "en",
-                            theme: "light",
-                        },
+                        settings: createHostInitSettings(),
                         documentSession: createDocumentSession(content),
                         selection: { kind: "tree" },
                     });
@@ -4456,12 +4380,7 @@ const tests = registerSharedTestSuites(
                         },
                     ],
                     allFiles: [],
-                    settings: {
-                        checkExpr: true,
-                        subtreeEditable: true,
-                        language: "en",
-                        theme: "light",
-                    },
+                    settings: createHostInitSettings(),
                     documentSession: {
                         dirty: false,
                         historyIndex: 0,
@@ -4617,12 +4536,7 @@ const tests = registerSharedTestSuites(
                         },
                     ],
                     allFiles: [],
-                    settings: {
-                        checkExpr: true,
-                        subtreeEditable: true,
-                        language: "en",
-                        theme: "light",
-                    },
+                    settings: createHostInitSettings(),
                     documentSession: {
                         dirty: false,
                         historyIndex: 0,
@@ -4803,12 +4717,7 @@ const tests = registerSharedTestSuites(
                         },
                     ],
                     allFiles: [],
-                    settings: {
-                        checkExpr: true,
-                        subtreeEditable: true,
-                        language: "en",
-                        theme: "light",
-                    },
+                    settings: createHostInitSettings(),
                     documentSession: {
                         dirty: false,
                         historyIndex: 0,
@@ -5007,12 +4916,7 @@ const tests = registerSharedTestSuites(
                         },
                     ],
                     allFiles: [],
-                    settings: {
-                        checkExpr: true,
-                        subtreeEditable: true,
-                        language: "en",
-                        theme: "light",
-                    },
+                    settings: createHostInitSettings(),
                     documentSession: {
                         dirty: false,
                         historyIndex: 0,
@@ -5198,12 +5102,7 @@ const tests = registerSharedTestSuites(
                     content: outerContent,
                     nodeDefs,
                     allFiles: ["sub/outer.json" as any, "sub/deep.json" as any],
-                    settings: {
-                        checkExpr: true,
-                        subtreeEditable: true,
-                        language: "en",
-                        theme: "light",
-                    },
+                    settings: createHostInitSettings(),
                     documentSession: {
                         dirty: false,
                         historyIndex: 0,
@@ -5215,17 +5114,16 @@ const tests = registerSharedTestSuites(
                     selection: { kind: "tree" },
                 });
 
+                const outerPath = parseWorkdirRelativeJsonPath("sub/outer.json");
+                const deepPath = parseWorkdirRelativeJsonPath("sub/deep.json");
+                assert.ok(outerPath);
+                assert.ok(deepPath);
+
                 const mainGraph = resolveDocumentGraph({
                     persistedTree: mainTree,
                     subtreeSources: {
-                        "sub/outer.json": parsePersistedTreeContent(
-                            outerContent,
-                            "/tmp/sub/outer.json"
-                        ),
-                        "sub/deep.json": parsePersistedTreeContent(
-                            deepContent,
-                            "/tmp/sub/deep.json"
-                        ),
+                        [outerPath]: parsePersistedTreeContent(outerContent, "/tmp/sub/outer.json"),
+                        [deepPath]: parsePersistedTreeContent(deepContent, "/tmp/sub/deep.json"),
                     },
                     nodeDefs,
                     subtreeEditable: true,
@@ -5250,12 +5148,7 @@ const tests = registerSharedTestSuites(
                     content: mainContent,
                     nodeDefs,
                     allFiles: ["sub/outer.json" as any, "sub/deep.json" as any],
-                    settings: {
-                        checkExpr: true,
-                        subtreeEditable: true,
-                        language: "en",
-                        theme: "light",
-                    },
+                    settings: createHostInitSettings(),
                     documentSession: {
                         dirty: false,
                         historyIndex: 0,
@@ -5586,9 +5479,352 @@ const tests = registerSharedTestSuites(
             },
         },
         {
-            name: "aborts batch source rewrites when any transformed tree fails validation",
+            name: "keeps legacy batch input tree unchanged by default when script is no-op",
             async run() {
-                const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-batch-abort-"));
+                const root = fs.mkdtempSync(
+                    path.join(os.tmpdir(), "behavior3-batch-legacy-default-")
+                );
+                const workspaceFile = path.join(root, "workspace.b3-workspace");
+                const settingFile = path.join(root, "node-config.b3-setting");
+                const treeFile = path.join(root, "main.json");
+                const buildScriptFile = path.join(root, "batch.ts");
+
+                try {
+                    fs.writeFileSync(workspaceFile, JSON.stringify({ settings: {} }));
+                    fs.writeFileSync(
+                        settingFile,
+                        JSON.stringify([
+                            {
+                                name: "Sequence",
+                                type: "Composite",
+                                desc: "",
+                                children: -1,
+                            },
+                        ])
+                    );
+
+                    const legacyContent = JSON.stringify({
+                        version: "2.0.0",
+                        name: "main",
+                        prefix: "",
+                        group: [],
+                        import: ["vars/legacy.json"],
+                        vars: [{ name: "legacyVar", desc: "legacy variable" }],
+                        custom: {},
+                        $override: {
+                            "legacy-leaf": {
+                                desc: "from-legacy",
+                            },
+                        },
+                        root: {
+                            $id: "legacy-root",
+                            id: "1",
+                            name: "Sequence",
+                            children: [
+                                {
+                                    $id: "legacy-leaf",
+                                    id: "2",
+                                    name: "Sequence",
+                                },
+                            ],
+                        },
+                    });
+                    fs.writeFileSync(treeFile, legacyContent);
+                    fs.writeFileSync(
+                        buildScriptFile,
+                        [
+                            "@behavior3.build",
+                            "export class NoopBatchScript {",
+                            "  onProcessTree(tree) {",
+                            "    return tree;",
+                            "  }",
+                            "}",
+                            "",
+                        ].join("\n")
+                    );
+
+                    const result = await batchProcessBehaviorProject({
+                        workspaceFile,
+                        settingFile,
+                        scriptFile: buildScriptFile,
+                    });
+
+                    assert.equal(result.hasError, false);
+                    assert.equal(result.summary.totalFiles, 1);
+                    assert.equal(result.summary.stagedWriteFiles, 0);
+                    assert.equal(result.summary.writtenFiles, 0);
+                    assert.equal(result.summary.unchangedFiles, 1);
+                    assert.equal(fs.readFileSync(treeFile, "utf-8"), legacyContent);
+                } finally {
+                    fs.rmSync(root, { recursive: true, force: true });
+                }
+            },
+        },
+        {
+            name: "upgrades legacy batch input tree when batch script requests it",
+            async run() {
+                const root = fs.mkdtempSync(
+                    path.join(os.tmpdir(), "behavior3-batch-legacy-upgrade-")
+                );
+                const workspaceFile = path.join(root, "workspace.b3-workspace");
+                const settingFile = path.join(root, "node-config.b3-setting");
+                const treeFile = path.join(root, "main.json");
+                const buildScriptFile = path.join(root, "batch.ts");
+                const writeMarkerFile = `${treeFile}.marker`;
+
+                try {
+                    fs.writeFileSync(workspaceFile, JSON.stringify({ settings: {} }));
+                    fs.writeFileSync(
+                        settingFile,
+                        JSON.stringify([
+                            {
+                                name: "Sequence",
+                                type: "Composite",
+                                desc: "",
+                                children: -1,
+                            },
+                        ])
+                    );
+
+                    fs.writeFileSync(
+                        treeFile,
+                        JSON.stringify({
+                            version: "2.0.0",
+                            name: "main",
+                            prefix: "",
+                            group: [],
+                            import: ["vars/legacy.json"],
+                            vars: [{ name: "legacyVar", desc: "legacy variable" }],
+                            custom: {},
+                            $override: {
+                                "legacy-leaf": {
+                                    desc: "from-legacy",
+                                },
+                            },
+                            root: {
+                                $id: "legacy-root",
+                                id: "1",
+                                name: "Sequence",
+                                children: [
+                                    {
+                                        $id: "legacy-leaf",
+                                        id: "2",
+                                        name: "Sequence",
+                                    },
+                                ],
+                            },
+                        })
+                    );
+                    fs.writeFileSync(
+                        buildScriptFile,
+                        [
+                            "@behavior3.build",
+                            "export class NoopBatchScript {",
+                            "  constructor(env) {",
+                            "    this.env = env;",
+                            "  }",
+                            "  shouldUpgradeTree() {",
+                            "    return true;",
+                            "  }",
+                            "  onProcessTree(tree) {",
+                            "    return tree;",
+                            "  }",
+                            "  onWriteFile(path) {",
+                            '    this.env.fs.writeFileSync(path + ".marker", "written");',
+                            "  }",
+                            "}",
+                            "",
+                        ].join("\n")
+                    );
+
+                    const result = await batchProcessBehaviorProject({
+                        workspaceFile,
+                        settingFile,
+                        scriptFile: buildScriptFile,
+                    });
+                    const upgradedTree = JSON.parse(fs.readFileSync(treeFile, "utf-8"));
+
+                    assert.equal(result.hasError, false);
+                    assert.equal(result.summary.totalFiles, 1);
+                    assert.equal(result.summary.stagedWriteFiles, 1);
+                    assert.equal(result.summary.writtenFiles, 1);
+                    assert.equal(result.summary.unchangedFiles, 0);
+                    assert.equal(fs.readFileSync(writeMarkerFile, "utf-8"), "written");
+                    assert.equal(upgradedTree.root.uuid, "legacy-root");
+                    assert.equal(upgradedTree.root.$id, undefined);
+                    assert.equal(upgradedTree.root.children[0].uuid, "legacy-leaf");
+                    assert.deepEqual(upgradedTree.overrides, {
+                        "legacy-leaf": { desc: "from-legacy" },
+                    });
+                    assert.deepEqual(upgradedTree.variables, {
+                        imports: ["vars/legacy.json"],
+                        locals: [{ name: "legacyVar", desc: "legacy variable" }],
+                    });
+                    assert.equal(upgradedTree.$override, undefined);
+                    assert.equal(upgradedTree.import, undefined);
+                    assert.equal(upgradedTree.vars, undefined);
+                } finally {
+                    fs.rmSync(root, { recursive: true, force: true });
+                }
+            },
+        },
+        {
+            name: "aborts batch input tree upgrades when batch script reports errors",
+            async run() {
+                const root = fs.mkdtempSync(
+                    path.join(os.tmpdir(), "behavior3-batch-legacy-error-")
+                );
+                const workspaceFile = path.join(root, "workspace.b3-workspace");
+                const settingFile = path.join(root, "node-config.b3-setting");
+                const goodTreeFile = path.join(root, "good.json");
+                const badTreeFile = path.join(root, "bad.json");
+                const buildScriptFile = path.join(root, "batch.ts");
+
+                try {
+                    fs.writeFileSync(workspaceFile, JSON.stringify({ settings: {} }));
+                    fs.writeFileSync(
+                        settingFile,
+                        JSON.stringify([
+                            {
+                                name: "Sequence",
+                                type: "Composite",
+                                desc: "",
+                                children: -1,
+                            },
+                        ])
+                    );
+
+                    const createLegacyContent = (name: string) =>
+                        JSON.stringify({
+                            version: "2.0.0",
+                            name,
+                            prefix: "",
+                            group: [],
+                            import: ["vars/legacy.json"],
+                            vars: [{ name: "legacyVar", desc: "legacy variable" }],
+                            custom: {},
+                            $override: {},
+                            root: {
+                                $id: `${name}-root`,
+                                id: "1",
+                                name: "Sequence",
+                            },
+                        });
+                    const goodBefore = createLegacyContent("good");
+                    const badBefore = createLegacyContent("bad");
+                    fs.writeFileSync(goodTreeFile, goodBefore);
+                    fs.writeFileSync(badTreeFile, badBefore);
+                    fs.writeFileSync(
+                        buildScriptFile,
+                        [
+                            "@behavior3.build",
+                            "export class ErrorBatchScript {",
+                            "  shouldUpgradeTree() {",
+                            "    return true;",
+                            "  }",
+                            "  onProcessTree(tree, treePath, errors) {",
+                            "    if (treePath.endsWith('/bad.json') || treePath.endsWith('\\\\bad.json')) {",
+                            '      errors.push("script rejected this tree");',
+                            "    }",
+                            "    return tree;",
+                            "  }",
+                            "}",
+                            "",
+                        ].join("\n")
+                    );
+
+                    const result = await batchProcessBehaviorProject({
+                        workspaceFile,
+                        settingFile,
+                        scriptFile: buildScriptFile,
+                    });
+
+                    assert.equal(result.hasError, true);
+                    assert.equal(result.summary.totalFiles, 2);
+                    assert.equal(result.summary.writtenFiles, 0);
+                    assert.equal(result.summary.failedFiles, 1);
+                    assert.equal(fs.readFileSync(goodTreeFile, "utf-8"), goodBefore);
+                    assert.equal(fs.readFileSync(badTreeFile, "utf-8"), badBefore);
+                } finally {
+                    fs.rmSync(root, { recursive: true, force: true });
+                }
+            },
+        },
+        {
+            name: "writes batch source rewrites without node legality validation",
+            async run() {
+                const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-batch-no-validate-"));
+                const workspaceFile = path.join(root, "workspace.b3-workspace");
+                const settingFile = path.join(root, "node-config.b3-setting");
+                const goodTreeFile = path.join(root, "good.json");
+                const badTreeFile = path.join(root, "bad.json");
+                const buildScriptFile = path.join(root, "batch.ts");
+
+                try {
+                    fs.writeFileSync(workspaceFile, JSON.stringify({ settings: {} }));
+                    fs.writeFileSync(
+                        settingFile,
+                        JSON.stringify([
+                            {
+                                name: "Sequence",
+                                type: "Composite",
+                                desc: "",
+                                children: -1,
+                            },
+                        ])
+                    );
+
+                    const goodTree = createTestTree();
+                    goodTree.name = "good";
+                    const badTree = createTestTree();
+                    badTree.name = "bad";
+                    fs.writeFileSync(goodTreeFile, JSON.stringify(goodTree));
+                    fs.writeFileSync(badTreeFile, JSON.stringify(badTree));
+
+                    fs.writeFileSync(
+                        buildScriptFile,
+                        [
+                            "@behavior3.build",
+                            "export class InvalidBatchScript {",
+                            "  onProcessTree(tree, treePath) {",
+                            "    tree.custom = { ...(tree.custom ?? {}), touched: true };",
+                            "    if (treePath.endsWith('/bad.json') || treePath.endsWith('\\\\bad.json')) {",
+                            '      tree.root.name = "MissingNode";',
+                            "    }",
+                            "    return tree;",
+                            "  }",
+                            "}",
+                            "",
+                        ].join("\n")
+                    );
+
+                    const result = await batchProcessBehaviorProject({
+                        workspaceFile,
+                        settingFile,
+                        scriptFile: buildScriptFile,
+                    });
+                    const parsedGood = JSON.parse(fs.readFileSync(goodTreeFile, "utf-8"));
+                    const parsedBad = JSON.parse(fs.readFileSync(badTreeFile, "utf-8"));
+
+                    assert.equal(result.hasError, false);
+                    assert.equal(result.summary.totalFiles, 2);
+                    assert.equal(result.summary.writtenFiles, 2);
+                    assert.equal(result.summary.stagedWriteFiles, 2);
+                    assert.equal(result.summary.failedFiles, 0);
+                    assert.equal(parsedGood.custom.touched, true);
+                    assert.equal(parsedBad.custom.touched, true);
+                    assert.equal(parsedBad.root.name, "MissingNode");
+                } finally {
+                    fs.rmSync(root, { recursive: true, force: true });
+                }
+            },
+        },
+        {
+            name: "aborts batch source rewrites when batch script reports errors",
+            async run() {
+                const root = fs.mkdtempSync(
+                    path.join(os.tmpdir(), "behavior3-batch-script-error-")
+                );
                 const workspaceFile = path.join(root, "workspace.b3-workspace");
                 const settingFile = path.join(root, "node-config.b3-setting");
                 const goodTreeFile = path.join(root, "good.json");
@@ -5622,11 +5858,11 @@ const tests = registerSharedTestSuites(
                         buildScriptFile,
                         [
                             "@behavior3.build",
-                            "export class InvalidBatchScript {",
-                            "  onProcessTree(tree, treePath) {",
+                            "export class ErrorBatchScript {",
+                            "  onProcessTree(tree, treePath, errors) {",
                             "    tree.custom = { ...(tree.custom ?? {}), touched: true };",
                             "    if (treePath.endsWith('/bad.json') || treePath.endsWith('\\\\bad.json')) {",
-                            '      tree.root.name = "MissingNode";',
+                            '      errors.push("script rejected this tree");',
                             "    }",
                             "    return tree;",
                             "  }",
@@ -5640,20 +5876,75 @@ const tests = registerSharedTestSuites(
                         settingFile,
                         scriptFile: buildScriptFile,
                     });
-                    const goodAfter = fs.readFileSync(goodTreeFile, "utf-8");
-                    const badAfter = fs.readFileSync(badTreeFile, "utf-8");
-                    const parsedGood = JSON.parse(goodAfter);
-                    const parsedBad = JSON.parse(badAfter);
 
                     assert.equal(result.hasError, true);
                     assert.equal(result.summary.totalFiles, 2);
                     assert.equal(result.summary.writtenFiles, 0);
-                    assert.equal(result.summary.stagedWriteFiles, 1);
                     assert.equal(result.summary.failedFiles, 1);
-                    assert.equal(goodAfter, goodBefore);
-                    assert.equal(badAfter, badBefore);
-                    assert.equal(parsedGood.custom.touched, undefined);
-                    assert.equal(parsedBad.custom.touched, undefined);
+                    assert.equal(fs.readFileSync(goodTreeFile, "utf-8"), goodBefore);
+                    assert.equal(fs.readFileSync(badTreeFile, "utf-8"), badBefore);
+                } finally {
+                    fs.rmSync(root, { recursive: true, force: true });
+                }
+            },
+        },
+        {
+            name: "ignores workspace checkScripts during batch processing",
+            async run() {
+                const root = fs.mkdtempSync(
+                    path.join(os.tmpdir(), "behavior3-batch-ignore-checks-")
+                );
+                const workspaceFile = path.join(root, "workspace.b3-workspace");
+                const settingFile = path.join(root, "node-config.b3-setting");
+                const treeFile = path.join(root, "main.json");
+                const buildScriptFile = path.join(root, "batch.ts");
+
+                try {
+                    fs.writeFileSync(
+                        workspaceFile,
+                        JSON.stringify({ settings: { checkScripts: ["missing-checks/**/*.ts"] } })
+                    );
+                    fs.writeFileSync(
+                        settingFile,
+                        JSON.stringify([
+                            {
+                                name: "Sequence",
+                                type: "Composite",
+                                desc: "",
+                                children: -1,
+                            },
+                        ])
+                    );
+
+                    const tree = createTestTree();
+                    tree.name = "main";
+                    fs.writeFileSync(treeFile, JSON.stringify(tree));
+                    fs.writeFileSync(
+                        buildScriptFile,
+                        [
+                            "@behavior3.build",
+                            "export class BatchScript {",
+                            "  onProcessTree(tree) {",
+                            "    tree.custom = { ...(tree.custom ?? {}), touched: true };",
+                            "    return tree;",
+                            "  }",
+                            "}",
+                            "",
+                        ].join("\n")
+                    );
+
+                    const result = await batchProcessBehaviorProject({
+                        workspaceFile,
+                        settingFile,
+                        scriptFile: buildScriptFile,
+                    });
+                    const parsedTree = JSON.parse(fs.readFileSync(treeFile, "utf-8"));
+
+                    assert.equal(result.hasError, false);
+                    assert.equal(result.summary.totalFiles, 1);
+                    assert.equal(result.summary.writtenFiles, 1);
+                    assert.equal(result.summary.failedFiles, 0);
+                    assert.equal(parsedTree.custom.touched, true);
                 } finally {
                     fs.rmSync(root, { recursive: true, force: true });
                 }

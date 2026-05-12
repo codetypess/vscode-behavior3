@@ -62,6 +62,7 @@ export interface NodeArgChecker {
 }
 
 export type BuildScript = {
+    shouldUpgradeTree?: (path: string, tree: TreeData) => boolean;
     onProcessTree?: (tree: TreeData, path: string, errors: string[]) => TreeData | null;
     onProcessNode?: (node: NodeData, errors: string[]) => NodeData | null;
     onWriteFile?: (path: string, tree: TreeData) => void;
@@ -91,6 +92,7 @@ export type BuildRuntime = {
 
 export declare class Hook implements BuildScript {
     constructor(env: BuildEnv);
+    shouldUpgradeTree?(path: string, tree: TreeData): boolean;
     onProcessTree?(tree: TreeData, path: string, errors: string[]): TreeData | null;
     onProcessNode?(node: NodeData, errors: string[]): NodeData | null;
     onWriteFile?(path: string, tree: TreeData): void;

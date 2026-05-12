@@ -128,6 +128,7 @@ const hasBatchHookMethod = (obj: unknown): obj is BuildScript => {
     }
     const candidate = obj as Partial<BuildScript>;
     return (
+        typeof candidate.shouldUpgradeTree === "function" ||
         typeof candidate.onProcessTree === "function" ||
         typeof candidate.onProcessNode === "function" ||
         typeof candidate.onWriteFile === "function" ||
@@ -1246,7 +1247,7 @@ export const batchProcessProjectWithContext = async (
 ): Promise<BatchProcessProjectResult> => {
     /**
      * Source batch processing rewrites persisted tree files in place, so it
-     * stages all validated writes before touching disk.
+     * stages all script-produced writes before touching disk.
      */
     if (hasFs()) {
         syncFilesFromDiskWithContext(context.files, context.parsedVarDecl, context.workdir);
@@ -1258,12 +1259,8 @@ export const batchProcessProjectWithContext = async (
     let skippedFiles = 0;
     let failedFiles = 0;
     let writtenFiles = 0;
-    const settings = readWorkspaceSettings(project);
-    const checkScriptSetting = settings.checkScripts ?? [];
     const allErrors: string[] = [];
     const stagedWrites: Array<{ path: string; tree: TreeData; content: string }> = [];
-
-    context.setCheckExpr(context.checkExprOverride ?? settings.checkExpr ?? true);
 
     let buildScriptModule: unknown;
     try {
@@ -1274,24 +1271,6 @@ export const batchProcessProjectWithContext = async (
         logger.error(`'${scriptPath}' is not a valid batch script`);
     }
 
-    const checkScriptModules: CheckScriptModule[] = [];
-    const checkScriptPaths = resolveCheckScriptPaths(context.workdir, checkScriptSetting);
-    for (const pattern of checkScriptPaths.missingPatterns) {
-        logger.error(`checkScripts pattern matched no files: ${pattern}`);
-        hasError = true;
-    }
-    for (const checkScriptPath of checkScriptPaths.paths) {
-        const moduleExports = await loadRuntimeModule(checkScriptPath, {
-            debug: context.buildScriptDebug,
-        });
-        if (!moduleExports) {
-            logger.error(`'${checkScriptPath}' is not a valid check script`);
-            hasError = true;
-            continue;
-        }
-        checkScriptModules.push({ path: checkScriptPath, moduleExports });
-    }
-
     const scriptEnv: BuildEnv = {
         fs: getFs(),
         path: b3path,
@@ -1299,17 +1278,13 @@ export const batchProcessProjectWithContext = async (
         nodeDefs: context.nodeDefs,
         logger,
     };
-    const buildRuntime = createBuildScriptRuntimeWithCheckModules(
-        buildScriptModule,
-        checkScriptModules,
-        scriptEnv
-    );
-    if (!buildScriptModule || buildRuntime.hasError || !buildRuntime.buildScript) {
+    const buildScript = createBatchHooks(buildScriptModule, scriptEnv);
+    if (!buildScriptModule || !buildScript) {
         hasError = true;
     }
 
     try {
-        if (!hasError || buildRuntime.buildScript) {
+        if (!hasError || buildScript) {
             for (const candidatePath of b3path.lsdir(b3path.dirname(project), true)) {
                 if (!isBehaviorTreeJsonPath(candidatePath)) {
                     continue;
@@ -1317,13 +1292,14 @@ export const batchProcessProjectWithContext = async (
 
                 totalFiles += 1;
                 const treeName = b3path.basenameWithoutExt(candidatePath);
+                const originalDiskContent = getFs().readFileSync(candidatePath, "utf-8");
                 const originalTree = readTreeFromFile(candidatePath);
                 const originalContent = writeTree(originalTree, treeName);
                 const errors: string[] = [];
                 let tree: TreeData | null = originalTree;
 
                 try {
-                    tree = processBatchTree(tree, candidatePath, buildRuntime.buildScript!, errors);
+                    tree = processBatchTree(tree, candidatePath, buildScript!, errors);
                 } catch (error) {
                     errors.push(`batch script failed: ${formatRuntimeError(error)}`);
                 }
@@ -1332,35 +1308,6 @@ export const batchProcessProjectWithContext = async (
                     logger.log("skip:", candidatePath);
                     skippedFiles += 1;
                     continue;
-                }
-
-                const declare: FileVarDecl = {
-                    import: tree.variables.imports.map((importPath) => ({
-                        path: importPath,
-                        vars: [],
-                        depends: [],
-                    })),
-                    vars: tree.variables.locals.map((variable) => ({
-                        name: variable.name,
-                        desc: variable.desc,
-                    })),
-                    subtree: [],
-                };
-                context.refreshVarDecl(tree.root, tree.group, declare);
-                if (!context.checkNodeData(tree.root, (message) => errors.push(message))) {
-                    hasError = true;
-                }
-                const checkDiagnostics = collectNodeArgCheckDiagnostics({
-                    tree,
-                    treePath: candidatePath,
-                    env: scriptEnv,
-                    checkers: buildRuntime.nodeArgCheckers,
-                });
-                if (checkDiagnostics.length) {
-                    hasError = true;
-                    checkDiagnostics.forEach((diagnostic) =>
-                        errors.push(formatNodeArgCheckBuildDiagnostic(diagnostic))
-                    );
                 }
 
                 if (errors.length) {
@@ -1372,7 +1319,11 @@ export const batchProcessProjectWithContext = async (
                 }
 
                 const nextContent = writeTree(tree, treeName);
-                if (nextContent === originalContent) {
+                const changedByScript = nextContent !== originalContent;
+                const changedByInputUpgrade =
+                    buildScript?.shouldUpgradeTree?.(candidatePath, tree) === true &&
+                    nextContent !== originalDiskContent;
+                if (!changedByScript && !changedByInputUpgrade) {
                     unchangedFiles += 1;
                     continue;
                 }
@@ -1388,7 +1339,7 @@ export const batchProcessProjectWithContext = async (
         if (!hasError) {
             for (const staged of stagedWrites) {
                 try {
-                    buildRuntime.buildScript?.onWriteFile?.(staged.path, staged.tree);
+                    buildScript?.onWriteFile?.(staged.path, staged.tree);
                 } catch (error) {
                     hasError = true;
                     failedFiles += 1;
@@ -1409,7 +1360,7 @@ export const batchProcessProjectWithContext = async (
     } finally {
         allErrors.forEach((message) => logger.error(message));
         try {
-            buildRuntime.buildScript?.onComplete?.(hasError ? "failure" : "success");
+            buildScript?.onComplete?.(hasError ? "failure" : "success");
         } catch (error) {
             logger.error("batch script onComplete failed", error);
         }

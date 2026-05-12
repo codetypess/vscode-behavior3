@@ -161,6 +161,7 @@ runtime, so no value import is required. The extension constructs the class once
 with `env`, then calls methods:
 
 - `constructor(env)`
+- `shouldUpgradeTree(path, tree)`
 - `onProcessTree(tree, path, errors)`
 - `onProcessNode(node, errors)`
 - `onWriteFile(path, tree)`
