@@ -173,6 +173,7 @@ Inspector 不只是字段表单，还需要表达：
 ### Args
 
 - 按 arg 类型渲染为 `Select` / `Switch` / `InputNumber` / `TextArea` 等
+- 带 `options` 的参数渲染为可搜索 `Select`，搜索按显示 label 匹配 option name/value 文本
 - `bool` / `bool?` 标量参数统一渲染为 `Switch`；项目内 bool 参数不通过 `options` 配置枚举值
 - 表达式型参数校验变量引用与表达式合法性
 - 自定义 node check 结果会映射到对应 arg 校验提示

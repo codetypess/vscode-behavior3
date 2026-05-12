@@ -161,6 +161,12 @@
     width: 100%;
 }
 
+.b3-inspector-form .ant-select-disabled .ant-select-input,
+.b3-inspector-form .ant-select-disabled .ant-select-content-value,
+.b3-inspector-form .ant-select-disabled .ant-select-selection-item {
+    color: var(--ant-color-text-tertiary);
+}
+
 .b3-list-block {
     display: flex;
     flex-direction: column;

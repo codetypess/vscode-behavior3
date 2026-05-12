@@ -143,6 +143,7 @@ const NodeArgField: React.FC<{
                     mode={isNodeArgArray(arg) ? "multiple" : undefined}
                     disabled={disabled}
                     allowClear={!required}
+                    showSearch
                     onChange={onQueueCommit}
                     onBlur={onCommit}
                     options={options.map((option: { name: string; value: unknown }) => ({
