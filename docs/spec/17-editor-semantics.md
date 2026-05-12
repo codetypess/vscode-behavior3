@@ -289,6 +289,7 @@ host reducer 当前分三条路径：
 
 - 只是把 build 请求交给宿主
 - 结果通过 `buildResult` 回推
+- `Ctrl+B` / `Cmd+B` 与 `Ctrl+Shift+B` / `Cmd+Shift+B` 由 VS Code contributed keybindings 直接触发 extension-host build command；webview 不应重复绑定同一组 build 快捷键
 
 ### `behavior3.batchProcess`
 

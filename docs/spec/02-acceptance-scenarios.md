@@ -99,6 +99,9 @@
 ### BB-12 Build 与节点参数检查
 
 - 触发 build / build debug 后，宿主执行构建流程并返回 `buildResult`
+- 在 Behavior3 custom editor 中按一次 `Ctrl+B` / `Cmd+B` 最多启动一次 build，不应因为重复派发立即出现 already-running warning
+- 在 Behavior3 custom editor 中按一次 `Ctrl+Shift+B` / `Cmd+Shift+B` 最多启动一次 debug build，不应因为重复派发立即出现 already-running warning
+- 仅当另一次 build 真实仍在运行时，重复触发 build 才显示 already-running warning
 - 图重建时会按当前节点定义与工作区脚本执行节点参数检查，包含必填参数缺失
 - 校验失败的节点以错误风格显示，且相关字段在 Inspector 中反馈错误
 

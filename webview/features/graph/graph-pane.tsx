@@ -221,17 +221,6 @@ export const GraphPane: React.FC = () => {
         }
     );
 
-    useKeyPress([Hotkey.Build, Hotkey.BuildDebug], null, (event, key) => {
-        if (isEditableTarget(event.target)) {
-            return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        void runtime.controller.buildDocument({
-            buildScriptDebug: key === Hotkey.BuildDebug,
-        });
-    });
-
     useEffect(() => {
         const container = mountRef.current;
         if (!container) {

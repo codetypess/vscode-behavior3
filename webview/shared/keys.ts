@@ -25,8 +25,6 @@ export const useKeyPress = (
 
 export const Hotkey = {
     Backspace: Key.Backspace,
-    Build: hotkey("ctrl.b"),
-    BuildDebug: hotkey("shift.ctrl.b"),
     CloseEditor: hotkey("ctrl.w"),
     CloseAllOtherEditors: hotkey("ctrl.shift.w"),
     Copy: hotkey("ctrl.c"),
