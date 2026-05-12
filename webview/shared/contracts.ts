@@ -300,6 +300,7 @@ export interface ResolvedNodeModel {
     args?: Record<string, unknown>;
     input?: string[];
     output?: string[];
+    children?: Array<{ disabled?: boolean }>;
     debug?: boolean;
     disabled?: boolean;
     path?: WorkdirRelativeJsonPath;

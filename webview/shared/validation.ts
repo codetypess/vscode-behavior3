@@ -351,6 +351,13 @@ export const collectResolvedNodeDiagnostics = (params: {
         }
     }
 
+    if (def.children !== undefined && def.children !== -1) {
+        const actual = node.children?.filter((child) => !child.disabled).length ?? 0;
+        if (actual !== def.children) {
+            diagnostics.push({ code: "invalid-children", expected: def.children, actual });
+        }
+    }
+
     for (let index = 0; index < (def.input?.length ?? 0); index += 1) {
         const slotDefinition = parseSlotDefinition(def.input?.[index] ?? "", def.input, index);
         if (slotDefinition.variadic) {

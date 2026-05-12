@@ -166,7 +166,7 @@
 2. 再聚合未 disabled 的子节点状态
 3. 按当前 `behavior3` 规则合成 `success` / `failure` / `running` 位
 
-这意味着图层看到的 `$status` 已经是运行时派生结果，而不是原始存档字段。
+这意味着图层看到的 `$status` 已经是运行时派生结果，而不是原始存档字段。固定 `children` 数量校验同样按未 disabled 的子节点数量判断；数量不匹配会进入共享 validation diagnostic，并让图节点显示 Error 样式。
 
 ## 扁平化规则
 

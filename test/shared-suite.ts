@@ -1743,6 +1743,108 @@ const tests = registerSharedTestSuites(
             },
         },
         {
+            name: "collects invalid child count diagnostics for fixed arity nodes",
+            run() {
+                const tooFewDiagnostics = collectResolvedNodeDiagnostics({
+                    node: {
+                        name: "If",
+                        children: [{}, {}],
+                    },
+                    def: {
+                        name: "If",
+                        type: "Composite",
+                        desc: "",
+                        children: 3,
+                    },
+                    usingVars: null,
+                    usingGroups: null,
+                    checkExpr: true,
+                });
+                const tooManyDiagnostics = collectResolvedNodeDiagnostics({
+                    node: {
+                        name: "If",
+                        children: [{}, {}, {}, {}],
+                    },
+                    def: {
+                        name: "If",
+                        type: "Composite",
+                        desc: "",
+                        children: 3,
+                    },
+                    usingVars: null,
+                    usingGroups: null,
+                    checkExpr: true,
+                });
+                const disabledDiagnostics = collectResolvedNodeDiagnostics({
+                    node: {
+                        name: "If",
+                        children: [{}, {}, {}, { disabled: true }],
+                    },
+                    def: {
+                        name: "If",
+                        type: "Composite",
+                        desc: "",
+                        children: 3,
+                    },
+                    usingVars: null,
+                    usingGroups: null,
+                    checkExpr: true,
+                });
+
+                assert.deepEqual(tooFewDiagnostics[0], {
+                    code: "invalid-children",
+                    expected: 3,
+                    actual: 2,
+                });
+                assert.deepEqual(tooManyDiagnostics[0], {
+                    code: "invalid-children",
+                    expected: 3,
+                    actual: 4,
+                });
+                assert.equal(disabledDiagnostics.length, 0);
+            },
+        },
+        {
+            name: "marks graph nodes with invalid child counts as errors",
+            run() {
+                const graphModel = buildResolvedGraphModel(
+                    {
+                        rootKey: "1",
+                        nodeOrder: ["1"],
+                        nodesByInstanceKey: {
+                            "1": {
+                                ref: {
+                                    instanceKey: "1",
+                                    displayId: "1",
+                                    structuralStableId: "root",
+                                    sourceStableId: "root",
+                                    sourceTreePath: null,
+                                    subtreeStack: [],
+                                },
+                                parentKey: null,
+                                childKeys: [],
+                                depth: 0,
+                                renderedIdLabel: "1",
+                                name: "If",
+                                children: [{}, {}],
+                                subtreeNode: false,
+                                subtreeEditable: true,
+                            },
+                        },
+                    },
+                    [{ name: "If", type: "Composite", desc: "", children: 3 }],
+                    undefined,
+                    {
+                        usingVars: null,
+                        usingGroups: null,
+                        checkExpr: true,
+                    }
+                );
+
+                assert.equal(graphModel.nodes[0]?.nodeStyleKind, "Error");
+            },
+        },
+        {
             name: "validates node arg scalar entries through shared validation",
             run() {
                 const diagnostics = validateNodeArgValue({

@@ -231,5 +231,6 @@ Scope: <short boundary>
 ## Active Work Items
 
 - [`build-hotkey-single-dispatch.md`](build-hotkey-single-dispatch.md) — 修复 build 快捷键在 custom editor 中一次按键重复派发。
+- [`node-child-count-validation.md`](node-child-count-validation.md) — 让固定 children 数量不匹配的节点在图上显示 Error 状态。
 
 新增 work-item 时，请继续按以上格式补充；完成后如果长期规则已同步进编号基线 spec，删除对应 work-item。

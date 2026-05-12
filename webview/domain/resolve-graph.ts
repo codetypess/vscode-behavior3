@@ -54,6 +54,7 @@ const flattenMaterializedTree = (
             args: node.data.args,
             input: node.data.input,
             output: node.data.output,
+            children: node.data.children,
             debug: node.data.debug,
             disabled: node.data.disabled,
             path: node.data.path,
