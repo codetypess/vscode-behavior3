@@ -16,10 +16,7 @@
       "label": "build:dev",
       "type": "shell",
       "command": "npm run build:dev",
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
+      "group": "build",
       "problemMatcher": ["$tsc"],
       "presentation": {
         "reveal": "silent",
@@ -27,15 +24,56 @@
       }
     },
     {
+      "label": "watch",
+      "dependsOn": ["watch:ext", "watch:webview"],
+      "presentation": {
+        "reveal": "never"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "watch:ext",
       "type": "shell",
       "command": "npm run watch:ext",
       "group": "build",
-      "problemMatcher": ["$tsc-watch"],
+      "problemMatcher": {
+        "owner": "esbuild",
+        "source": "esbuild",
+        "applyTo": "closedDocuments",
+        "fileLocation": "relative",
+        "severity": "error",
+        "pattern": [
+          {
+            "regexp": "^[✘▲] \\[([A-Z]+)\\] (.+)$",
+            "severity": 1,
+            "message": 2
+          },
+          {
+            "regexp": "^(?:\\t| {4})(?!\\s)([^:]+)(?::([0-9]+))?(?::([0-9]+))?:$",
+            "file": 1,
+            "line": 2,
+            "column": 3
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": {
+            "regexp": "^> node esbuild\\.js --watch$"
+          },
+          "endsPattern": {
+            "regexp": "\\[esbuild\\] watching\\.\\.\\."
+          }
+        }
+      },
       "isBackground": true,
       "presentation": {
         "reveal": "never",
-        "panel": "dedicated"
+        "panel": "dedicated",
+        "group": "watch"
       }
     },
     {
@@ -43,11 +81,40 @@
       "type": "shell",
       "command": "npm run watch:webview",
       "group": "build",
-      "problemMatcher": [],
+      "problemMatcher": {
+        "owner": "vite",
+        "source": "vite",
+        "applyTo": "closedDocuments",
+        "fileLocation": "relative",
+        "severity": "error",
+        "pattern": [
+          {
+            "regexp": "^[✘▲] \\[([A-Z]+)\\] (.+)$",
+            "severity": 1,
+            "message": 2
+          },
+          {
+            "regexp": "^(?:\\t| {4})(?!\\s)([^:]+)(?::([0-9]+))?(?::([0-9]+))?:$",
+            "file": 1,
+            "line": 2,
+            "column": 3
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": {
+            "regexp": "build started\\.\\.\\."
+          },
+          "endsPattern": {
+            "regexp": "built in \\d+ms\\."
+          }
+        }
+      },
       "isBackground": true,
       "presentation": {
         "reveal": "never",
-        "panel": "dedicated"
+        "panel": "dedicated",
+        "group": "watch"
       }
     }
   ]
