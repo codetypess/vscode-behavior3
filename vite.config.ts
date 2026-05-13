@@ -1,29 +1,4 @@
-import react from "@vitejs/plugin-react";
-import path from "path";
 import { defineConfig } from "vite";
+import { createWebviewBuildConfig } from "./scripts/vite-webview-config.mjs";
 
-export default defineConfig(({ mode }) => ({
-  plugins: [react()],
-  root: "webview",
-  base: "./",
-  publicDir: path.resolve(__dirname, "media"),
-  build: {
-    outDir: path.resolve(__dirname, "dist/webview"),
-    emptyOutDir: true,
-    rollupOptions: {
-      input: {
-        editor: path.resolve(__dirname, "webview/index.html"),
-      },
-    },
-    // dev mode: inline sourcemaps (CSP-safe, no separate .map files)
-    // production: no sourcemaps to keep bundle size small
-    sourcemap: mode === "development" ? "inline" : false,
-  },
-  css: {
-    preprocessorOptions: {
-      scss: {
-        api: "modern",
-      },
-    },
-  },
-}));
+export default defineConfig(({ mode }) => createWebviewBuildConfig({ mode }));

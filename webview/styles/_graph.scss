@@ -9,9 +9,12 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 18px;
-    font-size: 17px;
+    width: 22px;
     line-height: 1;
+}
+
+.b3-context-menu-icon.codicon[class*="codicon-"] {
+    font: normal normal normal 15px/1 codicon;
 }
 
 .b3-graph {

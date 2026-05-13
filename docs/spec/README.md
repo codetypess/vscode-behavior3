@@ -38,7 +38,7 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 0 份 active work-item spec
+- 1 份 active work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
 这里不是完整历史档案。纯机械整理、模块拆分、重命名、helper 收口这类 work-item，在长期规则已经同步进编号基线后，可以直接删除，不需要长期保留。
@@ -233,5 +233,6 @@ Scope: <short boundary>
 - [`build-hotkey-single-dispatch.md`](build-hotkey-single-dispatch.md) — 修复 build 快捷键在 custom editor 中一次按键重复派发。
 - [`node-child-count-validation.md`](node-child-count-validation.md) — 让固定 children 数量不匹配的节点在图上显示 Error 状态。
 - [`node-inspector-identity-json.md`](node-inspector-identity-json.md) — 在 Node Inspector 中同时展示 `displayId` 与 `uuid`，并提供统一的 raw JSON 切换视图。
+- [`webview-watch-stability.md`](webview-watch-stability.md) — 稳定 webview watch 构建，并迁移到 Vite 8。
 
 新增 work-item 时，请继续按以上格式补充；完成后如果长期规则已同步进编号基线 spec，删除对应 work-item。

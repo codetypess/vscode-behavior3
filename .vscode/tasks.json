@@ -103,10 +103,10 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": {
-            "regexp": "build started\\.\\.\\."
+            "regexp": "\\[watch\\] build started"
           },
           "endsPattern": {
-            "regexp": "built in \\d+ms\\."
+            "regexp": "\\[watch\\] build finished"
           }
         }
       },
