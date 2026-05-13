@@ -15,6 +15,7 @@
   "command.createTree.title": "Create Behavior Tree File",
   "command.openWithEditor.title": "Open with Behavior3",
   "command.toggleEditorMode.title": "Toggle Text / Behavior3",
+  "command.toggleInspectorNodeJson.title": "Toggle Node JSON",
   "configuration.title": "Behavior3 Editor",
   "configuration.checkExpr.description": "Enable expression validation.",
   "configuration.language.description": "Editor UI language. The default follows the VS Code display language; you can also force a language.",

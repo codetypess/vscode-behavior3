@@ -19,6 +19,7 @@ import { createInitialDocumentState } from "../stores/document-store";
 import { createInitialGraphUiState } from "../stores/graph-ui-store";
 import { createInitialSelectionState } from "../stores/selection-store";
 import { createInitialWorkspaceState } from "../stores/workspace-store";
+import { InspectorJsonViewProvider, useInspectorJsonView } from "../features/inspector/inspector-json-view";
 import { InspectorPane } from "../features/inspector/inspector-pane";
 import { InspectorModeProvider } from "../features/inspector/inspector-mode";
 import { flushPendingInspectorEdits } from "../features/inspector/inspector-commit-queue";
@@ -102,6 +103,7 @@ const isEditableTarget = (target: EventTarget | null) => {
 
 const SidebarHostBridge: React.FC = () => {
     const runtime = useRuntime();
+    const { toggleNodeJsonVisible } = useInspectorJsonView();
     const latestIncomingFilePathRef = useRef<string | null>(null);
 
     useEffect(() => {
@@ -180,6 +182,10 @@ const SidebarHostBridge: React.FC = () => {
                 case "inspectorContextCleared":
                     latestIncomingFilePathRef.current = null;
                     resetSidebarContext(runtime);
+                    return;
+
+                case "toggleInspectorNodeJson":
+                    toggleNodeJsonVisible();
                     return;
 
                 case "subtreeFileChanged":
@@ -290,9 +296,11 @@ const SidebarAppFrame: React.FC = () => {
             theme={getThemeConfig(theme, themeVersion, webviewKind)}
         >
             <AntdApp style={{ height: "100%" }}>
-                <GlobalHooksBridge />
-                <SidebarHostBridge />
-                <SidebarShell />
+                <InspectorJsonViewProvider>
+                    <GlobalHooksBridge />
+                    <SidebarHostBridge />
+                    <SidebarShell />
+                </InspectorJsonViewProvider>
             </AntdApp>
         </ConfigProvider>
     );

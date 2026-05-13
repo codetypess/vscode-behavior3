@@ -74,6 +74,8 @@ export type HostToEditorMessage =
     | { type: "subtreeFileChanged" }
     /** No active Behavior3 editor is currently driving the sidebar inspector. */
     | { type: "inspectorContextCleared" }
+    /** Toggle the sidebar node inspector between structured fields and raw JSON. */
+    | { type: "toggleInspectorNodeJson" }
     | {
           type: "settingLoaded";
           nodeDefs: NodeDef[];

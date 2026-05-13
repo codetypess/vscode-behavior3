@@ -1,13 +1,18 @@
 .b3-inspector {
+    --b3-inspector-font-size: var(--vscode-font-size, 13px);
+    --b3-inspector-control-height: max(26px, calc(var(--b3-inspector-font-size) * 2 + 2px));
+    --ant-font-size: var(--b3-inspector-font-size);
     height: 100%;
     display: flex;
     flex-direction: column;
+    font-size: var(--b3-inspector-font-size);
 }
 
 .b3-inspector-empty {
     height: 100%;
     padding: 20px 16px;
     text-align: center;
+    font-size: var(--vscode-font-size, 13px);
 }
 
 .b3-inspector-header {
@@ -74,7 +79,7 @@
 }
 
 .b3-inspector-form .ant-form-item {
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 
 .b3-inspector-form .ant-form-item-label {
@@ -87,7 +92,7 @@
 .b3-inspector-form .ant-form-item-label > label {
     width: 100%;
     height: auto;
-    min-height: 32px;
+    min-height: var(--b3-inspector-control-height);
     align-items: flex-start;
     justify-content: flex-end;
     color: var(--ant-color-text);
@@ -101,7 +106,7 @@
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    padding-top: calc((32px - 1.35em) / 2);
+    padding-top: calc((var(--b3-inspector-control-height) - 1.35em) / 2);
 }
 
 .b3-form-label-text {
@@ -134,8 +139,54 @@
     width: 100%;
 }
 
+.b3-node-identity-field.ant-space-compact {
+    width: 100%;
+}
+
+.b3-node-identity-field .ant-space-compact-item,
+.b3-node-identity-field .b3-node-identity-uuid {
+    min-width: 0;
+}
+
+.b3-node-identity-field .b3-node-identity-id {
+    flex: none;
+}
+
+.b3-node-identity-field .b3-node-identity-uuid {
+    flex: 1 1 auto;
+}
+
+.b3-node-identity-field .ant-input[disabled] {
+    color: var(--ant-color-text-tertiary);
+    -webkit-text-fill-color: var(--ant-color-text-tertiary);
+    background: var(--ant-color-bg-container-disabled);
+}
+
+.b3-node-identity-field .b3-node-identity-id.ant-input[disabled] {
+    text-align: center;
+    background: var(--ant-color-fill-tertiary);
+}
+
+.b3-node-json-form-item .ant-form-item-row {
+    display: block;
+}
+
+.b3-node-json-view.ant-input {
+    font-family: var(
+        --vscode-editor-font-family,
+        ui-monospace,
+        "SFMono-Regular",
+        "Cascadia Mono",
+        "Fira Code",
+        monospace
+    );
+    font-size: var(--vscode-editor-font-size, var(--b3-inspector-font-size));
+    line-height: 1.5;
+    resize: vertical;
+}
+
 .b3-inspector-form .ant-form-item-explain {
-    font-size: small;
+    font-size: 1em;
     word-break: break-word;
 }
 
@@ -224,7 +275,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 32px;
     flex: 0 0 40px;
     min-width: 40px;
     max-width: 40px;
@@ -262,7 +312,7 @@
 }
 
 .b3-inline-remove {
-    margin-top: 10px;
+    margin-top: calc((var(--b3-inspector-control-height) - 1em) / 2);
     color: var(--ant-color-text-tertiary);
     cursor: pointer;
 }

@@ -55,6 +55,16 @@ const resolveCssVariable = (names: string[], fallback: string): string => {
     return fallback;
 };
 
+const resolveCssPixelValue = (names: string[], fallback: number): number => {
+    const resolved = resolveCssVariable(names, `${fallback}px`);
+    const parsed = Number.parseFloat(resolved);
+    return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const resolveControlHeight = (fontSize: number): number => {
+    return Math.max(26, Math.round(fontSize * 2 + 2));
+};
+
 const getThemePalette = (mode: ThemeMode, webviewKind: WebviewKind): ThemePalette => {
     const isDark = mode === "dark";
     const isInspectorSidebar = webviewKind === "inspector-sidebar";
@@ -186,11 +196,17 @@ const getOverlayShadow = (borderColor: string) => `0 0 0 1px ${borderColor}`;
 
 const buildThemeConfig = (mode: ThemeMode, webviewKind: WebviewKind): ThemeConfig => {
     const palette = getThemePalette(mode, webviewKind);
+    const fontSize = resolveCssPixelValue(["--vscode-font-size", "--vscode-editor-font-size"], 13);
+    const controlHeight = resolveControlHeight(fontSize);
 
     return {
         cssVar: {},
         algorithm: mode === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
         token: {
+            fontSize,
+            controlHeight,
+            controlHeightSM: Math.max(22, controlHeight - 4),
+            controlHeightLG: controlHeight + 4,
             colorPrimary: palette.buttonBg,
             colorInfo: palette.buttonBg,
             colorLink: palette.textLink,

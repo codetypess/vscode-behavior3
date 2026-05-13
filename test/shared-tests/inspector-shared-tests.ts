@@ -5,9 +5,11 @@ import {
     validateInspectorArgValue,
 } from "../../webview/features/inspector/inspector-arg-values";
 import {
+    createNodeInspectorFormValues,
     buildTreeCustomRecord,
     getTreeCustomValueKind,
-} from "../../webview/features/inspector/tree-custom-metadata";
+} from "../../webview/features/inspector/inspector-form-values";
+import type { EditNode } from "../../webview/shared/contracts";
 import { normalizeNodeDefCollection, parseNodeDefsContent } from "../../webview/shared/schema";
 import { defineSharedTests } from "../shared-test-types";
 
@@ -88,6 +90,50 @@ export const inspectorSharedTests = defineSharedTests([
                     ),
                 /checker.*non-empty string/
             );
+        },
+    },
+    {
+        name: "creates node inspector identity and raw json form values",
+        run() {
+            const selectedNode: EditNode = {
+                ref: {
+                    instanceKey: "7",
+                    displayId: "7",
+                    structuralStableId: "node-uuid",
+                    sourceStableId: "node-uuid",
+                    sourceTreePath: null,
+                    subtreeStack: [],
+                },
+                data: {
+                    uuid: "node-uuid",
+                    id: "legacy-7",
+                    name: "Wait",
+                    desc: "pause",
+                    args: {
+                        time: 1,
+                    },
+                },
+                prefix: "",
+                activeChildCount: 0,
+                disabled: false,
+                subtreeNode: false,
+                subtreeEditable: true,
+            };
+
+            const values = createNodeInspectorFormValues(
+                {
+                    name: "Wait",
+                    type: "Action",
+                    desc: "wait",
+                    args: [{ name: "time", type: "float", desc: "Time" }],
+                },
+                selectedNode,
+                "Unknown"
+            );
+
+            assert.equal(values.id, "7 (node-uuid)");
+            assert.match(values.rawNodeJson, /"uuid": "node-uuid"/);
+            assert.match(values.rawNodeJson, /"id": "legacy-7"/);
         },
     },
     {

@@ -48,6 +48,7 @@ Inspector 不只是字段表单，还需要表达：
 
 - `behavior3.build`
 - `behavior3.toggleEditorMode`
+- `behavior3.toggleInspectorNodeJson`
 - `behavior3.createProject`
 - `behavior3.createTree`
 
@@ -147,7 +148,7 @@ Inspector 不只是字段表单，还需要表达：
 
 ### Section Order
 
-1. `id`
+1. identity
 2. `type`
 3. `group`（若 nodeDef 声明）
 4. `children`
@@ -156,16 +157,20 @@ Inspector 不只是字段表单，还需要表达：
 7. `debug`
 8. `disabled`
 9. `path`
-10. nodeDef markdown doc（若存在）
-11. input slots
-12. output slots
-13. structured args
-14. raw node JSON fallback（仅未知节点）
+10. nodeDef markdown doc（若存在，且当前不在 JSON 视图）
+11. input slots（若当前不在 JSON 视图）
+12. output slots（若当前不在 JSON 视图）
+13. structured args（若当前不在 JSON 视图）
+14. raw node JSON view
 15. edit subtree action（仅可打开 subtree 的节点）
 
 ### Readonly Meta
 
-- `id` 只读，来自 `displayId`
+- identity 区只读，同时展示：
+  - `displayId`
+  - `uuid`
+- 其中 `displayId` 来自 `selectedNode.ref.displayId`
+- `uuid` 来自当前 `selectedNode.data.uuid`
 - `type` 只读，来自 nodeDef.type 或 unknown fallback
 - `children` 只读，展示当前 children 约束结果
 
@@ -190,10 +195,13 @@ Inspector 不只是字段表单，还需要表达：
 - 自定义 node check 结果会映射到对应 arg 校验提示
 - 新切入的 required arg 若当前还没有 committed 值，初始态保持 unset；在用户显式输入前不得静默序列化成 `""`、`false` 或其他占位值
 
-### Unknown Fallback
+### Raw JSON View
 
+- `sidebar` 模式下，已知节点可通过 view title 上的 `behavior3.toggleInspectorNodeJson` 切到原始节点 JSON 只读视图
+- raw JSON 内容来自当前 `selectedNode.data`
+- raw JSON 视图使用可选中复制的只读控件，而不是 disabled 文本框
 - 当前 nodeDef 不存在时，不渲染结构化 args
-- 显示原始节点 JSON 只读视图
+- 未知节点默认进入 raw JSON 视图
 
 ### Edit Subtree Action
 

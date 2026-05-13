@@ -96,6 +96,20 @@ export class InspectorSidebarCoordinator {
         this.viewReady = false;
     }
 
+    toggleNodeJsonView(): void {
+        if (this.inspectorMode !== "sidebar") {
+            return;
+        }
+
+        const snapshot =
+            (this.activeDocumentUri && this.sessionSnapshots.get(this.activeDocumentUri)) ?? null;
+        if (!snapshot || snapshot.documentSnapshot.selection.kind !== "node") {
+            return;
+        }
+
+        void this.postMessage({ type: "toggleInspectorNodeJson" });
+    }
+
     setInspectorMode(mode: "sidebar" | "embedded"): void {
         this.inspectorMode = mode;
         if (!this.viewReady) {

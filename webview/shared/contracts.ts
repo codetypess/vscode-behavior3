@@ -285,6 +285,7 @@ export type HostEvent =
     | { type: "themeChanged"; theme: Settings["theme"] }
     | { type: "subtreeFileChanged" }
     | { type: "inspectorContextCleared" }
+    | { type: "toggleInspectorNodeJson" }
     | { type: "settingLoaded"; nodeDefs: NodeDef[]; settings?: Partial<Settings> }
     | { type: "varDeclLoaded"; payload: HostVarsPayload }
     | { type: "buildResult"; success: boolean; message: string };

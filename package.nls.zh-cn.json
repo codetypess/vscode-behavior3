@@ -15,6 +15,7 @@
   "command.createTree.title": "创建行为树文件",
   "command.openWithEditor.title": "使用 Behavior3 打开",
   "command.toggleEditorMode.title": "切换文本 / Behavior3",
+  "command.toggleInspectorNodeJson.title": "切换节点 JSON",
   "configuration.title": "Behavior3 编辑器",
   "configuration.checkExpr.description": "启用表达式校验。",
   "configuration.language.description": "编辑器界面语言。默认跟随 VS Code 显示语言，也可手动指定。",

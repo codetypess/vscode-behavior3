@@ -23,6 +23,7 @@ const getVSCodeTheme = (): "dark" | "light" => {
 
 export function activate(context: vscode.ExtensionContext) {
     const config = vscode.workspace.getConfiguration("behavior3");
+    const inspectorMode = config.get<"sidebar" | "embedded">("inspectorMode", "sidebar");
     const out = getBehavior3OutputChannel();
     context.subscriptions.push(out);
     setLogger(composeLoggers(createConsoleLogger(), createLogOutputChannelLogger(out)));
@@ -33,8 +34,11 @@ export function activate(context: vscode.ExtensionContext) {
         context.extensionUri,
         inspectorCoordinator
     );
-    inspectorCoordinator.setInspectorMode(
-        config.get<"sidebar" | "embedded">("inspectorMode", "sidebar")
+    inspectorCoordinator.setInspectorMode(inspectorMode);
+    void vscode.commands.executeCommand(
+        "setContext",
+        "behavior3.inspectorSidebarMode",
+        inspectorMode === "sidebar"
     );
     inspectorCoordinator.setMessageDispatcher((documentUri, message, reply) =>
         TreeEditorProvider.dispatchMessageToDocument(documentUri, message, reply)
@@ -83,10 +87,14 @@ export function activate(context: vscode.ExtensionContext) {
         if (!event.affectsConfiguration("behavior3.inspectorMode")) {
             return;
         }
-        inspectorCoordinator.setInspectorMode(
-            vscode.workspace
-                .getConfiguration("behavior3")
-                .get<"sidebar" | "embedded">("inspectorMode", "sidebar")
+        const nextInspectorMode = vscode.workspace
+            .getConfiguration("behavior3")
+            .get<"sidebar" | "embedded">("inspectorMode", "sidebar");
+        inspectorCoordinator.setInspectorMode(nextInspectorMode);
+        void vscode.commands.executeCommand(
+            "setContext",
+            "behavior3.inspectorSidebarMode",
+            nextInspectorMode === "sidebar"
         );
     }));
 
@@ -133,6 +141,11 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand("behavior3.buildDebug", async () => {
             await runBuild(context, { buildScriptDebug: true });
+        })
+    );
+    context.subscriptions.push(
+        vscode.commands.registerCommand("behavior3.toggleInspectorNodeJson", async () => {
+            inspectorCoordinator.toggleNodeJsonView();
         })
     );
     context.subscriptions.push(

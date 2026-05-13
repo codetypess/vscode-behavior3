@@ -1,5 +1,5 @@
 import { FormOutlined } from "@ant-design/icons";
-import { AutoComplete, Button, Form, Input, Select, Switch } from "antd";
+import { AutoComplete, Button, Form, Input, Select, Space, Switch } from "antd";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
@@ -16,6 +16,7 @@ import {
 } from "./inspector-shared";
 import { useNodeInspectorViewState } from "./inspector-state";
 import { createNodeInspectorFormValues } from "./inspector-form-values";
+import { useInspectorJsonView } from "./inspector-json-view";
 import { useInspectorMode } from "./inspector-mode";
 import { useNodeInspectorCommitters } from "./node-inspector-committers";
 import { NodeStructuredArgsSection } from "./node-inspector-args-section";
@@ -33,6 +34,7 @@ const NodeMetaFields: React.FC<{
     fieldEditDisabled: boolean;
     readOnly: boolean;
     canShowOverride: boolean;
+    showNodeDoc: boolean;
     subtreeOriginal: ReturnType<typeof useNodeInspectorViewState>["subtreeOriginal"];
     onCommitName: () => void;
     onQueueCommitName: () => void;
@@ -54,6 +56,7 @@ const NodeMetaFields: React.FC<{
     fieldEditDisabled,
     readOnly,
     canShowOverride,
+    showNodeDoc,
     subtreeOriginal,
     onCommitName,
     onQueueCommitName,
@@ -82,8 +85,25 @@ const NodeMetaFields: React.FC<{
 
     return (
         <>
-            <Form.Item {...createInspectorLabelProps(t("node.id"))} name="id">
-                <Input disabled />
+            <Form.Item {...createInspectorLabelProps(t("node.id"))}>
+                <Space.Compact block className="b3-node-identity-field">
+                    <Input
+                        disabled
+                        value={selectedNode.ref.displayId}
+                        title={selectedNode.ref.displayId}
+                        className="b3-node-identity-id"
+                        style={{
+                            width: `${Math.max(String(selectedNode.ref.displayId).length + 2, 5)}ch`,
+                        }}
+                    />
+                    <Input
+                        disabled
+                        value={selectedNode.data.uuid}
+                        title={selectedNode.data.uuid}
+                        className="b3-node-identity-uuid"
+                        style={{ width: "100%" }}
+                    />
+                </Space.Compact>
             </Form.Item>
             <Form.Item {...createInspectorLabelProps(t("node.type"))} name="type">
                 <Input disabled />
@@ -253,7 +273,7 @@ const NodeMetaFields: React.FC<{
                 />
             </Form.Item>
 
-            {nodeDef?.doc ? (
+            {showNodeDoc && nodeDef?.doc ? (
                 <ReactMarkdown className="b3-markdown">{nodeDef.doc}</ReactMarkdown>
             ) : null}
         </>
@@ -270,8 +290,12 @@ const NodeRawJsonSection: React.FC<{ visible: boolean }> = ({ visible }) => {
     return (
         <>
             <SectionDivider>{t("node.jsonData")}</SectionDivider>
-            <Form.Item {...createInspectorLabelProps(t("node.jsonData"))} name="rawNodeJson">
-                <TextArea autoSize={{ minRows: 1 }} disabled />
+            <Form.Item name="rawNodeJson" className="b3-node-json-form-item">
+                <TextArea
+                    autoSize={{ minRows: 12, maxRows: 24 }}
+                    className="b3-node-json-view"
+                    readOnly
+                />
             </Form.Item>
         </>
     );
@@ -281,6 +305,7 @@ export const NodeInspectorForm: React.FC = () => {
     const runtime = useRuntime();
     const { t } = useTranslation();
     const { readOnly } = useInspectorMode();
+    const { nodeJsonVisible } = useInspectorJsonView();
     const [form] = Form.useForm();
     const {
         selectedNode,
@@ -339,6 +364,8 @@ export const NodeInspectorForm: React.FC = () => {
         return null;
     }
 
+    const showRawNodeJson = shouldShowRawNodeJson || nodeJsonVisible;
+
     const {
         relatedArgForInput,
         commitName,
@@ -393,6 +420,7 @@ export const NodeInspectorForm: React.FC = () => {
                     fieldEditDisabled={fieldEditDisabled}
                     readOnly={effectiveReadOnly}
                     canShowOverride={canShowOverride}
+                    showNodeDoc={!showRawNodeJson}
                     subtreeOriginal={subtreeOriginal}
                     onCommitName={commitName}
                     onQueueCommitName={commitName}
@@ -410,7 +438,7 @@ export const NodeInspectorForm: React.FC = () => {
                     form={form}
                     title={t("node.inputVariable")}
                     fieldName="inputSlots"
-                    slotDefs={nodeDef?.input}
+                    slotDefs={showRawNodeJson ? undefined : nodeDef?.input}
                     usingVars={usingVars}
                     variableOptions={variableOptions}
                     fieldEditDisabled={effectiveReadOnly || fieldEditDisabled}
@@ -421,7 +449,7 @@ export const NodeInspectorForm: React.FC = () => {
                     getRelatedArg={relatedArgForInput}
                 />
 
-                {hasStructuredArgs && nodeDef ? (
+                {!showRawNodeJson && hasStructuredArgs && nodeDef ? (
                     <NodeStructuredArgsSection
                         form={form}
                         nodeDef={nodeDef}
@@ -437,14 +465,14 @@ export const NodeInspectorForm: React.FC = () => {
                         onQueueCommit={commitArgField}
                     />
                 ) : (
-                    <NodeRawJsonSection visible={shouldShowRawNodeJson} />
+                    <NodeRawJsonSection visible={showRawNodeJson} />
                 )}
 
                 <NodeVariableSection
                     form={form}
                     title={t("node.outputVariable")}
                     fieldName="outputSlots"
-                    slotDefs={nodeDef?.output}
+                    slotDefs={showRawNodeJson ? undefined : nodeDef?.output}
                     usingVars={usingVars}
                     variableOptions={variableOptions}
                     fieldEditDisabled={effectiveReadOnly || fieldEditDisabled}

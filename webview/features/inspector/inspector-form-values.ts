@@ -166,7 +166,7 @@ export const createNodeInspectorFormValues = (
     unknownTypeLabel: string
 ) => {
     return {
-        id: selectedNode.ref.displayId,
+        id: `${selectedNode.ref.displayId} (${selectedNode.data.uuid})`,
         type: currentNodeDef?.type ?? unknownTypeLabel,
         children: formatChildrenLabel(currentNodeDef),
         group: currentNodeDef?.group ?? [],

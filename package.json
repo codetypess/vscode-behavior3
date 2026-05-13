@@ -2,7 +2,7 @@
   "name": "vscode-behavior3",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "2.1.5",
+  "version": "2.1.6",
   "publisher": "codetypess",
   "repository": {
     "type": "git",
@@ -148,6 +148,12 @@
         "title": "%command.toggleEditorMode.title%",
         "category": "%command.category%",
         "icon": "$(edit-code)"
+      },
+      {
+        "command": "behavior3.toggleInspectorNodeJson",
+        "title": "%command.toggleInspectorNodeJson.title%",
+        "category": "%command.category%",
+        "icon": "$(code)"
       }
     ],
     "keybindings": [
@@ -180,6 +186,11 @@
           "command": "behavior3.toggleEditorMode",
           "when": "view == behavior3.inspectorView",
           "group": "navigation@2"
+        },
+        {
+          "command": "behavior3.toggleInspectorNodeJson",
+          "when": "view == behavior3.inspectorView && behavior3.inspectorSidebarMode",
+          "group": "navigation@2.5"
         },
         {
           "command": "behavior3.createProject",

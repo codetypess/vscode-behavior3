@@ -233,6 +233,10 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
                         onMessage({ type: "inspectorContextCleared" });
                         return;
 
+                    case "toggleInspectorNodeJson":
+                        onMessage({ type: "toggleInspectorNodeJson" });
+                        return;
+
                     case "settingLoaded":
                         onMessage({
                             type: "settingLoaded",

@@ -40,8 +40,9 @@
 
 ### BB-05 Node Inspector 编辑
 
-- Node Inspector 展示节点 id、类型、children、name、desc、debug、disabled、path
-- 已知 nodeDef 走结构化字段编辑；未知节点显示只读原始 JSON 视图
+- Node Inspector 展示节点 `displayId`、`uuid`、类型、children、name、desc、debug、disabled、path
+- 已知 nodeDef 默认走结构化字段编辑；在 `sidebar` 模式下可通过顶部 `JSON` 按钮切换到只读原始 JSON 视图
+- 未知节点默认显示只读原始 JSON 视图
 - `bool` / `bool?` 参数在 Node Inspector 中以开关控件展示
 - 输入/输出槽、表达式参数、oneof 约束、必填项和自定义检查结果会进入表单校验
 - 切换到新 nodeDef 时，未填写的 required arg 保持 unset，不会被静默写成空字符串或 false
