@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { editableEventTargetSharedTests } from "./shared-tests/editable-event-target-shared-tests";
 import { hostProtocolSharedTests } from "./shared-tests/host-protocol-shared-tests";
 import { hostRequestSpecSharedTests } from "./shared-tests/host-request-spec-shared-tests";
 import { inspectorSharedTests } from "./shared-tests/inspector-shared-tests";
@@ -97,6 +98,7 @@ const createHostInitSettings = (): Settings => ({
 });
 
 const tests = registerSharedTestSuites(
+    editableEventTargetSharedTests,
     inspectorSharedTests,
     hostProtocolSharedTests,
     hostRequestSpecSharedTests,

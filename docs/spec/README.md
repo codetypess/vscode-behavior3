@@ -231,6 +231,8 @@ Scope: <short boundary>
 ## Active Work Items
 
 - [`build-hotkey-single-dispatch.md`](build-hotkey-single-dispatch.md) — 修复 build 快捷键在 custom editor 中一次按键重复派发。
+- [`node-name-commit-granularity.md`](node-name-commit-granularity.md) — 收窄 Node Inspector `name` 字段的提交粒度，只改名称本身。
+- [`node-name-paste-hotkey-regression.md`](node-name-paste-hotkey-regression.md) — 修复 Inspector 组合输入聚焦时 `Ctrl/Cmd+V` 被图层结构快捷键抢占。
 - [`node-child-count-validation.md`](node-child-count-validation.md) — 让固定 children 数量不匹配的节点在图上显示 Error 状态。
 - [`node-inspector-identity-json.md`](node-inspector-identity-json.md) — 在 Node Inspector 中同时展示 `displayId` 与 `uuid`，并提供统一的 raw JSON 切换视图。
 - [`webview-watch-stability.md`](webview-watch-stability.md) — 稳定 webview watch 构建，并迁移到 Vite 8。

@@ -46,6 +46,9 @@
 - `bool` / `bool?` 参数在 Node Inspector 中以开关控件展示
 - 输入/输出槽、表达式参数、oneof 约束、必填项和自定义检查结果会进入表单校验
 - 切换到新 nodeDef 时，未填写的 required arg 保持 unset，不会被静默写成空字符串或 false
+- `embedded` 模式下，当 Node Inspector 的 `name`、`path` 等输入控件聚焦时，`Ctrl/Cmd+V` 等文本编辑快捷键作用于输入本身，不触发画布结构粘贴
+- 仅修改 `name` 字段时，不会顺带自动写入 `input`、`output` 或 `args`
+- 在不同节点之间切换时，Node Inspector 不会残留上一节点的参数或槽位表单值
 - 某个 arg、slot 或 path 输入非法时，无关节点字段仍可独立提交
 - subtree 内部节点若允许编辑，显示 override 重置条；若不允许编辑，相关字段为只读
 

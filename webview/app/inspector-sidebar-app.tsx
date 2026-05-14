@@ -2,6 +2,7 @@ import { App as AntdApp, ConfigProvider, Flex, Typography } from "antd";
 import React, { useEffect, useLayoutEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { getAntdLocale } from "../shared/antd";
+import { isEditableEventTarget } from "../shared/editable-event-target";
 import { deriveGroupDefs } from "../shared/node-utils";
 import { applyDocumentTheme } from "../shared/webview-env";
 import { getThemeConfig } from "../shared/theme";
@@ -87,19 +88,6 @@ const queueSidebarSelectionBlur = (runtime: EditorRuntime) => {
 
 const hasIncomingSelectionChange = (runtime: EditorRuntime, selection: HostSelectionState) =>
     !isJsonEqual(buildCurrentHostSelection(runtime), selection);
-
-const isEditableTarget = (target: EventTarget | null) => {
-    if (!(target instanceof HTMLElement)) {
-        return false;
-    }
-    return (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target.isContentEditable ||
-        Boolean(target.closest(".ant-select-dropdown")) ||
-        Boolean(target.closest(".ant-picker-dropdown"))
-    );
-};
 
 const SidebarHostBridge: React.FC = () => {
     const runtime = useRuntime();
@@ -244,7 +232,7 @@ const SidebarShell: React.FC = () => {
                 return;
             }
 
-            if (isEditableTarget(event.target)) {
+            if (isEditableEventTarget(event.target)) {
                 return;
             }
 

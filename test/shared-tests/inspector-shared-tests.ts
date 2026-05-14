@@ -5,6 +5,7 @@ import {
     validateInspectorArgValue,
 } from "../../webview/features/inspector/inspector-arg-values";
 import {
+    buildRenamedNodeData,
     createNodeInspectorFormValues,
     buildTreeCustomRecord,
     getTreeCustomValueKind,
@@ -134,6 +135,73 @@ export const inspectorSharedTests = defineSharedTests([
             assert.equal(values.id, "7 (node-uuid)");
             assert.match(values.rawNodeJson, /"uuid": "node-uuid"/);
             assert.match(values.rawNodeJson, /"id": "legacy-7"/);
+        },
+    },
+    {
+        name: "renaming an unknown node does not synthesize inputs outputs or args",
+        run() {
+            const selectedNode: EditNode = {
+                ref: {
+                    instanceKey: "9",
+                    displayId: "9",
+                    structuralStableId: "unknown-node",
+                    sourceStableId: "unknown-node",
+                    sourceTreePath: null,
+                    subtreeStack: [],
+                },
+                data: {
+                    uuid: "unknown-node",
+                    id: "9",
+                    name: "unknown",
+                },
+                prefix: "",
+                activeChildCount: 0,
+                disabled: false,
+                subtreeNode: false,
+                subtreeEditable: true,
+            };
+
+            assert.deepEqual(buildRenamedNodeData(selectedNode, "Wait"), {
+                name: "Wait",
+                desc: undefined,
+                path: undefined,
+                debug: undefined,
+                disabled: undefined,
+                input: undefined,
+                output: undefined,
+                args: undefined,
+            });
+        },
+    },
+    {
+        name: "unknown nodes initialize inspector form values without residual args or slots",
+        run() {
+            const selectedNode: EditNode = {
+                ref: {
+                    instanceKey: "10",
+                    displayId: "10",
+                    structuralStableId: "unknown-clean",
+                    sourceStableId: "unknown-clean",
+                    sourceTreePath: null,
+                    subtreeStack: [],
+                },
+                data: {
+                    uuid: "unknown-clean",
+                    id: "10",
+                    name: "unknown",
+                },
+                prefix: "",
+                activeChildCount: 0,
+                disabled: false,
+                subtreeNode: false,
+                subtreeEditable: true,
+            };
+
+            const values = createNodeInspectorFormValues(null, selectedNode, "Unknown");
+
+            assert.deepEqual(values.args, {});
+            assert.deepEqual(values.inputSlots, []);
+            assert.deepEqual(values.outputSlots, []);
         },
     },
     {

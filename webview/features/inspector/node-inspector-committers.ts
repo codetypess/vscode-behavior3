@@ -1,17 +1,16 @@
 import type { FormInstance } from "antd/es/form";
 import type { EditorRuntime } from "../../app/runtime";
-import { findNodeDef, parseSlotDefinition } from "../../shared/node-utils";
+import { parseSlotDefinition } from "../../shared/node-utils";
 import type { EditNode, UpdateNodeInput } from "../../shared/contracts";
 import type { NodeArg, NodeDef } from "../../shared/b3type";
 import { formatArgInitialValue } from "./inspector-arg-values";
 import { queueInspectorTask, trackPendingInspectorEdit } from "./inspector-commit-queue";
 import {
     buildCommittedNodeData,
-    buildNodeSlotArray,
+    buildRenamedNodeData,
     buildScopedArgs,
     buildScopedSlotArray,
     getNodeSlotFormValue,
-    parseVisibleArgs,
     type NodeInspectorFormValues,
 } from "./inspector-form-values";
 import { compareJsonValue } from "./inspector-validation";
@@ -24,7 +23,6 @@ interface UseNodeInspectorCommittersParams {
     runtime: EditorRuntime;
     selectedNode: EditNode;
     nodeDef: NodeDef | null;
-    nodeDefMap: ReadonlyMap<string, NodeDef>;
     subtreeOriginal: EditNode["subtreeOriginal"];
     fieldEditDisabled: boolean;
     effectiveReadOnly: boolean;
@@ -41,7 +39,6 @@ export function useNodeInspectorCommitters({
     runtime,
     selectedNode,
     nodeDef,
-    nodeDefMap,
     subtreeOriginal,
     fieldEditDisabled,
     effectiveReadOnly,
@@ -119,25 +116,10 @@ export function useNodeInspectorCommitters({
     };
 
     const commitName = () => {
-        queueNodeMutation(["name", "inputSlots", "outputSlots", "args"], (values) => {
+        queueNodeMutation(["name"], (values) => {
             const nextName =
                 String(values.name ?? selectedNode.data.name).trim() || selectedNode.data.name;
-            const currentNodeDef = findNodeDef(nodeDefMap, nextName);
-            return {
-                ...buildCommittedNodeData(selectedNode),
-                name: nextName,
-                input: buildNodeSlotArray(
-                    currentNodeDef?.input,
-                    values.inputSlots,
-                    selectedNode.data.input
-                ),
-                output: buildNodeSlotArray(
-                    currentNodeDef?.output,
-                    values.outputSlots,
-                    selectedNode.data.output
-                ),
-                args: parseVisibleArgs(currentNodeDef, values, selectedNode.data.args),
-            };
+            return buildRenamedNodeData(selectedNode, nextName);
         });
     };
 

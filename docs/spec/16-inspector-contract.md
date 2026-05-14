@@ -177,8 +177,10 @@ Inspector 不只是字段表单，还需要表达：
 ### Editable Core Fields
 
 - `name` 可通过 nodeDefs 自动补全切换节点类型
+- `name` 字段提交只修改节点名称本身，不得隐式把 `input`、`output` 或 `args` 作为同一提交的一部分自动写入
 - `desc`、`debug`、`disabled` 可编辑
 - `path` 可编辑 subtree link；subtree 内部节点自身不允许再改 path
+- 切换节点时，Inspector 先丢弃上一节点的局部表单缓存，再根据当前节点快照重建字段值
 
 ### Inputs / Outputs
 

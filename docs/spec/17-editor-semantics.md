@@ -32,6 +32,12 @@
 - 侧栏可以发起 mutation/save/undo/redo
 - 真正执行这些动作的是当前激活 custom editor 对应的 extension-host session 与 VS Code custom editor 生命周期
 
+### Rule 5. Graph-local 结构快捷键不得抢占当前可编辑控件的文本输入
+
+- graph pane 中的 copy/paste/replace/insert/delete/undo/redo 快捷键只在非编辑态下生效
+- 当事件目标位于原生文本输入、组合输入控件、搜索输入或其 popup/container 内时，快捷键 owner 属于当前控件
+- `Ctrl/Cmd+V`、`Ctrl/Cmd+C`、`Ctrl/Cmd+X`、`Ctrl/Cmd+Z`、`Ctrl/Cmd+Y` 等文本编辑组合键在上述场景下不得转义成节点结构编辑命令
+
 ## 共享内部流程
 
 ### `syncReachableSubtreeSources()`
@@ -177,6 +183,8 @@ webview 在发送 intent 前只补齐 host reducer 需要的上下文：
 - payload 会先补齐 `currentNodeSnapshot`
 - 若本次是把 subtree link 改回本地节点，还会补齐 `detachedSubtreeRoot`
 - Inspector 可按单字段或局部提交单元构造本次 payload；无关字段错误不应阻断本次 intent
+- `name` 字段提交属于单字段 intent；仅修改名称时，webview 不得顺带生成或重写 `input`、`output`、`args`
+- 节点切换导致的 Inspector 表单重建属于本地展示状态刷新；在写入新节点 form values 前应先清空旧节点的局部表单状态
 - 当节点类型切换引入新的 required args 时，未显式设置的 arg 在首次提交中保持 unset，不应被静默写成占位空值
 - 是否 noop、是否错误、是否提交由宿主 reducer 决定
 

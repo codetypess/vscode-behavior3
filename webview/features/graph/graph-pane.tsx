@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useRuntime } from "../../app/runtime";
 import { canOpenSubtreeTarget } from "../../domain/subtree-navigation";
+import { isEditableEventTarget } from "../../shared/editable-event-target";
 import { Hotkey, isMacos, useKeyPress } from "../../shared/keys";
 import { useGraphPaneState } from "./graph-pane-state";
 import { SearchBar } from "../search/search-bar";
@@ -21,19 +22,6 @@ const hotkeyMap: Record<
     [Hotkey.Backspace]: "delete",
     [Hotkey.Undo]: "undo",
     [Hotkey.Redo]: "redo",
-};
-
-const isEditableTarget = (target: EventTarget | null) => {
-    if (!(target instanceof HTMLElement)) {
-        return false;
-    }
-    return (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target.isContentEditable ||
-        Boolean(target.closest(".ant-select-dropdown")) ||
-        Boolean(target.closest(".ant-picker-dropdown"))
-    );
 };
 
 export const GraphPane: React.FC = () => {
@@ -159,7 +147,7 @@ export const GraphPane: React.FC = () => {
     };
 
     useKeyPress([Hotkey.SearchNode, Hotkey.JumpNode], null, (event, key) => {
-        if (isEditableTarget(event.target)) {
+        if (isEditableEventTarget(event.target)) {
             return;
         }
         event.preventDefault();
@@ -182,7 +170,7 @@ export const GraphPane: React.FC = () => {
         ],
         null,
         (event, key) => {
-            if (isEditableTarget(event.target)) {
+            if (isEditableEventTarget(event.target)) {
                 return;
             }
             event.preventDefault();

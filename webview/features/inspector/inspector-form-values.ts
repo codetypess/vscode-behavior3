@@ -71,6 +71,14 @@ export const buildCommittedNodeData = (selectedNode: EditNode): UpdateNodeInput[
     args: selectedNode.data.args ? { ...selectedNode.data.args } : undefined,
 });
 
+export const buildRenamedNodeData = (
+    selectedNode: EditNode,
+    nextName: string
+): UpdateNodeInput["data"] => ({
+    ...buildCommittedNodeData(selectedNode),
+    name: nextName,
+});
+
 export const parseVisibleArgs = (
     currentNodeDef: NodeDef | null,
     values: Pick<NodeInspectorFormValues, "args">,

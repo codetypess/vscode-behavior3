@@ -334,6 +334,8 @@ export const NodeInspectorForm: React.FC = () => {
         }
 
         const currentNodeDef = findNodeDef(nodeDefMap, selectedNode.data.name);
+        // Antd merges nested objects on setFieldsValue, so clear prior node fields first.
+        form.resetFields();
         form.setFieldsValue(
             createNodeInspectorFormValues(currentNodeDef, selectedNode, t("node.unknownType"))
         );
@@ -390,7 +392,6 @@ export const NodeInspectorForm: React.FC = () => {
         runtime,
         selectedNode,
         nodeDef,
-        nodeDefMap,
         subtreeOriginal,
         fieldEditDisabled,
         effectiveReadOnly,
