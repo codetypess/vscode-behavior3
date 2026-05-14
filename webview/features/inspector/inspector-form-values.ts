@@ -3,6 +3,8 @@ import { parseSlotDefinition } from "../../shared/node-utils";
 import type { EditNode, UpdateNodeInput, UpdateTreeMetaInput } from "../../shared/contracts";
 import type { NodeArg, NodeDef } from "../../shared/b3type";
 import { formatArgInitialValue, parseArgSubmitValue } from "./inspector-arg-values";
+import { isSameInspectorNodeIdentity } from "./inspector-node-snapshot-cache";
+import { compareJsonValue } from "./inspector-validation";
 import { type VariableRowValue } from "./inspector-variable-options";
 import { formatChildrenLabel } from "./inspector-validation";
 import { type TreeCustomRowValue } from "./tree-custom-metadata";
@@ -60,6 +62,21 @@ export type TreeInspectorFormValues = {
     customRows?: TreeCustomRowValue[];
 };
 
+export type NodeInspectorSyncMode = "replace" | "patch" | "patch-and-clear-scoped-fields";
+
+export const isSameLogicalInspectorNode = (
+    previousSelectedNode:
+        | Pick<EditNode, "ref">
+        | null
+        | undefined,
+    nextSelectedNode: Pick<EditNode, "ref"> | null | undefined
+) =>
+    Boolean(
+        previousSelectedNode &&
+            nextSelectedNode &&
+            isSameInspectorNodeIdentity(previousSelectedNode.ref, nextSelectedNode.ref)
+    );
+
 export const buildCommittedNodeData = (selectedNode: EditNode): UpdateNodeInput["data"] => ({
     name: selectedNode.data.name,
     desc: selectedNode.data.desc,
@@ -70,6 +87,50 @@ export const buildCommittedNodeData = (selectedNode: EditNode): UpdateNodeInput[
     output: selectedNode.data.output ? [...selectedNode.data.output] : undefined,
     args: selectedNode.data.args ? { ...selectedNode.data.args } : undefined,
 });
+
+export const getNodeInspectorSyncMode = (
+    previousSelectedNode:
+        | Pick<EditNode, "ref" | "data">
+        | null
+        | undefined,
+    nextSelectedNode: Pick<EditNode, "ref" | "data">
+): NodeInspectorSyncMode => {
+    if (!isSameLogicalInspectorNode(previousSelectedNode, nextSelectedNode)) {
+        return "replace";
+    }
+
+    if (!previousSelectedNode) {
+        return "replace";
+    }
+
+    return previousSelectedNode.data.name === nextSelectedNode.data.name
+        ? "patch"
+        : "patch-and-clear-scoped-fields";
+};
+
+export const shouldLockPendingInspectorForm = (params: {
+    readOnly: boolean;
+    pendingSelectedNodeSnapshot: boolean;
+    previousSelectedNode:
+        | Pick<EditNode, "ref">
+        | null
+        | undefined;
+    nextSelectedNode: Pick<EditNode, "ref"> | null | undefined;
+}) => {
+    if (params.readOnly) {
+        return true;
+    }
+
+    if (!params.pendingSelectedNodeSnapshot) {
+        return false;
+    }
+
+    return !isSameLogicalInspectorNode(params.previousSelectedNode, params.nextSelectedNode);
+};
+
+export const getEffectiveNodeArgs = (
+    selectedNode: Pick<EditNode, "effectiveArgs" | "data">
+): Record<string, unknown> | undefined => selectedNode.effectiveArgs ?? selectedNode.data.args;
 
 export const buildRenamedNodeData = (
     selectedNode: EditNode,
@@ -120,9 +181,26 @@ export const buildScopedSlotArray = (
 
 export const buildScopedArgs = (
     committedArgs: Record<string, unknown> | undefined,
+    effectiveArgs: Record<string, unknown> | undefined,
     arg: NodeArg,
-    values: Pick<NodeInspectorFormValues, "args">
+    values: Pick<NodeInspectorFormValues, "args">,
+    touched: boolean
 ) => {
+    if (!touched) {
+        const parsedUntouchedValue = parseArgSubmitValue(arg, values.args?.[arg.name]);
+        const committedValue = committedArgs?.[arg.name];
+        const effectiveValue = effectiveArgs?.[arg.name];
+        if (compareJsonValue(parsedUntouchedValue, committedValue)) {
+            return committedArgs;
+        }
+        if (
+            compareJsonValue(parsedUntouchedValue, effectiveValue) &&
+            compareJsonValue(committedValue, undefined)
+        ) {
+            return committedArgs;
+        }
+    }
+
     const nextArgs = { ...(committedArgs ?? {}) };
     const parsedValue = parseArgSubmitValue(arg, values.args?.[arg.name]);
     if (parsedValue === undefined) {
@@ -130,6 +208,19 @@ export const buildScopedArgs = (
     } else {
         nextArgs[arg.name] = parsedValue;
     }
+    return Object.keys(nextArgs).length > 0 ? nextArgs : undefined;
+};
+
+export const buildArgsWithoutArg = (
+    committedArgs: Record<string, unknown> | undefined,
+    argName: string
+) => {
+    if (!committedArgs || !(argName in committedArgs)) {
+        return committedArgs;
+    }
+
+    const nextArgs = { ...committedArgs };
+    delete nextArgs[argName];
     return Object.keys(nextArgs).length > 0 ? nextArgs : undefined;
 };
 
@@ -173,6 +264,8 @@ export const createNodeInspectorFormValues = (
     selectedNode: EditNode,
     unknownTypeLabel: string
 ) => {
+    const effectiveArgs = getEffectiveNodeArgs(selectedNode);
+
     return {
         id: `${selectedNode.ref.displayId} (${selectedNode.data.uuid})`,
         type: currentNodeDef?.type ?? unknownTypeLabel,
@@ -184,10 +277,12 @@ export const createNodeInspectorFormValues = (
         debug: Boolean(selectedNode.data.debug),
         disabled: Boolean(selectedNode.data.disabled),
         args: Object.fromEntries(
-            (currentNodeDef?.args ?? []).map((arg) => [
-                arg.name,
-                formatArgInitialValue(arg, selectedNode.data.args?.[arg.name]),
-            ])
+            (currentNodeDef?.args ?? [])
+                .map((arg) => [
+                    arg.name,
+                    formatArgInitialValue(arg, effectiveArgs?.[arg.name]),
+                ] as const)
+                .filter(([, value]) => value !== undefined)
         ),
         inputSlots: (currentNodeDef?.input ?? []).map((_, index) =>
             getNodeSlotFormValue(

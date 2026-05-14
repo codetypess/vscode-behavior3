@@ -6,10 +6,12 @@ import type { NodeArg, NodeDef } from "../../shared/b3type";
 import { formatArgInitialValue } from "./inspector-arg-values";
 import { queueInspectorTask, trackPendingInspectorEdit } from "./inspector-commit-queue";
 import {
+    buildArgsWithoutArg,
     buildCommittedNodeData,
     buildRenamedNodeData,
     buildScopedArgs,
     buildScopedSlotArray,
+    getEffectiveNodeArgs,
     getNodeSlotFormValue,
     type NodeInspectorFormValues,
 } from "./inspector-form-values";
@@ -87,10 +89,12 @@ export function useNodeInspectorCommitters({
             return;
         }
 
-        try {
-            await form.validateFields(fields as never, { recursive: true });
-        } catch {
-            return;
+        if (fields.length > 0) {
+            try {
+                await form.validateFields(fields as never, { recursive: true });
+            } catch {
+                return;
+            }
         }
 
         const values = form.getFieldsValue(true) as NodeInspectorFormValues;
@@ -207,7 +211,13 @@ export function useNodeInspectorCommitters({
     const commitArgField = (arg: NodeArg) => {
         queueNodeMutation(buildArgFieldTargets(arg), (values) => ({
             ...buildCommittedNodeData(selectedNode),
-            args: buildScopedArgs(selectedNode.data.args, arg, values),
+            args: buildScopedArgs(
+                selectedNode.data.args,
+                getEffectiveNodeArgs(selectedNode),
+                arg,
+                values,
+                form.isFieldTouched(["args", arg.name])
+            ),
         }));
     };
 
@@ -243,7 +253,29 @@ export function useNodeInspectorCommitters({
         );
         queueNodeMutation([["args", arg.name]], (values) => ({
             ...buildCommittedNodeData(selectedNode),
-            args: buildScopedArgs(selectedNode.data.args, arg, values),
+            args: buildScopedArgs(
+                selectedNode.data.args,
+                getEffectiveNodeArgs(selectedNode),
+                arg,
+                values,
+                true
+            ),
+        }));
+    };
+
+    const resetArgToDefault = (arg: NodeArg) => {
+        form.setFields([
+            {
+                name: ["args", arg.name],
+                value: formatArgInitialValue(arg, arg.default),
+                touched: false,
+                errors: [],
+                warnings: [],
+            },
+        ]);
+        queueNodeMutation([], () => ({
+            ...buildCommittedNodeData(selectedNode),
+            args: buildArgsWithoutArg(selectedNode.data.args, arg.name),
         }));
     };
 
@@ -275,6 +307,7 @@ export function useNodeInspectorCommitters({
         resetInputField,
         resetOutputField,
         resetArgField,
+        resetArgToDefault,
         resetDesc,
         resetDebug,
         resetDisabled,

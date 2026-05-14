@@ -4,8 +4,7 @@ export type { NodeDef };
 export type NodeType = NodeDef["type"] | "Other" | "Error";
 export type NodeArg = Exclude<NodeDef["args"], undefined>[number];
 
-export const DOCUMENT_VERSION = "2.1.0";
-export const VERSION = DOCUMENT_VERSION;
+export const DOCUMENT_VERSION = "2.2.0";
 
 export interface NodeData {
     id: string;

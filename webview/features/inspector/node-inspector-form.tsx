@@ -1,6 +1,6 @@
 import { FormOutlined } from "@ant-design/icons";
 import { AutoComplete, Button, Form, Input, Select, Space, Switch } from "antd";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import { canOpenSubtreeTarget } from "../../domain/subtree-navigation";
@@ -15,7 +15,12 @@ import {
     filterOptionByLabel,
 } from "./inspector-shared";
 import { useNodeInspectorViewState } from "./inspector-state";
-import { createNodeInspectorFormValues } from "./inspector-form-values";
+import {
+    createNodeInspectorFormValues,
+    getEffectiveNodeArgs,
+    getNodeInspectorSyncMode,
+    shouldLockPendingInspectorForm,
+} from "./inspector-form-values";
 import { useInspectorJsonView } from "./inspector-json-view";
 import { useInspectorMode } from "./inspector-mode";
 import { useNodeInspectorCommitters } from "./node-inspector-committers";
@@ -326,20 +331,75 @@ export const NodeInspectorForm: React.FC = () => {
         subtreeOriginal,
         canShowOverride,
     } = useNodeInspectorViewState(form);
-    const effectiveReadOnly = readOnly || pendingSelectedNodeSnapshot;
+    const previousSelectedNodeRef = useRef<NonNullable<typeof selectedNode> | null>(null);
+    const effectiveReadOnly = shouldLockPendingInspectorForm({
+        readOnly,
+        pendingSelectedNodeSnapshot,
+        previousSelectedNode: previousSelectedNodeRef.current,
+        nextSelectedNode: selectedNode,
+    });
+    const selectedNodeSyncMode = selectedNode
+        ? getNodeInspectorSyncMode(previousSelectedNodeRef.current, selectedNode)
+        : "replace";
+
+    const clearStructuredNodeFields = () => {
+        form.setFieldValue("args", {});
+        form.setFieldValue("inputSlots", []);
+        form.setFieldValue("outputSlots", []);
+    };
+
+    useEffect(() => {
+        if (!selectedNode) {
+            previousSelectedNodeRef.current = null;
+            return;
+        }
+
+        const currentNodeDef = findNodeDef(nodeDefMap, selectedNode.data.name);
+        const nextValues = createNodeInspectorFormValues(
+            currentNodeDef,
+            selectedNode,
+            t("node.unknownType")
+        );
+        if (selectedNodeSyncMode === "replace") {
+            // Antd merges nested objects on setFieldsValue, so clear prior node fields first.
+            form.resetFields();
+            clearStructuredNodeFields();
+        } else if (selectedNodeSyncMode === "patch-and-clear-scoped-fields") {
+            clearStructuredNodeFields();
+        }
+
+        form.setFieldsValue(nextValues);
+        previousSelectedNodeRef.current = selectedNode;
+    }, [form, nodeDefMap, selectedNode, t]);
 
     useEffect(() => {
         if (!selectedNode) {
             return;
         }
 
-        const currentNodeDef = findNodeDef(nodeDefMap, selectedNode.data.name);
-        // Antd merges nested objects on setFieldsValue, so clear prior node fields first.
-        form.resetFields();
-        form.setFieldsValue(
-            createNodeInspectorFormValues(currentNodeDef, selectedNode, t("node.unknownType"))
+        const currentName = String(form.getFieldValue("name") ?? selectedNode.data.name).trim();
+        if (!currentName || currentName === selectedNode.data.name) {
+            return;
+        }
+
+        const previewValues = createNodeInspectorFormValues(
+            nodeDef,
+            selectedNode,
+            t("node.unknownType")
         );
-    }, [form, nodeDefMap, selectedNode, t]);
+        form.setFieldValue("args", {});
+        form.setFieldValue("inputSlots", []);
+        form.setFieldValue("outputSlots", []);
+        form.resetFields(["type", "children", "group"]);
+        form.setFieldsValue({
+            type: previewValues.type,
+            children: previewValues.children,
+            group: previewValues.group,
+            args: previewValues.args,
+            inputSlots: previewValues.inputSlots,
+            outputSlots: previewValues.outputSlots,
+        });
+    }, [form, nodeDef, selectedNode, t]);
 
     useEffect(() => {
         if (!selectedNode || effectiveReadOnly) {
@@ -381,6 +441,7 @@ export const NodeInspectorForm: React.FC = () => {
         resetInputField,
         resetOutputField,
         resetArgField,
+        resetArgToDefault,
         resetDesc,
         resetDebug,
         resetDisabled,
@@ -455,13 +516,14 @@ export const NodeInspectorForm: React.FC = () => {
                         form={form}
                         nodeDef={nodeDef}
                         args={structuredArgs}
-                        committedArgs={selectedNode.data.args}
+                        effectiveArgs={getEffectiveNodeArgs(selectedNode)}
                         usingVars={usingVars}
                         checkExpr={checkExpr}
                         nodeCheckDiagnostics={nodeCheckDiagnostics}
                         fieldEditDisabled={effectiveReadOnly || fieldEditDisabled}
                         isOverridden={isArgOverridden}
                         onReset={resetArgField}
+                        onResetToDefault={resetArgToDefault}
                         onCommit={commitArgField}
                         onQueueCommit={commitArgField}
                     />

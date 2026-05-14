@@ -46,6 +46,7 @@
   "reload": "Reload",
   "reset": "Reset",
   "reset.confirm": "Reset to original value?",
+  "reset.defaultConfirm": "Reset to default value?",
   "rename": "Rename...",
   "replace": "Replace",
   "reportIssue": "Report Issue",

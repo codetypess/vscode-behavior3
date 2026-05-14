@@ -45,6 +45,7 @@
   "reload": "重新加载",
   "reset": "重置",
   "reset.confirm": "重置为原始值？",
+  "reset.defaultConfirm": "重置为默认值？",
   "rename": "重命名...",
   "replace": "替换",
   "reportIssue": "问题反馈",

@@ -185,7 +185,12 @@ webview 在发送 intent 前只补齐 host reducer 需要的上下文：
 - Inspector 可按单字段或局部提交单元构造本次 payload；无关字段错误不应阻断本次 intent
 - `name` 字段提交属于单字段 intent；仅修改名称时，webview 不得顺带生成或重写 `input`、`output`、`args`
 - 节点切换导致的 Inspector 表单重建属于本地展示状态刷新；在写入新节点 form values 前应先清空旧节点的局部表单状态
+- `name` 驱动的 nodeDef 预览切换同样属于本地展示状态刷新；依赖字段不得通过 `setFieldsValue` merge 继承旧节点或旧类型留下的嵌套值
+- 对当前无值的 arg，webview 预览态应通过“缺少该 key”而不是“key 存在但值为 `undefined`”来表达 unset
 - 当节点类型切换引入新的 required args 时，未显式设置的 arg 在首次提交中保持 unset，不应被静默写成占位空值
+- 对主树普通节点，Inspector 可展示 resolved/effective arg 默认值，但 `updateNode.payload.currentNodeSnapshot.data.args` 仍必须保持 committed JSON 语义，不能因为展示默认值而把默认参数带入提交基线
+- 若主树普通节点的 arg 字段尚未被用户实际改动，Inspector 不得因为 blur/校验而把仅展示中的默认值提交回主文档
+- 若用户点击带默认值 arg 的 reset action，webview 应直接移除该 arg 的显式 committed key，而不是走“清空后再校验必填”的常规 blur 提交流程
 - 是否 noop、是否错误、是否提交由宿主 reducer 决定
 
 host reducer 当前分三条路径：

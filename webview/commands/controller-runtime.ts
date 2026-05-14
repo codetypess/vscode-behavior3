@@ -27,6 +27,7 @@ import { parseWorkdirRelativeJsonPath } from "../shared/protocol";
 import { createNodeDefMap, findNodeDef } from "../shared/node-utils";
 import {
     cloneJsonValue,
+    findPersistedNodeByStableId,
     loadSubtreeSourceCache,
     parsePersistedTreeContent,
     serializePersistedTree,
@@ -170,6 +171,10 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         if (!node) {
             return null;
         }
+        const committedLocalNode =
+            node.ref.sourceTreePath === null && !node.subtreeNode
+                ? findPersistedNodeByStableId(tree.root, node.ref.structuralStableId)
+                : null;
         return {
             ref: node.ref,
             data: {
@@ -177,13 +182,18 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
                 id: node.ref.displayId,
                 name: node.name,
                 desc: node.desc,
-                args: node.args,
+                args: committedLocalNode?.args
+                    ? (cloneJsonValue(committedLocalNode.args) as Record<string, unknown>)
+                    : undefined,
                 input: node.input,
                 output: node.output,
                 debug: node.debug,
                 disabled: node.disabled,
                 path: node.path,
             },
+            effectiveArgs: node.args
+                ? (cloneJsonValue(node.args) as Record<string, unknown>)
+                : undefined,
             prefix: tree.prefix,
             activeChildCount: node.childKeys.reduce((count, childKey) => {
                 const child = resolvedGraph?.nodesByInstanceKey[childKey];

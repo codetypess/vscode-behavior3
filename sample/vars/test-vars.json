@@ -121,13 +121,28 @@
         "args": {
           "time": 1
         },
-        "desc": "等待",
         "id": "18",
         "input": [
           ""
         ],
         "name": "Wait",
         "uuid": "ty3oHr8aJp"
+      },
+      {
+        "id": "19",
+        "name": "Timeout",
+        "uuid": "BC3QOoSP6H"
+      },
+      {
+        "args": {
+          "check": "1",
+          "name": "1",
+          "open": true,
+          "time": 6
+        },
+        "id": "20",
+        "name": "TestB3",
+        "uuid": "o645pQPEzQ"
       }
     ],
     "id": "1",
@@ -150,5 +165,5 @@
       }
     ]
   },
-  "version": "2.1.0"
+  "version": "2.2.0"
 }

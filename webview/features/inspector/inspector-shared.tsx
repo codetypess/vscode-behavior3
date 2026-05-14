@@ -10,7 +10,7 @@ export const filterOptionByLabel = (input: string, option?: { label?: React.Reac
         .toUpperCase()
         .includes(input.toUpperCase());
 
-const getOverridePopupContainer = (trigger: HTMLElement) => {
+export const getInspectorPopupContainer = (trigger: HTMLElement) => {
     return (trigger.closest(".b3-inspector") as HTMLElement) ?? document.body;
 };
 
@@ -34,7 +34,7 @@ export const OverrideBar: React.FC<{
                 cancelText={t("cancel")}
                 placement="right"
                 onConfirm={onReset}
-                getPopupContainer={getOverridePopupContainer}
+                getPopupContainer={getInspectorPopupContainer}
             >
                 <div className="b3-override-rail" />
             </Popconfirm>

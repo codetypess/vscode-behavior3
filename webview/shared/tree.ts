@@ -1,4 +1,4 @@
-import { VERSION, type TreeData } from "./b3type";
+import { DOCUMENT_VERSION, type TreeData } from "./b3type";
 import { getFs } from "./b3fs";
 import b3path from "./b3path";
 import { parseTreeContent } from "./schema";
@@ -22,7 +22,7 @@ export const clonePersistedNode = (node: PersistedNodeModel): PersistedNodeModel
 
 export const treeDataForPersistence = (data: TreeData, name: string): TreeData => {
     return {
-        version: VERSION,
+        version: DOCUMENT_VERSION,
         name,
         desc: data.desc?.trim() || undefined,
         prefix: data.prefix ?? "",
@@ -121,9 +121,8 @@ export const collectReachableSubtreePaths = (
     return Array.from(paths);
 };
 
-const isValidSubtreeSource = (
-    entry: SubtreeSourceCacheEntry
-): entry is PersistedTreeModel => Boolean(entry && !("error" in entry));
+const isValidSubtreeSource = (entry: SubtreeSourceCacheEntry): entry is PersistedTreeModel =>
+    Boolean(entry && !("error" in entry));
 
 export const collectReachableSubtreeSourceStableIds = (params: {
     root: PersistedNodeModel;

@@ -1,4 +1,5 @@
-import { Form, Input, InputNumber, Select, Switch } from "antd";
+import { ReloadOutlined } from "@ant-design/icons";
+import { Flex, Form, Input, InputNumber, Popconfirm, Select, Switch } from "antd";
 import type { FormInstance } from "antd/es/form";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -28,8 +29,8 @@ import {
     OverrideBar,
     SectionDivider,
     createInspectorLabelProps,
-    createInspectorSwitchLabelProps,
     filterOptionByLabel,
+    getInspectorPopupContainer,
 } from "./inspector-shared";
 import { compareJsonValue } from "./inspector-validation";
 
@@ -39,24 +40,28 @@ const NodeArgField: React.FC<{
     form: FormInstance;
     arg: NodeArg;
     nodeDef: NodeDef;
-    committedArgValue: unknown;
+    currentArgValue: unknown;
     usingVars: Record<string, VarDecl> | null;
     checkExpr: boolean;
     nodeCheckDiagnostics: NodeCheckDiagnostic[];
     disabled: boolean;
+    showDefaultReset: boolean;
     onCommit: () => void;
     onQueueCommit: () => void;
+    onResetToDefault: () => void;
 }> = ({
     form,
     arg,
     nodeDef,
-    committedArgValue,
+    currentArgValue,
     usingVars,
     checkExpr,
     nodeCheckDiagnostics,
     disabled,
+    showDefaultReset,
     onCommit,
     onQueueCommit,
+    onResetToDefault,
 }) => {
     const { t } = useTranslation();
     const argsValue = (Form.useWatch("args", form) as Record<string, unknown> | undefined) ?? {};
@@ -67,6 +72,56 @@ const NodeArgField: React.FC<{
     const argLabelProps = {
         ...createInspectorLabelProps(argLabel, required),
         required,
+    };
+
+    const renderFieldItem = (control: React.ReactNode, valuePropName?: "checked") => {
+        if (!showDefaultReset) {
+            return (
+                <Form.Item
+                    {...argLabelProps}
+                    name={["args", arg.name]}
+                    valuePropName={valuePropName}
+                    rules={[{ validator: validateField }]}
+                >
+                    {control}
+                </Form.Item>
+            );
+        }
+
+        return (
+            <Form.Item {...argLabelProps} required={required}>
+                <Flex gap={4} align="start" className="b3-field-with-action">
+                    <div className="b3-field-with-action-control">
+                        <Form.Item
+                            noStyle
+                            name={["args", arg.name]}
+                            valuePropName={valuePropName}
+                            rules={[{ validator: validateField }]}
+                        >
+                            {control}
+                        </Form.Item>
+                    </div>
+                    {disabled ? (
+                        <div className="b3-row-spacer" />
+                    ) : (
+                        <Popconfirm
+                            title={t("reset.defaultConfirm")}
+                            okText={t("reset")}
+                            cancelText={t("cancel")}
+                            placement="right"
+                            onConfirm={onResetToDefault}
+                            getPopupContainer={getInspectorPopupContainer}
+                        >
+                            <ReloadOutlined
+                                className="b3-inline-reset"
+                                title={t("reset")}
+                                onMouseDown={(event) => event.preventDefault()}
+                            />
+                        </Popconfirm>
+                    )}
+                </Flex>
+            </Form.Item>
+        );
     };
 
     const validateField = async (_: unknown, value: unknown) => {
@@ -114,131 +169,95 @@ const NodeArgField: React.FC<{
         }
 
         const customDiagnostic = nodeCheckDiagnostics.find((entry) => entry.argName === arg.name);
-        if (customDiagnostic && compareJsonValue(parsedValue, committedArgValue)) {
+        if (customDiagnostic && compareJsonValue(parsedValue, currentArgValue)) {
             throw new Error(customDiagnostic.message);
         }
     };
 
     if (isBoolType(type)) {
-        return (
-            <Form.Item
-                {...createInspectorSwitchLabelProps(argLabel, required)}
-                name={["args", arg.name]}
-                valuePropName="checked"
-                rules={[{ validator: validateField }]}
-            >
-                <Switch disabled={disabled} onChange={onQueueCommit} />
-            </Form.Item>
+        return renderFieldItem(
+            <Switch disabled={disabled} onChange={onQueueCommit} />,
+            "checked"
         );
     }
 
     if (hasArgOptions(arg)) {
-        return (
-            <Form.Item
-                {...argLabelProps}
-                name={["args", arg.name]}
-                rules={[{ validator: validateField }]}
-            >
-                <Select
-                    mode={isNodeArgArray(arg) ? "multiple" : undefined}
-                    disabled={disabled}
-                    allowClear={!required}
-                    showSearch
-                    onChange={onQueueCommit}
-                    onBlur={onCommit}
-                    options={options.map((option: { name: string; value: unknown }) => ({
-                        label: `${option.name} (${String(option.value)})`,
-                        value: option.value as string | number | boolean,
-                    }))}
-                    filterOption={filterOptionByLabel}
-                />
-            </Form.Item>
+        return renderFieldItem(
+            <Select
+                mode={isNodeArgArray(arg) ? "multiple" : undefined}
+                disabled={disabled}
+                allowClear={!required}
+                showSearch
+                onChange={onQueueCommit}
+                onBlur={onCommit}
+                options={options.map((option: { name: string; value: unknown }) => ({
+                    label: `${option.name} (${String(option.value)})`,
+                    value: option.value as string | number | boolean,
+                }))}
+                filterOption={filterOptionByLabel}
+            />
         );
     }
 
     if (isNodeArgArray(arg) || isJsonType(type)) {
-        return (
-            <Form.Item
-                {...argLabelProps}
-                name={["args", arg.name]}
-                rules={[{ validator: validateField }]}
-            >
-                <TextArea
-                    autoSize={{ minRows: 1 }}
-                    disabled={disabled}
-                    placeholder={
-                        isNodeArgArray(arg) ? t("form.enterJsonArray") : t("form.enterJsonValue")
-                    }
-                    onBlur={onCommit}
-                />
-            </Form.Item>
+        return renderFieldItem(
+            <TextArea
+                autoSize={{ minRows: 1 }}
+                disabled={disabled}
+                placeholder={
+                    isNodeArgArray(arg) ? t("form.enterJsonArray") : t("form.enterJsonValue")
+                }
+                onBlur={onCommit}
+            />
         );
     }
 
     if (isIntType(type) || isFloatType(type)) {
-        return (
-            <Form.Item
-                {...argLabelProps}
-                name={["args", arg.name]}
-                rules={[{ validator: validateField }]}
-            >
-                <InputNumber
-                    style={{ width: "100%" }}
-                    disabled={disabled}
-                    precision={isIntType(type) ? 0 : undefined}
-                    onBlur={onCommit}
-                />
-            </Form.Item>
+        return renderFieldItem(
+            <InputNumber
+                style={{ width: "100%" }}
+                disabled={disabled}
+                precision={isIntType(type) ? 0 : undefined}
+                onBlur={onCommit}
+            />
         );
     }
 
     if (isStringType(type)) {
-        return (
-            <Form.Item
-                {...argLabelProps}
-                name={["args", arg.name]}
-                rules={[{ validator: validateField }]}
-            >
-                <TextArea autoSize={{ minRows: 1 }} disabled={disabled} onBlur={onCommit} />
-            </Form.Item>
+        return renderFieldItem(
+            <TextArea autoSize={{ minRows: 1 }} disabled={disabled} onBlur={onCommit} />
         );
     }
 
-    return (
-        <Form.Item
-            {...argLabelProps}
-            name={["args", arg.name]}
-            rules={[{ validator: validateField }]}
-        >
-            <Input disabled={disabled} onBlur={onCommit} />
-        </Form.Item>
-    );
+    return renderFieldItem(<Input disabled={disabled} onBlur={onCommit} />);
 };
 
 export const NodeStructuredArgsSection: React.FC<{
     form: FormInstance;
     nodeDef: NodeDef;
     args: NodeArg[];
-    committedArgs: Record<string, unknown> | undefined;
+    effectiveArgs: Record<string, unknown> | undefined;
     usingVars: Record<string, VarDecl> | null;
     checkExpr: boolean;
     nodeCheckDiagnostics: NodeCheckDiagnostic[];
     fieldEditDisabled: boolean;
     isOverridden: (argName: string) => boolean;
     onReset: (arg: NodeArg) => void;
+    onResetToDefault: (arg: NodeArg) => void;
     onCommit: (arg: NodeArg) => void;
     onQueueCommit: (arg: NodeArg) => void;
 }> = ({
     form,
     nodeDef,
     args,
-    committedArgs,
+    effectiveArgs,
     usingVars,
     checkExpr,
     nodeCheckDiagnostics,
     fieldEditDisabled,
     isOverridden,
     onReset,
+    onResetToDefault,
     onCommit,
     onQueueCommit,
 }) => {
@@ -261,13 +280,15 @@ export const NodeStructuredArgsSection: React.FC<{
                         form={form}
                         arg={arg}
                         nodeDef={nodeDef}
-                        committedArgValue={committedArgs?.[arg.name]}
+                        currentArgValue={effectiveArgs?.[arg.name]}
                         usingVars={usingVars}
                         checkExpr={checkExpr}
                         nodeCheckDiagnostics={nodeCheckDiagnostics}
                         disabled={fieldEditDisabled}
+                        showDefaultReset={arg.default !== undefined}
                         onCommit={() => onCommit(arg)}
                         onQueueCommit={() => onQueueCommit(arg)}
+                        onResetToDefault={() => onResetToDefault(arg)}
                     />
                 </OverrideBar>
             ))}

@@ -7,11 +7,7 @@ import {
 import { readWorkspaceFileContent } from "../files/paths";
 import { buildHostSelectionFromMutationSelection } from "./messages";
 import type { SessionInspectorSync } from "./inspector-sync";
-import type {
-    HostMessageSink,
-    MessageSource,
-    TreeEditorSessionContext,
-} from "./context";
+import type { HostMessageSink, MessageSource, TreeEditorSessionContext } from "./context";
 import type { SessionSelectionSync } from "./selection-sync";
 import type { SessionSubtreeTracking } from "./subtree-tracking";
 import {
@@ -20,7 +16,10 @@ import {
     isReducibleDocumentMutation,
     reduceDocumentMutation,
 } from "../../../webview/shared/document";
-import type { EditorToHostMessage, HostToEditorMessage } from "../../../webview/shared/message-protocol";
+import type {
+    EditorToHostMessage,
+    HostToEditorMessage,
+} from "../../../webview/shared/message-protocol";
 import { parseWorkdirRelativeJsonPath } from "../../../webview/shared/protocol";
 import {
     clonePersistedNode,
@@ -29,7 +28,7 @@ import {
     parsePersistedTreeContent,
     serializePersistedTree,
 } from "../../../webview/shared/tree";
-import { VERSION } from "../../../webview/shared/b3type";
+import { DOCUMENT_VERSION } from "../../../webview/shared/b3type";
 import { translateRuntimeMessage } from "../../../webview/shared/runtime-i18n";
 
 export interface SessionDocumentMutationFileRequests {
@@ -57,7 +56,8 @@ type SaveSelectedAsSubtreeMutationResult =
     | { kind: "skip" };
 
 interface DocumentMutationRuntimeDeps
-    extends Pick<
+    extends
+        Pick<
             TreeEditorSessionContext,
             | "document"
             | "projectRootUri"
@@ -67,15 +67,9 @@ interface DocumentMutationRuntimeDeps
             | "onDidChangeDocument"
             | "enqueueMainDocumentOperation"
         >,
-        Pick<
-            SessionSubtreeTracking,
-            "invalidateSubtreeRefs" | "refreshTrackedSubtreeRefs"
-        >,
+        Pick<SessionSubtreeTracking, "invalidateSubtreeRefs" | "refreshTrackedSubtreeRefs">,
         Pick<SessionInspectorSync, "fanoutDocumentSnapshot">,
-        Pick<
-            FileVersionGuard,
-            "updateFileVersionState" | "blockEditingForNewerFile"
-        >,
+        Pick<FileVersionGuard, "updateFileVersionState" | "blockEditingForNewerFile">,
         Pick<SessionSelectionSync, "updateSharedSelection"> {
     fileRequests: SessionDocumentMutationFileRequests;
 }
@@ -96,10 +90,7 @@ const pruneReachableSubtreeOverrides = (
  * file-version state for subsequent watcher/save logic.
  */
 function applyContentFromWebview(deps: DocumentMutationRuntimeDeps, content: string): boolean {
-    const normalizedContent = normalizeTreeContentForWrite(
-        content,
-        deps.document.uri.fsPath
-    );
+    const normalizedContent = normalizeTreeContentForWrite(content, deps.document.uri.fsPath);
     if (deps.document.content === normalizedContent) {
         return false;
     }
@@ -127,10 +118,7 @@ async function handleSaveSelectedAsSubtreeMutation(
     }
 
     // This mutation crosses the file-system boundary, so it stays host-side instead of reducer-only.
-    const currentTree = parsePersistedTreeContent(
-        deps.document.content,
-        deps.document.uri.fsPath
-    );
+    const currentTree = parsePersistedTreeContent(deps.document.content, deps.document.uri.fsPath);
     if (currentTree.root.uuid === msg.mutation.payload.target.structuralStableId) {
         return {
             kind: "handled",
@@ -166,7 +154,7 @@ async function handleSaveSelectedAsSubtreeMutation(
     }
 
     const subtreeModel = {
-        version: VERSION,
+        version: DOCUMENT_VERSION,
         name: "subtree",
         prefix: "",
         desc: msg.mutation.payload.subtreeRoot.desc,

@@ -1,4 +1,4 @@
-import { VERSION } from "../shared/b3type";
+import { DOCUMENT_VERSION } from "../shared/b3type";
 import { compareDocumentVersion } from "../shared/document";
 import type {
     EditorCommand,
@@ -148,7 +148,7 @@ export const createDocumentCommands = (
             if (!tree) {
                 return;
             }
-            if (compareDocumentVersion(tree.version, VERSION) > 0) {
+            if (compareDocumentVersion(tree.version, DOCUMENT_VERSION) > 0) {
                 deps.hostAdapter.log(
                     "warn",
                     `[v2] refusing to save newer file version: ${tree.version}`

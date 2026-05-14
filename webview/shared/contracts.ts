@@ -109,6 +109,7 @@ export interface HostDocumentSnapshot {
 export interface EditNode {
     ref: NodeInstanceRef;
     data: PersistedNodeModel;
+    effectiveArgs?: Record<string, unknown>;
     prefix: string;
     activeChildCount: number;
     disabled: boolean;

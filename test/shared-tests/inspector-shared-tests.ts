@@ -5,14 +5,38 @@ import {
     validateInspectorArgValue,
 } from "../../webview/features/inspector/inspector-arg-values";
 import {
+    buildArgsWithoutArg,
+    buildScopedArgs,
     buildRenamedNodeData,
     createNodeInspectorFormValues,
+    getNodeInspectorSyncMode,
+    isSameLogicalInspectorNode,
+    shouldLockPendingInspectorForm,
     buildTreeCustomRecord,
     getTreeCustomValueKind,
 } from "../../webview/features/inspector/inspector-form-values";
 import type { EditNode } from "../../webview/shared/contracts";
 import { normalizeNodeDefCollection, parseNodeDefsContent } from "../../webview/shared/schema";
 import { defineSharedTests } from "../shared-test-types";
+
+const createNodeInspectorSyncSnapshot = (
+    instanceKey: string,
+    name: string
+): Pick<EditNode, "ref" | "data"> => ({
+    ref: {
+        instanceKey,
+        displayId: instanceKey,
+        structuralStableId: "child",
+        sourceStableId: "child",
+        sourceTreePath: null,
+        subtreeStack: [],
+    },
+    data: {
+        uuid: "child",
+        id: instanceKey,
+        name,
+    },
+});
 
 export const inspectorSharedTests = defineSharedTests([
     {
@@ -202,6 +226,199 @@ export const inspectorSharedTests = defineSharedTests([
             assert.deepEqual(values.args, {});
             assert.deepEqual(values.inputSlots, []);
             assert.deepEqual(values.outputSlots, []);
+        },
+    },
+    {
+        name: "required inspector args with no committed value are omitted from preview form values",
+        run() {
+            const selectedNode: EditNode = {
+                ref: {
+                    instanceKey: "11",
+                    displayId: "11",
+                    structuralStableId: "wait-node",
+                    sourceStableId: "wait-node",
+                    sourceTreePath: null,
+                    subtreeStack: [],
+                },
+                data: {
+                    uuid: "wait-node",
+                    id: "11",
+                    name: "Wait",
+                },
+                prefix: "",
+                activeChildCount: 0,
+                disabled: false,
+                subtreeNode: false,
+                subtreeEditable: true,
+            };
+
+            const values = createNodeInspectorFormValues(
+                {
+                    name: "Wait",
+                    type: "Action",
+                    desc: "",
+                    args: [{ name: "time", type: "float", desc: "Time" }],
+                },
+                selectedNode,
+                "Unknown"
+            );
+
+            assert.deepEqual(values.args, {});
+        },
+    },
+    {
+        name: "inspector form values can display effective default args without committed args",
+        run() {
+            const selectedNode: EditNode = {
+                ref: {
+                    instanceKey: "12",
+                    displayId: "12",
+                    structuralStableId: "back-team-node",
+                    sourceStableId: "back-team-node",
+                    sourceTreePath: null,
+                    subtreeStack: [],
+                },
+                data: {
+                    uuid: "back-team-node",
+                    id: "12",
+                    name: "BackTeam",
+                },
+                effectiveArgs: {
+                    speed_rate: 1.5,
+                },
+                prefix: "",
+                activeChildCount: 0,
+                disabled: false,
+                subtreeNode: false,
+                subtreeEditable: true,
+            };
+
+            const values = createNodeInspectorFormValues(
+                {
+                    name: "BackTeam",
+                    type: "Action",
+                    desc: "",
+                    args: [{ name: "speed_rate", type: "float", desc: "Speed Rate", default: 1.5 }],
+                },
+                selectedNode,
+                "Unknown"
+            );
+
+            assert.deepEqual(values.args, { speed_rate: 1.5 });
+        },
+    },
+    {
+        name: "same logical node snapshot refresh patches instead of replacing the inspector form",
+        run() {
+            assert.equal(
+                isSameLogicalInspectorNode(
+                    createNodeInspectorSyncSnapshot("5", "Action"),
+                    createNodeInspectorSyncSnapshot("12", "Action")
+                ),
+                true
+            );
+            const syncMode = getNodeInspectorSyncMode(
+                createNodeInspectorSyncSnapshot("5", "Action"),
+                createNodeInspectorSyncSnapshot("12", "Action")
+            );
+
+            assert.equal(syncMode, "patch");
+        },
+    },
+    {
+        name: "pending inspector form stays interactive while the same logical node snapshot refreshes",
+        run() {
+            assert.equal(
+                shouldLockPendingInspectorForm({
+                    readOnly: false,
+                    pendingSelectedNodeSnapshot: true,
+                    previousSelectedNode: createNodeInspectorSyncSnapshot("5", "Action"),
+                    nextSelectedNode: createNodeInspectorSyncSnapshot("12", "Action"),
+                }),
+                false
+            );
+        },
+    },
+    {
+        name: "same logical node rename clears dependent inspector fields without full replacement",
+        run() {
+            const syncMode = getNodeInspectorSyncMode(
+                createNodeInspectorSyncSnapshot("5", "Wait"),
+                createNodeInspectorSyncSnapshot("12", "BackTeam")
+            );
+
+            assert.equal(syncMode, "patch-and-clear-scoped-fields");
+        },
+    },
+    {
+        name: "pending inspector form locks while switching to a different logical node",
+        run() {
+            assert.equal(
+                shouldLockPendingInspectorForm({
+                    readOnly: false,
+                    pendingSelectedNodeSnapshot: true,
+                    previousSelectedNode: createNodeInspectorSyncSnapshot("5", "Action"),
+                    nextSelectedNode: {
+                        ref: {
+                            instanceKey: "7",
+                            displayId: "7",
+                            structuralStableId: "other-child",
+                            sourceStableId: "other-child",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                        data: {
+                            uuid: "other-child",
+                            id: "7",
+                            name: "Action",
+                        },
+                    },
+                }),
+                true
+            );
+        },
+    },
+    {
+        name: "untouched default args remain omitted from committed scoped args",
+        run() {
+            const nextArgs = buildScopedArgs(
+                undefined,
+                { speed_rate: 1.5 },
+                { name: "speed_rate", type: "float?", desc: "Speed Rate", default: 1.5 },
+                { args: { speed_rate: 1.5 } } as any,
+                false
+            );
+
+            assert.equal(nextArgs, undefined);
+        },
+    },
+    {
+        name: "touched default args persist into committed scoped args",
+        run() {
+            const nextArgs = buildScopedArgs(
+                undefined,
+                { speed_rate: 1.5 },
+                { name: "speed_rate", type: "float?", desc: "Speed Rate", default: 1.5 },
+                { args: { speed_rate: 1.5 } } as any,
+                true
+            );
+
+            assert.deepEqual(nextArgs, { speed_rate: 1.5 });
+        },
+    },
+    {
+        name: "default arg reset removes explicit committed override",
+        run() {
+            const nextArgs = buildArgsWithoutArg(
+                {
+                    speed_rate: 2.5,
+                    duration: 8,
+                },
+                "speed_rate"
+            );
+
+            assert.deepEqual(nextArgs, { duration: 8 });
+            assert.equal(buildArgsWithoutArg({ speed_rate: 2.5 }, "speed_rate"), undefined);
         },
     },
     {

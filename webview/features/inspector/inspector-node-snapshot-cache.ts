@@ -22,6 +22,7 @@ export const cloneInspectorNodeSnapshotForRef = (
 ): EditNode => ({
     ...snapshot,
     ref,
+    effectiveArgs: snapshot.effectiveArgs ? { ...snapshot.effectiveArgs } : undefined,
     data: {
         ...snapshot.data,
         id: ref.displayId,

@@ -181,6 +181,8 @@ Inspector 不只是字段表单，还需要表达：
 - `desc`、`debug`、`disabled` 可编辑
 - `path` 可编辑 subtree link；subtree 内部节点自身不允许再改 path
 - 切换节点时，Inspector 先丢弃上一节点的局部表单缓存，再根据当前节点快照重建字段值
+- `name` 引发的 nodeDef 预览切换，也必须先丢弃上一节点留下的依赖字段缓存，再显示新的输入槽/参数预览
+- 对当前没有 committed 值的 required arg，Inspector 预览态应表现为“缺值”，而不是把 `undefined` 写进嵌套表单对象
 
 ### Inputs / Outputs
 
@@ -196,6 +198,7 @@ Inspector 不只是字段表单，还需要表达：
 - 表达式型参数校验变量引用与表达式合法性
 - 自定义 node check 结果会映射到对应 arg 校验提示
 - 新切入的 required arg 若当前还没有 committed 值，初始态保持 unset；在用户显式输入前不得静默序列化成 `""`、`false` 或其他占位值
+- 若 arg 定义了 nodeDef 默认值，则该字段右侧显示独立 reset action；点击后先二次确认，再清除当前显式值并回退到默认值语义
 
 ### Raw JSON View
 
@@ -235,6 +238,8 @@ Inspector 不只是字段表单，还需要表达：
 
 - 对 subtree 节点的 override 比较，`subtreeOriginal` 与当前 resolved node 使用同一套 arg 默认值归一化
 - 因此 nodeDef 的默认参数补齐本身不会单独点亮 override UI
+- 对主树普通节点，结构化参数区可以展示 resolved/effective arg 默认值；但只读 JSON 与提交基线仍以主文档实际持久化数据为准
+- 对主树普通节点，若 arg 输入框当前只是展示默认值且用户未实际修改该字段，blur 不应把默认值写回主文档
 - reset 后提交新的 node 数据
 - host reducer 会重新计算 override diff
 - 若 diff 为空，则从主文档 `overrides` 中删除

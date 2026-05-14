@@ -339,6 +339,25 @@
     color: var(--ant-color-text);
 }
 
+.b3-field-with-action {
+    width: 100%;
+}
+
+.b3-field-with-action-control {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.b3-inline-reset {
+    margin-top: calc((var(--b3-inspector-control-height) - 1em) / 2);
+    color: var(--ant-color-text-tertiary);
+    cursor: pointer;
+}
+
+.b3-inline-reset:hover {
+    color: var(--ant-color-text);
+}
+
 .b3-row-spacer {
     width: 14px;
 }
