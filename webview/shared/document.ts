@@ -9,6 +9,7 @@ import type {
     UpdateNodeInput,
 } from "./contracts";
 import { isJsonEqual } from "./json";
+import { getNodeArgOverrideCompareValue } from "./node-overrides";
 import { createNodeDefMap, findNodeDef } from "./node-utils";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
 import { translateRuntimeMessage, type SupportedLanguage } from "./runtime-i18n";
@@ -195,8 +196,8 @@ const computeNodeOverride = (
     if (def?.args?.length) {
         const diffArgs: Record<string, unknown> = {};
         for (const arg of def.args) {
-            const originalValue = original.args?.[arg.name];
-            const editedValue = edited.args?.[arg.name];
+            const originalValue = getNodeArgOverrideCompareValue(original.args, arg);
+            const editedValue = getNodeArgOverrideCompareValue(edited.args, arg);
             if (!isJsonEqual(originalValue, editedValue)) {
                 diffArgs[arg.name] = editedValue;
             }

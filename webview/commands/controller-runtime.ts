@@ -175,6 +175,11 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             node.ref.sourceTreePath === null && !node.subtreeNode
                 ? findPersistedNodeByStableId(tree.root, node.ref.structuralStableId)
                 : null;
+        const committedArgs = node.subtreeNode
+            ? cloneNodeArgs(node.args)
+            : committedLocalNode?.args
+              ? cloneNodeArgs(committedLocalNode.args)
+              : undefined;
         return {
             ref: node.ref,
             data: {
@@ -182,9 +187,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
                 id: node.ref.displayId,
                 name: node.name,
                 desc: node.desc,
-                args: committedLocalNode?.args
-                    ? (cloneJsonValue(committedLocalNode.args) as Record<string, unknown>)
-                    : undefined,
+                args: committedArgs,
                 input: node.input,
                 output: node.output,
                 debug: node.debug,

@@ -231,6 +231,7 @@ Scope: <short boundary>
 ## Active Work Items
 
 - [`build-hotkey-single-dispatch.md`](build-hotkey-single-dispatch.md) — 修复 build 快捷键在 custom editor 中一次按键重复派发。
+- [`default-arg-override-marker-regression.md`](default-arg-override-marker-regression.md) — 修复 subtree 默认参数被误判为 override 标记的回归。
 - [`embedded-inspector-title-actions.md`](embedded-inspector-title-actions.md) — 为 embedded inspector 补齐与 sidebar title 同组的快捷操作按钮。
 - [`node-name-commit-granularity.md`](node-name-commit-granularity.md) — 收窄 Node Inspector `name` 字段的提交粒度，只改名称本身。
 - [`node-name-paste-hotkey-regression.md`](node-name-paste-hotkey-regression.md) — 修复 Inspector 组合输入聚焦时 `Ctrl/Cmd+V` 被图层结构快捷键抢占。

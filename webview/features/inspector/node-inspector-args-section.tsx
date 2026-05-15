@@ -75,7 +75,7 @@ const NodeArgField: React.FC<{
     };
 
     const renderFieldItem = (control: React.ReactNode, valuePropName?: "checked") => {
-        if (!showDefaultReset) {
+        if (!showDefaultReset || disabled) {
             return (
                 <Form.Item
                     {...argLabelProps}
@@ -101,24 +101,20 @@ const NodeArgField: React.FC<{
                             {control}
                         </Form.Item>
                     </div>
-                    {disabled ? (
-                        <div className="b3-row-spacer" />
-                    ) : (
-                        <Popconfirm
-                            title={t("reset.defaultConfirm")}
-                            okText={t("reset")}
-                            cancelText={t("cancel")}
-                            placement="right"
-                            onConfirm={onResetToDefault}
-                            getPopupContainer={getInspectorPopupContainer}
-                        >
-                            <ReloadOutlined
-                                className="b3-inline-reset"
-                                title={t("reset")}
-                                onMouseDown={(event) => event.preventDefault()}
-                            />
-                        </Popconfirm>
-                    )}
+                    <Popconfirm
+                        title={t("reset.defaultConfirm")}
+                        okText={t("reset")}
+                        cancelText={t("cancel")}
+                        placement="right"
+                        onConfirm={onResetToDefault}
+                        getPopupContainer={getInspectorPopupContainer}
+                    >
+                        <ReloadOutlined
+                            className="b3-inline-reset"
+                            title={t("reset")}
+                            onMouseDown={(event) => event.preventDefault()}
+                        />
+                    </Popconfirm>
                 </Flex>
             </Form.Item>
         );

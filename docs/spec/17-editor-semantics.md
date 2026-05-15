@@ -189,6 +189,7 @@ webview 在发送 intent 前只补齐 host reducer 需要的上下文：
 - 对当前无值的 arg，webview 预览态应通过“缺少该 key”而不是“key 存在但值为 `undefined`”来表达 unset
 - 当节点类型切换引入新的 required args 时，未显式设置的 arg 在首次提交中保持 unset，不应被静默写成占位空值
 - 对主树普通节点，Inspector 可展示 resolved/effective arg 默认值，但 `updateNode.payload.currentNodeSnapshot.data.args` 仍必须保持 committed JSON 语义，不能因为展示默认值而把默认参数带入提交基线
+- 对 subtree 内部节点，`updateNode.payload.currentNodeSnapshot.data.args` 必须保留当前 resolved/current args，作为与 `subtreeOriginal` 比较的编辑基线
 - 若主树普通节点的 arg 字段尚未被用户实际改动，Inspector 不得因为 blur/校验而把仅展示中的默认值提交回主文档
 - 若用户点击带默认值 arg 的 reset action，webview 应直接移除该 arg 的显式 committed key，而不是走“清空后再校验必填”的常规 blur 提交流程
 - 是否 noop、是否错误、是否提交由宿主 reducer 决定
@@ -205,6 +206,7 @@ host reducer 当前分三条路径：
 - 不改 subtree 源文件
 - 以 payload 自带的 `subtreeOriginal` 对比出 diff
   - `subtreeOriginal` 与当前 resolved node 已共享同一套 arg 默认值归一化
+  - `currentNodeSnapshot.data.args` 来自当前 resolved/current args，而不是主文档 committed JSON
   - 仅因 nodeDef 默认值补齐而出现的值，不得单独生成 main-document `overrides`
 - 写入或清理主文档 `overrides`
 

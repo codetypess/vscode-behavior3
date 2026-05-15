@@ -1101,6 +1101,77 @@ const tests = registerSharedTestSuites(
             },
         },
         {
+            name: "does not persist default-only subtree args when original omits defaults",
+            run() {
+                const tree = createTestTree();
+                const nodeDefs: NodeDef[] = [
+                    {
+                        name: "TryLaunchSkill",
+                        type: "Action",
+                        desc: "",
+                        args: [
+                            {
+                                name: "skip_cd",
+                                type: "bool?",
+                                desc: "",
+                                default: false,
+                            },
+                        ],
+                    },
+                ];
+
+                const result = reduceDocumentMutation(
+                    {
+                        type: "updateNode",
+                        payload: {
+                            target: {
+                                instanceKey: "node-1",
+                                displayId: "2",
+                                structuralStableId: "sub-node",
+                                sourceStableId: "sub-node",
+                                sourceTreePath: "subtree/child.json" as any,
+                                subtreeStack: [],
+                            },
+                            data: {
+                                name: "TryLaunchSkill",
+                                desc: "updated",
+                                args: { skip_cd: false },
+                            },
+                            currentNodeSnapshot: {
+                                data: {
+                                    uuid: "sub-node",
+                                    id: "2",
+                                    name: "TryLaunchSkill",
+                                    desc: "",
+                                    args: { skip_cd: false },
+                                },
+                                subtreeNode: true,
+                                subtreeOriginal: {
+                                    uuid: "sub-node",
+                                    id: "2",
+                                    name: "TryLaunchSkill",
+                                    desc: "",
+                                },
+                            },
+                        },
+                    },
+                    {
+                        tree,
+                        nodeDefs,
+                    }
+                );
+
+                assert.equal(result.status, "changed");
+                if (result.status !== "changed") {
+                    return;
+                }
+
+                assert.deepEqual(result.tree.overrides["sub-node"], {
+                    desc: "updated",
+                });
+            },
+        },
+        {
             name: "reduces subtree detach mutations in shared host reducer",
             run() {
                 const tree = createTestTree();
@@ -1579,6 +1650,59 @@ const tests = registerSharedTestSuites(
                 );
 
                 assert.equal(strictGraphModel.nodes[0]?.nodeStyleKind, "Error");
+            },
+        },
+        {
+            name: "does not mark graph subtree nodes overridden for default-only args",
+            run() {
+                const graphModel = buildResolvedGraphModel(
+                    {
+                        rootKey: "1",
+                        nodeOrder: ["1"],
+                        nodesByInstanceKey: {
+                            "1": {
+                                ref: {
+                                    instanceKey: "1",
+                                    displayId: "56",
+                                    structuralStableId: "sub-node",
+                                    sourceStableId: "sub-node",
+                                    sourceTreePath: parseWorkdirRelativeJsonPath("sub.json"),
+                                    subtreeStack: [parseWorkdirRelativeJsonPath("sub.json")!],
+                                },
+                                parentKey: null,
+                                childKeys: [],
+                                depth: 0,
+                                renderedIdLabel: "56",
+                                name: "TryLaunchSkill",
+                                args: { skip_cd: false },
+                                subtreeNode: true,
+                                subtreeEditable: true,
+                                subtreeOriginal: {
+                                    uuid: "sub-node",
+                                    id: "56",
+                                    name: "TryLaunchSkill",
+                                },
+                            },
+                        },
+                    },
+                    [
+                        {
+                            name: "TryLaunchSkill",
+                            type: "Action",
+                            desc: "",
+                            args: [
+                                {
+                                    name: "skip_cd",
+                                    type: "bool?",
+                                    desc: "",
+                                    default: false,
+                                },
+                            ],
+                        },
+                    ]
+                );
+
+                assert.equal(graphModel.nodes[0]?.hasOverride, false);
             },
         },
         {
@@ -2614,6 +2738,7 @@ const tests = registerSharedTestSuites(
                     requestFocusVariable() {},
                     sendRequestSetting() {},
                     sendBuild() {},
+                    executeInspectorHostCommand() {},
                     async validateNodeChecks() {
                         return { diagnostics: [] };
                     },
@@ -2703,6 +2828,7 @@ const tests = registerSharedTestSuites(
                     requestFocusVariable() {},
                     sendRequestSetting() {},
                     sendBuild() {},
+                    executeInspectorHostCommand() {},
                     async validateNodeChecks() {
                         return { diagnostics: [] };
                     },
@@ -2875,6 +3001,7 @@ const tests = registerSharedTestSuites(
                     requestFocusVariable() {},
                     sendRequestSetting() {},
                     sendBuild() {},
+                    executeInspectorHostCommand() {},
                     async validateNodeChecks() {
                         return { diagnostics: [] };
                     },
@@ -3014,6 +3141,7 @@ const tests = registerSharedTestSuites(
                     requestFocusVariable() {},
                     sendRequestSetting() {},
                     sendBuild() {},
+                    executeInspectorHostCommand() {},
                     async validateNodeChecks() {
                         return { diagnostics: [] };
                     },
@@ -3172,6 +3300,7 @@ const tests = registerSharedTestSuites(
                     requestFocusVariable() {},
                     sendRequestSetting() {},
                     sendBuild() {},
+                    executeInspectorHostCommand() {},
                     async validateNodeChecks() {
                         return { diagnostics: [] };
                     },
@@ -3328,6 +3457,7 @@ const tests = registerSharedTestSuites(
                     },
                     sendRequestSetting() {},
                     sendBuild() {},
+                    executeInspectorHostCommand() {},
                     async validateNodeChecks() {
                         return { diagnostics: [] };
                     },
@@ -3447,6 +3577,7 @@ const tests = registerSharedTestSuites(
                     requestFocusVariable() {},
                     sendRequestSetting() {},
                     sendBuild() {},
+                    executeInspectorHostCommand() {},
                     async validateNodeChecks() {
                         return { diagnostics: [] };
                     },
@@ -3610,6 +3741,7 @@ const tests = registerSharedTestSuites(
                     requestFocusVariable() {},
                     sendRequestSetting() {},
                     sendBuild() {},
+                    executeInspectorHostCommand() {},
                     async validateNodeChecks() {
                         return { diagnostics: [] };
                     },
@@ -3743,6 +3875,7 @@ const tests = registerSharedTestSuites(
                     requestFocusVariable() {},
                     sendRequestSetting() {},
                     sendBuild() {},
+                    executeInspectorHostCommand() {},
                     async validateNodeChecks() {
                         return { diagnostics: [] };
                     },
@@ -3900,6 +4033,7 @@ const tests = registerSharedTestSuites(
                     requestFocusVariable() {},
                     sendRequestSetting() {},
                     sendBuild() {},
+                    executeInspectorHostCommand() {},
                     async validateNodeChecks() {
                         return { diagnostics: [] };
                     },
@@ -4211,6 +4345,7 @@ const tests = registerSharedTestSuites(
                         requestFocusVariable() {},
                         sendRequestSetting() {},
                         sendBuild() {},
+                        executeInspectorHostCommand() {},
                         async validateNodeChecks() {
                             return { diagnostics: [] };
                         },
@@ -4428,6 +4563,7 @@ const tests = registerSharedTestSuites(
                     requestFocusVariable() {},
                     sendRequestSetting() {},
                     sendBuild() {},
+                    executeInspectorHostCommand() {},
                     async validateNodeChecks() {
                         return { diagnostics: [] };
                     },
@@ -4584,6 +4720,7 @@ const tests = registerSharedTestSuites(
                     requestFocusVariable() {},
                     sendRequestSetting() {},
                     sendBuild() {},
+                    executeInspectorHostCommand() {},
                     async validateNodeChecks() {
                         return { diagnostics: [] };
                     },
@@ -4719,6 +4856,225 @@ const tests = registerSharedTestSuites(
             },
         },
         {
+            name: "node update snapshots keep resolved args for subtree nodes",
+            async run() {
+                const documentStore = createDocumentStore();
+                const workspaceStore = createWorkspaceStore();
+                const selectionStore = createSelectionStore();
+                const graphUiStore = createGraphUiStore();
+                const appHooks = createAppHooksStore();
+                appHooks.bind({
+                    message: {
+                        success() {},
+                        error() {},
+                    } as any,
+                    notification: {} as any,
+                    modal: {} as any,
+                });
+
+                let selectedNodeTarget: NodeInstanceRef | null = null;
+                const hostAdapter: HostAdapter = {
+                    connect: () => () => {},
+                    sendReady() {},
+                    undo() {},
+                    redo() {},
+                    async mutateDocument() {
+                        return { success: true };
+                    },
+                    selectTree() {},
+                    selectNode(target) {
+                        selectedNodeTarget = target;
+                    },
+                    requestFocusVariable() {},
+                    sendRequestSetting() {},
+                    sendBuild() {},
+                    executeInspectorHostCommand() {},
+                    async validateNodeChecks() {
+                        return { diagnostics: [] };
+                    },
+                    async saveDocument() {
+                        return { success: true };
+                    },
+                    async revertDocument() {
+                        return { success: true };
+                    },
+                    async readFile(readPath) {
+                        if (String(readPath).endsWith("sub.json")) {
+                            return {
+                                content: serializePersistedTree({
+                                    version: "2.0.0",
+                                    name: "sub",
+                                    prefix: "",
+                                    export: true,
+                                    group: [],
+                                    variables: {
+                                        imports: [],
+                                        locals: [],
+                                    },
+                                    custom: {},
+                                    overrides: {},
+                                    root: {
+                                        uuid: "sub-root",
+                                        id: "1",
+                                        name: "Sequence",
+                                        children: [
+                                            {
+                                                uuid: "sub-node",
+                                                id: "2",
+                                                name: "FindOneTarget",
+                                                args: {
+                                                    max_first: false,
+                                                    sort_type: 1,
+                                                    target_type: "enemy",
+                                                },
+                                                input: ["search_radius"],
+                                                output: ["target"],
+                                            },
+                                        ],
+                                    },
+                                }),
+                            };
+                        }
+                        return { content: null };
+                    },
+                    async saveSubtree() {
+                        return { success: true };
+                    },
+                    async saveSubtreeAs() {
+                        return { savedPath: null };
+                    },
+                    log() {},
+                };
+                const graphAdapter: GraphAdapter = {
+                    async mount() {},
+                    unmount() {},
+                    async render() {},
+                    async applySelection() {},
+                    async applyHighlights() {},
+                    async applySearch() {},
+                    async focusNode() {},
+                    async restoreViewport() {},
+                    getViewport: () => ({ zoom: 1, x: 0, y: 0 }),
+                };
+                const controller = createEditorController({
+                    documentStore,
+                    workspaceStore,
+                    selectionStore,
+                    graphUiStore,
+                    hostAdapter,
+                    graphAdapter,
+                    appHooks,
+                });
+
+                const tree: PersistedTreeModel = {
+                    version: "2.0.0",
+                    name: "main",
+                    prefix: "",
+                    export: true,
+                    group: [],
+                    variables: {
+                        imports: [],
+                        locals: [],
+                    },
+                    custom: {},
+                    overrides: {},
+                    root: {
+                        uuid: "root",
+                        id: "1",
+                        name: "Sequence",
+                        children: [
+                            {
+                                uuid: "link-root",
+                                id: "2",
+                                name: "Sequence",
+                                path: "sub.json" as any,
+                            },
+                        ],
+                    },
+                };
+                const content = serializePersistedTree(tree);
+                await controller.initFromHost({
+                    filePath: "/tmp/main.json",
+                    workdir: "/tmp",
+                    content,
+                    nodeDefs: [
+                        {
+                            name: "Sequence",
+                            type: "Composite",
+                            desc: "",
+                        },
+                        {
+                            name: "FindOneTarget",
+                            type: "Action",
+                            desc: "",
+                            args: [
+                                {
+                                    name: "max_first",
+                                    type: "bool",
+                                    desc: "",
+                                    default: false,
+                                },
+                                {
+                                    name: "sort_type",
+                                    type: "int",
+                                    desc: "",
+                                    default: 0,
+                                },
+                                {
+                                    name: "target_type",
+                                    type: "string",
+                                    desc: "",
+                                },
+                            ],
+                            input: ["search_radius"],
+                            output: ["target"],
+                        },
+                    ],
+                    allFiles: [],
+                    settings: createHostInitSettings(),
+                    documentSession: {
+                        dirty: false,
+                        historyIndex: 0,
+                        historyLength: 1,
+                        lastSavedSnapshot: content,
+                        alertReload: false,
+                        pendingExternalContent: null,
+                    },
+                    selection: { kind: "tree" },
+                });
+
+                await controller.selectNode("3");
+                assert.ok(selectedNodeTarget);
+                await controller.applyDocumentSnapshot({
+                    content,
+                    documentSession: {
+                        dirty: false,
+                        historyIndex: 0,
+                        historyLength: 1,
+                        lastSavedSnapshot: content,
+                        alertReload: false,
+                        pendingExternalContent: null,
+                    },
+                    selection: {
+                        kind: "node",
+                        ref: selectedNodeTarget,
+                    },
+                    syncKind: "update",
+                });
+
+                assert.deepEqual(selectionStore.getState().selectedNodeSnapshot?.data.args, {
+                    max_first: false,
+                    sort_type: 1,
+                    target_type: "enemy",
+                });
+                assert.deepEqual(selectionStore.getState().selectedNodeSnapshot?.effectiveArgs, {
+                    max_first: false,
+                    sort_type: 1,
+                    target_type: "enemy",
+                });
+            },
+        },
+        {
             name: "forwards noop editor mutation intents to host without local reducer preflight",
             async run() {
                 const documentStore = createDocumentStore();
@@ -4753,6 +5109,7 @@ const tests = registerSharedTestSuites(
                     requestFocusVariable() {},
                     sendRequestSetting() {},
                     sendBuild() {},
+                    executeInspectorHostCommand() {},
                     async validateNodeChecks() {
                         return { diagnostics: [] };
                     },
@@ -4904,6 +5261,7 @@ const tests = registerSharedTestSuites(
                     requestFocusVariable() {},
                     sendRequestSetting() {},
                     sendBuild() {},
+                    executeInspectorHostCommand() {},
                     async validateNodeChecks() {
                         return { diagnostics: [] };
                     },
@@ -5095,6 +5453,7 @@ const tests = registerSharedTestSuites(
                     requestFocusVariable() {},
                     sendRequestSetting() {},
                     sendBuild() {},
+                    executeInspectorHostCommand() {},
                     async validateNodeChecks() {
                         return { diagnostics: [] };
                     },
@@ -5289,6 +5648,7 @@ const tests = registerSharedTestSuites(
                     requestFocusVariable() {},
                     sendRequestSetting() {},
                     sendBuild() {},
+                    executeInspectorHostCommand() {},
                     async validateNodeChecks() {
                         return { diagnostics: [] };
                     },

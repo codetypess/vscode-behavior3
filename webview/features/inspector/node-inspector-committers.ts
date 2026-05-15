@@ -3,6 +3,7 @@ import type { EditorRuntime } from "../../app/runtime";
 import { parseSlotDefinition } from "../../shared/node-utils";
 import type { EditNode, UpdateNodeInput } from "../../shared/contracts";
 import type { NodeArg, NodeDef } from "../../shared/b3type";
+import { isNodeArgOverrideValueDifferent } from "../../shared/node-overrides";
 import { formatArgInitialValue } from "./inspector-arg-values";
 import { queueInspectorTask, trackPendingInspectorEdit } from "./inspector-commit-queue";
 import {
@@ -182,7 +183,12 @@ export function useNodeInspectorCommitters({
         isSlotOverridden(selectedNode.data.output, subtreeOriginal?.output, index, variadic);
     const isArgOverridden = (argName: string) =>
         canShowOverride &&
-        !compareJsonValue(selectedNode.data.args?.[argName], subtreeOriginal?.args?.[argName]);
+        isNodeArgOverrideValueDifferent({
+            argName,
+            currentArgs: selectedNode.data.args,
+            originalArgs: subtreeOriginal?.args,
+            nodeDef,
+        });
 
     const commitInputField = (index: number) => {
         queueNodeMutation(buildInputFieldTargets(index), (values) => ({

@@ -11,7 +11,8 @@ import type {
     ResolvedGraphModel,
     VarDecl,
 } from "../shared/contracts";
-import { isJsonEqual, stringifyCompactJson5, stringifySearchValueAsJson5 } from "../shared/json";
+import { stringifyCompactJson5, stringifySearchValueAsJson5 } from "../shared/json";
+import { hasNodeOverrideDiff } from "../shared/node-overrides";
 import { createNodeDefMap, findNodeDef } from "../shared/node-utils";
 import { collectResolvedNodeDiagnostics, parseExpressionVariables } from "../shared/validation";
 
@@ -44,20 +45,13 @@ const pickNodeSubtitle = (nodeDesc: string | undefined, defDesc: string | undefi
     return trimmedDefDesc || undefined;
 };
 
-const hasNodeOverride = (node: ResolvedNodeModel): boolean => {
+const hasNodeOverride = (node: ResolvedNodeModel, def: NodeDef | null): boolean => {
     if (!node.subtreeNode || !node.subtreeOriginal) {
         return false;
     }
 
     // Subtree nodes compare against their resolved source snapshot to show override markers.
-    return (
-        (node.desc ?? "") !== (node.subtreeOriginal.desc ?? "") ||
-        !isJsonEqual(node.input ?? [], node.subtreeOriginal.input ?? []) ||
-        !isJsonEqual(node.output ?? [], node.subtreeOriginal.output ?? []) ||
-        !isJsonEqual(node.args ?? {}, node.subtreeOriginal.args ?? {}) ||
-        Boolean(node.debug) !== Boolean(node.subtreeOriginal.debug) ||
-        Boolean(node.disabled) !== Boolean(node.subtreeOriginal.disabled)
-    );
+    return hasNodeOverrideDiff(node, node.subtreeOriginal, def);
 };
 
 export const buildResolvedGraphModel = (
@@ -115,7 +109,7 @@ export const buildResolvedGraphModel = (
             accentColor,
             debug: Boolean(node.debug),
             disabled: Boolean(node.disabled),
-            hasOverride: hasNodeOverride(node),
+            hasOverride: hasNodeOverride(node, def),
             subtreeNode: node.subtreeNode,
             subtreePath: node.path,
             statusBits: ((node.$status ?? 0) & 0b111) as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7,
