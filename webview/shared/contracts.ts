@@ -276,6 +276,13 @@ export interface DocumentMutationResponse {
     error?: string;
 }
 
+export type InspectorHostCommandId =
+    | "behavior3.build"
+    | "behavior3.toggleEditorMode"
+    | "behavior3.toggleInspectorNodeJson"
+    | "behavior3.createProject"
+    | "behavior3.createTree";
+
 export type HostEvent =
     | { type: "init"; payload: HostInitPayload }
     | { type: "documentSnapshotChanged"; snapshot: HostDocumentSnapshot }
@@ -421,6 +428,7 @@ export interface HostAdapter {
     requestFocusVariable(names: string[]): void;
     sendRequestSetting(): void;
     sendBuild(opts?: { buildScriptDebug?: boolean }): void;
+    executeInspectorHostCommand(command: InspectorHostCommandId): void;
     validateNodeChecks(
         content: string,
         treePath: string,

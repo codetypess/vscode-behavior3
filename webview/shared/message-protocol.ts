@@ -8,6 +8,7 @@ import type {
     HostDocumentSnapshot,
     HostDocumentSessionState,
     HostSelectionState,
+    InspectorHostCommandId,
     NodeCheckDiagnostic,
     NodeCheckValidationNode,
     NodeInstanceRef,
@@ -28,6 +29,7 @@ export type EditorToHostMessage =
     | { type: "revertDocument"; requestId: string }
     | { type: "requestSetting" }
     | { type: "build"; buildScriptDebug?: boolean }
+    | { type: "runInspectorCommand"; command: InspectorHostCommandId }
     | {
           type: "validateNodeChecks";
           requestId: string;

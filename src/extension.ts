@@ -21,6 +21,18 @@ const getVSCodeTheme = (): "dark" | "light" => {
         : "dark";
 };
 
+const getActiveBehaviorTreeEditorUri = (): vscode.Uri | null => {
+    const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+    const input = tab?.input;
+    if (
+        !(input instanceof vscode.TabInputCustom) ||
+        input.viewType !== TreeEditorProvider.viewType
+    ) {
+        return null;
+    }
+    return input.uri;
+};
+
 export function activate(context: vscode.ExtensionContext) {
     const config = vscode.workspace.getConfiguration("behavior3");
     const inspectorMode = config.get<"sidebar" | "embedded">("inspectorMode", "sidebar");
@@ -74,29 +86,37 @@ export function activate(context: vscode.ExtensionContext) {
     };
 
     syncActiveInspectorDocument();
-    context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(() => {
-        syncActiveInspectorDocument();
-    }));
-    context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabGroups(() => {
-        syncActiveInspectorDocument();
-    }));
-    context.subscriptions.push(vscode.window.onDidChangeActiveColorTheme(() => {
-        inspectorCoordinator.setTheme(getVSCodeTheme());
-    }));
-    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((event) => {
-        if (!event.affectsConfiguration("behavior3.inspectorMode")) {
-            return;
-        }
-        const nextInspectorMode = vscode.workspace
-            .getConfiguration("behavior3")
-            .get<"sidebar" | "embedded">("inspectorMode", "sidebar");
-        inspectorCoordinator.setInspectorMode(nextInspectorMode);
-        void vscode.commands.executeCommand(
-            "setContext",
-            "behavior3.inspectorSidebarMode",
-            nextInspectorMode === "sidebar"
-        );
-    }));
+    context.subscriptions.push(
+        vscode.window.tabGroups.onDidChangeTabs(() => {
+            syncActiveInspectorDocument();
+        })
+    );
+    context.subscriptions.push(
+        vscode.window.tabGroups.onDidChangeTabGroups(() => {
+            syncActiveInspectorDocument();
+        })
+    );
+    context.subscriptions.push(
+        vscode.window.onDidChangeActiveColorTheme(() => {
+            inspectorCoordinator.setTheme(getVSCodeTheme());
+        })
+    );
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration((event) => {
+            if (!event.affectsConfiguration("behavior3.inspectorMode")) {
+                return;
+            }
+            const nextInspectorMode = vscode.workspace
+                .getConfiguration("behavior3")
+                .get<"sidebar" | "embedded">("inspectorMode", "sidebar");
+            inspectorCoordinator.setInspectorMode(nextInspectorMode);
+            void vscode.commands.executeCommand(
+                "setContext",
+                "behavior3.inspectorSidebarMode",
+                nextInspectorMode === "sidebar"
+            );
+        })
+    );
 
     // Auto-open JSON files with Behavior3 editor only when they look like trees and
     // a parent `.b3-setting` exists. Scope: once per open cycle (re-check after close/reopen).
@@ -145,6 +165,18 @@ export function activate(context: vscode.ExtensionContext) {
     );
     context.subscriptions.push(
         vscode.commands.registerCommand("behavior3.toggleInspectorNodeJson", async () => {
+            const activeEditorUri = getActiveBehaviorTreeEditorUri();
+            const activeInspectorMode = vscode.workspace
+                .getConfiguration("behavior3")
+                .get<"sidebar" | "embedded">("inspectorMode", "sidebar");
+
+            if (activeInspectorMode === "embedded" && activeEditorUri) {
+                TreeEditorProvider.postMessageToDocument(activeEditorUri.toString(), {
+                    type: "toggleInspectorNodeJson",
+                });
+                return;
+            }
+
             inspectorCoordinator.toggleNodeJsonView();
         })
     );

@@ -42,9 +42,14 @@ Inspector 不只是字段表单，还需要表达：
 - subtree override 差异
 - 当前无激活文档时的空状态
 
-## Sidebar Title Actions
+## Inspector Title Actions
 
-`sidebar` 模式下，Behavior3 Inspector view title 暴露以下 VS Code command 快捷按钮：
+Inspector 暴露同一组 project/document quick actions，但承载位置随模式不同：
+
+- `sidebar` 模式：通过 Behavior3 Inspector view title 暴露 VS Code 原生 toolbar 按钮
+- `embedded` 模式：通过 Inspector pane 顶部内嵌 header toolbar 暴露同组按钮
+
+两种模式下都包含以下 command：
 
 - `behavior3.build`
 - `behavior3.toggleEditorMode`
@@ -52,7 +57,7 @@ Inspector 不只是字段表单，还需要表达：
 - `behavior3.createProject`
 - `behavior3.createTree`
 
-这些按钮只复用 extension-host command，不通过 Inspector webview 新增协议或直接修改文档真源。若当前没有合适的 active editor、workspace 或目标路径，仍由对应 command 自己给出提示。
+这些按钮只复用既有 extension-host command。`embedded` 模式允许 Inspector webview 通过受限 allowlist host message 转发这几个命令，但不直接修改文档真源，也不引入任意命令执行面。若当前没有合适的 active editor、workspace 或目标路径，仍由对应 command 自己给出提示。
 
 ## 外层状态
 
@@ -167,8 +172,8 @@ Inspector 不只是字段表单，还需要表达：
 ### Readonly Meta
 
 - identity 区只读，同时展示：
-  - `displayId`
-  - `uuid`
+    - `displayId`
+    - `uuid`
 - 其中 `displayId` 来自 `selectedNode.ref.displayId`
 - `uuid` 来自当前 `selectedNode.data.uuid`
 - `type` 只读，来自 nodeDef.type 或 unknown fallback

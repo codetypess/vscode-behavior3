@@ -170,6 +170,11 @@
   "editor.newerVersionEditDenied": "This file is created by a newer version of Behavior3({{version}}). Please upgrade to the latest version.",
   "inspector.noActiveDocument": "Open a Behavior3 editor to inspect and edit the active tree.",
   "inspector.embeddedModeNotice": "Inspector is configured to appear inside the Behavior3 editor.",
+  "inspector.embeddedToolbar.build": "Build Behavior Tree",
+  "inspector.embeddedToolbar.toggleEditorMode": "Toggle Editor Mode",
+  "inspector.embeddedToolbar.toggleInspectorNodeJson": "Toggle Raw Node JSON",
+  "inspector.embeddedToolbar.createProject": "Create Project",
+  "inspector.embeddedToolbar.createTree": "Create Behavior Tree",
 
   "mutation.invalidJsonPath": "Invalid JSON path: {{path}}",
   "mutation.missingSelectedNode": "No selected node is available for this mutation.",

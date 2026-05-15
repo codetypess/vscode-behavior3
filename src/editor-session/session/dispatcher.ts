@@ -1,9 +1,6 @@
 import * as vscode from "vscode";
 import type { EditorToHostMessage } from "../../../webview/shared/message-protocol";
-import {
-    logAsyncRuntimeError,
-    writeWebviewLogMessage,
-} from "../runtime/logging";
+import { logAsyncRuntimeError, writeWebviewLogMessage } from "../runtime/logging";
 import type { HostMessageSink, MessageSource } from "./context";
 
 interface SessionDispatcherFileRequestHandlers {
@@ -129,6 +126,12 @@ export function createSessionDispatcher({
                         buildScriptDebug: msg.buildScriptDebug,
                     })
                     .then(undefined, logAsyncRuntimeError("command:behavior3.build"));
+                return;
+
+            case "runInspectorCommand":
+                void vscode.commands
+                    .executeCommand(msg.command)
+                    .then(undefined, logAsyncRuntimeError(`command:${msg.command}`));
                 return;
 
             case "validateNodeChecks":

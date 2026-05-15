@@ -1,6 +1,10 @@
 import { App as AntdApp, ConfigProvider, Flex, Layout, Typography } from "antd";
 import React, { useEffect, useLayoutEffect } from "react";
 import { useTranslation } from "react-i18next";
+import {
+    InspectorJsonViewProvider,
+    useInspectorJsonView,
+} from "../features/inspector/inspector-json-view";
 import { InspectorPane } from "../features/inspector/inspector-pane";
 import { InspectorModeProvider } from "../features/inspector/inspector-mode";
 import { getAntdLocale } from "../shared/antd";
@@ -18,6 +22,7 @@ const { Content, Sider } = Layout;
 const AppShell: React.FC = () => {
     const runtime = useRuntime();
     const { message: messageApi } = AntdApp.useApp();
+    const { toggleNodeJsonVisible } = useInspectorJsonView();
     const { t } = useTranslation();
     const { theme, language, hasDocument } = useAppShellState();
     const inspectorMode = useWorkspaceStore((state) => state.settings.inspectorMode);
@@ -80,6 +85,13 @@ const AppShell: React.FC = () => {
                     return;
 
                 case "inspectorContextCleared":
+                    return;
+
+                case "toggleInspectorNodeJson":
+                    if (!runtime.selectionStore.getState().selectedNodeRef) {
+                        return;
+                    }
+                    toggleNodeJsonVisible();
                     return;
 
                 case "buildResult":
@@ -172,8 +184,10 @@ export const App: React.FC = () => {
             theme={getThemeConfig(theme, themeVersion, webviewKind)}
         >
             <AntdApp style={{ height: "100%" }}>
-                <GlobalHooksBridge />
-                <AppShell />
+                <InspectorJsonViewProvider>
+                    <GlobalHooksBridge />
+                    <AppShell />
+                </InspectorJsonViewProvider>
             </AntdApp>
         </ConfigProvider>
     );

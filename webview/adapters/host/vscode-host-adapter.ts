@@ -6,12 +6,7 @@ import {
     type PendingRequestMap,
     type PendingRequestType,
 } from "../../shared/host-request-spec";
-import {
-    composeLoggers,
-    createConsoleLogger,
-    setLogger,
-    type Logger,
-} from "../../shared/logger";
+import { composeLoggers, createConsoleLogger, setLogger, type Logger } from "../../shared/logger";
 import type {
     HostAdapter,
     DocumentMutationResponse,
@@ -319,6 +314,10 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
 
         sendBuild(opts) {
             postMessage({ type: "build", buildScriptDebug: opts?.buildScriptDebug });
+        },
+
+        executeInspectorHostCommand(command) {
+            postMessage({ type: "runInspectorCommand", command });
         },
 
         validateNodeChecks(content, treePath, nodes) {

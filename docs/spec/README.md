@@ -24,12 +24,12 @@
 
 先按下面四层理解当前实现，不要从 work-item 清单或所有 helper 文件开始读。
 
-| 层                         | 先看哪里                                                                                              | 主要回答的问题                                           |
-| -------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| Host authority             | [`10-architecture.md`](10-architecture.md), [`13-host-protocol.md`](13-host-protocol.md), `src/`      | 谁拥有保存、撤销、reload、selection 和磁盘 IO 的权威状态 |
-| Webview runtime            | [`12-runtime-and-commands.md`](12-runtime-and-commands.md), `webview/app`, `webview/commands`        | UI intent 如何进入 controller，store 只保存什么投影      |
-| Pure model / contracts     | [`11-document-model.md`](11-document-model.md), [`14-resolved-graph.md`](14-resolved-graph.md), `webview/shared`, `webview/domain` | DTO、path、reducer、resolved graph 和持久化模型怎么定义  |
-| Adapters / feature UI      | [`15-graph-contract.md`](15-graph-contract.md), [`16-inspector-contract.md`](16-inspector-contract.md), `webview/adapters`, `webview/features` | G6、VS Code bridge、Inspector、Graph/Search 怎么投影交互 |
+| 层                     | 先看哪里                                                                                                                                       | 主要回答的问题                                           |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| Host authority         | [`10-architecture.md`](10-architecture.md), [`13-host-protocol.md`](13-host-protocol.md), `src/`                                               | 谁拥有保存、撤销、reload、selection 和磁盘 IO 的权威状态 |
+| Webview runtime        | [`12-runtime-and-commands.md`](12-runtime-and-commands.md), `webview/app`, `webview/commands`                                                  | UI intent 如何进入 controller，store 只保存什么投影      |
+| Pure model / contracts | [`11-document-model.md`](11-document-model.md), [`14-resolved-graph.md`](14-resolved-graph.md), `webview/shared`, `webview/domain`             | DTO、path、reducer、resolved graph 和持久化模型怎么定义  |
+| Adapters / feature UI  | [`15-graph-contract.md`](15-graph-contract.md), [`16-inspector-contract.md`](16-inspector-contract.md), `webview/adapters`, `webview/features` | G6、VS Code bridge、Inspector、Graph/Search 怎么投影交互 |
 
 薄 helper 文件通常是某一层内部的实现细节。除非你正在改对应 flow，否则优先从上表入口进入。
 
@@ -231,6 +231,7 @@ Scope: <short boundary>
 ## Active Work Items
 
 - [`build-hotkey-single-dispatch.md`](build-hotkey-single-dispatch.md) — 修复 build 快捷键在 custom editor 中一次按键重复派发。
+- [`embedded-inspector-title-actions.md`](embedded-inspector-title-actions.md) — 为 embedded inspector 补齐与 sidebar title 同组的快捷操作按钮。
 - [`node-name-commit-granularity.md`](node-name-commit-granularity.md) — 收窄 Node Inspector `name` 字段的提交粒度，只改名称本身。
 - [`node-name-paste-hotkey-regression.md`](node-name-paste-hotkey-regression.md) — 修复 Inspector 组合输入聚焦时 `Ctrl/Cmd+V` 被图层结构快捷键抢占。
 - [`node-child-count-validation.md`](node-child-count-validation.md) — 让固定 children 数量不匹配的节点在图上显示 Error 状态。

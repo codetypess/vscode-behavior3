@@ -169,6 +169,11 @@
   "editor.newerVersionEditDenied": "此文件由新版本 Behavior3({{version}}) 创建，请升级到最新版本后再编辑。",
   "inspector.noActiveDocument": "打开一个 Behavior3 编辑器后，这里会显示当前行为树的 Inspector，并支持直接编辑。",
   "inspector.embeddedModeNotice": "Inspector 当前配置为在 Behavior3 编辑器内部显示。",
+  "inspector.embeddedToolbar.build": "构建行为树",
+  "inspector.embeddedToolbar.toggleEditorMode": "切换编辑器模式",
+  "inspector.embeddedToolbar.toggleInspectorNodeJson": "切换原始节点 JSON",
+  "inspector.embeddedToolbar.createProject": "新建项目",
+  "inspector.embeddedToolbar.createTree": "新建行为树",
 
   "mutation.invalidJsonPath": "无效的 JSON 路径: {{path}}",
   "mutation.missingSelectedNode": "当前没有可用于提交此修改的选中节点。",

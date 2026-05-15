@@ -1,7 +1,8 @@
-import { Alert, Button, Flex, Skeleton } from "antd";
+import { Alert, Button, Flex, Skeleton, Tooltip, Typography } from "antd";
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { useRuntime } from "../../app/runtime";
+import { useRuntime, useWorkspaceStore } from "../../app/runtime";
+import type { InspectorHostCommandId } from "../../shared/contracts";
 import { getInspectorPaneMode } from "./inspector-pane-mode";
 import { NodeInspectorForm } from "./node-inspector-form";
 import { useInspectorPaneState } from "./inspector-state";
@@ -11,12 +12,7 @@ const InspectorSkeletonRow: React.FC = () => {
     return (
         <div className="b3-inspector-skeleton-row">
             <Skeleton.Input active size="small" className="b3-inspector-skeleton-label" />
-            <Skeleton.Input
-                active
-                size="small"
-                block
-                className="b3-inspector-skeleton-field"
-            />
+            <Skeleton.Input active size="small" block className="b3-inspector-skeleton-field" />
         </div>
     );
 };
@@ -39,11 +35,7 @@ const InspectorSkeletonContent: React.FC = () => {
                 <InspectorSkeletonRow />
                 <InspectorSkeletonRow />
                 <InspectorSkeletonRow />
-                <Skeleton.Input
-                    active
-                    size="small"
-                    className="b3-inspector-skeleton-section"
-                />
+                <Skeleton.Input active size="small" className="b3-inspector-skeleton-section" />
                 <InspectorSkeletonRow />
                 <InspectorSkeletonRow />
             </div>
@@ -83,10 +75,77 @@ const InspectorReloadBanner: React.FC<{
     );
 };
 
+const EMBEDDED_INSPECTOR_ACTIONS: Array<{
+    command: InspectorHostCommandId;
+    titleKey: string;
+    codicon: string;
+}> = [
+    {
+        command: "behavior3.build",
+        titleKey: "inspector.embeddedToolbar.build",
+        codicon: "build",
+    },
+    {
+        command: "behavior3.toggleEditorMode",
+        titleKey: "inspector.embeddedToolbar.toggleEditorMode",
+        codicon: "edit-code",
+    },
+    {
+        command: "behavior3.toggleInspectorNodeJson",
+        titleKey: "inspector.embeddedToolbar.toggleInspectorNodeJson",
+        codicon: "code",
+    },
+    {
+        command: "behavior3.createProject",
+        titleKey: "inspector.embeddedToolbar.createProject",
+        codicon: "new-folder",
+    },
+    {
+        command: "behavior3.createTree",
+        titleKey: "inspector.embeddedToolbar.createTree",
+        codicon: "new-file",
+    },
+];
+
+const EmbeddedInspectorHeader: React.FC = () => {
+    const runtime = useRuntime();
+    const { t } = useTranslation();
+
+    return (
+        <div className="b3-inspector-header b3-inspector-header-embedded">
+            <div className="b3-inspector-header-row b3-inspector-header-toolbar-row">
+                <Typography.Text className="b3-inspector-header-title">BEHAVIOR3</Typography.Text>
+                <Flex align="center" gap={2} className="b3-inspector-toolbar-actions">
+                    {EMBEDDED_INSPECTOR_ACTIONS.map((action) => (
+                        <Tooltip key={action.command} title={t(action.titleKey)}>
+                            <Button
+                                type="text"
+                                size="small"
+                                className="b3-inspector-toolbar-button"
+                                icon={
+                                    <span
+                                        className={`codicon codicon-${action.codicon} b3-inspector-toolbar-codicon`}
+                                        aria-hidden="true"
+                                    />
+                                }
+                                aria-label={t(action.titleKey)}
+                                onClick={() =>
+                                    runtime.hostAdapter.executeInspectorHostCommand(action.command)
+                                }
+                            />
+                        </Tooltip>
+                    ))}
+                </Flex>
+            </div>
+        </div>
+    );
+};
+
 export const InspectorPane: React.FC = () => {
     const runtime = useRuntime();
     const { document, alertReload, pendingExternalContent, selectedNode, selectedNodeRef } =
         useInspectorPaneState();
+    const inspectorMode = useWorkspaceStore((state) => state.settings.inspectorMode);
     const paneMode = getInspectorPaneMode({
         documentPresent: Boolean(document),
         selectedNode,
@@ -99,6 +158,8 @@ export const InspectorPane: React.FC = () => {
 
     return (
         <div className="b3-inspector">
+            {inspectorMode === "embedded" ? <EmbeddedInspectorHeader /> : null}
+
             {alertReload ? (
                 <InspectorReloadBanner
                     pendingExternalContent={pendingExternalContent}
