@@ -212,6 +212,88 @@ export const buildCliSharedTests = defineSharedTests([
             },
         },
         {
+            name: "does not treat batch-decorated scripts as build hooks in the build pipeline",
+            async run() {
+                const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-build-batch-decorator-"));
+                const scriptsDir = path.join(root, "scripts");
+                const workspaceFile = path.join(root, "workspace.b3-workspace");
+                const settingFile = path.join(root, "node-config.b3-setting");
+                const treeFile = path.join(root, "main.json");
+                const buildScriptFile = path.join(scriptsDir, "build.ts");
+                const outputDir = path.join(root, "dist");
+
+                try {
+                    fs.mkdirSync(scriptsDir, { recursive: true });
+                    fs.writeFileSync(
+                        workspaceFile,
+                        JSON.stringify({
+                            settings: {
+                                buildScript: "scripts/build.ts",
+                            },
+                        })
+                    );
+                    fs.writeFileSync(
+                        settingFile,
+                        JSON.stringify([
+                            {
+                                name: "Root",
+                                type: "Composite",
+                                desc: "",
+                                children: -1,
+                            },
+                        ])
+                    );
+                    fs.writeFileSync(
+                        treeFile,
+                        JSON.stringify({
+                            version: "2.0.0",
+                            name: "main",
+                            prefix: "",
+                            group: [],
+                            variables: {
+                                imports: [],
+                                locals: [],
+                            },
+                            custom: {},
+                            overrides: {},
+                            root: {
+                                uuid: "root",
+                                id: "1",
+                                name: "Root",
+                                children: [],
+                            },
+                        })
+                    );
+                    fs.writeFileSync(
+                        buildScriptFile,
+                        [
+                            "@behavior3.batch",
+                            "export class BatchOnlyScript {",
+                            "  onProcessTree(tree) {",
+                            "    tree.custom = { ...(tree.custom ?? {}), touchedByBatch: true };",
+                            "    return tree;",
+                            "  }",
+                            "}",
+                            "",
+                        ].join("\n")
+                    );
+
+                    const result = await buildBehaviorProject({
+                        projectPath: treeFile,
+                        outputDir,
+                    });
+                    const outputTree = JSON.parse(
+                        fs.readFileSync(path.join(outputDir, "main.json"), "utf-8")
+                    );
+
+                    assert.equal(result.hasError, true);
+                    assert.equal(outputTree.custom?.touchedByBatch, undefined);
+                } finally {
+                    fs.rmSync(root, { recursive: true, force: true });
+                }
+            },
+        },
+        {
             name: "batch processes source trees with TypeScript imports and rewrites files in place",
             async run() {
                 const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-batch-ts-import-"));
@@ -267,7 +349,7 @@ export const buildCliSharedTests = defineSharedTests([
                         [
                             'import { markTree } from "./helper.ts";',
                             "",
-                            "@behavior3.build",
+                            "@behavior3.batch",
                             "export class BatchProcessScript {",
                             "  onProcessTree(tree, treePath) {",
                             "    markTree(tree, treePath);",
@@ -300,6 +382,61 @@ export const buildCliSharedTests = defineSharedTests([
                     assert.equal(nestedTreeOutput.custom.migratedBy, "batch-import");
                     assert.equal(Array.isArray(runtimeFiles), true);
                     assert.deepEqual(runtimeFiles, []);
+                } finally {
+                    fs.rmSync(root, { recursive: true, force: true });
+                }
+            },
+        },
+        {
+            name: "keeps legacy build-decorated batch scripts working as a compatibility fallback",
+            async run() {
+                const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-batch-legacy-decorator-"));
+                const workspaceFile = path.join(root, "workspace.b3-workspace");
+                const settingFile = path.join(root, "node-config.b3-setting");
+                const treeFile = path.join(root, "main.json");
+                const buildScriptFile = path.join(root, "batch.ts");
+
+                try {
+                    fs.writeFileSync(workspaceFile, JSON.stringify({ settings: {} }));
+                    fs.writeFileSync(
+                        settingFile,
+                        JSON.stringify([
+                            {
+                                name: "Sequence",
+                                type: "Composite",
+                                desc: "",
+                                children: -1,
+                            },
+                        ])
+                    );
+
+                    const tree = createTestTree();
+                    tree.name = "main";
+                    fs.writeFileSync(treeFile, JSON.stringify(tree));
+                    fs.writeFileSync(
+                        buildScriptFile,
+                        [
+                            "@behavior3.build",
+                            "export class LegacyBatchScript {",
+                            "  onProcessTree(tree) {",
+                            "    tree.custom = { ...(tree.custom ?? {}), legacyDecorator: true };",
+                            "    return tree;",
+                            "  }",
+                            "}",
+                            "",
+                        ].join("\n")
+                    );
+
+                    const result = await batchProcessBehaviorProject({
+                        workspaceFile,
+                        settingFile,
+                        scriptFile: buildScriptFile,
+                    });
+                    const parsedTree = JSON.parse(fs.readFileSync(treeFile, "utf-8"));
+
+                    assert.equal(result.hasError, false);
+                    assert.equal(result.summary.writtenFiles, 1);
+                    assert.equal(parsedTree.custom.legacyDecorator, true);
                 } finally {
                     fs.rmSync(root, { recursive: true, force: true });
                 }
@@ -360,7 +497,7 @@ export const buildCliSharedTests = defineSharedTests([
                     fs.writeFileSync(
                         buildScriptFile,
                         [
-                            "@behavior3.build",
+                            "@behavior3.batch",
                             "export class NoopBatchScript {",
                             "  onProcessTree(tree) {",
                             "    return tree;",
@@ -445,7 +582,7 @@ export const buildCliSharedTests = defineSharedTests([
                     fs.writeFileSync(
                         buildScriptFile,
                         [
-                            "@behavior3.build",
+                            "@behavior3.batch",
                             "export class NoopBatchScript {",
                             "  constructor(env) {",
                             "    this.env = env;",
@@ -544,7 +681,7 @@ export const buildCliSharedTests = defineSharedTests([
                     fs.writeFileSync(
                         buildScriptFile,
                         [
-                            "@behavior3.build",
+                            "@behavior3.batch",
                             "export class ErrorBatchScript {",
                             "  shouldUpgradeTree() {",
                             "    return true;",
@@ -611,7 +748,7 @@ export const buildCliSharedTests = defineSharedTests([
                     fs.writeFileSync(
                         buildScriptFile,
                         [
-                            "@behavior3.build",
+                            "@behavior3.batch",
                             "export class InvalidBatchScript {",
                             "  onProcessTree(tree, treePath) {",
                             "    tree.custom = { ...(tree.custom ?? {}), touched: true };",
@@ -684,7 +821,7 @@ export const buildCliSharedTests = defineSharedTests([
                     fs.writeFileSync(
                         buildScriptFile,
                         [
-                            "@behavior3.build",
+                            "@behavior3.batch",
                             "export class ErrorBatchScript {",
                             "  onProcessTree(tree, treePath, errors) {",
                             "    tree.custom = { ...(tree.custom ?? {}), touched: true };",
@@ -749,7 +886,7 @@ export const buildCliSharedTests = defineSharedTests([
                     fs.writeFileSync(
                         buildScriptFile,
                         [
-                            "@behavior3.build",
+                            "@behavior3.batch",
                             "export class BatchScript {",
                             "  onProcessTree(tree) {",
                             "    tree.custom = { ...(tree.custom ?? {}), touched: true };",

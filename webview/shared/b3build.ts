@@ -1,6 +1,12 @@
 import { getFs, hasFs } from "./b3fs";
 import type { FileVarDecl, ImportDecl, NodeData, NodeDef, TreeData } from "./b3type";
-import type { BuildEnv, BuildScript, NodeArgChecker, NodeArgCheckResult } from "./b3build-model";
+import type {
+    BatchScript,
+    BuildEnv,
+    BuildScript,
+    NodeArgChecker,
+    NodeArgCheckResult,
+} from "./b3build-model";
 import { resolveCheckScriptPaths } from "./b3build-check-scripts";
 import { logger } from "./logger";
 import b3path from "./b3path";
@@ -55,6 +61,9 @@ const readWorkspaceSettings = (path: string) => {
 };
 
 export type {
+    BatchDecorator,
+    BatchHookClass,
+    BatchScript,
     BuildEnv,
     BuildLogger,
     BuildScript,
@@ -67,7 +76,8 @@ export type {
 } from "./b3build-model";
 export { resolveCheckScriptPaths } from "./b3build-check-scripts";
 
-type HookCtor = new (env: BuildEnv) => BuildScript;
+type BuildHookCtor = new (env: BuildEnv) => BuildScript;
+type BatchHookCtor = new (env: BuildEnv) => BatchScript;
 type NodeArgCheckerCtor = new (env: BuildEnv) => NodeArgChecker;
 
 type OptionalRequire = {
@@ -122,13 +132,12 @@ export interface BatchProcessProjectResult {
     failedFiles: number;
 }
 
-const hasBatchHookMethod = (obj: unknown): obj is BuildScript => {
+const hasBuildHookMethod = (obj: unknown): obj is BuildScript => {
     if (!obj || typeof obj !== "object") {
         return false;
     }
     const candidate = obj as Partial<BuildScript>;
     return (
-        typeof candidate.shouldUpgradeTree === "function" ||
         typeof candidate.onProcessTree === "function" ||
         typeof candidate.onProcessNode === "function" ||
         typeof candidate.onWriteFile === "function" ||
@@ -137,11 +146,16 @@ const hasBatchHookMethod = (obj: unknown): obj is BuildScript => {
 };
 
 const BUILD_HOOK_MARKER = "__behavior3BuildHook";
+const BATCH_HOOK_MARKER = "__behavior3BatchHook";
 const CHECK_HOOK_MARKER = "__behavior3CheckHook";
 const CHECK_HOOK_NAME = "__behavior3CheckName";
 
-type MarkedHookCtor = HookCtor & {
+type MarkedBuildHookCtor = BuildHookCtor & {
     [BUILD_HOOK_MARKER]?: true;
+};
+
+type MarkedBatchHookCtor = BatchHookCtor & {
+    [BATCH_HOOK_MARKER]?: true;
 };
 
 type MarkedCheckCtor = NodeArgCheckerCtor & {
@@ -151,6 +165,14 @@ type MarkedCheckCtor = NodeArgCheckerCtor & {
 
 const markBuildHook = <T extends new (...args: unknown[]) => unknown>(ctor: T) => {
     Object.defineProperty(ctor, BUILD_HOOK_MARKER, {
+        value: true,
+        configurable: false,
+    });
+    return ctor;
+};
+
+const markBatchHook = <T extends new (...args: unknown[]) => unknown>(ctor: T) => {
+    Object.defineProperty(ctor, BATCH_HOOK_MARKER, {
         value: true,
         configurable: false,
     });
@@ -183,14 +205,21 @@ const markCheckHook = <T extends new (...args: unknown[]) => unknown>(
     return (ctor: T) => markCheckCtor(ctor, nameOrCtor);
 };
 
-const isDecoratedHookCtor = (value: unknown): value is MarkedHookCtor =>
-    typeof value === "function" && (value as MarkedHookCtor)[BUILD_HOOK_MARKER] === true;
+const isDecoratedBuildHookCtor = (value: unknown): value is MarkedBuildHookCtor =>
+    typeof value === "function" && (value as MarkedBuildHookCtor)[BUILD_HOOK_MARKER] === true;
+
+const isDecoratedBatchHookCtor = (value: unknown): value is MarkedBatchHookCtor =>
+    typeof value === "function" && (value as MarkedBatchHookCtor)[BATCH_HOOK_MARKER] === true;
 
 const isDecoratedCheckCtor = (value: unknown): value is MarkedCheckCtor =>
     typeof value === "function" && (value as MarkedCheckCtor)[CHECK_HOOK_MARKER] === true;
 
-const findDecoratedHookCtor = (moduleRecord: Record<string, unknown>): HookCtor | undefined => {
-    const decorated = Array.from(new Set(Object.values(moduleRecord))).filter(isDecoratedHookCtor);
+const findDecoratedBuildHookCtor = (
+    moduleRecord: Record<string, unknown>
+): BuildHookCtor | undefined => {
+    const decorated = Array.from(new Set(Object.values(moduleRecord))).filter(
+        isDecoratedBuildHookCtor
+    );
     if (decorated.length > 1) {
         logger.error("build script must decorate exactly one exported class with @behavior3.build");
         return undefined;
@@ -198,10 +227,35 @@ const findDecoratedHookCtor = (moduleRecord: Record<string, unknown>): HookCtor 
     return decorated[0];
 };
 
+const findDecoratedBatchHookCtor = (
+    moduleRecord: Record<string, unknown>
+): BatchHookCtor | undefined => {
+    const decorated = Array.from(new Set(Object.values(moduleRecord))).filter(
+        isDecoratedBatchHookCtor
+    );
+    if (decorated.length > 1) {
+        logger.error("batch script must decorate exactly one exported class with @behavior3.batch");
+        return undefined;
+    }
+    if (decorated.length === 1) {
+        return decorated[0];
+    }
+
+    // Compatibility fallback for existing batch scripts before @behavior3.batch existed.
+    const legacyDecorated = Array.from(new Set(Object.values(moduleRecord))).filter(
+        isDecoratedBuildHookCtor
+    );
+    if (legacyDecorated.length > 1) {
+        logger.error("batch script must decorate exactly one exported class with @behavior3.batch");
+        return undefined;
+    }
+    return legacyDecorated[0] as BatchHookCtor | undefined;
+};
+
 const findDecoratedCheckCtors = (moduleRecord: Record<string, unknown>): MarkedCheckCtor[] =>
     Array.from(new Set(Object.values(moduleRecord))).filter(isDecoratedCheckCtor);
 
-const createBatchHooks = (
+const createBuildHooks = (
     moduleExports: unknown,
     env: BuildEnv,
     reportMissing = true
@@ -211,16 +265,18 @@ const createBatchHooks = (
         return undefined;
     }
     const moduleRecord = moduleExports as Record<string, unknown>;
-    const defaultExport = isDecoratedCheckCtor(moduleRecord.default)
+    const defaultExport =
+        isDecoratedCheckCtor(moduleRecord.default) || isDecoratedBatchHookCtor(moduleRecord.default)
         ? undefined
         : moduleRecord.default;
-    const ctor = (moduleRecord.Hook ??
-        findDecoratedHookCtor(moduleRecord) ??
-        defaultExport) as HookCtor | undefined;
+    const ctor = (moduleRecord.BuildHook ??
+        moduleRecord.Hook ??
+        findDecoratedBuildHookCtor(moduleRecord) ??
+        defaultExport) as BuildHookCtor | undefined;
     if (typeof ctor === "function") {
         try {
             const instance = new ctor(env);
-            if (hasBatchHookMethod(instance)) {
+            if (hasBuildHookMethod(instance)) {
                 return instance;
             }
             logger.error("build hook class instance has no supported hook methods");
@@ -231,7 +287,49 @@ const createBatchHooks = (
 
     if (reportMissing) {
         logger.error(
-            "build script must export a Hook class, default class, or one @behavior3.build-decorated class"
+            "build script must export a BuildHook class, Hook class, default class, or one @behavior3.build-decorated class"
+        );
+    }
+    return undefined;
+};
+
+const createBatchHooks = (
+    moduleExports: unknown,
+    env: BuildEnv,
+    reportMissing = true
+): BatchScript | undefined => {
+    if (!moduleExports || typeof moduleExports !== "object") {
+        return undefined;
+    }
+    const moduleRecord = moduleExports as Record<string, unknown>;
+    const defaultExport =
+        isDecoratedCheckCtor(moduleRecord.default) ||
+        isDecoratedBuildHookCtor(moduleRecord.default) ||
+        isDecoratedBatchHookCtor(moduleRecord.default)
+            ? undefined
+            : moduleRecord.default;
+    const ctor = (moduleRecord.BatchHook ??
+        findDecoratedBatchHookCtor(moduleRecord) ??
+        moduleRecord.Hook ??
+        defaultExport) as BatchHookCtor | undefined;
+    if (typeof ctor === "function") {
+        try {
+            const instance = new ctor(env);
+            if (
+                hasBuildHookMethod(instance) ||
+                typeof (instance as Partial<BatchScript>).shouldUpgradeTree === "function"
+            ) {
+                return instance;
+            }
+            logger.error("batch hook class instance has no supported hook methods");
+        } catch (error) {
+            logger.error("failed to instantiate batch hook class", error);
+        }
+    }
+
+    if (reportMissing) {
+        logger.error(
+            "batch script must export a BatchHook class, default class, or one @behavior3.batch-decorated class"
         );
     }
     return undefined;
@@ -303,15 +401,18 @@ export const createBuildScriptRuntime = (
 
     const moduleRecord = moduleExports as Record<string, unknown>;
     const hasBuildHookCandidate =
+        typeof moduleRecord.BuildHook === "function" ||
         typeof moduleRecord.Hook === "function" ||
-        Object.values(moduleRecord).some(isDecoratedHookCtor) ||
-        (typeof moduleRecord.default === "function" && !isDecoratedCheckCtor(moduleRecord.default));
-    const buildScript = createBatchHooks(moduleExports, env, false);
+        Object.values(moduleRecord).some(isDecoratedBuildHookCtor) ||
+        (typeof moduleRecord.default === "function" &&
+            !isDecoratedCheckCtor(moduleRecord.default) &&
+            !isDecoratedBatchHookCtor(moduleRecord.default));
+    const buildScript = createBuildHooks(moduleExports, env, false);
     const checkerResult = createNodeArgCheckers(moduleExports, env);
     const hasEntries = Boolean(buildScript) || checkerResult.hasCheckers;
     if (!hasEntries) {
         logger.error(
-            "build script must export a Hook class, default build class, @behavior3.build class, or @behavior3.check class"
+            "build script must export a BuildHook class, Hook class, default build class, @behavior3.build class, or @behavior3.check class"
         );
     }
     return {
@@ -500,7 +601,7 @@ export const createBuildDataWithContext = async (
 export const processBatchTree = (
     tree: TreeData | null,
     treePath: string,
-    batch: BuildScript,
+    batch: BatchScript,
     errors: string[]
 ) => {
     /** Tree hook runs before node recursion so it can replace or skip the root. */
@@ -852,6 +953,7 @@ const applyBehavior3DecoratorGlobal = () => {
             ? (decoratorGlobalState.previousBehavior3 as Record<string, unknown>)
             : {}),
         build: markBuildHook,
+        batch: markBatchHook,
         check: markCheckHook,
     };
 };
@@ -876,7 +978,7 @@ const restoreBehavior3DecoratorGlobal = () => {
     decoratorGlobalState.previousBehavior3 = undefined;
 };
 
-const withBehavior3BuildDecoratorGlobal = async <T>(loader: () => Promise<T>): Promise<T> => {
+const withBehavior3ScriptDecoratorGlobal = async <T>(loader: () => Promise<T>): Promise<T> => {
     applyBehavior3DecoratorGlobal();
     try {
         return await loader();
@@ -1053,7 +1155,7 @@ export const loadRuntimeModule = async (modulePath: string, options?: { debug?: 
             }
         }
         if (getRuntimeProcess()?.type === "renderer") {
-            return await withBehavior3BuildDecoratorGlobal(() =>
+            return await withBehavior3ScriptDecoratorGlobal(() =>
                 import(/* @vite-ignore */ `${modulePath}?t=${Date.now()}`)
             );
         }
@@ -1080,7 +1182,7 @@ export const loadRuntimeModule = async (modulePath: string, options?: { debug?: 
         }
 
         const normalizedModulePath = b3path.posixPath(tempModulePath);
-        const result = await withBehavior3BuildDecoratorGlobal(() =>
+        const result = await withBehavior3ScriptDecoratorGlobal(() =>
             import(/* @vite-ignore */ `file:///${normalizedModulePath}?t=${Date.now()}`)
         );
         if (debugBuildScript && cleanupPaths.length) {

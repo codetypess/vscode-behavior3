@@ -203,16 +203,19 @@ export async function runBatchProcessScript(
     context: vscode.ExtensionContext,
     resourceUri?: vscode.Uri
 ): Promise<void> {
-    const scriptUri =
-        resourceUri?.scheme === "file" ? resourceUri : getActiveFileUri();
+    const resourceIsFile = resourceUri?.scheme === "file";
+    const resourcePath = resourceIsFile ? resourceUri.fsPath : undefined;
+    const explicitScriptUri =
+        resourcePath && isSupportedBatchScriptPath(resourcePath)
+            ? resourceUri
+            : undefined;
+    const activeFileUri = getActiveFileUri();
+    const activeScriptUri =
+        activeFileUri && isSupportedBatchScriptPath(activeFileUri.fsPath) ? activeFileUri : undefined;
+    const scriptUri = explicitScriptUri ?? (!resourceUri ? activeScriptUri : undefined);
+
     if (!scriptUri) {
-        void vscode.window.showErrorMessage("Select a batch script file first.");
-        return;
-    }
-    if (!isSupportedBatchScriptPath(scriptUri.fsPath)) {
-        void vscode.window.showErrorMessage(
-            "Batch script must be a .ts, .mts, .js, or .mjs file."
-        );
+        await runBatchProcess(context, resourceUri);
         return;
     }
 

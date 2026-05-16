@@ -1,6 +1,6 @@
 # Inspector Title Actions
 
-Status: Done
+Status: Superseded
 Date: 2026-05-12
 Scope: Behavior3 inspector view title quick actions
 

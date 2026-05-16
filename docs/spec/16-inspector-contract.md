@@ -55,7 +55,6 @@ Inspector 暴露同一组 project/document quick actions，但承载位置随模
 - `behavior3.toggleEditorMode`
 - `behavior3.toggleInspectorNodeJson`
 - `behavior3.createProject`
-- `behavior3.createTree`
 
 这些按钮只复用既有 extension-host command。`embedded` 模式允许 Inspector webview 通过受限 allowlist host message 转发这几个命令，但不直接修改文档真源，也不引入任意命令执行面。若当前没有合适的 active editor、workspace 或目标路径，仍由对应 command 自己给出提示。
 

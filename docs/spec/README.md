@@ -231,8 +231,12 @@ Scope: <short boundary>
 ## Active Work Items
 
 - [`build-hotkey-single-dispatch.md`](build-hotkey-single-dispatch.md) — 修复 build 快捷键在 custom editor 中一次按键重复派发。
+- [`batch-decorator-split.md`](batch-decorator-split.md) — 为 batch script 引入独立的 `@behavior3.batch` 装饰器，并拆分 build/batch 公共类型定义。
 - [`default-arg-override-marker-regression.md`](default-arg-override-marker-regression.md) — 修复 subtree 默认参数被误判为 override 标记的回归。
 - [`embedded-inspector-title-actions.md`](embedded-inspector-title-actions.md) — 为 embedded inspector 补齐与 sidebar title 同组的快捷操作按钮。
+- [`explorer-batch-command-entry.md`](explorer-batch-command-entry.md) — 统一 explorer 中批处理入口，文件夹菜单也使用脚本视角的运行命令。
+- [`explorer-script-scaffolding.md`](explorer-script-scaffolding.md) — 为 explorer 的 `Behavior3` 子菜单补齐 build / batch / checker 脚本脚手架命令。
+- [`inspector-remove-create-tree-action.md`](inspector-remove-create-tree-action.md) — 从 inspector 的 sidebar / embedded 快捷操作中移除创建树文件按钮。
 - [`node-name-commit-granularity.md`](node-name-commit-granularity.md) — 收窄 Node Inspector `name` 字段的提交粒度，只改名称本身。
 - [`node-name-paste-hotkey-regression.md`](node-name-paste-hotkey-regression.md) — 修复 Inspector 组合输入聚焦时 `Ctrl/Cmd+V` 被图层结构快捷键抢占。
 - [`node-child-count-validation.md`](node-child-count-validation.md) — 让固定 children 数量不匹配的节点在图上显示 Error 状态。

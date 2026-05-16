@@ -1,7 +1,7 @@
-import type { BuildEnv, TreeData, NodeData } from "vscode-behavior3/build";
+import type { BatchScript, BuildEnv, NodeData, TreeData } from "vscode-behavior3/build";
 
-@behavior3.build
-export class BatchFix {
+@behavior3.batch
+export class BatchFix implements BatchScript {
   constructor(private readonly env: BuildEnv) {}
 
   onProcessTree(tree: TreeData, filePath: string, errors: string[]) {

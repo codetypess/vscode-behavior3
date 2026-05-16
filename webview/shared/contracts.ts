@@ -280,8 +280,7 @@ export type InspectorHostCommandId =
     | "behavior3.build"
     | "behavior3.toggleEditorMode"
     | "behavior3.toggleInspectorNodeJson"
-    | "behavior3.createProject"
-    | "behavior3.createTree";
+    | "behavior3.createProject";
 
 export type HostEvent =
     | { type: "init"; payload: HostInitPayload }

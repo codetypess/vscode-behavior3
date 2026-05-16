@@ -1,6 +1,6 @@
 # Embedded Inspector Title Actions
 
-Status: Done
+Status: Superseded
 Date: 2026-05-15
 Scope: Embedded inspector header quick actions
 

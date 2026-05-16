@@ -1,9 +1,9 @@
-/* TypeScript batch script example (ESM-only, decorator-based hooks). */
-import type { BuildEnv, NodeData, TreeData } from "vscode-behavior3/build";
+/* TypeScript build script example (ESM-only, decorator-based hooks). */
+import type { BuildEnv, BuildScript, NodeData, TreeData } from "vscode-behavior3/build";
 import { formatProcessedNode, shouldReportWaitNode } from "./build-helper.ts";
 
 @behavior3.build
-export class SampleBuild {
+export class SampleBuild implements BuildScript {
   constructor(private readonly env: BuildEnv) {}
 
   onProcessTree(tree: TreeData, _path: string, _errors: string[]) {

@@ -5,12 +5,20 @@ import { Context, Node, NodeDef } from "behavior3";
 import { stringifyJson } from "../webview/shared/json";
 import { writeTree } from "../webview/shared/tree";
 import { composeLoggers, createConsoleLogger, setLogger } from "../webview/shared/logger";
-import { runBatchProcess, runBatchProcessScript } from "./build/run-batch-process";
+import { runBatchProcessScript } from "./build/run-batch-process";
 import { runBuild } from "./build/run-build";
 import { InspectorSidebarCoordinator } from "./inspector-sidebar-coordinator";
 import { InspectorSidebarProvider } from "./inspector-sidebar-provider";
 import { createLogOutputChannelLogger } from "./log-channel";
 import { getBehavior3OutputChannel } from "./output-channel";
+import {
+    createScriptScaffoldContent,
+    createScriptScaffoldFileName,
+    getScriptScaffoldDefaultBaseName,
+    normalizeScriptScaffoldBaseName,
+    ScriptScaffoldKind,
+    validateScriptScaffoldBaseName,
+} from "./script-scaffold";
 import { findB3SettingPath } from "./setting-resolver";
 import { TreeEditorProvider } from "./tree-editor-provider";
 
@@ -181,9 +189,22 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
     context.subscriptions.push(
-        vscode.commands.registerCommand("behavior3.batchProcess", async (uri?: vscode.Uri) => {
-            await runBatchProcess(context, uri);
+        vscode.commands.registerCommand("behavior3.createBuildScript", async (uri?: vscode.Uri) => {
+            await createBehavior3Script("build", uri);
         })
+    );
+    context.subscriptions.push(
+        vscode.commands.registerCommand("behavior3.createBatchScript", async (uri?: vscode.Uri) => {
+            await createBehavior3Script("batch", uri);
+        })
+    );
+    context.subscriptions.push(
+        vscode.commands.registerCommand(
+            "behavior3.createCheckerScript",
+            async (uri?: vscode.Uri) => {
+                await createBehavior3Script("checker", uri);
+            }
+        )
     );
     context.subscriptions.push(
         vscode.commands.registerCommand(
@@ -430,6 +451,74 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {}
+
+async function createBehavior3Script(
+    kind: ScriptScaffoldKind,
+    uri?: vscode.Uri
+): Promise<void> {
+    const folderUri = await resolveFolderTargetUri(uri);
+    if (!folderUri) {
+        void vscode.window.showErrorMessage("Please open a workspace folder first.");
+        return;
+    }
+
+    const baseName = await vscode.window.showInputBox({
+        prompt: `Enter ${getScriptScaffoldPromptLabel(kind)} file name (without extension)`,
+        placeHolder: getScriptScaffoldDefaultBaseName(kind),
+        value: getScriptScaffoldDefaultBaseName(kind),
+        validateInput: validateScriptScaffoldBaseName,
+    });
+    if (!baseName) {
+        return;
+    }
+
+    const normalizedBaseName = normalizeScriptScaffoldBaseName(baseName);
+    const fileName = createScriptScaffoldFileName(normalizedBaseName);
+    const fileUri = vscode.Uri.file(path.join(folderUri.fsPath, fileName));
+    if (fs.existsSync(fileUri.fsPath)) {
+        void vscode.window.showErrorMessage(`File already exists: ${fileName}`);
+        return;
+    }
+
+    try {
+        await fs.promises.writeFile(
+            fileUri.fsPath,
+            createScriptScaffoldContent(kind, normalizedBaseName),
+            "utf-8"
+        );
+        await vscode.window.showTextDocument(fileUri);
+    } catch (e) {
+        void vscode.window.showErrorMessage(
+            `Failed to create file: ${e instanceof Error ? e.message : e}`
+        );
+    }
+}
+
+async function resolveFolderTargetUri(uri?: vscode.Uri): Promise<vscode.Uri | undefined> {
+    if (uri?.scheme === "file") {
+        try {
+            const stat = await vscode.workspace.fs.stat(uri);
+            return stat.type === vscode.FileType.Directory
+                ? uri
+                : vscode.Uri.file(path.dirname(uri.fsPath));
+        } catch {
+            return undefined;
+        }
+    }
+
+    return vscode.workspace.workspaceFolders?.[0]?.uri;
+}
+
+function getScriptScaffoldPromptLabel(kind: ScriptScaffoldKind): string {
+    switch (kind) {
+        case "build":
+            return "build script";
+        case "batch":
+            return "batch script";
+        case "checker":
+            return "checker script";
+    }
+}
 
 async function tryAutoOpenBehaviorEditor(
     uri: vscode.Uri,

@@ -11,6 +11,7 @@ import { validationMaterializationSharedTests } from "./shared-tests/validation-
 import { documentDomainSharedTests } from "./shared-tests/document-domain-shared-tests";
 import { editorControllerSharedTests } from "./shared-tests/editor-controller-shared-tests";
 import { buildCliSharedTests } from "./shared-tests/build-cli-shared-tests";
+import { scriptScaffoldSharedTests } from "./shared-tests/script-scaffold-shared-tests";
 import { registerSharedTestSuites } from "./shared-test-types";
 
 const tests = registerSharedTestSuites(
@@ -26,7 +27,8 @@ const tests = registerSharedTestSuites(
     documentDomainSharedTests,
     validationMaterializationSharedTests,
     editorControllerSharedTests,
-    buildCliSharedTests
+    buildCliSharedTests,
+    scriptScaffoldSharedTests
 );
 
 async function main() {

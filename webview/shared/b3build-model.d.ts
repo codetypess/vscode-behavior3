@@ -62,14 +62,18 @@ export interface NodeArgChecker {
 }
 
 export type BuildScript = {
-    shouldUpgradeTree?: (path: string, tree: TreeData) => boolean;
     onProcessTree?: (tree: TreeData, path: string, errors: string[]) => TreeData | null;
     onProcessNode?: (node: NodeData, errors: string[]) => NodeData | null;
     onWriteFile?: (path: string, tree: TreeData) => void;
     onComplete?: (status: "success" | "failure") => void;
 };
 
+export type BatchScript = BuildScript & {
+    shouldUpgradeTree?: (path: string, tree: TreeData) => boolean;
+};
+
 export type BuildHookClass<T extends BuildScript = BuildScript> = new (...args: any[]) => T;
+export type BatchHookClass<T extends BatchScript = BatchScript> = new (...args: any[]) => T;
 export type NodeArgCheckerClass<T extends NodeArgChecker = NodeArgChecker> = new (
     ...args: any[]
 ) => T;
@@ -77,6 +81,11 @@ export type NodeArgCheckerClass<T extends NodeArgChecker = NodeArgChecker> = new
 export type BuildDecorator = {
     <T extends BuildHookClass>(target: T): T | void;
     <T extends BuildHookClass>(target: T, context: ClassDecoratorContext<T>): T | void;
+};
+
+export type BatchDecorator = {
+    <T extends BatchHookClass>(target: T): T | void;
+    <T extends BatchHookClass>(target: T, context: ClassDecoratorContext<T>): T | void;
 };
 
 export type CheckDecorator = {
@@ -87,10 +96,19 @@ export type CheckDecorator = {
 
 export type BuildRuntime = {
     build: BuildDecorator;
+    batch: BatchDecorator;
     check: CheckDecorator;
 };
 
-export declare class Hook implements BuildScript {
+export declare class BuildHook implements BuildScript {
+    constructor(env: BuildEnv);
+    onProcessTree?(tree: TreeData, path: string, errors: string[]): TreeData | null;
+    onProcessNode?(node: NodeData, errors: string[]): NodeData | null;
+    onWriteFile?(path: string, tree: TreeData): void;
+    onComplete?(status: "success" | "failure"): void;
+}
+
+export declare class BatchHook implements BatchScript {
     constructor(env: BuildEnv);
     shouldUpgradeTree?(path: string, tree: TreeData): boolean;
     onProcessTree?(tree: TreeData, path: string, errors: string[]): TreeData | null;
@@ -98,3 +116,5 @@ export declare class Hook implements BuildScript {
     onWriteFile?(path: string, tree: TreeData): void;
     onComplete?(status: "success" | "failure"): void;
 }
+
+export declare class Hook extends BuildHook {}

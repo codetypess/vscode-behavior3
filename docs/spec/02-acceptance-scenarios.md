@@ -125,6 +125,22 @@
 - 当主画布已经缩放或平移时，拖动 inspector sidebar 宽度不应让节点整体跳向右下或其他方向
 - resize 之后，画布仍应保持当前可见内容的相对位置稳定
 
+### BB-15 Explorer 脚本脚手架
+
+- 在文件夹的 explorer 右键 `Behavior3` 子菜单中，可看到“创建构建脚本”“创建批处理脚本”“创建检查器脚本”
+- 在文件夹的 explorer 右键 `Behavior3` 子菜单中，可看到“将脚本作为批处理运行”；触发后会先选择脚本，再对当前项目执行批处理
+- 在 `.ts` / `.mts` / `.js` / `.mjs` 文件的 explorer 右键 `Behavior3` 子菜单中，可看到同一个“将脚本作为批处理运行”；触发后会直接运行当前脚本
+- 选择任一命令后，会提示输入不带扩展名的文件名，并在当前文件夹创建对应的 `.ts` 文件
+- build 生成的脚本包含可直接加载的 `@behavior3.build` 类模板
+- batch 生成的脚本包含可直接加载的 `@behavior3.batch` 类模板
+- checker 生成的脚本包含至少一个可直接注册的 `@behavior3.check("<name>")` 类模板
+
+### BB-16 Inspector 快捷操作
+
+- Behavior3 inspector sidebar title 不显示“创建行为树文件”按钮
+- embedded inspector header 也不显示“创建行为树文件”按钮
+- `createTree` 仍可从非 inspector 入口触发，例如 explorer `Behavior3` 菜单
+
 ## 最低回归样例
 
 每次涉及架构、协议、保存、subtree 或 Inspector 语义的改动，至少应人工回归：

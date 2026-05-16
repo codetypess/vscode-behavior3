@@ -115,6 +115,9 @@ shared runtime 文案约束：
 - `saveDocument()`
 - `revertDocument()`
 - `buildDocument(opts?)`
+- `createBuildScript()`
+- `createBatchScript()`
+- `createCheckerScript()`
 - `batchProcessProject(scriptPath)`
 - `runBatchProcessScript(scriptPath)`
 - `openSubtreePath(path)`
@@ -125,9 +128,11 @@ shared runtime 文案约束：
 
 - 将文档操作映射到 host request / VS Code command
 - 管理 subtree 打开与另存路径
+- 在 explorer 选中文件夹或默认 workspace 根目录下脚手架生成 TypeScript build / batch / checker 脚本，并打开新文件
+- shared build runtime 的公共脚本 API 区分 `@behavior3.build` build hooks、`@behavior3.batch` batch hooks 与 `@behavior3.check(...)` checker hooks
 - 项目级批处理由 extension-host 直接发起，复用 build script runtime，但写回 persisted tree 源文件而不是 build 输出目录
 - 批处理默认只写回 batch script 造成的规范化树语义变化；batch script 可通过 `shouldUpgradeTree()` 声明把解析/序列化产生的输入树升级写回源文件
-- `runBatchProcessScript(scriptPath)` 是同一批处理运行时的直接脚本入口，不再弹脚本选择框
+- `runBatchProcessScript(scriptPath)` 在显式选中脚本文件时直接运行；若从文件夹或无脚本上下文触发，则回退到脚本选择入口后再运行同一批处理流程
 
 ## Controller Runtime 共享流程
 

@@ -100,11 +100,6 @@ const EMBEDDED_INSPECTOR_ACTIONS: Array<{
         titleKey: "inspector.embeddedToolbar.createProject",
         codicon: "new-folder",
     },
-    {
-        command: "behavior3.createTree",
-        titleKey: "inspector.embeddedToolbar.createTree",
-        codicon: "new-file",
-    },
 ];
 
 const EmbeddedInspectorHeader: React.FC = () => {

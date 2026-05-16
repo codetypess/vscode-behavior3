@@ -309,13 +309,14 @@ host reducer 当前分三条路径：
 
 ### Inspector view title project actions
 
-- `behavior3.toggleEditorMode`、`behavior3.createProject`、`behavior3.createTree` 是 extension-host command，不经过 editor `EditorCommand` catalog
+- `behavior3.toggleEditorMode`、`behavior3.createProject` 是 extension-host command，不经过 editor `EditorCommand` catalog
 - Inspector view title 可以暴露这些 command 作为快捷入口，但不得绕过对应 command 内部的 active editor、workspace 与文件路径校验
 
-### `behavior3.batchProcess`
+### Picker-backed batch project flow
 
-- 这是 extension-host 项目命令，不经过 editor `EditorCommand` catalog
-- 选择一次性批处理脚本后，对当前 project 的 persisted tree 源文件做批量处理
+- 这是 extension-host 侧的项目批处理入口语义，不经过 editor `EditorCommand` catalog
+- 在需要先选脚本的场景下，会先进入批处理脚本选择，再对当前 project 的 persisted tree 源文件做批量处理
+- batch script 的公共装饰器入口是 `@behavior3.batch`；build script 与 checker 分别使用 `@behavior3.build` 和 `@behavior3.check(...)`
 - 批处理只执行所选 batch script 的转换流程；不运行内置节点合法性校验，也不加载或执行 workspace `settings.checkScripts`
 - 默认只在所选脚本改变规范化树语义时写回；所选脚本 `shouldUpgradeTree()` 返回 true 时，也会把解析/序列化产生的输入树升级作为 staged write
 - 若 batch script 自身通过 `errors` 参数报告错误或 hook 抛错，则整次批处理失败并放弃所有 staged writes；否则即使转换结果不满足普通构建校验，也按统一写回语义写入
@@ -323,8 +324,9 @@ host reducer 当前分三条路径：
 ### `behavior3.runBatchProcessScript`
 
 - 这是 extension-host 项目命令，不经过 editor `EditorCommand` catalog
-- 直接把当前选择的 `.ts` / `.mts` / `.js` / `.mjs` 文件当成批处理脚本执行
-- 与 `behavior3.batchProcess` 共享同一套项目解析、batch-script-only 处理和统一写回语义
+- 若当前选择的是 `.ts` / `.mts` / `.js` / `.mjs` 文件，则直接把该文件当成批处理脚本执行
+- 若从文件夹菜单或无显式脚本上下文触发，则先进入上述 picker-backed 项目流程，再执行所选脚本
+- 与上述 picker-backed 项目流程共享同一套项目解析、batch-script-only 处理和统一写回语义
 
 ## Subtree 相关命令
 

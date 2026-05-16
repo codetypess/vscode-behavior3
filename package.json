@@ -2,7 +2,7 @@
   "name": "vscode-behavior3",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "2.2.1",
+  "version": "2.3.0",
   "publisher": "codetypess",
   "repository": {
     "type": "git",
@@ -113,8 +113,18 @@
         "icon": "$(debug-alt)"
       },
       {
-        "command": "behavior3.batchProcess",
-        "title": "%command.batchProcess.title%",
+        "command": "behavior3.createBuildScript",
+        "title": "%command.createBuildScript.title%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "behavior3.createBatchScript",
+        "title": "%command.createBatchScript.title%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "behavior3.createCheckerScript",
+        "title": "%command.createCheckerScript.title%",
         "category": "%command.category%"
       },
       {
@@ -197,11 +207,6 @@
           "command": "behavior3.createProject",
           "when": "view == behavior3.inspectorView",
           "group": "navigation@3"
-        },
-        {
-          "command": "behavior3.createTree",
-          "when": "view == behavior3.inspectorView",
-          "group": "navigation@4"
         }
       ],
       "editor/title": [
@@ -226,14 +231,29 @@
           "group": "1_create@1"
         },
         {
-          "command": "behavior3.batchProcess",
+          "command": "behavior3.runBatchProcessScript",
           "when": "explorerResourceIsFolder",
-          "group": "1_create@2"
+          "group": "2_run@1"
         },
         {
           "command": "behavior3.createTree",
           "when": "explorerResourceIsFolder",
+          "group": "1_create@2"
+        },
+        {
+          "command": "behavior3.createBuildScript",
+          "when": "explorerResourceIsFolder",
           "group": "1_create@3"
+        },
+        {
+          "command": "behavior3.createBatchScript",
+          "when": "explorerResourceIsFolder",
+          "group": "1_create@4"
+        },
+        {
+          "command": "behavior3.createCheckerScript",
+          "when": "explorerResourceIsFolder",
+          "group": "1_create@5"
         },
         {
           "command": "behavior3.runBatchProcessScript",
