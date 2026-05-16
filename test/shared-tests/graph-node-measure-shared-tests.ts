@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { toBreakWord } from "../../webview/adapters/graph/g6-graph-node-measure";
+import { G6_GRAPH_NODE_ROW_HEIGHT } from "../../webview/adapters/graph/g6-graph-node-constants";
+import {
+    getGraphNodeMetadataSectionLayout,
+    toBreakWord,
+} from "../../webview/adapters/graph/g6-graph-node-measure";
 import { defineSharedTests } from "../shared-test-types";
 
 const withMockTextMeasure = (run: (fonts: string[]) => void) => {
@@ -102,6 +106,21 @@ export const graphNodeMeasureSharedTests = defineSharedTests([
                     true
                 );
             });
+        },
+    },
+    {
+        name: "uses one vertical rhythm for wrapped graph node metadata",
+        run() {
+            const descTop = 28;
+            const argsLayout = getGraphNodeMetadataSectionLayout(descTop, 2);
+            const inputLayout = getGraphNodeMetadataSectionLayout(argsLayout.nextSectionTop, 1);
+
+            assert.equal(argsLayout.textTop - descTop, G6_GRAPH_NODE_ROW_HEIGHT);
+            assert.equal(argsLayout.nextSectionTop - argsLayout.textTop, G6_GRAPH_NODE_ROW_HEIGHT);
+            assert.equal(
+                inputLayout.textTop - argsLayout.nextSectionTop,
+                G6_GRAPH_NODE_ROW_HEIGHT
+            );
         },
     },
 ]);

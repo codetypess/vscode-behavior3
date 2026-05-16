@@ -13,7 +13,11 @@ import i18n from "../../shared/i18n";
 import { isMacos } from "../../shared/keys";
 import type { GraphNodeVM } from "../../shared/contracts";
 import {
+    G6_GRAPH_NODE_CONTENT_X,
+    G6_GRAPH_NODE_METADATA_BG_WIDTH,
     G6_GRAPH_NODE_MIN_HEIGHT,
+    G6_GRAPH_NODE_ROW_HEIGHT,
+    G6_GRAPH_NODE_TEXT_WRAP_WIDTH,
     G6_GRAPH_NODE_WIDTH,
 } from "./g6-graph-node-constants";
 import {
@@ -28,16 +32,16 @@ import {
 } from "./g6-graph-node-theme";
 import {
     cutWordTo,
+    getArgsText,
+    getGraphNodeMetadataSectionLayout,
     getInputText,
     getOutputText,
-    toBreakWord,
 } from "./g6-graph-node-measure";
 import {
     type GraphNodeShapeName,
     type GraphNodeState,
     type GraphNodeStateStyleMap,
 } from "./g6-graph-node-style";
-
 export const G6_GRAPH_NODE_TYPE = "b3-tree-node";
 export {
     G6_GRAPH_NODE_H_GAP,
@@ -63,12 +67,12 @@ type ShapeName = GraphNodeShapeName;
 
 type Constructor<T> = new (...args: any[]) => T;
 
-const CONTENT_X = 46;
 const CONTENT_Y = 28;
-const CONTENT_WIDTH = 220;
-const ROW_HEIGHT = 20;
 const LEFT_RAIL_WIDTH = 40;
 const RADIUS = 4;
+
+const getMetadataHighlightHeight = (line: number) =>
+    Math.max(G6_GRAPH_NODE_ROW_HEIGHT, line * G6_GRAPH_NODE_ROW_HEIGHT - 2);
 
 let didRegisterGraphNode = false;
 
@@ -171,7 +175,7 @@ class GraphNode extends Rect {
             GPath,
             {
                 d: [
-                    ["M", 46, 23],
+                    ["M", G6_GRAPH_NODE_CONTENT_X, 23],
                     ["L", this.width - 40, 23],
                 ],
                 stroke: this.palette.divider,
@@ -296,7 +300,7 @@ class GraphNode extends Rect {
                 fontWeight: "bolder",
                 text: this.node.title,
                 textBaseline: "top",
-                x: CONTENT_X,
+                x: G6_GRAPH_NODE_CONTENT_X,
                 y: isMacos ? 3 : 2,
             },
             container
@@ -305,7 +309,11 @@ class GraphNode extends Rect {
 
     private drawDescText(container: Group) {
         const text = this.node.subtitle
-            ? cutWordTo(`${i18n.t("regnode.mark")}${this.node.subtitle}`, CONTENT_WIDTH - 15)
+            ? cutWordTo(
+                  `${i18n.t("regnode.mark")}${this.node.subtitle}`,
+                  G6_GRAPH_NODE_TEXT_WRAP_WIDTH,
+                  "12px"
+              )
             : "";
 
         this.upsert(
@@ -315,10 +323,10 @@ class GraphNode extends Rect {
                 fill: this.palette.nodeText,
                 fontSize: 12,
                 fontWeight: "bolder",
-                lineHeight: ROW_HEIGHT,
+                lineHeight: G6_GRAPH_NODE_ROW_HEIGHT,
                 text: text,
                 textBaseline: "top",
-                x: CONTENT_X,
+                x: G6_GRAPH_NODE_CONTENT_X,
                 y: this.contentY,
                 visibility: text ? "visible" : "hidden",
             },
@@ -327,18 +335,17 @@ class GraphNode extends Rect {
     }
 
     private drawArgsText(container: Group) {
-        const { str, line } = this.node.argsText
-            ? toBreakWord(`${i18n.t("regnode.args")}${this.node.argsText}`, 200)
-            : { str: "", line: 0 };
+        const { str, line } = getArgsText(this.node);
+        const layout = getGraphNodeMetadataSectionLayout(this.contentY, line);
 
         this.upsert(
             "args-bg",
             GRect,
             {
-                x: CONTENT_X - 2,
-                y: this.contentY + 21,
-                width: CONTENT_WIDTH - 6,
-                height: 18,
+                x: G6_GRAPH_NODE_CONTENT_X - 2,
+                y: layout.highlightTop,
+                width: G6_GRAPH_NODE_METADATA_BG_WIDTH,
+                height: getMetadataHighlightHeight(line),
                 fill: this.palette.highlightBg,
                 radius: this.radius,
                 visibility: "hidden",
@@ -353,33 +360,34 @@ class GraphNode extends Rect {
                 fill: this.palette.nodeText,
                 fontSize: 12,
                 fontWeight: "normal",
-                lineHeight: ROW_HEIGHT,
+                lineHeight: G6_GRAPH_NODE_ROW_HEIGHT,
                 text: str,
                 textBaseline: "top",
-                x: CONTENT_X,
-                y: this.contentY + ROW_HEIGHT,
+                x: G6_GRAPH_NODE_CONTENT_X,
+                y: layout.textTop,
                 visibility: str ? "visible" : "hidden",
             },
             container
         );
 
-        this.contentY += ROW_HEIGHT * line;
+        this.contentY = layout.nextSectionTop;
     }
 
     private drawInputText(container: Group) {
         const { str, line } = getInputText(this.node);
+        const layout = getGraphNodeMetadataSectionLayout(this.contentY, line);
 
         this.upsert(
             "input-bg",
             GRect,
             {
                 fill: this.palette.highlightBg,
-                height: 18,
+                height: getMetadataHighlightHeight(line),
                 radius: this.radius,
                 visibility: "hidden",
-                width: CONTENT_WIDTH - 6,
-                x: CONTENT_X - 2,
-                y: this.contentY + 21,
+                width: G6_GRAPH_NODE_METADATA_BG_WIDTH,
+                x: G6_GRAPH_NODE_CONTENT_X - 2,
+                y: layout.highlightTop,
             },
             container
         );
@@ -391,33 +399,34 @@ class GraphNode extends Rect {
                 fill: this.palette.nodeText,
                 fontSize: 12,
                 fontWeight: "normal",
-                lineHeight: ROW_HEIGHT,
+                lineHeight: G6_GRAPH_NODE_ROW_HEIGHT,
                 text: str,
                 textBaseline: "top",
-                x: CONTENT_X,
-                y: this.contentY + ROW_HEIGHT,
+                x: G6_GRAPH_NODE_CONTENT_X,
+                y: layout.textTop,
                 visibility: str ? "visible" : "hidden",
             },
             container
         );
 
-        this.contentY += ROW_HEIGHT * line;
+        this.contentY = layout.nextSectionTop;
     }
 
     private drawOutputText(container: Group) {
         const { str, line } = getOutputText(this.node);
+        const layout = getGraphNodeMetadataSectionLayout(this.contentY, line);
 
         this.upsert(
             "output-bg",
             GRect,
             {
                 fill: this.palette.highlightBg,
-                height: 18,
+                height: getMetadataHighlightHeight(line),
                 radius: this.radius,
                 visibility: "hidden",
-                width: CONTENT_WIDTH - 6,
-                x: CONTENT_X - 2,
-                y: this.contentY + 21,
+                width: G6_GRAPH_NODE_METADATA_BG_WIDTH,
+                x: G6_GRAPH_NODE_CONTENT_X - 2,
+                y: layout.highlightTop,
             },
             container
         );
@@ -429,24 +438,29 @@ class GraphNode extends Rect {
                 fill: this.palette.nodeText,
                 fontSize: 12,
                 fontWeight: "normal",
-                lineHeight: ROW_HEIGHT,
+                lineHeight: G6_GRAPH_NODE_ROW_HEIGHT,
                 text: str,
                 textBaseline: "top",
-                x: CONTENT_X,
-                y: this.contentY + ROW_HEIGHT,
+                x: G6_GRAPH_NODE_CONTENT_X,
+                y: layout.textTop,
                 visibility: str ? "visible" : "hidden",
             },
             container
         );
 
-        this.contentY += ROW_HEIGHT * line;
+        this.contentY = layout.nextSectionTop;
     }
 
     private drawSubtreeText(container: Group) {
         const isSubtree = Boolean(this.node.subtreePath) && this.id !== "1";
         const text = isSubtree
-            ? cutWordTo(`${i18n.t("regnode.subtree")}${this.node.subtreePath}`, CONTENT_WIDTH - 15)
+            ? cutWordTo(
+                  `${i18n.t("regnode.subtree")}${this.node.subtreePath}`,
+                  G6_GRAPH_NODE_TEXT_WRAP_WIDTH,
+                  "12px"
+              )
             : "";
+        const layout = getGraphNodeMetadataSectionLayout(this.contentY, text ? 1 : 0);
 
         this.upsert(
             "subtree",
@@ -471,17 +485,17 @@ class GraphNode extends Rect {
             {
                 fill: this.palette.nodeText,
                 fontSize: 12,
-                lineHeight: ROW_HEIGHT,
+                lineHeight: G6_GRAPH_NODE_ROW_HEIGHT,
                 text,
                 textBaseline: "top",
-                x: CONTENT_X,
-                y: this.contentY + ROW_HEIGHT,
+                x: G6_GRAPH_NODE_CONTENT_X,
+                y: layout.textTop,
                 visibility: text ? "visible" : "hidden",
             },
             container
         );
 
-        this.contentY += text ? ROW_HEIGHT : 0;
+        this.contentY = layout.nextSectionTop;
     }
 
     private drawCollapseBadge(attributes: Required<RectStyleProps>, container: Group) {

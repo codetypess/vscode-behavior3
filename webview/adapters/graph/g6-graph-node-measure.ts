@@ -1,34 +1,34 @@
 import type { GraphNodeVM } from "../../shared/contracts";
 import i18n from "../../shared/i18n";
 import { stringifyCompactJson5 } from "../../shared/json";
-import { isMacos } from "../../shared/keys";
-import { G6_GRAPH_NODE_MIN_HEIGHT, G6_GRAPH_NODE_WIDTH } from "./g6-graph-node-constants";
+import {
+    G6_GRAPH_NODE_MIN_HEIGHT,
+    G6_GRAPH_NODE_ROW_HEIGHT,
+    G6_GRAPH_NODE_TEXT_WRAP_WIDTH,
+    G6_GRAPH_NODE_WIDTH,
+} from "./g6-graph-node-constants";
 
-const ROW_HEIGHT = 20;
+const METADATA_FONT_SIZE = "12px";
+const DEFAULT_FONT_SIZE = "13px";
+const DEFAULT_FONT_FAMILY = "sans-serif";
+
+export const getGraphNodeMetadataSectionHeight = (lineCount: number) =>
+    lineCount > 0 ? lineCount * G6_GRAPH_NODE_ROW_HEIGHT : 0;
+
+export const getGraphNodeMetadataSectionLayout = (sectionTop: number, lineCount: number) => ({
+    highlightTop: sectionTop + G6_GRAPH_NODE_ROW_HEIGHT + 1,
+    nextSectionTop: sectionTop + getGraphNodeMetadataSectionHeight(lineCount),
+    textTop: sectionTop + G6_GRAPH_NODE_ROW_HEIGHT,
+});
 
 let textMeasureContext: CanvasRenderingContext2D | null = null;
-let defaultFontSize = "";
-let defaultFontFamily = "";
 const textWidthCache = new Map<string, number>();
 const textLineCache = new Map<string, string[]>();
 
-const getMeasureHost = (): HTMLElement | null =>
-    document.querySelector<HTMLElement>(".b3-shell") ?? document.body;
-
 const ensureMeasureStyle = (fontSize?: string) => {
-    const host = getMeasureHost();
-    const css = host ? getComputedStyle(host) : null;
-
-    if (!defaultFontSize) {
-        defaultFontSize = css?.fontSize || "13px";
-    }
-    if (!defaultFontFamily) {
-        defaultFontFamily = css?.fontFamily || "sans-serif";
-    }
-
     return {
-        fontSize: fontSize ?? defaultFontSize,
-        fontFamily: defaultFontFamily,
+        fontSize: fontSize ?? DEFAULT_FONT_SIZE,
+        fontFamily: DEFAULT_FONT_FAMILY,
     };
 };
 
@@ -40,20 +40,50 @@ const calcTextWidth = (text: string, fontSize?: string) => {
         return cachedWidth;
     }
 
-    textMeasureContext ||= document.createElement("canvas").getContext("2d");
+    textMeasureContext ||=
+        typeof document === "undefined" ? null : document.createElement("canvas").getContext("2d");
     if (!textMeasureContext) {
-        return text.length * 13;
+        const fallbackFontSize = Number.parseFloat(resolvedFontSize) || 13;
+        return text.length * fallbackFontSize * 0.62;
     }
 
     textMeasureContext.font = `${resolvedFontSize} ${fontFamily}`;
     textMeasureContext.wordSpacing = "0px";
-    textMeasureContext.letterSpacing = "-0.5px";
+    textMeasureContext.letterSpacing = "0px";
 
-    let width = textMeasureContext.measureText(text).width;
-    width *= isMacos ? 0.88 : 0.98;
+    const width = textMeasureContext.measureText(text).width;
     textWidthCache.set(key, width);
 
     return width;
+};
+
+const isNaturalBreakAfter = (char: string) =>
+    char === "," ||
+    char === ";" ||
+    char === " " ||
+    char === "\t" ||
+    char === "\n" ||
+    char === "\r" ||
+    char === ")" ||
+    char === "]" ||
+    char === "}" ||
+    char === "，" ||
+    char === "；" ||
+    char === "、";
+
+const findNaturalBreakIndex = (value: string, maxLength: number) => {
+    if (maxLength >= value.length) {
+        return value.length;
+    }
+
+    const minimumBreakIndex = Math.max(1, Math.floor(maxLength * 0.55));
+    for (let index = maxLength; index >= minimumBreakIndex; index -= 1) {
+        if (isNaturalBreakAfter(value[index - 1] ?? "")) {
+            return index;
+        }
+    }
+
+    return maxLength;
 };
 
 const calcTextLines = (value: string, maxWidth: number, fontSize?: string): string[] => {
@@ -81,8 +111,10 @@ const calcTextLines = (value: string, maxWidth: number, fontSize?: string): stri
         }
 
         if (left > 0) {
-            lines.push(remaining.slice(0, left));
-            remaining = remaining.slice(left);
+            const breakIndex = findNaturalBreakIndex(remaining, left);
+            const line = remaining.slice(0, breakIndex).trimEnd();
+            lines.push(line || remaining.slice(0, breakIndex));
+            remaining = remaining.slice(breakIndex).trimStart();
             continue;
         }
 
@@ -110,12 +142,25 @@ export const toBreakWord = (value: string, maxWidth: number, fontSize?: string) 
     };
 };
 
+export const getArgsText = (node: GraphNodeVM) =>
+    node.argsText
+        ? toBreakWord(
+              `${i18n.t("regnode.args")}${node.argsText}`,
+              G6_GRAPH_NODE_TEXT_WRAP_WIDTH,
+              METADATA_FONT_SIZE
+          )
+        : { str: "", line: 0 };
+
 export const getInputText = (node: GraphNodeVM) => {
     const labels = node.inputs.map((entry) => entry.label).filter(Boolean);
     if (labels.length === 0) {
         return { str: "", line: 0 };
     }
-    return toBreakWord(`${i18n.t("regnode.input")}${stringifyCompactJson5(labels) ?? "[]"}`, 200);
+    return toBreakWord(
+        `${i18n.t("regnode.input")}${stringifyCompactJson5(labels) ?? "[]"}`,
+        G6_GRAPH_NODE_TEXT_WRAP_WIDTH,
+        METADATA_FONT_SIZE
+    );
 };
 
 export const getOutputText = (node: GraphNodeVM) => {
@@ -123,27 +168,32 @@ export const getOutputText = (node: GraphNodeVM) => {
     if (labels.length === 0) {
         return { str: "", line: 0 };
     }
-    return toBreakWord(`${i18n.t("regnode.output")}${stringifyCompactJson5(labels) ?? "[]"}`, 200);
+    return toBreakWord(
+        `${i18n.t("regnode.output")}${stringifyCompactJson5(labels) ?? "[]"}`,
+        G6_GRAPH_NODE_TEXT_WRAP_WIDTH,
+        METADATA_FONT_SIZE
+    );
 };
 
 export const measureGraphNode = (node: GraphNodeVM) => {
     let height = 50 + 2;
 
     if (node.subtreePath) {
-        height += ROW_HEIGHT;
+        height += getGraphNodeMetadataSectionHeight(1);
     }
-    if (node.argsText) {
-        height += toBreakWord(`${i18n.t("regnode.args")}${node.argsText}`, 200).line * ROW_HEIGHT;
+    const argsText = getArgsText(node);
+    if (argsText.line > 0) {
+        height += getGraphNodeMetadataSectionHeight(argsText.line);
     }
 
     const inputText = getInputText(node);
     if (inputText.line > 0) {
-        height += inputText.line * ROW_HEIGHT;
+        height += getGraphNodeMetadataSectionHeight(inputText.line);
     }
 
     const outputText = getOutputText(node);
     if (outputText.line > 0) {
-        height += outputText.line * ROW_HEIGHT;
+        height += getGraphNodeMetadataSectionHeight(outputText.line);
     }
 
     return {
