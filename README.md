@@ -1,67 +1,152 @@
 # Behavior3 Editor
 
-VS Code behavior tree visual editor for game AI workflows.
+VS Code custom editor for Behavior3 JSON behavior trees. It combines a visual graph canvas, an Inspector, project scaffolding, and build/check/batch scripting for game AI workflows.
 
 ## Related Projects
 
-- **[behavior3-ts](https://github.com/codetypess/behavior3-ts)** - TypeScript Runtime Library
-- **[behavior3lua](https://github.com/zhandouxiaojiji/behavior3lua)** - Lua Runtime
+- **[behavior3-ts](https://github.com/codetypess/behavior3-ts)** - TypeScript runtime library
+- **[behavior3lua](https://github.com/zhandouxiaojiji/behavior3lua)** - Lua runtime
 
-## Editor Preview
+## Preview
 
 ![Behavior3 Editor Preview](media/images/pic.png)
 
-The editor provides an intuitive visual interface for designing and managing behavior trees. See the screenshot above for the full editing experience with node canvas, inspector panel, and tree organization.
-
 ## Features
 
-- Visual canvas editor (drag, connect, organize nodes)
-- Built-in inspector panel for node/tree properties
+- Visual graph editor for Behavior3 trees and reachable subtrees
+- Inspector in `sidebar` or `embedded` mode
+- Explorer `Behavior3` submenu for project, tree, and script scaffolding
+- Build, debug build, checker scripts, and project batch processing
 - Custom node definitions via `.b3-setting`
-- One-click build command in editor title bar
-- Optional expression validation for node args
-- Auto theme adaptation (dark/light)
+- Expression and node-argument validation
+- Theme-aware UI for dark and light VS Code themes
 
 ## Quick Start
 
-### Open a tree file
+### Open a tree
 
-- Right-click a tree `.json` file in Explorer
-- Select **Open With** → **Behavior3 Editor**
+- Right-click a Behavior3 `.json` file in Explorer
+- Select **Open With** -> **Behavior3 Editor**
 
-### Create a new project
+### Create project files
 
-- Right-click a folder in Explorer
-- Run **Behavior Tree: Create Project**
+From a folder's Explorer `Behavior3` submenu you can run:
 
-### Configure nodes
+- **Create Project**
+- **Create Behavior Tree File**
+- **Create Build Script**
+- **Create Batch Script**
+- **Create Checker Script**
+- **Run Script as Batch Process**
 
-Create a `.b3-setting` file in workspace:
+`Run Script as Batch Process` is also available on `.ts`, `.mts`, `.js`, and `.mjs` files. Running it from a folder lets you choose a script first; running it from a script file runs that script directly.
+
+### Configure node definitions
+
+Create a `.b3-setting` file in the workspace:
 
 ```json
 [
-    {
-        "name": "MyAction",
-        "type": "Action",
-        "desc": "Does something useful",
-        "args": [{ "name": "duration", "type": "float", "desc": "Duration in seconds" }]
-    },
-    {
-        "name": "CheckScore",
-        "type": "Condition",
-        "desc": "Checks whether the score matches the rule",
-        "args": [{ "name": "value", "type": "expr", "desc": "Expression" }]
-    }
+  {
+    "name": "MyAction",
+    "type": "Action",
+    "desc": "Does something useful",
+    "args": [{ "name": "duration", "type": "float", "desc": "Duration in seconds" }]
+  },
+  {
+    "name": "CheckScore",
+    "type": "Condition",
+    "desc": "Checks whether the score matches the rule",
+    "args": [{ "name": "value", "type": "expr", "desc": "Expression" }]
+  }
 ]
 ```
 
-### Build
+### Configure workspace behavior
 
-Click **Build** in the editor title bar.
+Use a `.b3-workspace` file to register build and checker scripts:
 
-### Command Line Build
+```json
+{
+  "settings": {
+    "checkExpr": true,
+    "buildScript": "scripts/build.ts",
+    "checkScripts": ["scripts/checkers/**/*.ts"]
+  }
+}
+```
 
-The npm package exposes a `behavior3-build` command for CI and project scripts:
+`buildScript` and `checkScripts` are resolved relative to the `.b3-workspace` file. See [sample/workspace.b3-workspace](sample/workspace.b3-workspace) for a complete sample.
+
+## Inspector Modes
+
+Set `behavior3.inspectorMode` to choose the active Inspector presentation:
+
+- `sidebar`: show the Inspector in the dedicated Behavior3 side view
+- `embedded`: show the Inspector inside the main editor webview
+
+Both modes share the same document semantics and commands. Only the presentation changes.
+
+## Build, Batch, and Check Scripts
+
+Behavior3 supports ESM JavaScript and TypeScript scripts:
+
+- JavaScript: `.js`, `.mjs`
+- TypeScript: `.ts`, `.mts` (runtime transpile, no type-check)
+
+When importing local TypeScript helpers, use explicit extensions such as `./helper.ts`.
+The `behavior3` decorator namespace is provided by the runtime, so script files only need type imports from `vscode-behavior3/build`.
+
+All script types can import authoring types from `vscode-behavior3/build`. Example scripts are available in:
+
+- [sample/scripts/build.ts](sample/scripts/build.ts)
+- [sample/scripts/batch.ts](sample/scripts/batch.ts)
+- [sample/scripts/checkers/positive.ts](sample/scripts/checkers/positive.ts)
+
+### Build Scripts
+
+Build scripts are declared with `@behavior3.build` and can transform build output without rewriting source trees.
+
+```ts
+import type { BuildEnv, BuildScript } from "vscode-behavior3/build";
+
+@behavior3.build
+export class ProjectBuild implements BuildScript {
+  constructor(private readonly env: BuildEnv) {}
+}
+```
+
+Supported hooks:
+
+- `onProcessTree(tree, path, errors)`
+- `onProcessNode(node, errors)`
+- `onWriteFile(path, tree)`
+- `onComplete(status)`
+
+### Batch Scripts
+
+Batch scripts are declared with `@behavior3.batch` and are used by **Run Script as Batch Process** to rewrite source trees in place across the current project.
+
+Supported hooks:
+
+- `shouldUpgradeTree(path, tree)`
+- `onProcessTree(tree, path, errors)`
+- `onProcessNode(node, errors)`
+- `onWriteFile(path, tree)`
+- `onComplete(status)`
+
+### Checker Scripts
+
+Checker scripts register custom argument validators with `@behavior3.check("name")`. They are used by both Inspector validation and project builds.
+
+For compatibility, supported script files may still export classes through named `Hook`, `BuildHook`, `BatchHook`, or `default`, but the decorator-based forms above are the canonical APIs.
+
+## Build and Debug
+
+- Click **Build** in the editor title bar, or press `Ctrl/Cmd+B`
+- Press `Ctrl/Cmd+Shift+B` to start a debug build session
+
+The npm package also exposes a `behavior3-build` command for CI and project scripts:
 
 ```bash
 npm install -D vscode-behavior3
@@ -69,144 +154,32 @@ npm install -D vscode-behavior3
 
 ```json
 {
-    "scripts": {
-        "build:behavior": "behavior3-build --project ./workdir/hero.json --output ./dist/behavior3"
-    }
+  "scripts": {
+    "build:behavior": "behavior3-build --project ./workdir/hero.json --output ./dist/behavior3"
+  }
 }
 ```
 
-You can also run it without adding a script:
+You can also run it directly:
 
 ```bash
 npm exec -- behavior3-build --project ./workdir/hero.json --output ./dist/behavior3
 ```
 
-Or run it without installing first:
+Or without installing first:
 
 ```bash
 npx --package vscode-behavior3 behavior3-build --project ./workdir/hero.json --output ./dist/behavior3
 ```
 
-Publishing flow:
-
-```bash
-npm login
-npm whoami
-npm version patch
-npm run pack:npm
-npm run publish:npm
-```
-
-`npm run pack:npm` performs the same prepack checks as publishing and prints the
-tarball contents without publishing.
-
-### Build Script (`.b3-workspace`)
-
-`settings.buildScript` supports ESM scripts:
-
-- JavaScript: `.js`, `.mjs`
-- TypeScript: `.ts`, `.mts` (runtime transpile, no type-check)
-
-TypeScript build scripts can import other local TypeScript files with explicit
-extensions:
-
-```ts
-import { helper } from "./helper.ts";
-```
-
-To debug TypeScript build scripts, launch the CLI with Node inspector and enable
-build-script debug mode:
-
-```bash
-BEHAVIOR3_BUILD_DEBUG=1 node --inspect-brk dist/build-cli.js --output /tmp/b3build --project sample/workdir/hero.json
-```
-
-This emits inline source maps and creates temporary `.runtime.*.mjs` files next
-to the build script while the build runs so breakpoints in `build.ts` and
-imported helper files can bind. The runtime files are removed after the build
-completes; if the build script fails to load, they are left in place for
-inspection. Editor debug builds also clean runtime files when the debug session
-terminates.
-Inside the editor, `Ctrl+B`/`Cmd+B` builds normally, while
-`Ctrl+Shift+B`/`Cmd+Shift+B` starts a VS Code Node debug session for the build.
-
-Example:
-
-```json
-{
-    "settings": {
-        "checkExpr": true,
-        "buildScript": "scripts/build.ts",
-        "checkScripts": ["scripts/checkers/**/*.ts"]
-    }
-}
-```
-
-`settings.checkScripts` is optional and loads additional checker-only scripts
-relative to the `.b3-workspace` directory. Matching scripts are scanned for
-exported `@behavior3.check("name")` classes and are used by both the editor
-Inspector validation and project builds. Generated `.runtime.*.mjs`, `.d.ts`,
-`node_modules`, `dist`, and `build` paths are ignored.
-
-All build hooks receive `env`:
-
-- `env.fs`: Node `fs`
-- `env.path`: full path helper object (all methods exposed)
-- `env.workdir`: resolved workspace directory
-- `env.nodeDefs`: loaded node definitions map
-- `env.logger`: `log/debug/info/warn/error`
-
-Use an exported `@behavior3.build` class. The decorator is provided by the build
-runtime, so no value import is required. The extension constructs the class once
-with `env`, then calls methods:
-
-- `constructor(env)`
-- `shouldUpgradeTree(path, tree)`
-- `onProcessTree(tree, path, errors)`
-- `onProcessNode(node, errors)`
-- `onWriteFile(path, tree)`
-- `onComplete(status)`
-
-```ts
-import type { BuildEnv, TreeData } from "vscode-behavior3/build";
-
-@behavior3.build
-export class ProjectBuild {
-    constructor(private readonly env: BuildEnv) {}
-
-    onProcessTree(tree: TreeData) {
-        this.env.logger.info("building", tree.name);
-        return tree;
-    }
-}
-```
-
-For compatibility, supported script files may still export a class via named
-`Hook` or `default`.
-
-For TypeScript authoring hints, import build script types from
-`vscode-behavior3/build`. See `sample/scripts/build.ts` for a complete example.
-
-### Project Batch Processing
-
-Use `Batch Process Behavior Trees` to pick a script on demand and apply it to
-every behavior tree source file in the current project. The script can be
-TypeScript with local `import` statements, just like build scripts.
-
 ## Extension Settings
 
-| Setting               | Type    | Default  | Description                                                      |
-| --------------------- | ------- | -------- | ---------------------------------------------------------------- |
-| `behavior3.checkExpr` | boolean | `true`   | Enable expression syntax validation for expression-type args.    |
-| `behavior3.language`  | string  | `"auto"` | Editor UI language. Options:`auto` (follow VS Code), `zh`, `en`. |
-
-## Inspector
-
-Inspector is available in the dedicated `behavior3` sidebar and supports direct editing.
-
-- Select a node to edit node fields (`args`, `input`, `output`, `desc`, `debug`, `disabled`)
-- Click empty canvas to edit tree fields (`name`, `desc`, `vars`, `import`, `group`)
-- Opening a Behavior3 tree or changing the graph selection will automatically reveal the matching Inspector context
+| Setting                     | Type      | Default     | Description                                                              |
+| --------------------------- | --------- | ----------- | ------------------------------------------------------------------------ |
+| `behavior3.checkExpr`       | `boolean` | `true`      | Enable expression validation for expression-type args.                   |
+| `behavior3.language`        | `string`  | `"auto"`    | UI language: `auto`, `zh`, or `en`.                                      |
+| `behavior3.subtreeEditable` | `boolean` | `true`      | Allow editing supported subtree content from the current editor context. |
+| `behavior3.inspectorMode`   | `string`  | `"sidebar"` | Choose whether the Inspector is shown in `sidebar` or `embedded` mode.   |
 
 ## Keyboard Shortcuts
 
@@ -224,14 +197,22 @@ Inspector is available in the dedicated `behavior3` sidebar and supports direct 
 | `Ctrl/Cmd+B`             | Build                          |
 | `F4`                     | Toggle Text / Behavior3 editor |
 
+## Docs
+
+- [docs/README.md](docs/README.md) - documentation entry point
+- [docs/spec-driven-development.md](docs/spec-driven-development.md) - SDD workflow
+- [docs/spec/README.md](docs/spec/README.md) - baseline spec map and work-item index
+- [sample/](sample) - sample workspace, trees, and scripts
+
 ## Development
 
-- Output logs: **View → Output** → channel **Behavior3**
+- Output logs: **View -> Output** -> **Behavior3**
 - Webview logs are also available in DevTools
 
 ## Requirements
 
-- VS Code 1.85.0+
+- VS Code `^1.105.0`
+- Node `>=20.19` for the CLI and TypeScript script runtime
 
 ## License
 

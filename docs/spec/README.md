@@ -38,19 +38,21 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 1 份 active work-item spec
+- 0 份进行中的 work-item spec
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
+
+当前没有仍在推进中的 work-item；需要新的非 trivial 任务时，再新增对应 `docs/spec/<slug>.md`。
 
 这里不是完整历史档案。纯机械整理、模块拆分、重命名、helper 收口这类 work-item，在长期规则已经同步进编号基线后，可以直接删除，不需要长期保留。
 
-已完成的 work-item 默认不在本目录长期保留；若完成结果形成新的长期规则，应把规则同步进编号基线 spec，再删除对应 work-item。
+已完成或已废弃的 work-item 默认不长期保留在本目录；若需要追溯，优先查看对应编号基线 spec，或通过 git history 回看当时的 work-item 文档。
 
 目录判断规则：
 
 - `01` / `02`：产品范围与验收基线
 - `10` 到 `17`：架构、模型、协议、图层与编辑语义
 - `90`：实施阶段、顺序和强约束
-- 其他非编号文件：具体任务的 SDD work item
+- 其他非编号文件：当前仍在推进中的 SDD work item（如果存在）
 
 ## Source of Truth
 
@@ -226,21 +228,10 @@ Scope: <short boundary>
 - DTO、路径、解析规则或 identity 语义变了
 - 图层 / Inspector / 保存语义成为新的默认行为
 
-相反，如果 work item 只是机械整理、文件搬移、helper 合并、无语义变化的重构，且对应长期规则已经体现在编号基线里，那么在任务完成后可以直接删除该 work-item spec；`README.md` 只保留仍有行为或迁移语义参考价值的已完成条目。
+相反，如果 work item 只是机械整理、文件搬移、helper 合并、无语义变化的重构，且对应长期规则已经体现在编号基线里，那么在任务完成后可以直接删除该 work-item spec，不需要把它长期留在 `docs/spec/` 目录里。
 
-## Active Work Items
+## Work-Item Index
 
-- [`build-hotkey-single-dispatch.md`](build-hotkey-single-dispatch.md) — 修复 build 快捷键在 custom editor 中一次按键重复派发。
-- [`batch-decorator-split.md`](batch-decorator-split.md) — 为 batch script 引入独立的 `@behavior3.batch` 装饰器，并拆分 build/batch 公共类型定义。
-- [`default-arg-override-marker-regression.md`](default-arg-override-marker-regression.md) — 修复 subtree 默认参数被误判为 override 标记的回归。
-- [`embedded-inspector-title-actions.md`](embedded-inspector-title-actions.md) — 为 embedded inspector 补齐与 sidebar title 同组的快捷操作按钮。
-- [`explorer-batch-command-entry.md`](explorer-batch-command-entry.md) — 统一 explorer 中批处理入口，文件夹菜单也使用脚本视角的运行命令。
-- [`explorer-script-scaffolding.md`](explorer-script-scaffolding.md) — 为 explorer 的 `Behavior3` 子菜单补齐 build / batch / checker 脚本脚手架命令。
-- [`inspector-remove-create-tree-action.md`](inspector-remove-create-tree-action.md) — 从 inspector 的 sidebar / embedded 快捷操作中移除创建树文件按钮。
-- [`node-name-commit-granularity.md`](node-name-commit-granularity.md) — 收窄 Node Inspector `name` 字段的提交粒度，只改名称本身。
-- [`node-name-paste-hotkey-regression.md`](node-name-paste-hotkey-regression.md) — 修复 Inspector 组合输入聚焦时 `Ctrl/Cmd+V` 被图层结构快捷键抢占。
-- [`node-child-count-validation.md`](node-child-count-validation.md) — 让固定 children 数量不匹配的节点在图上显示 Error 状态。
-- [`node-inspector-identity-json.md`](node-inspector-identity-json.md) — 在 Node Inspector 中同时展示 `displayId` 与 `uuid`，并提供统一的 raw JSON 切换视图。
-- [`webview-watch-stability.md`](webview-watch-stability.md) — 稳定 webview watch 构建，并迁移到 Vite 8。
+当前没有 active work-item。
 
-新增 work-item 时，请继续按以上格式补充；完成后如果长期规则已同步进编号基线 spec，删除对应 work-item。
+新增 work-item 时，请继续按以上格式补充；完成后如果长期规则已同步进编号基线 spec，直接从目录中删除对应 work-item。
