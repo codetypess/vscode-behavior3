@@ -312,6 +312,78 @@ export const validationMaterializationSharedTests = defineSharedTests([
             },
         },
         {
+            name: "collects oneof diagnostics for shared node validation",
+            run() {
+                const diagnostics = collectResolvedNodeDiagnostics({
+                    node: {
+                        name: "Move",
+                        input: ["enemy"],
+                        args: { point: "manual" },
+                    },
+                    def: {
+                        name: "Move",
+                        type: "Action",
+                        desc: "",
+                        input: ["target?"],
+                        args: [
+                            {
+                                name: "point",
+                                type: "string?",
+                                desc: "Point",
+                                oneof: "target",
+                            },
+                        ],
+                    },
+                    usingVars: null,
+                    usingGroups: null,
+                    checkExpr: true,
+                });
+
+                assert.equal(
+                    diagnostics.some(
+                        (entry) =>
+                            entry.code === "oneof-conflict" &&
+                            entry.argName === "point" &&
+                            entry.inputLabel === "target"
+                    ),
+                    true
+                );
+            },
+        },
+        {
+            name: "collects missing oneof input diagnostics for shared node validation",
+            run() {
+                const diagnostics = collectResolvedNodeDiagnostics({
+                    node: {
+                        name: "Move",
+                        args: { point: "manual" },
+                    },
+                    def: {
+                        name: "Move",
+                        type: "Action",
+                        desc: "",
+                        args: [
+                            {
+                                name: "point",
+                                type: "string?",
+                                desc: "Point",
+                                oneof: "target",
+                            },
+                        ],
+                    },
+                    usingVars: null,
+                    usingGroups: null,
+                    checkExpr: true,
+                });
+
+                assert.deepEqual(diagnostics[0], {
+                    code: "missing-oneof-input",
+                    argName: "point",
+                    inputLabel: "target",
+                });
+            },
+        },
+        {
             name: "collects invalid child count diagnostics for fixed arity nodes",
             run() {
                 const tooFewDiagnostics = collectResolvedNodeDiagnostics({
@@ -402,6 +474,62 @@ export const validationMaterializationSharedTests = defineSharedTests([
                         },
                     },
                     [{ name: "If", type: "Composite", desc: "", children: 3 }],
+                    undefined,
+                    {
+                        usingVars: null,
+                        usingGroups: null,
+                        checkExpr: true,
+                    }
+                );
+
+                assert.equal(graphModel.nodes[0]?.nodeStyleKind, "Error");
+            },
+        },
+        {
+            name: "marks graph nodes with oneof conflicts as errors",
+            run() {
+                const graphModel = buildResolvedGraphModel(
+                    {
+                        rootKey: "1",
+                        nodeOrder: ["1"],
+                        nodesByInstanceKey: {
+                            "1": {
+                                ref: {
+                                    instanceKey: "1",
+                                    displayId: "1",
+                                    structuralStableId: "root",
+                                    sourceStableId: "root",
+                                    sourceTreePath: null,
+                                    subtreeStack: [],
+                                },
+                                parentKey: null,
+                                childKeys: [],
+                                depth: 0,
+                                renderedIdLabel: "1",
+                                name: "Move",
+                                input: ["enemy"],
+                                args: { point: "manual" },
+                                subtreeNode: false,
+                                subtreeEditable: true,
+                            },
+                        },
+                    },
+                    [
+                        {
+                            name: "Move",
+                            type: "Action",
+                            desc: "",
+                            input: ["target?"],
+                            args: [
+                                {
+                                    name: "point",
+                                    type: "string?",
+                                    desc: "Point",
+                                    oneof: "target",
+                                },
+                            ],
+                        },
+                    ],
                     undefined,
                     {
                         usingVars: null,

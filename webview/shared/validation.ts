@@ -13,6 +13,7 @@ import {
     type VarDecl,
 } from "./b3type";
 import {
+    checkOneof,
     getNodeArgOptions,
     getNodeArgRawType,
     isNodeArgArray,
@@ -47,6 +48,8 @@ export type TreeValidationDiagnostic =
     | { code: "required-arg"; argName: string; label: string }
     | { code: "required-input"; index: number; label: string }
     | { code: "required-output"; index: number; label: string }
+    | { code: "missing-oneof-input"; argName: string; inputLabel: string }
+    | { code: "oneof-conflict"; argName: string; inputLabel: string }
     | {
           code: "invalid-arg-value";
           argName: string;
@@ -129,6 +132,19 @@ export const validateExpressionEntries = (
 };
 
 const getArgLabel = (arg: NodeArg): string => arg.desc || arg.name;
+
+const findNodeArgOneofInputIndex = (
+    arg: NodeArg,
+    inputDefs: readonly string[] | null | undefined
+): number => {
+    if (!arg.oneof || !inputDefs?.length) {
+        return -1;
+    }
+
+    return inputDefs.findIndex(
+        (input, index) => parseSlotDefinition(input, inputDefs, index).label === arg.oneof
+    );
+};
 
 export const isRequiredSlotMissing = (
     slots: string[] | undefined,
@@ -289,6 +305,38 @@ export const validateNodeArgValue = (params: {
     return validateNodeArgScalarValue(arg, value, args, validateOptions);
 };
 
+export const validateNodeArgOneof = (params: {
+    arg: NodeArg;
+    argValue: unknown;
+    inputValues?: string[];
+    inputDefs?: readonly string[] | null;
+}): TreeValidationDiagnostic | null => {
+    const { arg, argValue, inputValues, inputDefs } = params;
+
+    if (!arg.oneof) {
+        return null;
+    }
+
+    const relatedInputIndex = findNodeArgOneofInputIndex(arg, inputDefs);
+    if (relatedInputIndex < 0) {
+        return {
+            code: "missing-oneof-input",
+            argName: arg.name,
+            inputLabel: arg.oneof,
+        };
+    }
+
+    if (checkOneof(arg, argValue, inputValues?.[relatedInputIndex])) {
+        return null;
+    }
+
+    return {
+        code: "oneof-conflict",
+        argName: arg.name,
+        inputLabel: arg.oneof,
+    };
+};
+
 export const collectResolvedNodeDiagnostics = (params: {
     node: ValidatableNode;
     def: NodeDef | null | undefined;
@@ -331,12 +379,24 @@ export const collectResolvedNodeDiagnostics = (params: {
 
     for (const arg of def.args ?? []) {
         const rawValue = node.args?.[arg.name];
-        if (isRequiredNodeArgValueMissing(arg, rawValue)) {
+        const requiredMissing = isRequiredNodeArgValueMissing(arg, rawValue);
+        if (requiredMissing) {
             diagnostics.push({
                 code: "required-arg",
                 argName: arg.name,
                 label: getArgLabel(arg),
             });
+        }
+        const oneofDiagnostic = validateNodeArgOneof({
+            arg,
+            argValue: rawValue,
+            inputValues: node.input,
+            inputDefs: def.input,
+        });
+        if (oneofDiagnostic) {
+            diagnostics.push(oneofDiagnostic);
+        }
+        if (requiredMissing) {
             continue;
         }
         if (!isExprType(arg.type) || !rawValue) {

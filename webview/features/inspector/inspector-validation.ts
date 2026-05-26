@@ -23,6 +23,13 @@ export const formatValidationDiagnostic = (diagnostic: TreeValidationDiagnostic)
         case "required-input":
         case "required-output":
             return i18n.t("fieldRequired", { field: diagnostic.label });
+        case "missing-oneof-input":
+            return i18n.t("validation.missingOneofInput", { input: diagnostic.inputLabel });
+        case "oneof-conflict":
+            return i18n.t("validation.oneof", {
+                left: diagnostic.argName,
+                right: diagnostic.inputLabel,
+            });
         case "custom-arg-check":
             return `${diagnostic.argName}: ${diagnostic.message}`;
         case "invalid-arg-value":

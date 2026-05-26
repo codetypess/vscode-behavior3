@@ -3,15 +3,16 @@ import { AutoComplete, Button, Flex, Form } from "antd";
 import type { FormInstance } from "antd/es/form";
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { checkOneof, parseSlotDefinition } from "../../shared/node-utils";
+import { parseSlotDefinition } from "../../shared/node-utils";
 import type { NodeArg, VarDecl } from "../../shared/b3type";
+import { validateNodeArgOneof } from "../../shared/validation";
 import {
     OverrideBar,
     SectionDivider,
     createInspectorLabelProps,
     filterOptionByLabel,
 } from "./inspector-shared";
-import { validateVariableValue } from "./inspector-validation";
+import { formatValidationDiagnostic, validateVariableValue } from "./inspector-validation";
 import type { VariableOption } from "./inspector-variable-options";
 import type { SlotFieldName } from "./node-inspector-committers";
 
@@ -55,16 +56,16 @@ const NodeVariableField: React.FC<{
         if (error) {
             throw new Error(error);
         }
-        if (
-            relatedArg &&
-            !checkOneof(relatedArg, form.getFieldValue(["args", relatedArg.name]), value)
-        ) {
-            throw new Error(
-                t("validation.oneof", {
-                    left: relatedArg.name,
-                    right: slotLabel,
-                })
-            );
+        if (relatedArg) {
+            const oneofDiagnostic = validateNodeArgOneof({
+                arg: relatedArg,
+                argValue: form.getFieldValue(["args", relatedArg.name]),
+                inputValues: form.getFieldValue("inputSlots"),
+                inputDefs: slotDefs,
+            });
+            if (oneofDiagnostic) {
+                throw new Error(formatValidationDiagnostic(oneofDiagnostic));
+            }
         }
     };
 

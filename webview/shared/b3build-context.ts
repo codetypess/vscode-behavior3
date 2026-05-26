@@ -12,11 +12,12 @@ import { logger } from "./logger";
 import { getFs } from "./b3fs";
 import { readTreeFromFile } from "./tree";
 import { dfs, isSubtreeRoot } from "./tree-model";
-import { checkOneof, createNodeDefMap, parseSlotDefinition } from "./node-utils";
+import { createNodeDefMap, parseSlotDefinition } from "./node-utils";
 import { normalizeNodeDefCollection } from "./schema";
 import {
     parseExpressionVariables,
     validateExpressionEntries,
+    validateNodeArgOneof,
     validateNodeArgValue,
     validateVariableReference,
     type TreeValidationDiagnostic,
@@ -135,6 +136,10 @@ const formatBuildDiagnostic = (diagnostic: TreeValidationDiagnostic): string => 
             return `intput field '${diagnostic.label}' is required`;
         case "required-output":
             return `output field '${diagnostic.label}' is required`;
+        case "missing-oneof-input":
+            return `missing oneof input slot '${diagnostic.inputLabel}' for arg '${diagnostic.argName}'`;
+        case "oneof-conflict":
+            return `only one of arg '${diagnostic.argName}' and input '${diagnostic.inputLabel}' can be set`;
         case "invalid-arg-value": {
             const value = JSON.stringify(diagnostic.value);
             switch (diagnostic.expected) {
@@ -175,16 +180,15 @@ const checkNodeArg = (data: NodeData, conf: NodeDef, i: number, printer?: ErrorP
     const diagnostics = validateNodeArgValue({ arg, value, args: data.args ?? {} });
     let hasError = diagnostics.length > 0;
     diagnostics.forEach((diagnostic) => error(formatBuildDiagnostic(diagnostic)));
-
-    if (arg.oneof !== undefined) {
-        const idx = conf.input?.findIndex((v) => v.startsWith(arg.oneof!)) ?? -1;
-        if (!checkOneof(arg, data.args?.[arg.name], data.input?.[idx])) {
-            error(
-                `only one is allowed for between argument '${arg.name}' and input '${data.input?.[idx]}'`
-            );
-
-            hasError = true;
-        }
+    const oneofDiagnostic = validateNodeArgOneof({
+        arg,
+        argValue: value,
+        inputValues: data.input,
+        inputDefs: conf.input,
+    });
+    if (oneofDiagnostic) {
+        error(formatBuildDiagnostic(oneofDiagnostic));
+        hasError = true;
     }
 
     return !hasError;

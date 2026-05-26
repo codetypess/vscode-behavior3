@@ -4,12 +4,10 @@ import type { FormInstance } from "antd/es/form";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    checkOneof,
     getNodeArgOptions,
     getNodeArgRawType,
     isNodeArgArray,
     isNodeArgOptional,
-    parseSlotDefinition,
 } from "../../shared/node-utils";
 import {
     hasArgOptions,
@@ -23,7 +21,7 @@ import {
     type VarDecl,
 } from "../../shared/b3type";
 import type { NodeCheckDiagnostic } from "../../shared/contracts";
-import { isRequiredNodeArgValueMissing } from "../../shared/validation";
+import { isRequiredNodeArgValueMissing, validateNodeArgOneof } from "../../shared/validation";
 import { parseArgSubmitValue, validateInspectorArgValue } from "./inspector-arg-values";
 import {
     OverrideBar,
@@ -32,7 +30,7 @@ import {
     filterOptionByLabel,
     getInspectorPopupContainer,
 } from "./inspector-shared";
-import { compareJsonValue } from "./inspector-validation";
+import { compareJsonValue, formatValidationDiagnostic } from "./inspector-validation";
 
 const { TextArea } = Input;
 
@@ -147,21 +145,14 @@ const NodeArgField: React.FC<{
             throw new Error(validationError);
         }
 
-        if (arg.oneof) {
-            const relatedInputIndex =
-                nodeDef.input?.findIndex(
-                    (input, index) =>
-                        parseSlotDefinition(input, nodeDef.input, index).label === arg.oneof
-                ) ?? -1;
-
-            if (relatedInputIndex < 0) {
-                throw new Error(t("validation.missingOneofInput", { input: arg.oneof }));
-            }
-
-            const relatedInputValue = form.getFieldValue(["inputSlots", relatedInputIndex]);
-            if (!checkOneof(arg, parsedValue, relatedInputValue)) {
-                throw new Error(t("validation.oneof", { left: arg.name, right: arg.oneof }));
-            }
+        const oneofDiagnostic = validateNodeArgOneof({
+            arg,
+            argValue: parsedValue,
+            inputValues: form.getFieldValue("inputSlots"),
+            inputDefs: nodeDef.input,
+        });
+        if (oneofDiagnostic) {
+            throw new Error(formatValidationDiagnostic(oneofDiagnostic));
         }
 
         const customDiagnostic = nodeCheckDiagnostics.find((entry) => entry.argName === arg.name);

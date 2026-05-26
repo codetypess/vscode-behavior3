@@ -289,7 +289,7 @@ Inspector 表单 label 只用于展示字段名、必填标记和冒号；点击
 - 某个字段的校验错误不会阻断无关字段的提交
 - 非法字段保留本地错误提示，不得静默写入主文档
 - `oneof` 这类显式耦合字段允许继续按局部约束拒绝提交
-- slot label、required、variadic 与 node arg type/options 校验使用 shared state-free validation helper；`oneof` 这类局部耦合校验可在 Inspector 侧组合 shared helper 与当前表单上下文，不能在 Inspector 局部再实现一套平行基础规则
+- slot label、required、variadic 与 node arg type/options 校验使用 shared state-free validation helper；`oneof` 这类局部耦合校验同样复用 shared helper，并结合当前表单上下文决定提交错误与 resolved-node diagnostic，不能在 Inspector 局部再实现一套平行基础规则
 
 `sidebar` 模式下，在执行保存、撤销、重做前，会先 flush 待提交的 Inspector 编辑。
 
