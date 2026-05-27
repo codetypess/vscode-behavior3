@@ -198,6 +198,7 @@ Inspector 暴露同一组 project/document quick actions，但承载位置随模
 
 - 按 arg 类型渲染为 `Select` / `Switch` / `InputNumber` / `TextArea` 等
 - 带 `options` 的参数渲染为可搜索 `Select`，搜索按显示 label 匹配 option name/value 文本
+- 可选且带 `options` 的标量参数在当前没有 committed/effective 值时，Select 显示为空选中态，不向用户暴露内部 unset 哨兵文案
 - `bool` / `bool?` 标量参数统一渲染为 `Switch`；项目内 bool 参数不通过 `options` 配置枚举值
 - 表达式型参数校验变量引用与表达式合法性
 - 自定义 node check 结果会映射到对应 arg 校验提示
@@ -289,6 +290,7 @@ Inspector 表单 label 只用于展示字段名、必填标记和冒号；点击
 - 某个字段的校验错误不会阻断无关字段的提交
 - 非法字段保留本地错误提示，不得静默写入主文档
 - `oneof` 这类显式耦合字段允许继续按局部约束拒绝提交
+- Inspector 局部 `oneof` 校验必须基于 arg 的解析后值执行；“未填写”不能因为内部表单占位值而被误判成已填写
 - slot label、required、variadic 与 node arg type/options 校验使用 shared state-free validation helper；`oneof` 这类局部耦合校验同样复用 shared helper，并结合当前表单上下文决定提交错误与 resolved-node diagnostic，不能在 Inspector 局部再实现一套平行基础规则
 
 `sidebar` 模式下，在执行保存、撤销、重做前，会先 flush 待提交的 Inspector 编辑。

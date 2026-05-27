@@ -188,6 +188,7 @@ webview 在发送 intent 前只补齐 host reducer 需要的上下文：
 - `name` 驱动的 nodeDef 预览切换同样属于本地展示状态刷新；依赖字段不得通过 `setFieldsValue` merge 继承旧节点或旧类型留下的嵌套值
 - 对当前无值的 arg，webview 预览态应通过“缺少该 key”而不是“key 存在但值为 `undefined`”来表达 unset
 - 当节点类型切换引入新的 required args 时，未显式设置的 arg 在首次提交中保持 unset，不应被静默写成占位空值
+- 对 optional `Select` arg，webview 预览态的“未设置”必须表现为空选中态；局部校验与提交序列化都应把它视为 `undefined`，而不是内部哨兵字符串
 - 对主树普通节点，Inspector 可展示 resolved/effective arg 默认值，但 `updateNode.payload.currentNodeSnapshot.data.args` 仍必须保持 committed JSON 语义，不能因为展示默认值而把默认参数带入提交基线
 - 对 subtree 内部节点，`updateNode.payload.currentNodeSnapshot.data.args` 必须保留当前 resolved/current args，作为与 `subtreeOriginal` 比较的编辑基线
 - 若主树普通节点的 arg 字段尚未被用户实际改动，Inspector 不得因为 blur/校验而把仅展示中的默认值提交回主文档

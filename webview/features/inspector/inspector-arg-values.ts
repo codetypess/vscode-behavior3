@@ -38,7 +38,7 @@ export const formatArgInitialValue = (arg: NodeArg, value: unknown) => {
     }
 
     if (hasArgOptions(arg)) {
-        return value ?? (optional ? "__unset__" : undefined);
+        return value;
     }
 
     if (isJsonType(type)) {

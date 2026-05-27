@@ -129,11 +129,7 @@ const NodeArgField: React.FC<{
             throw new Error(t("fieldRequired", { field: arg.desc || arg.name }));
         }
 
-        let parsedValue: unknown = value;
-
-        if (isNodeArgArray(arg) || isJsonType(type)) {
-            parsedValue = parseArgSubmitValue(arg, value);
-        }
+        const parsedValue = parseArgSubmitValue(arg, value);
 
         const validationError = validateInspectorArgValue({
             arg,

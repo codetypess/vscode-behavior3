@@ -4,6 +4,7 @@ import {
     parseArgSubmitValue,
     validateInspectorArgValue,
 } from "../../webview/features/inspector/inspector-arg-values";
+import { validateNodeArgOneof } from "../../webview/shared/validation";
 import {
     buildArgsWithoutArg,
     buildScopedArgs,
@@ -465,6 +466,18 @@ export const inspectorSharedTests = defineSharedTests([
                 formatArgInitialValue({ name: "enabled", type: "bool?", desc: "" }, undefined),
                 false
             );
+            assert.equal(
+                formatArgInitialValue(
+                    {
+                        name: "camp",
+                        type: "string?",
+                        desc: "",
+                        options: [],
+                    },
+                    undefined
+                ),
+                undefined
+            );
         },
     },
     {
@@ -524,6 +537,27 @@ export const inspectorSharedTests = defineSharedTests([
                 ),
                 "RUNNING"
             );
+        },
+    },
+    {
+        name: "treats legacy unset option sentinel as missing during oneof validation",
+        run() {
+            const arg = {
+                name: "camp",
+                type: "string?",
+                desc: "阵营",
+                oneof: "target",
+                options: [],
+            } as const;
+
+            const diagnostic = validateNodeArgOneof({
+                arg,
+                argValue: parseArgSubmitValue(arg, "__unset__"),
+                inputValues: ["one_member"],
+                inputDefs: ["target?"],
+            });
+
+            assert.equal(diagnostic, null);
         },
     },
     {
