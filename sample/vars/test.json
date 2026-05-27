@@ -1,0 +1,14 @@
+{
+  "name": "test",
+
+  "root": {
+    "children": [
+      {
+        "id": "2",
+        "name": "Selector"
+      }
+    ],
+    "id": "1",
+    "name": "Sequence"
+  }
+}
