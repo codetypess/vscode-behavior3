@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { buildResolvedGraphModel } from "../../webview/domain/graph-selectors";
 import { buildTreeInspectorVariableUsageCount } from "../../webview/features/inspector/inspector-variable-options";
+import { DOCUMENT_VERSION } from "../../webview/shared/b3type";
 import type { NodeDef } from "../../webview/shared/contracts";
 import { createNodeDefMap } from "../../webview/shared/node-utils";
 import { parseWorkdirRelativeJsonPath } from "../../webview/shared/protocol";
@@ -1200,32 +1201,30 @@ export const validationMaterializationSharedTests = defineSharedTests([
             },
         },
         {
-            name: "requires explicit tree file version",
+            name: "fills missing tree file version for legacy content",
             run() {
-                assert.throws(
-                    () =>
-                        parsePersistedTreeContent(
-                            JSON.stringify({
-                                name: "main",
-                                prefix: "",
-                                group: [],
-                                variables: {
-                                    imports: [],
-                                    locals: [],
-                                },
-                                custom: {},
-                                overrides: {},
-                                root: {
-                                    uuid: "root",
-                                    id: "1",
-                                    name: "Sequence",
-                                    children: [],
-                                },
-                            }),
-                            "main.json"
-                        ),
-                    /tree file version/i
+                const tree = parsePersistedTreeContent(
+                    JSON.stringify({
+                        name: "main",
+                        prefix: "",
+                        group: [],
+                        variables: {
+                            imports: [],
+                            locals: [],
+                        },
+                        custom: {},
+                        overrides: {},
+                        root: {
+                            uuid: "root",
+                            id: "1",
+                            name: "Sequence",
+                            children: [],
+                        },
+                    }),
+                    "main.json"
                 );
+
+                assert.equal(tree.version, DOCUMENT_VERSION);
             },
         },
         {

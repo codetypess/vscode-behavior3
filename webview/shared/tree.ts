@@ -235,16 +235,18 @@ export const applyMainTreeDisplayIds = (
     });
 };
 
-export const hasMissingStableIds = (content: string): boolean => {
+export const needsLegacyTreeWriteback = (content: string): boolean => {
     try {
         const parsed = JSON.parse(content) as {
+            version?: unknown;
             root?: unknown;
             $override?: unknown;
             import?: unknown;
             vars?: unknown;
         };
-        // Legacy files may need a writeback to add UUIDs and migrate old root-level fields.
+        // Legacy files may need a writeback to add metadata, UUIDs, and migrate old root-level fields.
         return (
+            parsed.version === undefined ||
             subtreeNeedsMissingIds(parsed.root) ||
             parsed.$override !== undefined ||
             parsed.import !== undefined ||
@@ -287,7 +289,7 @@ export const loadSubtreeSourceCache = async (params: {
         }
 
         try {
-            const needsWriteback = hasMissingStableIds(content);
+            const needsWriteback = needsLegacyTreeWriteback(content);
             const tree = parsePersistedTreeContent(content, normalizedPath);
             cache[normalizedPath] = tree;
 

@@ -1,4 +1,4 @@
-import type { NodeData, TreeData, VarDecl, WorkspaceModel } from "./b3type";
+import { DOCUMENT_VERSION, type NodeData, type TreeData, type VarDecl, type WorkspaceModel } from "./b3type";
 import type { NodeDef } from "./b3type";
 import { generateDeterministicUuid, generateUuid } from "./stable-id";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
@@ -48,6 +48,13 @@ const asRequiredString = (value: unknown, label: string): string => {
         throw new Error(`${label} must be a non-empty string`);
     }
     return value;
+};
+
+const normalizeTreeVersion = (value: unknown): string => {
+    if (value === undefined) {
+        return DOCUMENT_VERSION;
+    }
+    return asRequiredString(value, "tree file version");
 };
 
 const asStringArray = (value: unknown, label: string): string[] => {
@@ -458,7 +465,7 @@ export const normalizeTreeData = (
             : expectPlainRecord(variablesValue, "tree file variables");
 
     return {
-        version: asRequiredString(record.version, "tree file version"),
+        version: normalizeTreeVersion(record.version),
         name: asRequiredString(record.name, "tree file name"),
         prefix: asOptionalString(record.prefix) ?? "",
         desc: asOptionalString(record.desc),

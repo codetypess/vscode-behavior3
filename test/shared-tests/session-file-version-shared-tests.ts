@@ -9,9 +9,10 @@ import { defineSharedTests } from "../shared-test-types";
 
 export const sessionFileVersionSharedTests = defineSharedTests([
     {
-        name: "extracts tree file versions only from valid string metadata",
+        name: "extracts tree file versions only from explicit valid string metadata",
         run() {
             assert.equal(getTreeFileVersion(`{"version":"2.0.0"}`), "2.0.0");
+            assert.equal(getTreeFileVersion(`{"name":"legacy"}`), undefined);
             assert.equal(getTreeFileVersion(`{"version":2}`), undefined);
             assert.equal(getTreeFileVersion(`not-json`), undefined);
         },

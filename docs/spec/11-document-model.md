@@ -31,6 +31,10 @@
 - `root`
 - `overrides`
 
+说明：
+
+- `version` 是持久化模型的规范字段；若 legacy tree 文件缺少该字段，读取时会先归一化为当前 `DOCUMENT_VERSION`，后续写回再显式落盘。
+
 ### PersistedNodeModel
 
 当前实现中每个 persisted node 至少可能包含：
@@ -253,10 +257,11 @@
 写回磁盘前会做当前实现要求的规范化：
 
 1. 尝试按行为树模型重新解析/序列化
-2. 主文档 `name` 与目标文件名保持一致
-3. subtree 文件在加载时若缺少稳定 id，会在内存模型中按确定性规则补齐；磁盘回写只在主文档保存时发生
-4. 写回主文档前，若当前 reachable subtree graph 可完整解析，应清理已不可达的 stale `overrides`
-5. persisted node 若没有任何内联子节点，写回结果应省略空 `children` 字段
+2. legacy tree 若缺少 `version`，内存模型会先补成当前文档版本，并在后续写回时显式落盘
+3. 主文档 `name` 与目标文件名保持一致
+4. subtree 文件在加载时若缺少稳定 id，会在内存模型中按确定性规则补齐；磁盘回写只在主文档保存时发生
+5. 写回主文档前，若当前 reachable subtree graph 可完整解析，应清理已不可达的 stale `overrides`
+6. persisted node 若没有任何内联子节点，写回结果应省略空 `children` 字段
 
 ## 不变量
 

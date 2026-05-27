@@ -7,6 +7,7 @@ import {
     preparePersistedTreeForMainDocumentSave,
     serializePersistedTreeForMainDocumentSave,
 } from "../../webview/domain/main-document-save";
+import { DOCUMENT_VERSION } from "../../webview/shared/b3type";
 import { reduceDocumentMutation } from "../../webview/shared/document";
 import { parseWorkdirRelativeJsonPath } from "../../webview/shared/protocol";
 import { parseNodeDefsContent, parseWorkspaceModelContent } from "../../webview/shared/schema";
@@ -360,7 +361,7 @@ export const documentDomainSharedTests = defineSharedTests([
             },
         },
         {
-            name: "stages legacy subtree normalization for main document save",
+            name: "stages legacy subtree normalization for missing version and stable ids",
             async run() {
                 const linkedPath = parseWorkdirRelativeJsonPath("sub/tree.json");
                 assert.ok(linkedPath);
@@ -391,7 +392,6 @@ export const documentDomainSharedTests = defineSharedTests([
                     },
                 };
                 const legacySubtree = JSON.stringify({
-                    version: "2.0.0",
                     name: "tree",
                     prefix: "",
                     export: true,
@@ -461,6 +461,7 @@ export const documentDomainSharedTests = defineSharedTests([
                     firstPlan.subtreeWritebacks[0]!.content,
                     linkedPath
                 );
+                assert.equal(normalizedSubtree.version, DOCUMENT_VERSION);
                 assert.ok(normalizedSubtree.root.uuid);
                 assert.ok(normalizedSubtree.root.children?.[0]?.uuid);
             },
