@@ -15,12 +15,15 @@ import type {
     HostSelectionState,
     HostVarsPayload,
 } from "../shared/contracts";
-import { rememberInspectorNodeSnapshot } from "../features/inspector/inspector-node-snapshot-cache";
+import { rememberInspectorNodeSnapshotFromSelection } from "../features/inspector/inspector-node-snapshot-cache";
 import { createInitialDocumentState } from "../stores/document-store";
 import { createInitialGraphUiState } from "../stores/graph-ui-store";
 import { createInitialSelectionState } from "../stores/selection-store";
 import { createInitialWorkspaceState } from "../stores/workspace-store";
-import { InspectorJsonViewProvider, useInspectorJsonView } from "../features/inspector/inspector-json-view";
+import {
+    InspectorJsonViewProvider,
+    useInspectorJsonView,
+} from "../features/inspector/inspector-json-view";
 import { InspectorPane } from "../features/inspector/inspector-pane";
 import { InspectorModeProvider } from "../features/inspector/inspector-mode";
 import { flushPendingInspectorEdits } from "../features/inspector/inspector-commit-queue";
@@ -96,12 +99,10 @@ const SidebarHostBridge: React.FC = () => {
 
     useEffect(() => {
         const rememberCurrentNodeSnapshot = (preferredFilePath?: string | null) => {
-            const filePath = preferredFilePath ?? runtime.workspaceStore.getState().filePath;
-            const { selectedNodeRef, selectedNodeSnapshot } = runtime.selectionStore.getState();
-            if (!filePath || !selectedNodeRef || !selectedNodeSnapshot) {
-                return;
-            }
-            rememberInspectorNodeSnapshot(filePath, selectedNodeRef, selectedNodeSnapshot);
+            rememberInspectorNodeSnapshotFromSelection(
+                preferredFilePath ?? runtime.workspaceStore.getState().filePath,
+                runtime.selectionStore.getState()
+            );
         };
 
         const handleHostMessage = (hostEvent: HostEvent) => {

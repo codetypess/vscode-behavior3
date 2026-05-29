@@ -7,6 +7,7 @@ import {
 } from "../features/inspector/inspector-json-view";
 import { InspectorPane } from "../features/inspector/inspector-pane";
 import { InspectorModeProvider } from "../features/inspector/inspector-mode";
+import { rememberInspectorNodeSnapshotFromSelection } from "../features/inspector/inspector-node-snapshot-cache";
 import { getAntdLocale } from "../shared/antd";
 import i18n, { setI18nLanguage } from "../shared/i18n";
 import { getThemeConfig } from "../shared/theme";
@@ -32,6 +33,13 @@ const AppShell: React.FC = () => {
             applyWorkspaceTheme(runtime.workspaceStore, theme);
         };
 
+        const rememberCurrentNodeSnapshot = () => {
+            rememberInspectorNodeSnapshotFromSelection(
+                runtime.workspaceStore.getState().filePath,
+                runtime.selectionStore.getState()
+            );
+        };
+
         const handleBuildResult = (event: Extract<HostEvent, { type: "buildResult" }>) => {
             const text =
                 event.message.trim() || i18n.t(event.success ? "build.success" : "build.failed");
@@ -45,11 +53,15 @@ const AppShell: React.FC = () => {
                     void (async () => {
                         await setI18nLanguage(hostEvent.payload.settings.language);
                         await runtime.controller.initFromHost(hostEvent.payload);
+                        rememberCurrentNodeSnapshot();
                     })();
                     return;
 
                 case "documentSnapshotChanged":
-                    void runtime.controller.applyDocumentSnapshot(hostEvent.snapshot);
+                    void (async () => {
+                        await runtime.controller.applyDocumentSnapshot(hostEvent.snapshot);
+                        rememberCurrentNodeSnapshot();
+                    })();
                     return;
 
                 case "focusVariable":

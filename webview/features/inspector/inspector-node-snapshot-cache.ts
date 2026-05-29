@@ -50,6 +50,24 @@ export const rememberInspectorNodeSnapshot = (
     });
 };
 
+export const rememberInspectorNodeSnapshotFromSelection = (
+    filePath: string | null | undefined,
+    selection: {
+        selectedNodeRef: NodeInstanceRef | null | undefined;
+        selectedNodeSnapshot: EditNode | null | undefined;
+    }
+): void => {
+    if (!filePath || !selection.selectedNodeRef || !selection.selectedNodeSnapshot) {
+        return;
+    }
+
+    rememberInspectorNodeSnapshot(
+        filePath,
+        selection.selectedNodeRef,
+        selection.selectedNodeSnapshot
+    );
+};
+
 export const getCachedInspectorNodeSnapshot = (
     filePath: string | null | undefined,
     ref: NodeInstanceRef | null | undefined

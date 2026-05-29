@@ -114,8 +114,8 @@
 
 - 打开 search overlay
 - `mode` 为：
-  - `content`
-  - `id`
+    - `content`
+    - `id`
 
 ### `updateSearch(query)`
 
@@ -146,6 +146,7 @@
 - 若内容与当前结构化快照等价，则只重放宿主 selection projection 与 session 状态
 - 否则更新主树并保持 selection 尽量稳定，不在 webview 本地推进 history
 - reload snapshot 会清除 editor-local graph UI state；snapshot 本身不能携带或恢复 variable focus
+- 若宿主在 committed 往返期间仍保持同一逻辑节点选中，但实时 `selectedNodeSnapshot` 暂时缺席，Inspector 入口可先复用该文件最近一次成功渲染的 node snapshot，直到新 snapshot 恢复；这不改变 host 作为共享 selection authority 的规则
 
 ### `applyNodeDefs(defs)`
 
@@ -206,9 +207,9 @@ host reducer 当前分三条路径：
 
 - 不改 subtree 源文件
 - 以 payload 自带的 `subtreeOriginal` 对比出 diff
-  - `subtreeOriginal` 与当前 resolved node 已共享同一套 arg 默认值归一化
-  - `currentNodeSnapshot.data.args` 来自当前 resolved/current args，而不是主文档 committed JSON
-  - 仅因 nodeDef 默认值补齐而出现的值，不得单独生成 main-document `overrides`
+    - `subtreeOriginal` 与当前 resolved node 已共享同一套 arg 默认值归一化
+    - `currentNodeSnapshot.data.args` 来自当前 resolved/current args，而不是主文档 committed JSON
+    - 仅因 nodeDef 默认值补齐而出现的值，不得单独生成 main-document `overrides`
 - 写入或清理主文档 `overrides`
 
 #### C. 从 subtree link 脱链
@@ -248,9 +249,9 @@ host reducer 当前分三条路径：
 - webview 在发送 insert intent 前，将当前选中目标记录为下一次 graph render 的一次性视图锚点
 - 宿主直接提交后把新节点选中折叠进 committed snapshot `selection`
 - 在当前节点下追加一个最小节点：
-  - `uuid`
-  - `id: ""`
-  - `name: "unknown"`
+    - `uuid`
+    - `id: ""`
+    - `name: "unknown"`
 
 ### `saveDocument()`
 

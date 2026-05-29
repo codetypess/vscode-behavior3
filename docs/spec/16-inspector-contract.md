@@ -79,7 +79,8 @@ Inspector 暴露同一组 project/document quick actions，但承载位置随模
 - 显示 Node Inspector
 - `sidebar` 模式下，即使当前共享选中仍然是同一逻辑节点，重复的显式节点选中手势也应重新激活 Inspector Sidebar，而不是要求用户先切到别的节点
 - 若 host 已确认当前为 node selection，但新文档 graph 仍在重建、`selectedNodeSnapshot` 尚未恢复，Inspector 仍停留在 node 通道，并显示 pending/loading 态，而不是闪回 Tree Inspector
-- 若当前文档此前已经成功渲染过同一逻辑节点，Inspector 可先复用该文档缓存的 node snapshot，待真实 snapshot 恢复后再覆盖，从而避免重复 loading 动画
+- 若当前文档此前已经成功渲染过同一逻辑节点，两种模式下的 Inspector 都应先复用该文档缓存的 node snapshot，待真实 snapshot 恢复后再覆盖，从而避免重复 loading 动画
+- 对同一逻辑节点的 field blur 提交，Inspector 不应因为 committed snapshot 往返而把 pane 降级成 skeleton 或 remount 整个表单；字段间切换应尽量保持当前滚动位置与下一目标输入的聚焦机会
 
 ### Reload Conflict
 
