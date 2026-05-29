@@ -1,6 +1,7 @@
 import type {
     DocumentMutationResponse,
     ReadFileResponse,
+    ResolveNodeArgVisibilityResponse,
     RevertDocumentResponse,
     SaveDocumentResponse,
     SaveSubtreeAsResponse,
@@ -18,6 +19,7 @@ export interface PendingRequestMap {
     revertDocument: RevertDocumentResponse;
     mutateDocument: DocumentMutationResponse;
     validateNodeChecks: ValidateNodeChecksResponse;
+    resolveNodeArgVisibility: ResolveNodeArgVisibilityResponse;
 }
 
 export type PendingRequestType = keyof PendingRequestMap;
@@ -30,6 +32,10 @@ type PendingRequestResultMessageMap = {
     revertDocument: Extract<HostToEditorMessage, { type: "revertDocumentResult" }>;
     mutateDocument: Extract<HostToEditorMessage, { type: "mutateDocumentResult" }>;
     validateNodeChecks: Extract<HostToEditorMessage, { type: "validateNodeChecksResult" }>;
+    resolveNodeArgVisibility: Extract<
+        HostToEditorMessage,
+        { type: "resolveNodeArgVisibilityResult" }
+    >;
 };
 
 type PendingRequestResultMessage = PendingRequestResultMessageMap[PendingRequestType];
@@ -121,6 +127,17 @@ const hostRequestSpecs = {
         }),
         resolveResult: (message) => ({
             diagnostics: message.diagnostics,
+            error: message.error,
+        }),
+    },
+    resolveNodeArgVisibility: {
+        resultType: "resolveNodeArgVisibilityResult",
+        createTimeoutResponse: () => ({
+            visibility: {},
+            error: "Host request 'resolveNodeArgVisibility' timed out",
+        }),
+        resolveResult: (message) => ({
+            visibility: message.visibility,
             error: message.error,
         }),
     },

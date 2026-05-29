@@ -56,6 +56,8 @@
     - payload: `{ buildScriptDebug? }`
 - `validateNodeChecks`
     - payload: `{ requestId, content, treePath, nodes }`
+- `resolveNodeArgVisibility`
+    - payload: `{ requestId, content, treePath, node }`
 
 ### 文件读写
 
@@ -122,6 +124,7 @@
 - `mutateDocumentResult`
 - `revertDocumentResult`
 - `validateNodeChecksResult`
+- `resolveNodeArgVisibilityResult`
 
 这些 request/response pair 必须登记在 shared `HostRequestSpec` registry 中。registry 是 request type、result message type、timeout fallback 与 result payload resolver 的单一映射表；adapter 的 pending request map 只能通过该 registry 解析 result message，不能另写一份平行 switch。
 

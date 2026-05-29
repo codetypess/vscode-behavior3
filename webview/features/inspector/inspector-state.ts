@@ -1,12 +1,9 @@
 import { Form } from "antd";
 import type { FormInstance } from "antd/es/form";
 import { useMemo } from "react";
-import {
-    useDocumentStore,
-    useSelectionStore,
-    useWorkspaceStore,
-} from "../../app/runtime";
+import { useDocumentStore, useSelectionStore, useWorkspaceStore } from "../../app/runtime";
 import { createNodeDefMap, findNodeDef } from "../../shared/node-utils";
+import { filterStructuredArgsByVisibility } from "./inspector-arg-visibility";
 import { getCachedInspectorNodeSnapshot } from "./inspector-node-snapshot-cache";
 import {
     buildTreeInspectorVariableUsageCount,
@@ -52,7 +49,9 @@ export const useNodeInspectorState = () => {
     const allFiles = useWorkspaceStore((state) => state.allFiles);
     const checkExpr = useWorkspaceStore((state) => state.settings.checkExpr);
     const nodeCheckDiagnostics = useWorkspaceStore((state) => state.nodeCheckDiagnostics);
-    const pendingSelectedNodeSnapshot = !rawSelectedNode && Boolean(selectedNodeRef && selectedNode);
+    const selectedNodeArgVisibility = useWorkspaceStore((state) => state.selectedNodeArgVisibility);
+    const pendingSelectedNodeSnapshot =
+        !rawSelectedNode && Boolean(selectedNodeRef && selectedNode);
 
     return {
         document,
@@ -64,6 +63,7 @@ export const useNodeInspectorState = () => {
         allFiles,
         checkExpr,
         nodeCheckDiagnostics,
+        selectedNodeArgVisibility,
     };
 };
 
@@ -100,6 +100,7 @@ export const useNodeInspectorViewState = (form: FormInstance) => {
         allFiles,
         checkExpr,
         nodeCheckDiagnostics,
+        selectedNodeArgVisibility,
     } = useNodeInspectorState();
 
     const nodeDefMap = useMemo(() => createNodeDefMap(nodeDefs), [nodeDefs]);
@@ -113,7 +114,10 @@ export const useNodeInspectorViewState = (form: FormInstance) => {
         (watchedName ?? selectedNode?.data.name ?? "").trim() || selectedNode?.data.name || "";
     const nodeDef = findNodeDef(nodeDefMap, effectiveName);
     const fieldEditDisabled = selectedNode?.disabled ?? false;
-    const structuredArgs = nodeDef?.args ?? [];
+    const structuredArgs = filterStructuredArgsByVisibility(
+        nodeDef?.args ?? [],
+        selectedNode ? selectedNodeArgVisibility : {}
+    );
     const subtreeOriginal = selectedNode?.subtreeOriginal;
 
     return {
@@ -140,6 +144,7 @@ export const useNodeInspectorViewState = (form: FormInstance) => {
         shouldShowRawNodeJson: nodeDef === null,
         subtreeOriginal,
         canShowOverride: Boolean(selectedNode?.subtreeNode && subtreeOriginal),
+        selectedNodeArgVisibility,
     };
 };
 

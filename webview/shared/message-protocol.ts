@@ -9,6 +9,7 @@ import type {
     HostDocumentSessionState,
     HostSelectionState,
     InspectorHostCommandId,
+    NodeArgVisibilityTarget,
     NodeCheckDiagnostic,
     NodeCheckValidationNode,
     NodeInstanceRef,
@@ -36,6 +37,13 @@ export type EditorToHostMessage =
           content: string;
           treePath: string;
           nodes: NodeCheckValidationNode[];
+      }
+    | {
+          type: "resolveNodeArgVisibility";
+          requestId: string;
+          content: string;
+          treePath: string;
+          target: NodeArgVisibilityTarget;
       }
     | {
           type: "readFile";
@@ -94,6 +102,12 @@ export type HostToEditorMessage =
           type: "validateNodeChecksResult";
           requestId: string;
           diagnostics: NodeCheckDiagnostic[];
+          error?: string;
+      }
+    | {
+          type: "resolveNodeArgVisibilityResult";
+          requestId: string;
+          visibility: Record<string, boolean>;
           error?: string;
       }
     | { type: "readFileResult"; requestId: string; content: string | null }

@@ -52,6 +52,10 @@ export interface CreateSessionDispatcherParams {
         msg: Extract<EditorToHostMessage, { type: "validateNodeChecks" }>,
         reply?: HostMessageSink
     ): Promise<void>;
+    handleResolveNodeArgVisibilityMessage(
+        msg: Extract<EditorToHostMessage, { type: "resolveNodeArgVisibility" }>,
+        reply?: HostMessageSink
+    ): Promise<void>;
     fileRequestHandlers: SessionDispatcherFileRequestHandlers;
 }
 
@@ -66,6 +70,7 @@ export function createSessionDispatcher({
     handleRevertDocumentMessage,
     refreshSettings,
     handleValidateNodeChecksMessage,
+    handleResolveNodeArgVisibilityMessage,
     fileRequestHandlers,
 }: CreateSessionDispatcherParams): SessionDispatcher {
     const dispatchEditorMessage = async (
@@ -136,6 +141,10 @@ export function createSessionDispatcher({
 
             case "validateNodeChecks":
                 await handleValidateNodeChecksMessage(msg, reply);
+                return;
+
+            case "resolveNodeArgVisibility":
+                await handleResolveNodeArgVisibilityMessage(msg, reply);
                 return;
 
             case "webviewLog":

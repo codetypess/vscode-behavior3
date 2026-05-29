@@ -11,6 +11,7 @@ import type {
     GraphSelectionState,
     HostAdapter,
     HostSelectionState,
+    NodeArgVisibilityTarget,
     NodeCheckDiagnostic,
     NodeCheckValidationNode,
     NodeDef,
@@ -123,6 +124,7 @@ export const buildUsingGroups = (groupNames: string[]): Record<string, boolean> 
 export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime => {
     let resolvedGraph: ResolvedDocumentGraph | null = null;
     let nodeCheckRequestSeq = 0;
+    let nodeArgVisibilityRequestSeq = 0;
     let nextGraphRenderAnchorNodeKey: string | null = null;
     let pendingRevealTarget: NodeInstanceRef | null = null;
 
@@ -314,6 +316,10 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
 
     const applyTreeSelectionProjection = () => {
         updateSelectionState(() => buildTreeSelectionPatch());
+        deps.workspaceStore.setState((state) => ({
+            ...state,
+            selectedNodeArgVisibility: {},
+        }));
     };
 
     const clearSelectionVisualHint = () => {
@@ -376,6 +382,10 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         }
 
         updateSelectionState(() => buildPendingNodeSelectionPatch(selection.ref));
+        deps.workspaceStore.setState((state) => ({
+            ...state,
+            selectedNodeArgVisibility: {},
+        }));
     };
 
     const applyHostSelectionState = (selection: HostSelectionState) => {
@@ -386,6 +396,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         }
 
         updateSelectionState(() => projectSelectionRef(selection.ref));
+        void requestSelectedNodeArgVisibility();
     };
 
     const revealNode = async (target: NodeInstanceRef) => {
@@ -544,6 +555,30 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
     const cloneNodeArgs = (args: Record<string, unknown> | undefined) =>
         args ? (cloneJsonValue(args) as Record<string, unknown>) : undefined;
 
+    const buildSelectedNodeArgVisibilityTarget = (): NodeArgVisibilityTarget | null => {
+        const node = getSelectedResolvedNode();
+        if (!node) {
+            return null;
+        }
+
+        return {
+            treePath: node.ref.sourceTreePath,
+            node: {
+                uuid: node.ref.sourceStableId,
+                id: node.renderedIdLabel,
+                name: node.name,
+                desc: node.desc,
+                args: cloneNodeArgs(node.args),
+                input: node.input ? [...node.input] : undefined,
+                output: node.output ? [...node.output] : undefined,
+                debug: node.debug,
+                disabled: node.disabled,
+                path: node.path,
+                children: [],
+            },
+        };
+    };
+
     const collectNodeCheckValidationNodes = (
         graph: ResolvedDocumentGraph,
         nodeDefs: NodeDef[]
@@ -611,6 +646,38 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             nodeCheckDiagnostics: nextDiagnostics,
         }));
         return nextDiagnostics;
+    };
+
+    const requestSelectedNodeArgVisibility = async (): Promise<Record<string, boolean>> => {
+        if (!deps.hostAdapter.resolveNodeArgVisibility) {
+            return {};
+        }
+
+        const content = getSerializedCurrentTree();
+        const treePath = deps.workspaceStore.getState().filePath;
+        const target = buildSelectedNodeArgVisibilityTarget();
+        const requestSeq = ++nodeArgVisibilityRequestSeq;
+        if (!content || !treePath || !target) {
+            deps.workspaceStore.setState((state) => ({
+                ...state,
+                selectedNodeArgVisibility: {},
+            }));
+            return {};
+        }
+
+        const response = await deps.hostAdapter.resolveNodeArgVisibility(content, treePath, target);
+        if (requestSeq !== nodeArgVisibilityRequestSeq) {
+            return deps.workspaceStore.getState().selectedNodeArgVisibility;
+        }
+        if (response.error) {
+            deps.hostAdapter.log("warn", `[v2] node arg visibility failed: ${response.error}`);
+        }
+
+        deps.workspaceStore.setState((state) => ({
+            ...state,
+            selectedNodeArgVisibility: response.visibility,
+        }));
+        return response.visibility;
     };
 
     const normalizeHostDocumentSnapshot = (content: string): string | null => {
@@ -738,6 +805,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             });
         }
         await applyVisualState();
+        await requestSelectedNodeArgVisibility();
         await flushPendingReveal();
     };
 

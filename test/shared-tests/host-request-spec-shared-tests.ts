@@ -19,6 +19,10 @@ export const hostRequestSpecSharedTests = defineSharedTests([
                 diagnostics: [],
                 error: "Host request 'validateNodeChecks' timed out",
             });
+            assert.deepEqual(createHostRequestTimeoutResponse("resolveNodeArgVisibility"), {
+                visibility: {},
+                error: "Host request 'resolveNodeArgVisibility' timed out",
+            });
         },
     },
     {
@@ -40,6 +44,30 @@ export const hostRequestSpecSharedTests = defineSharedTests([
                 type: "saveSubtreeAs",
                 value: {
                     savedPath: "sub/tree.json",
+                    error: undefined,
+                },
+            });
+
+            const resolvedVisibility = resolveHostRequestResult(
+                {
+                    type: "resolveNodeArgVisibilityResult",
+                    requestId: "req-visible",
+                    visibility: {
+                        time: false,
+                    },
+                },
+                {
+                    parseWorkdirRelativeJsonPath,
+                }
+            );
+
+            assert.deepEqual(resolvedVisibility, {
+                requestId: "req-visible",
+                type: "resolveNodeArgVisibility",
+                value: {
+                    visibility: {
+                        time: false,
+                    },
                     error: undefined,
                 },
             });

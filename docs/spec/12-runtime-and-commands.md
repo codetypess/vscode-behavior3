@@ -129,8 +129,8 @@ shared runtime 文案约束：
 - 将文档操作映射到 host request / VS Code command
 - 管理 subtree 打开与另存路径
 - 在 explorer 选中文件夹或默认 workspace 根目录下脚手架生成 TypeScript build / batch / checker 脚本，并打开新文件
-- shared build runtime 的公共脚本 API 区分 `@behavior3.build` build hooks、`@behavior3.batch` batch hooks 与 `@behavior3.check(...)` checker hooks
-- workspace `settings.checkScripts` 只从命中的模块里注册 `@behavior3.check(...)` checker hooks；没有 checker 导出的 build / batch 模块会被忽略，不作为节点参数校验的 runtime 错误
+- shared 脚本装饰器 API 区分 `@behavior3.build` build hooks、`@behavior3.batch` batch hooks、`@behavior3.check(...)` checker hooks 与 `@behavior3.visible(...)` arg-visible hooks
+- workspace `settings.checkScripts` 可供 editor session 从命中的模块里注册 `@behavior3.check(...)` checker hooks 与 `@behavior3.visible(...)` arg-visible hooks；`visible` 只服务 Inspector 展示，不改变现有 build/check 导出检查或 CLI 运行时检查
 - 项目级批处理由 extension-host 直接发起，复用 build script runtime，但写回 persisted tree 源文件而不是 build 输出目录
 - 批处理默认只写回 batch script 造成的规范化树语义变化；batch script 可通过 `shouldUpgradeTree()` 声明把解析/序列化产生的输入树升级写回源文件
 - `runBatchProcessScript(scriptPath)` 在显式选中脚本文件时直接运行；若从文件夹或无脚本上下文触发，则回退到脚本选择入口后再运行同一批处理流程
@@ -175,7 +175,7 @@ shared runtime 文案约束：
 - 归一化 `init` / `documentSnapshotChanged` / `varDeclLoaded` 等宿主消息
 - 管理带 `requestId` 的异步请求
 - 发送 `selectTree` / `selectNode` 这类轻量宿主 intent
-- 为 `readFile` / `saveSubtree` / `saveDocument` / `mutateDocument` / `validateNodeChecks` 提供 Promise 风格 API
+- 为 `readFile` / `saveSubtree` / `saveDocument` / `mutateDocument` / `validateNodeChecks` / `resolveNodeArgVisibility` 提供 Promise 风格 API
 - 通过共享 host request registry 创建 timeout fallback 并解析 result message
 - 对 host request 设置超时保护，且 stale response id 不能解析成错误的 request payload shape
 

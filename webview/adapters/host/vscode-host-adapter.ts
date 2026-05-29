@@ -11,6 +11,7 @@ import type {
     HostAdapter,
     DocumentMutationResponse,
     ReadFileResponse,
+    ResolveNodeArgVisibilityResponse,
     RevertDocumentResponse,
     SaveDocumentResponse,
     SaveSubtreeAsResponse,
@@ -329,6 +330,19 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
                     content,
                     treePath,
                     nodes,
+                });
+            });
+        },
+
+        resolveNodeArgVisibility(content, treePath, target) {
+            return new Promise<ResolveNodeArgVisibilityResponse>((resolve) => {
+                const requestId = registerPendingRequest("resolveNodeArgVisibility", resolve);
+                postMessage({
+                    type: "resolveNodeArgVisibility",
+                    requestId,
+                    content,
+                    treePath,
+                    target,
                 });
             });
         },

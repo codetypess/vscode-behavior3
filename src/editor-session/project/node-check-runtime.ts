@@ -8,17 +8,20 @@ import b3path from "../../../webview/shared/b3path";
 import {
     createBuildScriptRuntime,
     createBuildScriptRuntimeWithCheckModules,
+    createNodeArgVisibleRuntimeWithCheckModules,
     loadRuntimeModule,
     resolveCheckScriptPaths,
     type BuildEnv,
     type BuildScriptRuntime,
     type CheckScriptModule,
+    type NodeArgVisible,
 } from "../../../webview/shared/b3build";
 import { findB3WorkspacePath } from "../../setting-resolver";
 import { createBuildScriptLogger } from "../runtime/logging";
 
 export interface SessionNodeCheckRuntimeResult {
     buildScriptRuntime: BuildScriptRuntime;
+    nodeArgVisibleHandlers: Map<string, NodeArgVisible>;
     treePath: string;
 }
 
@@ -52,6 +55,7 @@ export async function createSessionNodeCheckRuntime({
                 null,
                 createSessionBuildScriptEnv(workspaceFolderUri.fsPath, nodeDefs)
             ),
+            nodeArgVisibleHandlers: new Map(),
             treePath: workspaceFolderUri.fsPath,
         };
     }
@@ -92,11 +96,17 @@ export async function createSessionNodeCheckRuntime({
         checkScriptModules,
         env
     );
+    const visibleRuntime = createNodeArgVisibleRuntimeWithCheckModules(
+        buildScriptModule,
+        checkScriptModules,
+        env
+    );
     return {
         buildScriptRuntime: {
             ...buildScriptRuntime,
             hasError: buildScriptRuntime.hasError || hasRuntimeLoadError,
         },
+        nodeArgVisibleHandlers: visibleRuntime.nodeArgVisibles,
         treePath: workdir,
     };
 }

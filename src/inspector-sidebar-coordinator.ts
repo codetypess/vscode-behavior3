@@ -281,7 +281,7 @@ export class InspectorSidebarCoordinator {
     private async postActiveSnapshot(): Promise<void> {
         if (this.inspectorMode === "embedded") {
             const snapshot = this.activeDocumentUri
-                ? this.sessionSnapshots.get(this.activeDocumentUri) ?? null
+                ? (this.sessionSnapshots.get(this.activeDocumentUri) ?? null)
                 : null;
             await this.postEmbeddedModeState(snapshot);
             return;
@@ -426,6 +426,15 @@ export class InspectorSidebarCoordinator {
                     type: "validateNodeChecksResult",
                     requestId: message.requestId,
                     diagnostics: [],
+                    error,
+                });
+                return;
+
+            case "resolveNodeArgVisibility":
+                await reply({
+                    type: "resolveNodeArgVisibilityResult",
+                    requestId: message.requestId,
+                    visibility: {},
                     error,
                 });
                 return;

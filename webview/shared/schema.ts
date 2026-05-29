@@ -1,4 +1,10 @@
-import { DOCUMENT_VERSION, type NodeData, type TreeData, type VarDecl, type WorkspaceModel } from "./b3type";
+import {
+    DOCUMENT_VERSION,
+    type NodeData,
+    type TreeData,
+    type VarDecl,
+    type WorkspaceModel,
+} from "./b3type";
 import type { NodeDef } from "./b3type";
 import { generateDeterministicUuid, generateUuid } from "./stable-id";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
@@ -200,6 +206,7 @@ const normalizeNodeArgs = (value: unknown, label: string): NodeDef["args"] | und
             default: record.default,
             options: normalizeNodeArgOptions(record.options, `${label}[${index}].options`),
             checker: asOptionalNonEmptyString(record.checker, `${label}[${index}].checker`),
+            visible: asOptionalNonEmptyString(record.visible, `${label}[${index}].visible`),
         };
     });
 };
@@ -314,11 +321,7 @@ const normalizeCustomRecord = (value: unknown): TreeData["custom"] => {
     return normalized;
 };
 
-const normalizeStableUuid = (
-    record: PlainRecord,
-    label: string,
-    stableIdSeed?: string
-): string => {
+const normalizeStableUuid = (record: PlainRecord, label: string, stableIdSeed?: string): string => {
     if (typeof record.uuid === "string" && record.uuid) {
         return record.uuid;
     }
@@ -332,11 +335,7 @@ const normalizeStableUuid = (
     return generateUuid();
 };
 
-const normalizeNodeData = (
-    value: unknown,
-    label: string,
-    stableIdSeed?: string
-): NodeData => {
+const normalizeNodeData = (value: unknown, label: string, stableIdSeed?: string): NodeData => {
     const record = expectPlainRecord(value, label);
     const argsValue = record.args;
     if (argsValue !== undefined && !isPlainRecord(argsValue)) {
@@ -451,10 +450,7 @@ export const parseWorkspaceModelContent = (content: string): WorkspaceModel => {
     return normalizeWorkspaceModel(JSON.parse(content) as unknown);
 };
 
-export const normalizeTreeData = (
-    value: unknown,
-    opts?: { stableIdSeed?: string }
-): TreeData => {
+export const normalizeTreeData = (value: unknown, opts?: { stableIdSeed?: string }): TreeData => {
     const record = expectPlainRecord(value, "tree file");
     // Accept legacy top-level $override/import/vars while writing back the normalized shape.
     const overridesValue = record.overrides === undefined ? record.$override : record.overrides;
@@ -487,9 +483,6 @@ export const normalizeTreeData = (
     };
 };
 
-export const parseTreeContent = (
-    content: string,
-    opts?: { stableIdSeed?: string }
-): TreeData => {
+export const parseTreeContent = (content: string, opts?: { stableIdSeed?: string }): TreeData => {
     return normalizeTreeData(JSON.parse(content) as unknown, opts);
 };

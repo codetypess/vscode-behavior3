@@ -16,7 +16,13 @@ import {
     buildTreeCustomRecord,
     getTreeCustomValueKind,
 } from "../../webview/features/inspector/inspector-form-values";
+import {
+    buildArgsWithoutHiddenVisibility,
+    collectHiddenStructuredArgNames,
+    filterStructuredArgsByVisibility,
+} from "../../webview/features/inspector/inspector-arg-visibility";
 import type { EditNode } from "../../webview/shared/contracts";
+import type { NodeArg } from "../../webview/shared/b3type";
 import { normalizeNodeDefCollection, parseNodeDefsContent } from "../../webview/shared/schema";
 import { defineSharedTests } from "../shared-test-types";
 
@@ -74,7 +80,7 @@ export const inspectorSharedTests = defineSharedTests([
         },
     },
     {
-        name: "preserves node arg checker names in node definitions",
+        name: "preserves node arg checker and visible names in node definitions",
         run() {
             const defs = parseNodeDefsContent(
                 JSON.stringify([
@@ -88,6 +94,7 @@ export const inspectorSharedTests = defineSharedTests([
                                 type: "float",
                                 desc: "",
                                 checker: "positive",
+                                visible: "show-time",
                             },
                         ],
                     },
@@ -95,6 +102,7 @@ export const inspectorSharedTests = defineSharedTests([
             );
 
             assert.equal(defs[0]?.args?.[0]?.checker, "positive");
+            assert.equal(defs[0]?.args?.[0]?.visible, "show-time");
             assert.throws(
                 () =>
                     parseNodeDefsContent(
@@ -115,6 +123,78 @@ export const inspectorSharedTests = defineSharedTests([
                         ])
                     ),
                 /checker.*non-empty string/
+            );
+            assert.throws(
+                () =>
+                    parseNodeDefsContent(
+                        JSON.stringify([
+                            {
+                                name: "Wait",
+                                type: "Action",
+                                desc: "",
+                                args: [
+                                    {
+                                        name: "time",
+                                        type: "float",
+                                        desc: "",
+                                        visible: "",
+                                    },
+                                ],
+                            },
+                        ])
+                    ),
+                /visible.*non-empty string/
+            );
+        },
+    },
+    {
+        name: "filters structured args by selected node visibility state",
+        run() {
+            const args: NodeArg[] = [
+                { name: "mode", type: "string", desc: "" },
+                { name: "time", type: "float", desc: "", visible: "show-time" },
+                { name: "count", type: "int", desc: "", visible: "show-count" },
+            ];
+
+            const visibleArgs = filterStructuredArgsByVisibility(args, {
+                time: false,
+                count: true,
+            });
+
+            assert.deepEqual(
+                visibleArgs.map((arg) => arg.name),
+                ["mode", "count"]
+            );
+        },
+    },
+    {
+        name: "collects and clears hidden structured args by selected node visibility state",
+        run() {
+            const args: NodeArg[] = [
+                { name: "mode", type: "string", desc: "" },
+                { name: "time", type: "float", desc: "", visible: "show-time" },
+                { name: "speed", type: "float", desc: "", visible: "show-speed" },
+            ];
+
+            assert.deepEqual(collectHiddenStructuredArgNames(args, { time: false }), ["time"]);
+            assert.deepEqual(
+                buildArgsWithoutHiddenVisibility(
+                    {
+                        mode: "delay",
+                        time: 3,
+                        speed: 4,
+                    },
+                    args,
+                    { time: false, speed: true }
+                ),
+                {
+                    mode: "delay",
+                    speed: 4,
+                }
+            );
+            assert.equal(
+                buildArgsWithoutHiddenVisibility({ time: 3 }, args, { time: false }),
+                undefined
             );
         },
     },
@@ -368,11 +448,6 @@ export const inspectorSharedTests = defineSharedTests([
                             sourceTreePath: null,
                             subtreeStack: [],
                         },
-                        data: {
-                            uuid: "other-child",
-                            id: "7",
-                            name: "Action",
-                        },
                     },
                 }),
                 true
@@ -542,13 +617,13 @@ export const inspectorSharedTests = defineSharedTests([
     {
         name: "treats legacy unset option sentinel as missing during oneof validation",
         run() {
-            const arg = {
+            const arg: NodeArg = {
                 name: "camp",
                 type: "string?",
                 desc: "阵营",
                 oneof: "target",
                 options: [],
-            } as const;
+            };
 
             const diagnostic = validateNodeArgOneof({
                 arg,

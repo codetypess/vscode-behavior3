@@ -41,10 +41,7 @@ export async function resolveTreeEditorSession(
     const inspectorSync = createSessionInspectorSync(context);
     const subtreeTracking = createSessionSubtreeTracking(context, inspectorSync);
     const fileVersionGuard = createFileVersionGuard(context);
-    const {
-        getActiveNewerFileEditMessage,
-        getExistingNewerFileEditMessage,
-    } = fileVersionGuard;
+    const { getActiveNewerFileEditMessage, getExistingNewerFileEditMessage } = fileVersionGuard;
     const { refreshSettings } = createSessionSettingsSync(context, inspectorSync);
     const selectionSync = createSessionSelectionSync(context, inspectorSync);
     const { handleSelectTreeMessage, handleSelectNodeMessage } = selectionSync;
@@ -60,7 +57,8 @@ export async function resolveTreeEditorSession(
         handleRevertDocumentMessage,
         handleMainDocumentFileChange,
     } = createSessionDocumentLifecycle(context, inspectorSync, subtreeTracking, fileVersionGuard);
-    const { handleValidateNodeChecksMessage } = createSessionNodeChecks(context);
+    const { handleValidateNodeChecksMessage, handleResolveNodeArgVisibilityMessage } =
+        createSessionNodeChecks(context);
 
     const fileRequestHandlers = createSessionFileRequestHandlers({
         projectRootUri,
@@ -89,6 +87,7 @@ export async function resolveTreeEditorSession(
         handleRevertDocumentMessage,
         refreshSettings,
         handleValidateNodeChecksMessage,
+        handleResolveNodeArgVisibilityMessage,
         fileRequestHandlers,
     });
 

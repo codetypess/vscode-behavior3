@@ -198,11 +198,13 @@ Inspector 暴露同一组 project/document quick actions，但承载位置随模
 ### Args
 
 - 按 arg 类型渲染为 `Select` / `Switch` / `InputNumber` / `TextArea` 等
+- 若 arg 定义了 `visible`，Inspector 通过 host-side 可见性函数决定该 structured arg 当前是否渲染；只有返回 `false` 时隐藏
 - 带 `options` 的参数渲染为可搜索 `Select`，搜索按显示 label 匹配 option name/value 文本
 - 可选且带 `options` 的标量参数在当前没有 committed/effective 值时，Select 显示为空选中态，不向用户暴露内部 unset 哨兵文案
 - `bool` / `bool?` 标量参数统一渲染为 `Switch`；项目内 bool 参数不通过 `options` 配置枚举值
 - 表达式型参数校验变量引用与表达式合法性
 - 自定义 node check 结果会映射到对应 arg 校验提示
+- hidden arg 会退出 structured 视图，并清除该字段的 committed 值与本地表单缓存；raw JSON 视图仍展示节点当前剩余数据
 - 新切入的 required arg 若当前还没有 committed 值，初始态保持 unset；在用户显式输入前不得静默序列化成 `""`、`false` 或其他占位值
 - 若 arg 定义了 nodeDef 默认值，则该字段右侧显示独立 reset action；点击后先二次确认，再清除当前显式值并回退到默认值语义
 

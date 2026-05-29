@@ -11,7 +11,9 @@ import b3path from "../../webview/shared/b3path";
 import {
     collectNodeArgCheckDiagnostics,
     createBuildScriptRuntimeWithCheckModules,
+    createNodeArgVisibleRuntimeWithCheckModules,
     loadRuntimeModule,
+    resolveNodeArgVisibility,
     resolveCheckScriptPaths,
 } from "../../webview/shared/b3build";
 import { createTestTree } from "../shared-test-fixtures";
@@ -1207,6 +1209,150 @@ export const buildCliSharedTests = defineSharedTests([
             } finally {
                 fs.rmSync(root, { recursive: true, force: true });
             }
+        },
+    },
+    {
+        name: "registers node arg visible hooks without relaxing build runtime export checks",
+        async run() {
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-visible-hooks-"));
+            const scriptsDir = path.join(root, "scripts");
+            const visibleFile = path.join(scriptsDir, "show-time.ts");
+            const workdir = root.replace(/\\/g, "/");
+            const noop = () => {};
+
+            try {
+                fs.mkdirSync(scriptsDir, { recursive: true });
+                fs.writeFileSync(
+                    visibleFile,
+                    [
+                        '@behavior3.visible("show-time")',
+                        "export class ShowTimeVisible {",
+                        "  visible(_value, ctx) {",
+                        "    return ctx.node.args?.mode === 'delay';",
+                        "  }",
+                        "}",
+                        "",
+                    ].join("\n")
+                );
+
+                const moduleExports = await loadRuntimeModule(visibleFile, { debug: false });
+                assert.ok(moduleExports, `expected runtime module for ${visibleFile}`);
+
+                const env = {
+                    fs,
+                    path: b3path,
+                    workdir,
+                    nodeDefs: new Map([
+                        [
+                            "Wait",
+                            {
+                                name: "Wait",
+                                type: "Action",
+                                desc: "",
+                                args: [
+                                    { name: "mode", type: "string", desc: "" },
+                                    {
+                                        name: "time",
+                                        type: "float",
+                                        desc: "",
+                                        visible: "show-time",
+                                    },
+                                ],
+                            },
+                        ],
+                    ]),
+                    logger: {
+                        log: noop,
+                        debug: noop,
+                        info: noop,
+                        warn: noop,
+                        error: noop,
+                    },
+                };
+
+                const visibleRuntime = createNodeArgVisibleRuntimeWithCheckModules(
+                    moduleExports,
+                    [],
+                    env
+                );
+                assert.equal(visibleRuntime.nodeArgVisibles.has("show-time"), true);
+
+                const buildRuntime = createBuildScriptRuntimeWithCheckModules(
+                    moduleExports,
+                    [],
+                    env
+                );
+                assert.equal(buildRuntime.hasEntries, false);
+                assert.equal(buildRuntime.hasError, true);
+                assert.equal(buildRuntime.nodeArgCheckers.size, 0);
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+    },
+    {
+        name: "warns when node arg visible hooks are not registered and falls back to visible",
+        run() {
+            const warnings: string[] = [];
+            const workdir = "/work";
+            const env = {
+                fs,
+                path: b3path,
+                workdir,
+                nodeDefs: new Map([
+                    [
+                        "Wait",
+                        {
+                            name: "Wait",
+                            type: "Action",
+                            desc: "",
+                            args: [
+                                {
+                                    name: "time",
+                                    type: "float",
+                                    desc: "",
+                                    visible: "show-time",
+                                },
+                            ],
+                        },
+                    ],
+                ]),
+                logger: {
+                    log() {},
+                    debug() {},
+                    info() {},
+                    warn: (...args: unknown[]) => warnings.push(args.map(String).join(" ")),
+                    error() {},
+                },
+            };
+
+            const visibility = resolveNodeArgVisibility({
+                tree: createTestTree({
+                    root: {
+                        uuid: "root",
+                        id: "1",
+                        name: "Wait",
+                        args: {
+                            time: 1,
+                        },
+                    },
+                }),
+                treePath: `${workdir}/main.json`,
+                env,
+                visibles: new Map(),
+                target: {
+                    uuid: "root",
+                    id: "1",
+                    name: "Wait",
+                    args: {
+                        time: 1,
+                    },
+                },
+            });
+
+            assert.deepEqual(visibility, {});
+            assert.equal(warnings.length, 1);
+            assert.match(warnings[0] ?? "", /visible 'show-time' is not registered/);
         },
     },
     {

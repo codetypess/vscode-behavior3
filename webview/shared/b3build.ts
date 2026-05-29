@@ -6,6 +6,8 @@ import type {
     BuildScript,
     NodeArgChecker,
     NodeArgCheckResult,
+    NodeArgVisible,
+    NodeArgVisibleResult,
 } from "./b3build-model";
 import { resolveCheckScriptPaths } from "./b3build-check-scripts";
 import { logger } from "./logger";
@@ -72,13 +74,18 @@ export type {
     NodeArgChecker,
     NodeArgCheckerClass,
     NodeArgCheckResult,
+    NodeArgVisible,
+    NodeArgVisibleClass,
+    NodeArgVisibleResult,
     PathLike,
+    VisibleDecorator,
 } from "./b3build-model";
 export { resolveCheckScriptPaths } from "./b3build-check-scripts";
 
 type BuildHookCtor = new (env: BuildEnv) => BuildScript;
 type BatchHookCtor = new (env: BuildEnv) => BatchScript;
 type NodeArgCheckerCtor = new (env: BuildEnv) => NodeArgChecker;
+type NodeArgVisibleCtor = new (env: BuildEnv) => NodeArgVisible;
 
 type OptionalRequire = {
     cache?: Record<string, unknown>;
@@ -149,6 +156,8 @@ const BUILD_HOOK_MARKER = "__behavior3BuildHook";
 const BATCH_HOOK_MARKER = "__behavior3BatchHook";
 const CHECK_HOOK_MARKER = "__behavior3CheckHook";
 const CHECK_HOOK_NAME = "__behavior3CheckName";
+const VISIBLE_HOOK_MARKER = "__behavior3VisibleHook";
+const VISIBLE_HOOK_NAME = "__behavior3VisibleName";
 
 type MarkedBuildHookCtor = BuildHookCtor & {
     [BUILD_HOOK_MARKER]?: true;
@@ -161,6 +170,11 @@ type MarkedBatchHookCtor = BatchHookCtor & {
 type MarkedCheckCtor = NodeArgCheckerCtor & {
     [CHECK_HOOK_MARKER]?: true;
     [CHECK_HOOK_NAME]?: string;
+};
+
+type MarkedVisibleCtor = NodeArgVisibleCtor & {
+    [VISIBLE_HOOK_MARKER]?: true;
+    [VISIBLE_HOOK_NAME]?: string;
 };
 
 const markBuildHook = <T extends new (...args: unknown[]) => unknown>(ctor: T) => {
@@ -195,6 +209,22 @@ const markCheckCtor = <T extends new (...args: unknown[]) => unknown>(
     return ctor;
 };
 
+const markVisibleCtor = <T extends new (...args: unknown[]) => unknown>(
+    ctor: T,
+    explicitName?: string
+) => {
+    const name = explicitName?.trim() || ctor.name;
+    Object.defineProperty(ctor, VISIBLE_HOOK_MARKER, {
+        value: true,
+        configurable: false,
+    });
+    Object.defineProperty(ctor, VISIBLE_HOOK_NAME, {
+        value: name,
+        configurable: false,
+    });
+    return ctor;
+};
+
 const markCheckHook = <T extends new (...args: unknown[]) => unknown>(
     nameOrCtor?: string | T,
     _context?: ClassDecoratorContext<T>
@@ -205,6 +235,16 @@ const markCheckHook = <T extends new (...args: unknown[]) => unknown>(
     return (ctor: T) => markCheckCtor(ctor, nameOrCtor);
 };
 
+const markVisibleHook = <T extends new (...args: unknown[]) => unknown>(
+    nameOrCtor?: string | T,
+    _context?: ClassDecoratorContext<T>
+) => {
+    if (typeof nameOrCtor === "function") {
+        return markVisibleCtor(nameOrCtor);
+    }
+    return (ctor: T) => markVisibleCtor(ctor, nameOrCtor);
+};
+
 const isDecoratedBuildHookCtor = (value: unknown): value is MarkedBuildHookCtor =>
     typeof value === "function" && (value as MarkedBuildHookCtor)[BUILD_HOOK_MARKER] === true;
 
@@ -213,6 +253,9 @@ const isDecoratedBatchHookCtor = (value: unknown): value is MarkedBatchHookCtor 
 
 const isDecoratedCheckCtor = (value: unknown): value is MarkedCheckCtor =>
     typeof value === "function" && (value as MarkedCheckCtor)[CHECK_HOOK_MARKER] === true;
+
+const isDecoratedVisibleCtor = (value: unknown): value is MarkedVisibleCtor =>
+    typeof value === "function" && (value as MarkedVisibleCtor)[VISIBLE_HOOK_MARKER] === true;
 
 const findDecoratedBuildHookCtor = (
     moduleRecord: Record<string, unknown>
@@ -255,6 +298,9 @@ const findDecoratedBatchHookCtor = (
 const findDecoratedCheckCtors = (moduleRecord: Record<string, unknown>): MarkedCheckCtor[] =>
     Array.from(new Set(Object.values(moduleRecord))).filter(isDecoratedCheckCtor);
 
+const findDecoratedVisibleCtors = (moduleRecord: Record<string, unknown>): MarkedVisibleCtor[] =>
+    Array.from(new Set(Object.values(moduleRecord))).filter(isDecoratedVisibleCtor);
+
 const createBuildHooks = (
     moduleExports: unknown,
     env: BuildEnv,
@@ -267,8 +313,8 @@ const createBuildHooks = (
     const moduleRecord = moduleExports as Record<string, unknown>;
     const defaultExport =
         isDecoratedCheckCtor(moduleRecord.default) || isDecoratedBatchHookCtor(moduleRecord.default)
-        ? undefined
-        : moduleRecord.default;
+            ? undefined
+            : moduleRecord.default;
     const ctor = (moduleRecord.BuildHook ??
         moduleRecord.Hook ??
         findDecoratedBuildHookCtor(moduleRecord) ??
@@ -373,6 +419,79 @@ const createNodeArgCheckers = (
         }
     }
     return { checkers, hasError, hasCheckers: decorated.length > 0 };
+};
+
+const normalizeNodeArgVisibleResult = (result: NodeArgVisibleResult): boolean => result !== false;
+
+const createNodeArgVisibles = (
+    moduleExports: unknown,
+    env: BuildEnv
+): { visibles: Map<string, NodeArgVisible>; hasError: boolean; hasVisibles: boolean } => {
+    const visibles = new Map<string, NodeArgVisible>();
+    let hasError = false;
+    if (!moduleExports || typeof moduleExports !== "object") {
+        return { visibles, hasError, hasVisibles: false };
+    }
+
+    const moduleRecord = moduleExports as Record<string, unknown>;
+    const decorated = findDecoratedVisibleCtors(moduleRecord);
+    for (const ctor of decorated) {
+        const name = ctor[VISIBLE_HOOK_NAME]?.trim() || ctor.name;
+        if (!name) {
+            logger.error("visible class must have a non-empty @behavior3.visible name");
+            hasError = true;
+            continue;
+        }
+        if (visibles.has(name)) {
+            logger.error(`duplicate @behavior3.visible registration: ${name}`);
+            hasError = true;
+            continue;
+        }
+        try {
+            const instance = new ctor(env);
+            if (typeof instance.visible !== "function") {
+                logger.error(`visible '${name}' must provide a visible(value, ctx) method`);
+                hasError = true;
+                continue;
+            }
+            visibles.set(name, instance);
+        } catch (error) {
+            logger.error(`failed to instantiate visible '${name}'`, error);
+            hasError = true;
+        }
+    }
+    return { visibles, hasError, hasVisibles: decorated.length > 0 };
+};
+
+export const createNodeArgVisibleRuntimeWithCheckModules = (
+    buildScriptModule: unknown,
+    checkScriptModules: CheckScriptModule[],
+    env: BuildEnv
+): { nodeArgVisibles: Map<string, NodeArgVisible>; hasError: boolean } => {
+    const nodeArgVisibles = new Map<string, NodeArgVisible>();
+    let hasError = false;
+    const mergeModuleVisibles = (moduleExports: unknown) => {
+        const visibleResult = createNodeArgVisibles(moduleExports, env);
+        hasError = hasError || visibleResult.hasError;
+        for (const [name, visible] of visibleResult.visibles) {
+            if (nodeArgVisibles.has(name)) {
+                logger.error(`duplicate @behavior3.visible registration: ${name}`);
+                hasError = true;
+                continue;
+            }
+            nodeArgVisibles.set(name, visible);
+        }
+    };
+
+    mergeModuleVisibles(buildScriptModule);
+    for (const checkScript of checkScriptModules) {
+        mergeModuleVisibles(checkScript.moduleExports);
+    }
+
+    return {
+        nodeArgVisibles,
+        hasError,
+    };
 };
 
 export type BuildScriptRuntime = {
@@ -500,8 +619,7 @@ export const createFileDataWithContext = (
     includeSubtree: boolean | undefined,
     context: Pick<BuildContext, "nodeDefs" | "isSubtreeRoot">
 ): NodeData => {
-    const nextArgs =
-        data.args && Object.keys(data.args).length > 0 ? { ...data.args } : undefined;
+    const nextArgs = data.args && Object.keys(data.args).length > 0 ? { ...data.args } : undefined;
     const nodeData: NodeData = {
         uuid: data.uuid,
         id: data.id,
@@ -646,6 +764,8 @@ export type NodeArgCheckDiagnostic = {
     message: string;
 };
 
+export type NodeArgVisibilityState = Record<string, boolean>;
+
 const normalizeNodeArgCheckResult = (result: NodeArgCheckResult): string[] => {
     if (Array.isArray(result)) {
         return result.filter((entry) => typeof entry === "string" && entry.trim());
@@ -731,6 +851,58 @@ export const collectNodeArgCheckDiagnostics = (params: {
     }
 
     return diagnostics;
+};
+
+export const resolveNodeArgVisibility = (params: {
+    tree: TreeData;
+    treePath: string;
+    env: BuildEnv;
+    visibles: ReadonlyMap<string, NodeArgVisible>;
+    target: NodeData;
+    targetTreePath?: string | null;
+}): NodeArgVisibilityState => {
+    const visibility: NodeArgVisibilityState = {};
+    const node = params.target;
+    const nodeDef = params.env.nodeDefs.get(node.name);
+    if (!nodeDef) {
+        return visibility;
+    }
+
+    for (const arg of nodeDef.args ?? []) {
+        const visibleName = arg.visible?.trim();
+        if (!visibleName) {
+            continue;
+        }
+
+        const visible = params.visibles.get(visibleName);
+        if (!visible) {
+            params.env.logger.warn(
+                `visible '${visibleName}' is not registered for ${node.id}|${node.name}.${arg.name}`
+            );
+            continue;
+        }
+
+        try {
+            visibility[arg.name] = normalizeNodeArgVisibleResult(
+                visible.visible(node.args?.[arg.name], {
+                    node,
+                    tree: params.tree,
+                    nodeDef,
+                    arg,
+                    argName: arg.name,
+                    treePath: params.targetTreePath ?? params.treePath,
+                    env: params.env,
+                })
+            );
+        } catch (error) {
+            params.env.logger.warn(
+                `visible '${visibleName}' failed for ${node.id}|${node.name}.${arg.name}: ${formatRuntimeError(error)}`
+            );
+            visibility[arg.name] = true;
+        }
+    }
+
+    return visibility;
 };
 
 export const formatNodeArgCheckBuildDiagnostic = (diagnostic: NodeArgCheckDiagnostic): string =>
@@ -953,6 +1125,7 @@ const applyBehavior3DecoratorGlobal = () => {
         build: markBuildHook,
         batch: markBatchHook,
         check: markCheckHook,
+        visible: markVisibleHook,
     };
 };
 
@@ -1153,8 +1326,8 @@ export const loadRuntimeModule = async (modulePath: string, options?: { debug?: 
             }
         }
         if (getRuntimeProcess()?.type === "renderer") {
-            return await withBehavior3ScriptDecoratorGlobal(() =>
-                import(/* @vite-ignore */ `${modulePath}?t=${Date.now()}`)
+            return await withBehavior3ScriptDecoratorGlobal(
+                () => import(/* @vite-ignore */ `${modulePath}?t=${Date.now()}`)
             );
         }
 
@@ -1180,8 +1353,8 @@ export const loadRuntimeModule = async (modulePath: string, options?: { debug?: 
         }
 
         const normalizedModulePath = b3path.posixPath(tempModulePath);
-        const result = await withBehavior3ScriptDecoratorGlobal(() =>
-            import(/* @vite-ignore */ `file:///${normalizedModulePath}?t=${Date.now()}`)
+        const result = await withBehavior3ScriptDecoratorGlobal(
+            () => import(/* @vite-ignore */ `file:///${normalizedModulePath}?t=${Date.now()}`)
         );
         if (debugBuildScript && cleanupPaths.length) {
             logger.info(

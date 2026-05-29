@@ -140,6 +140,7 @@ export interface WorkspaceState {
     subtreeDecls: ImportDecl[];
     subtreeSources: Record<WorkdirRelativeJsonPath, SubtreeSourceCacheEntry>;
     nodeCheckDiagnostics: Record<string, NodeCheckDiagnostic[]>;
+    selectedNodeArgVisibility: Record<string, boolean>;
 }
 
 export interface SelectionState {
@@ -249,6 +250,11 @@ export interface NodeCheckValidationNode {
     node: PersistedNodeModel;
 }
 
+export interface NodeArgVisibilityTarget {
+    treePath: WorkdirRelativeJsonPath | null;
+    node: PersistedNodeModel;
+}
+
 export interface NodeCheckDiagnostic {
     instanceKey: string;
     argName: string;
@@ -258,6 +264,11 @@ export interface NodeCheckDiagnostic {
 
 export interface ValidateNodeChecksResponse {
     diagnostics: NodeCheckDiagnostic[];
+    error?: string;
+}
+
+export interface ResolveNodeArgVisibilityResponse {
+    visibility: Record<string, boolean>;
     error?: string;
 }
 
@@ -433,6 +444,11 @@ export interface HostAdapter {
         treePath: string,
         nodes: NodeCheckValidationNode[]
     ): Promise<ValidateNodeChecksResponse>;
+    resolveNodeArgVisibility?(
+        content: string,
+        treePath: string,
+        target: NodeArgVisibilityTarget
+    ): Promise<ResolveNodeArgVisibilityResponse>;
     saveDocument(): Promise<SaveDocumentResponse>;
     revertDocument(): Promise<RevertDocumentResponse>;
     readFile(

@@ -16,11 +16,17 @@ import {
 } from "./inspector-shared";
 import { useNodeInspectorViewState } from "./inspector-state";
 import {
+    buildCommittedNodeData,
     createNodeInspectorFormValues,
     getEffectiveNodeArgs,
     getNodeInspectorSyncMode,
     shouldLockPendingInspectorForm,
 } from "./inspector-form-values";
+import { trackPendingInspectorEdit } from "./inspector-commit-queue";
+import {
+    buildArgsWithoutHiddenVisibility,
+    collectHiddenStructuredArgNames,
+} from "./inspector-arg-visibility";
 import { useInspectorJsonView } from "./inspector-json-view";
 import { useInspectorMode } from "./inspector-mode";
 import { useNodeInspectorCommitters } from "./node-inspector-committers";
@@ -321,6 +327,7 @@ export const NodeInspectorForm: React.FC = () => {
         allFiles,
         checkExpr,
         nodeCheckDiagnostics,
+        selectedNodeArgVisibility,
         nodeDefMap,
         variableOptions,
         nodeDef,
@@ -420,6 +427,57 @@ export const NodeInspectorForm: React.FC = () => {
         selectedNode,
         usingGroups,
         usingVars,
+    ]);
+
+    useEffect(() => {
+        if (!selectedNode || effectiveReadOnly) {
+            return;
+        }
+
+        const currentNodeDef = findNodeDef(nodeDefMap, selectedNode.data.name);
+        const hiddenArgNames = collectHiddenStructuredArgNames(
+            currentNodeDef?.args ?? [],
+            selectedNodeArgVisibility
+        );
+        if (hiddenArgNames.length === 0) {
+            return;
+        }
+
+        form.setFields(
+            hiddenArgNames.map((argName) => ({
+                name: ["args", argName],
+                value: undefined,
+                touched: false,
+                errors: [],
+                warnings: [],
+            }))
+        );
+
+        const nextArgs = buildArgsWithoutHiddenVisibility(
+            selectedNode.data.args,
+            currentNodeDef?.args ?? [],
+            selectedNodeArgVisibility
+        );
+        if (nextArgs === selectedNode.data.args) {
+            return;
+        }
+
+        trackPendingInspectorEdit(
+            runtime.controller.updateNode({
+                target: selectedNode.ref,
+                data: {
+                    ...buildCommittedNodeData(selectedNode),
+                    args: nextArgs,
+                },
+            })
+        );
+    }, [
+        effectiveReadOnly,
+        form,
+        nodeDefMap,
+        runtime.controller,
+        selectedNode,
+        selectedNodeArgVisibility,
     ]);
 
     if (!selectedNode) {

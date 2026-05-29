@@ -15,7 +15,10 @@ export type FsLike = {
     readFileSync(path: string, encoding: "utf8" | "utf-8"): string;
     writeFileSync(path: string, data: string, encoding?: "utf8" | "utf-8"): void;
     readdirSync(path: string): string[];
-    readdirSync(path: string, options: { encoding: "utf8" | "utf-8"; recursive?: boolean }): string[];
+    readdirSync(
+        path: string,
+        options: { encoding: "utf8" | "utf-8"; recursive?: boolean }
+    ): string[];
     statSync(path: string): { mtimeMs: number; isFile(): boolean };
     mkdirSync(path: string, options?: { recursive?: boolean }): unknown;
     copyFileSync(source: string, destination: string): void;
@@ -46,6 +49,7 @@ export type BuildEnv = {
 };
 
 export type NodeArgCheckResult = string | string[] | null | undefined;
+export type NodeArgVisibleResult = boolean | null | undefined;
 
 export type NodeArgCheckContext = {
     node: NodeData;
@@ -59,6 +63,10 @@ export type NodeArgCheckContext = {
 
 export interface NodeArgChecker {
     validate(value: unknown, ctx: NodeArgCheckContext): NodeArgCheckResult;
+}
+
+export interface NodeArgVisible {
+    visible(value: unknown, ctx: NodeArgCheckContext): NodeArgVisibleResult;
 }
 
 export type BuildScript = {
@@ -75,6 +83,9 @@ export type BatchScript = BuildScript & {
 export type BuildHookClass<T extends BuildScript = BuildScript> = new (...args: any[]) => T;
 export type BatchHookClass<T extends BatchScript = BatchScript> = new (...args: any[]) => T;
 export type NodeArgCheckerClass<T extends NodeArgChecker = NodeArgChecker> = new (
+    ...args: any[]
+) => T;
+export type NodeArgVisibleClass<T extends NodeArgVisible = NodeArgVisible> = new (
     ...args: any[]
 ) => T;
 
@@ -94,10 +105,17 @@ export type CheckDecorator = {
     (name?: string): <T extends NodeArgCheckerClass>(target: T) => T | void;
 };
 
+export type VisibleDecorator = {
+    <T extends NodeArgVisibleClass>(target: T): T | void;
+    <T extends NodeArgVisibleClass>(target: T, context: ClassDecoratorContext<T>): T | void;
+    (name?: string): <T extends NodeArgVisibleClass>(target: T) => T | void;
+};
+
 export type BuildRuntime = {
     build: BuildDecorator;
     batch: BatchDecorator;
     check: CheckDecorator;
+    visible: VisibleDecorator;
 };
 
 export declare class BuildHook implements BuildScript {
