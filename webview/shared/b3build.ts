@@ -436,10 +436,8 @@ export const createBuildScriptRuntimeWithCheckModules = (
     for (const checkScript of checkScriptModules) {
         const checkerResult = createNodeArgCheckers(checkScript.moduleExports, env);
         if (!checkerResult.hasCheckers) {
-            logger.error(
-                `check script must export at least one @behavior3.check class: ${checkScript.path}`
-            );
-            hasError = true;
+            // Mixed script folders can contain build or batch hooks alongside checkers.
+            // Only actual @behavior3.check exports participate in node-arg validation.
             continue;
         }
         hasCheckEntries = true;
