@@ -77,6 +77,20 @@
           "status": "FAILURE",
           "time": 1
         },
+        "children": [
+          {
+            "args": {
+              "health": 1,
+              "type": 2
+            },
+            "id": "14",
+            "input": [
+              "target"
+            ],
+            "name": "TestVisibleAndChecker",
+            "uuid": "q7hMRC5Mki"
+          }
+        ],
         "id": "13",
         "name": "TestB3",
         "uuid": "ofZMb7TDwp"
@@ -89,12 +103,12 @@
           "status": "RUNNING",
           "time": 1
         },
-        "id": "14",
+        "id": "15",
         "name": "TestB3",
         "uuid": "0SCKW5eqY6"
       },
       {
-        "id": "15",
+        "id": "16",
         "name": "Clear",
         "output": [
           "context"
@@ -105,12 +119,12 @@
         "args": {
           "builtin": "afterRunFailure"
         },
-        "id": "16",
+        "id": "17",
         "name": "Listen",
         "uuid": "3o4RYMLKXE"
       },
       {
-        "id": "17",
+        "id": "18",
         "input": [
           "context"
         ],
@@ -121,7 +135,7 @@
         "args": {
           "time": 1
         },
-        "id": "18",
+        "id": "19",
         "input": [
           ""
         ],
@@ -129,7 +143,7 @@
         "uuid": "ty3oHr8aJp"
       },
       {
-        "id": "19",
+        "id": "20",
         "name": "Timeout",
         "uuid": "BC3QOoSP6H"
       },
@@ -140,7 +154,7 @@
           "open": true,
           "time": 6
         },
-        "id": "20",
+        "id": "21",
         "name": "TestB3",
         "uuid": "o645pQPEzQ"
       }

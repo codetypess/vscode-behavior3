@@ -193,11 +193,12 @@ export const validationMaterializationSharedTests = defineSharedTests([
                     usingVars: null,
                     usingGroups: null,
                     checkExpr: true,
-                    nodeCheckDiagnostics: {
+                    nodeFieldDiagnostics: {
                         "1": [
                             {
                                 instanceKey: "1",
-                                argName: "time",
+                                fieldKind: "arg",
+                                fieldName: "time",
                                 checker: "positive",
                                 message: "must be greater than 0",
                             },

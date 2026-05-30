@@ -11,12 +11,12 @@ import type {
     HostAdapter,
     DocumentMutationResponse,
     ReadFileResponse,
-    ResolveNodeArgVisibilityResponse,
+    ResolveNodeFieldVisibilityResponse,
     RevertDocumentResponse,
     SaveDocumentResponse,
     SaveSubtreeAsResponse,
     SaveSubtreeResponse,
-    ValidateNodeChecksResponse,
+    ValidateNodeFieldsResponse,
     WorkdirRelativeJsonPath,
 } from "../../shared/contracts";
 import {
@@ -321,11 +321,11 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
             postMessage({ type: "runInspectorCommand", command });
         },
 
-        validateNodeChecks(content, treePath, nodes) {
-            return new Promise<ValidateNodeChecksResponse>((resolve) => {
-                const requestId = registerPendingRequest("validateNodeChecks", resolve);
+        validateNodeFields(content, treePath, nodes) {
+            return new Promise<ValidateNodeFieldsResponse>((resolve) => {
+                const requestId = registerPendingRequest("validateNodeFields", resolve);
                 postMessage({
-                    type: "validateNodeChecks",
+                    type: "validateNodeFields",
                     requestId,
                     content,
                     treePath,
@@ -334,11 +334,11 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
             });
         },
 
-        resolveNodeArgVisibility(content, treePath, target) {
-            return new Promise<ResolveNodeArgVisibilityResponse>((resolve) => {
-                const requestId = registerPendingRequest("resolveNodeArgVisibility", resolve);
+        resolveNodeFieldVisibility(content, treePath, target) {
+            return new Promise<ResolveNodeFieldVisibilityResponse>((resolve) => {
+                const requestId = registerPendingRequest("resolveNodeFieldVisibility", resolve);
                 postMessage({
-                    type: "resolveNodeArgVisibility",
+                    type: "resolveNodeFieldVisibility",
                     requestId,
                     content,
                     treePath,

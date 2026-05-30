@@ -9,11 +9,11 @@ import {
 } from "../../src/build/build-cli";
 import b3path from "../../webview/shared/b3path";
 import {
-    collectNodeArgCheckDiagnostics,
+    collectNodeFieldCheckDiagnostics,
     createBuildScriptRuntimeWithCheckModules,
-    createNodeArgVisibleRuntimeWithCheckModules,
+    createNodeFieldVisibleRuntimeWithCheckModules,
     loadRuntimeModule,
-    resolveNodeArgVisibility,
+    resolveNodeFieldVisibility,
     resolveCheckScriptPaths,
 } from "../../webview/shared/b3build";
 import { createTestTree } from "../shared-test-fixtures";
@@ -1270,12 +1270,12 @@ export const buildCliSharedTests = defineSharedTests([
                     },
                 };
 
-                const visibleRuntime = createNodeArgVisibleRuntimeWithCheckModules(
+                const visibleRuntime = createNodeFieldVisibleRuntimeWithCheckModules(
                     moduleExports,
                     [],
                     env
                 );
-                assert.equal(visibleRuntime.nodeArgVisibles.has("show-time"), true);
+                assert.equal(visibleRuntime.nodeFieldVisibles.has("show-time"), true);
 
                 const buildRuntime = createBuildScriptRuntimeWithCheckModules(
                     moduleExports,
@@ -1284,7 +1284,7 @@ export const buildCliSharedTests = defineSharedTests([
                 );
                 assert.equal(buildRuntime.hasEntries, false);
                 assert.equal(buildRuntime.hasError, true);
-                assert.equal(buildRuntime.nodeArgCheckers.size, 0);
+                assert.equal(buildRuntime.nodeFieldCheckers.size, 0);
             } finally {
                 fs.rmSync(root, { recursive: true, force: true });
             }
@@ -1326,7 +1326,7 @@ export const buildCliSharedTests = defineSharedTests([
                 },
             };
 
-            const visibility = resolveNodeArgVisibility({
+            const visibility = resolveNodeFieldVisibility({
                 tree: createTestTree({
                     root: {
                         uuid: "root",
@@ -1350,7 +1350,7 @@ export const buildCliSharedTests = defineSharedTests([
                 },
             });
 
-            assert.deepEqual(visibility, {});
+            assert.deepEqual(visibility, { args: {}, input: {}, output: {} });
             assert.equal(warnings.length, 1);
             assert.match(warnings[0] ?? "", /visible 'show-time' is not registered/);
         },
@@ -1440,9 +1440,9 @@ export const buildCliSharedTests = defineSharedTests([
                 });
 
                 assert.equal(runtime.hasError, false);
-                assert.equal(runtime.nodeArgCheckers.has("positive"), true);
+                assert.equal(runtime.nodeFieldCheckers.has("positive"), true);
 
-                const diagnostics = collectNodeArgCheckDiagnostics({
+                const diagnostics = collectNodeFieldCheckDiagnostics({
                     tree: {
                         version: "2.0.0",
                         name: "main",
@@ -1494,7 +1494,7 @@ export const buildCliSharedTests = defineSharedTests([
                             error: noop,
                         },
                     },
-                    checkers: runtime.nodeArgCheckers,
+                    checkers: runtime.nodeFieldCheckers,
                 });
 
                 assert.deepEqual(diagnostics, [
@@ -1502,7 +1502,8 @@ export const buildCliSharedTests = defineSharedTests([
                         instanceKey: undefined,
                         nodeId: "1",
                         nodeName: "Wait",
-                        argName: "time",
+                        fieldKind: "arg",
+                        fieldName: "time",
                         checker: "positive",
                         message: "must be greater than 0",
                     },

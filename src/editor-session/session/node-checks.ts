@@ -1,6 +1,6 @@
 import {
-    collectNodeArgCheckDiagnostics,
-    resolveNodeArgVisibility,
+    collectNodeFieldCheckDiagnostics,
+    resolveNodeFieldVisibility,
 } from "../../../webview/shared/b3build";
 import type { NodeData, TreeData } from "../../../webview/shared/b3type";
 import type { EditorToHostMessage } from "../../../webview/shared/message-protocol";
@@ -13,12 +13,12 @@ import {
 import type { HostMessageSink, TreeEditorSessionContext } from "./context";
 
 export interface SessionNodeChecks {
-    handleValidateNodeChecksMessage(
-        msg: Extract<EditorToHostMessage, { type: "validateNodeChecks" }>,
+    handleValidateNodeFieldsMessage(
+        msg: Extract<EditorToHostMessage, { type: "validateNodeFields" }>,
         reply?: HostMessageSink
     ): Promise<void>;
-    handleResolveNodeArgVisibilityMessage(
-        msg: Extract<EditorToHostMessage, { type: "resolveNodeArgVisibility" }>,
+    handleResolveNodeFieldVisibilityMessage(
+        msg: Extract<EditorToHostMessage, { type: "resolveNodeFieldVisibility" }>,
         reply?: HostMessageSink
     ): Promise<void>;
 }
@@ -38,18 +38,18 @@ export function createSessionNodeChecks(context: TreeEditorSessionContext): Sess
         });
     };
 
-    const handleValidateNodeChecksMessage = async (
-        msg: Extract<EditorToHostMessage, { type: "validateNodeChecks" }>,
+    const handleValidateNodeFieldsMessage = async (
+        msg: Extract<EditorToHostMessage, { type: "validateNodeFields" }>,
         reply: HostMessageSink = postMessage
     ): Promise<void> => {
         try {
             const runtimeResult = await createNodeCheckRuntime();
             const tree = JSON.parse(msg.content) as TreeData;
-            const diagnostics = collectNodeArgCheckDiagnostics({
+            const diagnostics = collectNodeFieldCheckDiagnostics({
                 tree,
                 treePath: msg.treePath || runtimeResult.treePath,
                 env: createSessionBuildScriptEnv(runtimeResult.treePath, state.nodeDefs),
-                checkers: runtimeResult.buildScriptRuntime.nodeArgCheckers,
+                checkers: runtimeResult.buildScriptRuntime.nodeFieldCheckers,
                 targets: msg.nodes.map((entry) => ({
                     instanceKey: entry.instanceKey,
                     treePath: entry.treePath,
@@ -57,7 +57,7 @@ export function createSessionNodeChecks(context: TreeEditorSessionContext): Sess
                 })),
             });
             await reply({
-                type: "validateNodeChecksResult",
+                type: "validateNodeFieldsResult",
                 requestId: msg.requestId,
                 diagnostics: diagnostics
                     .filter(
@@ -66,7 +66,9 @@ export function createSessionNodeChecks(context: TreeEditorSessionContext): Sess
                     )
                     .map((diagnostic) => ({
                         instanceKey: diagnostic.instanceKey,
-                        argName: diagnostic.argName,
+                        fieldKind: diagnostic.fieldKind,
+                        fieldName: diagnostic.fieldName,
+                        fieldIndex: diagnostic.fieldIndex,
                         checker: diagnostic.checker,
                         message: diagnostic.message,
                     })),
@@ -79,7 +81,7 @@ export function createSessionNodeChecks(context: TreeEditorSessionContext): Sess
             });
         } catch (error) {
             await reply({
-                type: "validateNodeChecksResult",
+                type: "validateNodeFieldsResult",
                 requestId: msg.requestId,
                 diagnostics: [],
                 error: String(error),
@@ -87,38 +89,38 @@ export function createSessionNodeChecks(context: TreeEditorSessionContext): Sess
         }
     };
 
-    const handleResolveNodeArgVisibilityMessage = async (
-        msg: Extract<EditorToHostMessage, { type: "resolveNodeArgVisibility" }>,
+    const handleResolveNodeFieldVisibilityMessage = async (
+        msg: Extract<EditorToHostMessage, { type: "resolveNodeFieldVisibility" }>,
         reply: HostMessageSink = postMessage
     ): Promise<void> => {
         try {
             const runtimeResult = await createNodeCheckRuntime();
             const tree = JSON.parse(msg.content) as TreeData;
-            const visibility = resolveNodeArgVisibility({
+            const visibility = resolveNodeFieldVisibility({
                 tree,
                 treePath: msg.treePath || runtimeResult.treePath,
                 env: createSessionBuildScriptEnv(runtimeResult.treePath, state.nodeDefs),
-                visibles: runtimeResult.nodeArgVisibleHandlers,
+                visibles: runtimeResult.nodeFieldVisibleHandlers,
                 target: toNodeData(msg.target.node),
                 targetTreePath: msg.target.treePath,
             });
             await reply({
-                type: "resolveNodeArgVisibilityResult",
+                type: "resolveNodeFieldVisibilityResult",
                 requestId: msg.requestId,
                 visibility,
             });
         } catch (error) {
             await reply({
-                type: "resolveNodeArgVisibilityResult",
+                type: "resolveNodeFieldVisibilityResult",
                 requestId: msg.requestId,
-                visibility: {},
+                visibility: { args: {}, input: {}, output: {} },
                 error: String(error),
             });
         }
     };
 
     return {
-        handleValidateNodeChecksMessage,
-        handleResolveNodeArgVisibilityMessage,
+        handleValidateNodeFieldsMessage,
+        handleResolveNodeFieldVisibilityMessage,
     };
 }

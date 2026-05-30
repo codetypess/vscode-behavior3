@@ -35,10 +35,7 @@ export function createScriptScaffoldFileName(baseName: string): string {
     return `${normalizeScriptScaffoldBaseName(baseName)}.ts`;
 }
 
-export function createScriptScaffoldContent(
-    kind: ScriptScaffoldKind,
-    baseName: string
-): string {
+export function createScriptScaffoldContent(kind: ScriptScaffoldKind, baseName: string): string {
     switch (kind) {
         case "build":
             return createBuildScriptContent(baseName);
@@ -67,7 +64,7 @@ function createBuildScriptContent(baseName: string): string {
         "    }",
         "",
         '    onComplete(status: "success" | "failure") {',
-        '        this.env.logger.info(`build ${status}`);',
+        "        this.env.logger.info(`build ${status}`);",
         "    }",
         "}",
         "",
@@ -96,7 +93,7 @@ function createBatchScriptContent(baseName: string): string {
         "    }",
         "",
         '    onComplete(status: "success" | "failure") {',
-        '        this.env.logger.info(`batch ${status}`);',
+        "        this.env.logger.info(`batch ${status}`);",
         "    }",
         "}",
         "",
@@ -107,19 +104,19 @@ function createCheckerScriptContent(baseName: string): string {
     const className = ensureSuffix(toPascalIdentifier(baseName), "Checker");
     const checkerName = toCheckerRegistrationName(baseName);
     return [
-        'import type { NodeArgCheckContext } from "vscode-behavior3/build";',
+        'import type { NodeFieldCheckContext } from "vscode-behavior3/build";',
         "",
         `@behavior3.check("${checkerName}")`,
         `export class ${className} {`,
-        "    validate(value: unknown, ctx: NodeArgCheckContext) {",
+        "    validate(value: unknown, ctx: NodeFieldCheckContext) {",
         '        if (value === undefined || value === null || value === "") {',
         "            return;",
         "        }",
         '        if (typeof value !== "number") {',
-        '            return `${ctx.argName} must be a number`;',
+        "            return `${ctx.fieldName} must be a number`;",
         "        }",
         "        if (value <= 0) {",
-        '            return `${ctx.argName} must be greater than 0`;',
+        "            return `${ctx.fieldName} must be greater than 0`;",
         "        }",
         "    }",
         "}",
@@ -130,9 +127,7 @@ function createCheckerScriptContent(baseName: string): string {
 function toPascalIdentifier(value: string): string {
     const source = normalizeScriptScaffoldBaseName(value).replace(SCRIPT_FILE_EXTENSION_RE, "");
     const tokens = source.match(/[A-Za-z0-9]+/g) ?? [];
-    const joined = tokens
-        .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
-        .join("");
+    const joined = tokens.map((token) => token.charAt(0).toUpperCase() + token.slice(1)).join("");
     if (!joined) {
         return "Generated";
     }

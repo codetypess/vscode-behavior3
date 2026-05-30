@@ -20,7 +20,7 @@ import {
     type NodeDef,
     type VarDecl,
 } from "../../shared/b3type";
-import type { NodeCheckDiagnostic } from "../../shared/contracts";
+import type { NodeFieldDiagnostic } from "../../shared/contracts";
 import { isRequiredNodeArgValueMissing, validateNodeArgOneof } from "../../shared/validation";
 import { parseArgSubmitValue, validateInspectorArgValue } from "./inspector-arg-values";
 import {
@@ -41,7 +41,7 @@ const NodeArgField: React.FC<{
     currentArgValue: unknown;
     usingVars: Record<string, VarDecl> | null;
     checkExpr: boolean;
-    nodeCheckDiagnostics: NodeCheckDiagnostic[];
+    nodeFieldDiagnostics: NodeFieldDiagnostic[];
     disabled: boolean;
     showDefaultReset: boolean;
     onCommit: () => void;
@@ -54,7 +54,7 @@ const NodeArgField: React.FC<{
     currentArgValue,
     usingVars,
     checkExpr,
-    nodeCheckDiagnostics,
+    nodeFieldDiagnostics,
     disabled,
     showDefaultReset,
     onCommit,
@@ -151,17 +151,16 @@ const NodeArgField: React.FC<{
             throw new Error(formatValidationDiagnostic(oneofDiagnostic));
         }
 
-        const customDiagnostic = nodeCheckDiagnostics.find((entry) => entry.argName === arg.name);
+        const customDiagnostic = nodeFieldDiagnostics.find(
+            (entry) => entry.fieldKind === "arg" && entry.fieldName === arg.name
+        );
         if (customDiagnostic && compareJsonValue(parsedValue, currentArgValue)) {
             throw new Error(customDiagnostic.message);
         }
     };
 
     if (isBoolType(type)) {
-        return renderFieldItem(
-            <Switch disabled={disabled} onChange={onQueueCommit} />,
-            "checked"
-        );
+        return renderFieldItem(<Switch disabled={disabled} onChange={onQueueCommit} />, "checked");
     }
 
     if (hasArgOptions(arg)) {
@@ -222,7 +221,7 @@ export const NodeStructuredArgsSection: React.FC<{
     effectiveArgs: Record<string, unknown> | undefined;
     usingVars: Record<string, VarDecl> | null;
     checkExpr: boolean;
-    nodeCheckDiagnostics: NodeCheckDiagnostic[];
+    nodeFieldDiagnostics: NodeFieldDiagnostic[];
     fieldEditDisabled: boolean;
     isOverridden: (argName: string) => boolean;
     onReset: (arg: NodeArg) => void;
@@ -236,7 +235,7 @@ export const NodeStructuredArgsSection: React.FC<{
     effectiveArgs,
     usingVars,
     checkExpr,
-    nodeCheckDiagnostics,
+    nodeFieldDiagnostics,
     fieldEditDisabled,
     isOverridden,
     onReset,
@@ -266,7 +265,7 @@ export const NodeStructuredArgsSection: React.FC<{
                         currentArgValue={effectiveArgs?.[arg.name]}
                         usingVars={usingVars}
                         checkExpr={checkExpr}
-                        nodeCheckDiagnostics={nodeCheckDiagnostics}
+                        nodeFieldDiagnostics={nodeFieldDiagnostics}
                         disabled={fieldEditDisabled}
                         showDefaultReset={arg.default !== undefined}
                         onCommit={() => onCommit(arg)}

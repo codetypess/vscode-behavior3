@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import { canOpenSubtreeTarget } from "../../domain/subtree-navigation";
-import { findNodeDef } from "../../shared/node-utils";
+import { findNodeDef, parseSlotDefinition } from "../../shared/node-utils";
 import { isExprType, type NodeDef } from "../../shared/b3type";
 import { useRuntime } from "../../app/runtime";
 import {
@@ -25,7 +25,9 @@ import {
 import { trackPendingInspectorEdit } from "./inspector-commit-queue";
 import {
     buildArgsWithoutHiddenVisibility,
+    buildSlotArrayWithoutHiddenVisibility,
     collectHiddenStructuredArgNames,
+    collectHiddenStructuredSlotIndices,
 } from "./inspector-arg-visibility";
 import { useInspectorJsonView } from "./inspector-json-view";
 import { useInspectorMode } from "./inspector-mode";
@@ -103,9 +105,6 @@ const NodeMetaFields: React.FC<{
                         value={selectedNode.ref.displayId}
                         title={selectedNode.ref.displayId}
                         className="b3-node-identity-id"
-                        style={{
-                            width: `${Math.max(String(selectedNode.ref.displayId).length + 2, 5)}ch`,
-                        }}
                     />
                     <Input
                         disabled
@@ -326,8 +325,8 @@ export const NodeInspectorForm: React.FC = () => {
         usingGroups,
         allFiles,
         checkExpr,
-        nodeCheckDiagnostics,
-        selectedNodeArgVisibility,
+        nodeFieldDiagnostics,
+        selectedNodeFieldVisibility,
         nodeDefMap,
         variableOptions,
         nodeDef,
@@ -421,7 +420,7 @@ export const NodeInspectorForm: React.FC = () => {
     }, [
         checkExpr,
         form,
-        nodeCheckDiagnostics,
+        nodeFieldDiagnostics,
         nodeDef,
         effectiveReadOnly,
         selectedNode,
@@ -437,28 +436,80 @@ export const NodeInspectorForm: React.FC = () => {
         const currentNodeDef = findNodeDef(nodeDefMap, selectedNode.data.name);
         const hiddenArgNames = collectHiddenStructuredArgNames(
             currentNodeDef?.args ?? [],
-            selectedNodeArgVisibility
+            selectedNodeFieldVisibility.args
         );
-        if (hiddenArgNames.length === 0) {
+        const hiddenInputIndices = collectHiddenStructuredSlotIndices(
+            currentNodeDef?.input ?? [],
+            selectedNodeFieldVisibility.input
+        );
+        const hiddenOutputIndices = collectHiddenStructuredSlotIndices(
+            currentNodeDef?.output ?? [],
+            selectedNodeFieldVisibility.output
+        );
+        if (
+            hiddenArgNames.length === 0 &&
+            hiddenInputIndices.length === 0 &&
+            hiddenOutputIndices.length === 0
+        ) {
             return;
         }
 
-        form.setFields(
-            hiddenArgNames.map((argName) => ({
+        form.setFields([
+            ...hiddenArgNames.map((argName) => ({
                 name: ["args", argName],
                 value: undefined,
                 touched: false,
                 errors: [],
                 warnings: [],
-            }))
-        );
+            })),
+            ...hiddenInputIndices.map((index) => ({
+                name: ["inputSlots", index],
+                value: parseSlotDefinition(
+                    currentNodeDef?.input?.[index] ?? "",
+                    currentNodeDef?.input,
+                    index
+                ).variadic
+                    ? []
+                    : "",
+                touched: false,
+                errors: [],
+                warnings: [],
+            })),
+            ...hiddenOutputIndices.map((index) => ({
+                name: ["outputSlots", index],
+                value: parseSlotDefinition(
+                    currentNodeDef?.output?.[index] ?? "",
+                    currentNodeDef?.output,
+                    index
+                ).variadic
+                    ? []
+                    : "",
+                touched: false,
+                errors: [],
+                warnings: [],
+            })),
+        ]);
 
         const nextArgs = buildArgsWithoutHiddenVisibility(
             selectedNode.data.args,
             currentNodeDef?.args ?? [],
-            selectedNodeArgVisibility
+            selectedNodeFieldVisibility.args
         );
-        if (nextArgs === selectedNode.data.args) {
+        const nextInput = buildSlotArrayWithoutHiddenVisibility(
+            selectedNode.data.input,
+            currentNodeDef?.input ?? [],
+            selectedNodeFieldVisibility.input
+        );
+        const nextOutput = buildSlotArrayWithoutHiddenVisibility(
+            selectedNode.data.output,
+            currentNodeDef?.output ?? [],
+            selectedNodeFieldVisibility.output
+        );
+        if (
+            nextArgs === selectedNode.data.args &&
+            nextInput === selectedNode.data.input &&
+            nextOutput === selectedNode.data.output
+        ) {
             return;
         }
 
@@ -468,6 +519,8 @@ export const NodeInspectorForm: React.FC = () => {
                 data: {
                     ...buildCommittedNodeData(selectedNode),
                     args: nextArgs,
+                    input: nextInput,
+                    output: nextOutput,
                 },
             })
         );
@@ -477,7 +530,7 @@ export const NodeInspectorForm: React.FC = () => {
         nodeDefMap,
         runtime.controller,
         selectedNode,
-        selectedNodeArgVisibility,
+        selectedNodeFieldVisibility,
     ]);
 
     if (!selectedNode) {
@@ -562,6 +615,9 @@ export const NodeInspectorForm: React.FC = () => {
                     usingVars={usingVars}
                     variableOptions={variableOptions}
                     fieldEditDisabled={effectiveReadOnly || fieldEditDisabled}
+                    visibility={selectedNodeFieldVisibility.input}
+                    currentSlots={selectedNode.data.input}
+                    nodeFieldDiagnostics={nodeFieldDiagnostics}
                     isOverridden={isInputOverridden}
                     onReset={resetInputField}
                     onCommit={commitInputField}
@@ -577,7 +633,7 @@ export const NodeInspectorForm: React.FC = () => {
                         effectiveArgs={getEffectiveNodeArgs(selectedNode)}
                         usingVars={usingVars}
                         checkExpr={checkExpr}
-                        nodeCheckDiagnostics={nodeCheckDiagnostics}
+                        nodeFieldDiagnostics={nodeFieldDiagnostics}
                         fieldEditDisabled={effectiveReadOnly || fieldEditDisabled}
                         isOverridden={isArgOverridden}
                         onReset={resetArgField}
@@ -597,6 +653,9 @@ export const NodeInspectorForm: React.FC = () => {
                     usingVars={usingVars}
                     variableOptions={variableOptions}
                     fieldEditDisabled={effectiveReadOnly || fieldEditDisabled}
+                    visibility={selectedNodeFieldVisibility.output}
+                    currentSlots={selectedNode.data.output}
+                    nodeFieldDiagnostics={nodeFieldDiagnostics}
                     isOverridden={isOutputOverridden}
                     onReset={resetOutputField}
                     onCommit={commitOutputField}

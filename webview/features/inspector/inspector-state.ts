@@ -48,8 +48,10 @@ export const useNodeInspectorState = () => {
     const usingGroups = useWorkspaceStore((state) => state.usingGroups);
     const allFiles = useWorkspaceStore((state) => state.allFiles);
     const checkExpr = useWorkspaceStore((state) => state.settings.checkExpr);
-    const nodeCheckDiagnostics = useWorkspaceStore((state) => state.nodeCheckDiagnostics);
-    const selectedNodeArgVisibility = useWorkspaceStore((state) => state.selectedNodeArgVisibility);
+    const nodeFieldDiagnostics = useWorkspaceStore((state) => state.nodeFieldDiagnostics);
+    const selectedNodeFieldVisibility = useWorkspaceStore(
+        (state) => state.selectedNodeFieldVisibility
+    );
     const pendingSelectedNodeSnapshot =
         !rawSelectedNode && Boolean(selectedNodeRef && selectedNode);
 
@@ -62,8 +64,8 @@ export const useNodeInspectorState = () => {
         usingGroups,
         allFiles,
         checkExpr,
-        nodeCheckDiagnostics,
-        selectedNodeArgVisibility,
+        nodeFieldDiagnostics,
+        selectedNodeFieldVisibility,
     };
 };
 
@@ -99,8 +101,8 @@ export const useNodeInspectorViewState = (form: FormInstance) => {
         usingGroups,
         allFiles,
         checkExpr,
-        nodeCheckDiagnostics,
-        selectedNodeArgVisibility,
+        nodeFieldDiagnostics,
+        selectedNodeFieldVisibility,
     } = useNodeInspectorState();
 
     const nodeDefMap = useMemo(() => createNodeDefMap(nodeDefs), [nodeDefs]);
@@ -116,7 +118,7 @@ export const useNodeInspectorViewState = (form: FormInstance) => {
     const fieldEditDisabled = selectedNode?.disabled ?? false;
     const structuredArgs = filterStructuredArgsByVisibility(
         nodeDef?.args ?? [],
-        selectedNode ? selectedNodeArgVisibility : {}
+        selectedNode ? selectedNodeFieldVisibility.args : {}
     );
     const subtreeOriginal = selectedNode?.subtreeOriginal;
 
@@ -129,8 +131,8 @@ export const useNodeInspectorViewState = (form: FormInstance) => {
         usingGroups,
         allFiles,
         checkExpr,
-        nodeCheckDiagnostics: selectedNode
-            ? (nodeCheckDiagnostics[selectedNode.ref.instanceKey] ?? [])
+        nodeFieldDiagnostics: selectedNode
+            ? (nodeFieldDiagnostics[selectedNode.ref.instanceKey] ?? [])
             : [],
         nodeDefMap,
         variableOptions,
@@ -144,7 +146,7 @@ export const useNodeInspectorViewState = (form: FormInstance) => {
         shouldShowRawNodeJson: nodeDef === null,
         subtreeOriginal,
         canShowOverride: Boolean(selectedNode?.subtreeNode && subtreeOriginal),
-        selectedNodeArgVisibility,
+        selectedNodeFieldVisibility,
     };
 };
 

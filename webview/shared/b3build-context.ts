@@ -12,7 +12,7 @@ import { logger } from "./logger";
 import { getFs } from "./b3fs";
 import { readTreeFromFile } from "./tree";
 import { dfs, isSubtreeRoot } from "./tree-model";
-import { createNodeDefMap, parseSlotDefinition } from "./node-utils";
+import { createNodeDefMap, type NodeSlotDef, parseSlotDefinition } from "./node-utils";
 import { normalizeNodeDefCollection } from "./schema";
 import {
     parseExpressionVariables,
@@ -274,6 +274,7 @@ const checkNodeDataWithState = (
     let hasVaridicInput = false;
     if (conf.input) {
         for (let i = 0; i < conf.input.length; i++) {
+            const slotDefinition = parseSlotDefinition(conf.input[i] ?? "", conf.input, i);
             if (!data.input) {
                 data.input = [];
             }
@@ -281,7 +282,7 @@ const checkNodeDataWithState = (
                 data.input[i] = "";
             }
             if (!isValidInputOrOutput(conf.input, data.input, i)) {
-                error(`intput field '${conf.input[i]}' is required`);
+                error(`intput field '${slotDefinition.label}' is required`);
                 hasError = true;
             }
             if (i === conf.input.length - 1 && isVariadic(conf.input, -1)) {
@@ -296,6 +297,7 @@ const checkNodeDataWithState = (
     let hasVaridicOutput = false;
     if (conf.output) {
         for (let i = 0; i < conf.output.length; i++) {
+            const slotDefinition = parseSlotDefinition(conf.output[i] ?? "", conf.output, i);
             if (!data.output) {
                 data.output = [];
             }
@@ -303,7 +305,7 @@ const checkNodeDataWithState = (
                 data.output[i] = "";
             }
             if (!isValidInputOrOutput(conf.output, data.output, i)) {
-                error(`output field '${conf.output[i]}' is required`);
+                error(`output field '${slotDefinition.label}' is required`);
                 hasError = true;
             }
             if (i === conf.output.length - 1 && isVariadic(conf.output, -1)) {
@@ -608,12 +610,16 @@ export const createBuildProjectContext = (options: {
     };
 };
 
-const isVariadic = (def: string[], i: number) => {
+const isVariadic = (def: readonly NodeSlotDef[], i: number) => {
     const index = i === -1 ? def.length - 1 : i;
     return parseSlotDefinition(def[index] ?? "", def, index).variadic;
 };
 
-const isValidInputOrOutput = (def: string[], data: string[] | undefined, index: number) => {
+const isValidInputOrOutput = (
+    def: readonly NodeSlotDef[],
+    data: string[] | undefined,
+    index: number
+) => {
     const slotDefinition = parseSlotDefinition(def[index] ?? "", def, index);
     return !slotDefinition.required || Boolean(data?.[index]) || slotDefinition.variadic;
 };

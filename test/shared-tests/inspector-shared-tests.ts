@@ -148,6 +148,67 @@ export const inspectorSharedTests = defineSharedTests([
         },
     },
     {
+        name: "preserves structured slot checker and visible names in node definitions",
+        run() {
+            const defs = parseNodeDefsContent(
+                JSON.stringify([
+                    {
+                        name: "Wait",
+                        type: "Action",
+                        desc: "",
+                        input: [
+                            {
+                                name: "target?",
+                                checker: "positive-input",
+                                visible: "show-target",
+                            },
+                        ],
+                        output: [
+                            {
+                                name: "result",
+                                checker: "check-result",
+                            },
+                        ],
+                    },
+                ])
+            );
+
+            assert.deepEqual(defs[0]?.input?.[0], {
+                name: "target?",
+                checker: "positive-input",
+                visible: "show-target",
+            });
+            assert.deepEqual(defs[0]?.output?.[0], {
+                name: "result",
+                checker: "check-result",
+                visible: undefined,
+            });
+        },
+    },
+    {
+        name: "reports structured slot schema errors with node names",
+        run() {
+            assert.throws(
+                () =>
+                    parseNodeDefsContent(
+                        JSON.stringify([
+                            {
+                                name: "TestVisibleAndChecker",
+                                type: "Action",
+                                desc: "",
+                                input: [
+                                    {
+                                        name: "",
+                                    },
+                                ],
+                            },
+                        ])
+                    ),
+                /nodes\[0\]\(TestVisibleAndChecker\)\.input\[0\]\.name must be a non-empty string/
+            );
+        },
+    },
+    {
         name: "filters structured args by selected node visibility state",
         run() {
             const args: NodeArg[] = [
@@ -276,6 +337,103 @@ export const inspectorSharedTests = defineSharedTests([
                 output: undefined,
                 args: undefined,
             });
+        },
+    },
+    {
+        name: "renaming a node prunes args and slots that are missing from the next node definition",
+        run() {
+            const selectedNode: EditNode = {
+                ref: {
+                    instanceKey: "13",
+                    displayId: "13",
+                    structuralStableId: "schema-prune-node",
+                    sourceStableId: "schema-prune-node",
+                    sourceTreePath: null,
+                    subtreeStack: [],
+                },
+                data: {
+                    uuid: "schema-prune-node",
+                    id: "13",
+                    name: "OldNode",
+                    args: {
+                        mode: "delay",
+                        time: 3,
+                    },
+                    input: ["targetA", "targetB"],
+                    output: ["resultA", "resultB"],
+                },
+                prefix: "",
+                activeChildCount: 0,
+                disabled: false,
+                subtreeNode: false,
+                subtreeEditable: true,
+            };
+
+            assert.deepEqual(
+                buildRenamedNodeData(selectedNode, "Wait", {
+                    name: "Wait",
+                    type: "Action",
+                    desc: "",
+                    args: [{ name: "time", type: "float", desc: "Time" }],
+                    input: ["target"],
+                    output: ["result"],
+                }),
+                {
+                    name: "Wait",
+                    desc: undefined,
+                    path: undefined,
+                    debug: undefined,
+                    disabled: undefined,
+                    input: ["targetA"],
+                    output: ["resultA"],
+                    args: { time: 3 },
+                }
+            );
+        },
+    },
+    {
+        name: "renaming a node does not synthesize empty slots for a longer next node definition",
+        run() {
+            const selectedNode: EditNode = {
+                ref: {
+                    instanceKey: "14",
+                    displayId: "14",
+                    structuralStableId: "schema-keep-node",
+                    sourceStableId: "schema-keep-node",
+                    sourceTreePath: null,
+                    subtreeStack: [],
+                },
+                data: {
+                    uuid: "schema-keep-node",
+                    id: "14",
+                    name: "OldNode",
+                    input: ["targetA"],
+                },
+                prefix: "",
+                activeChildCount: 0,
+                disabled: false,
+                subtreeNode: false,
+                subtreeEditable: true,
+            };
+
+            assert.deepEqual(
+                buildRenamedNodeData(selectedNode, "Wait", {
+                    name: "Wait",
+                    type: "Action",
+                    desc: "",
+                    input: ["target", "fallback?"],
+                }),
+                {
+                    name: "Wait",
+                    desc: undefined,
+                    path: undefined,
+                    debug: undefined,
+                    disabled: undefined,
+                    input: ["targetA"],
+                    output: undefined,
+                    args: undefined,
+                }
+            );
         },
     },
     {

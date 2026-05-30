@@ -11,9 +11,10 @@ import type {
     GraphSelectionState,
     HostAdapter,
     HostSelectionState,
-    NodeArgVisibilityTarget,
-    NodeCheckDiagnostic,
-    NodeCheckValidationNode,
+    NodeFieldDiagnostic,
+    NodeFieldValidationNode,
+    NodeFieldVisibilityState,
+    NodeFieldVisibilityTarget,
     NodeDef,
     NodeInstanceRef,
     PersistedNodeModel,
@@ -25,7 +26,7 @@ import type {
 } from "../shared/contracts";
 import type { GraphAdapter } from "../shared/graph-contracts";
 import { parseWorkdirRelativeJsonPath } from "../shared/protocol";
-import { createNodeDefMap, findNodeDef } from "../shared/node-utils";
+import { createNodeDefMap, findNodeDef, parseSlotDefinition } from "../shared/node-utils";
 import {
     cloneJsonValue,
     findPersistedNodeByStableId,
@@ -318,7 +319,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         updateSelectionState(() => buildTreeSelectionPatch());
         deps.workspaceStore.setState((state) => ({
             ...state,
-            selectedNodeArgVisibility: {},
+            selectedNodeFieldVisibility: createEmptyNodeFieldVisibility(),
         }));
     };
 
@@ -384,7 +385,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         updateSelectionState(() => buildPendingNodeSelectionPatch(selection.ref));
         deps.workspaceStore.setState((state) => ({
             ...state,
-            selectedNodeArgVisibility: {},
+            selectedNodeFieldVisibility: createEmptyNodeFieldVisibility(),
         }));
     };
 
@@ -396,7 +397,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         }
 
         updateSelectionState(() => projectSelectionRef(selection.ref));
-        void requestSelectedNodeArgVisibility();
+        void requestSelectedNodeFieldVisibility();
     };
 
     const revealNode = async (target: NodeInstanceRef) => {
@@ -555,7 +556,13 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
     const cloneNodeArgs = (args: Record<string, unknown> | undefined) =>
         args ? (cloneJsonValue(args) as Record<string, unknown>) : undefined;
 
-    const buildSelectedNodeArgVisibilityTarget = (): NodeArgVisibilityTarget | null => {
+    const createEmptyNodeFieldVisibility = (): NodeFieldVisibilityState => ({
+        args: {},
+        input: {},
+        output: {},
+    });
+
+    const buildSelectedNodeFieldVisibilityTarget = (): NodeFieldVisibilityTarget | null => {
         const node = getSelectedResolvedNode();
         if (!node) {
             return null;
@@ -579,16 +586,28 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         };
     };
 
-    const collectNodeCheckValidationNodes = (
+    const collectNodeFieldValidationNodes = (
         graph: ResolvedDocumentGraph,
         nodeDefs: NodeDef[]
-    ): NodeCheckValidationNode[] => {
+    ): NodeFieldValidationNode[] => {
         const defsByName = createNodeDefMap(nodeDefs);
-        const nodes: NodeCheckValidationNode[] = [];
+        const nodes: NodeFieldValidationNode[] = [];
         for (const key of graph.nodeOrder) {
             const node = graph.nodesByInstanceKey[key];
             const def = findNodeDef(defsByName, node.name);
-            if (!def?.args?.some((arg) => arg.checker?.trim())) {
+            const hasCustomChecker =
+                Boolean(def?.args?.some((arg) => arg.checker?.trim())) ||
+                Boolean(
+                    def?.input?.some((slot, index) =>
+                        Boolean(parseSlotDefinition(slot, def.input, index).checker)
+                    )
+                ) ||
+                Boolean(
+                    def?.output?.some((slot, index) =>
+                        Boolean(parseSlotDefinition(slot, def.output, index).checker)
+                    )
+                );
+            if (!hasCustomChecker) {
                 continue;
             }
             nodes.push({
@@ -612,70 +631,74 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         return nodes;
     };
 
-    const requestNodeCheckDiagnostics = async (
+    const requestNodeFieldDiagnostics = async (
         graph: ResolvedDocumentGraph,
         workspace: WorkspaceState
-    ): Promise<Record<string, NodeCheckDiagnostic[]>> => {
+    ): Promise<Record<string, NodeFieldDiagnostic[]>> => {
         // Checker requests are async; sequence numbers prevent stale diagnostics from winning the race.
         const content = getSerializedCurrentTree();
         const treePath = workspace.filePath;
-        const nodes = collectNodeCheckValidationNodes(graph, workspace.nodeDefs);
+        const nodes = collectNodeFieldValidationNodes(graph, workspace.nodeDefs);
         const requestSeq = ++nodeCheckRequestSeq;
         if (!content || !treePath || nodes.length === 0) {
             deps.workspaceStore.setState((state) => ({
                 ...state,
-                nodeCheckDiagnostics: {},
+                nodeFieldDiagnostics: {},
             }));
             return {};
         }
 
-        const response = await deps.hostAdapter.validateNodeChecks(content, treePath, nodes);
+        const response = await deps.hostAdapter.validateNodeFields(content, treePath, nodes);
         if (requestSeq !== nodeCheckRequestSeq) {
-            return deps.workspaceStore.getState().nodeCheckDiagnostics;
+            return deps.workspaceStore.getState().nodeFieldDiagnostics;
         }
         if (response.error) {
             deps.hostAdapter.log("warn", `[v2] node check validation failed: ${response.error}`);
         }
 
-        const nextDiagnostics: Record<string, NodeCheckDiagnostic[]> = {};
+        const nextDiagnostics: Record<string, NodeFieldDiagnostic[]> = {};
         for (const diagnostic of response.diagnostics) {
             (nextDiagnostics[diagnostic.instanceKey] ||= []).push(diagnostic);
         }
         deps.workspaceStore.setState((state) => ({
             ...state,
-            nodeCheckDiagnostics: nextDiagnostics,
+            nodeFieldDiagnostics: nextDiagnostics,
         }));
         return nextDiagnostics;
     };
 
-    const requestSelectedNodeArgVisibility = async (): Promise<Record<string, boolean>> => {
-        if (!deps.hostAdapter.resolveNodeArgVisibility) {
-            return {};
+    const requestSelectedNodeFieldVisibility = async (): Promise<NodeFieldVisibilityState> => {
+        if (!deps.hostAdapter.resolveNodeFieldVisibility) {
+            return createEmptyNodeFieldVisibility();
         }
 
         const content = getSerializedCurrentTree();
         const treePath = deps.workspaceStore.getState().filePath;
-        const target = buildSelectedNodeArgVisibilityTarget();
+        const target = buildSelectedNodeFieldVisibilityTarget();
         const requestSeq = ++nodeArgVisibilityRequestSeq;
         if (!content || !treePath || !target) {
             deps.workspaceStore.setState((state) => ({
                 ...state,
-                selectedNodeArgVisibility: {},
+                selectedNodeFieldVisibility: createEmptyNodeFieldVisibility(),
             }));
-            return {};
+            return createEmptyNodeFieldVisibility();
         }
 
-        const response = await deps.hostAdapter.resolveNodeArgVisibility(content, treePath, target);
+        const response = await deps.hostAdapter.resolveNodeFieldVisibility(
+            content,
+            treePath,
+            target
+        );
         if (requestSeq !== nodeArgVisibilityRequestSeq) {
-            return deps.workspaceStore.getState().selectedNodeArgVisibility;
+            return deps.workspaceStore.getState().selectedNodeFieldVisibility;
         }
         if (response.error) {
-            deps.hostAdapter.log("warn", `[v2] node arg visibility failed: ${response.error}`);
+            deps.hostAdapter.log("warn", `[v2] node field visibility failed: ${response.error}`);
         }
 
         deps.workspaceStore.setState((state) => ({
             ...state,
-            selectedNodeArgVisibility: response.visibility,
+            selectedNodeFieldVisibility: response.visibility,
         }));
         return response.visibility;
     };
@@ -780,7 +803,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         });
 
         resolvedGraph = result.graph;
-        const nodeCheckDiagnostics = await requestNodeCheckDiagnostics(result.graph, workspace);
+        const nodeFieldDiagnostics = await requestNodeFieldDiagnostics(result.graph, workspace);
 
         const anchorNodeKey = takeNextGraphRenderAnchor();
         await deps.graphAdapter.render(
@@ -792,7 +815,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
                     usingVars: workspace.usingVars,
                     usingGroups: workspace.usingGroups,
                     checkExpr: workspace.settings.checkExpr,
-                    nodeCheckDiagnostics,
+                    nodeFieldDiagnostics,
                 }
             ),
             anchorNodeKey ? { anchorNodeKey } : undefined
@@ -805,7 +828,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             });
         }
         await applyVisualState();
-        await requestSelectedNodeArgVisibility();
+        await requestSelectedNodeFieldVisibility();
         await flushPendingReveal();
     };
 

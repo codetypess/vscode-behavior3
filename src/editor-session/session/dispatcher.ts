@@ -48,12 +48,12 @@ export interface CreateSessionDispatcherParams {
         reply?: HostMessageSink
     ): Promise<void>;
     refreshSettings(opts?: { refreshDefs?: boolean }): Promise<void>;
-    handleValidateNodeChecksMessage(
-        msg: Extract<EditorToHostMessage, { type: "validateNodeChecks" }>,
+    handleValidateNodeFieldsMessage(
+        msg: Extract<EditorToHostMessage, { type: "validateNodeFields" }>,
         reply?: HostMessageSink
     ): Promise<void>;
-    handleResolveNodeArgVisibilityMessage(
-        msg: Extract<EditorToHostMessage, { type: "resolveNodeArgVisibility" }>,
+    handleResolveNodeFieldVisibilityMessage(
+        msg: Extract<EditorToHostMessage, { type: "resolveNodeFieldVisibility" }>,
         reply?: HostMessageSink
     ): Promise<void>;
     fileRequestHandlers: SessionDispatcherFileRequestHandlers;
@@ -69,8 +69,8 @@ export function createSessionDispatcher({
     handleSaveDocumentMessage,
     handleRevertDocumentMessage,
     refreshSettings,
-    handleValidateNodeChecksMessage,
-    handleResolveNodeArgVisibilityMessage,
+    handleValidateNodeFieldsMessage,
+    handleResolveNodeFieldVisibilityMessage,
     fileRequestHandlers,
 }: CreateSessionDispatcherParams): SessionDispatcher {
     const dispatchEditorMessage = async (
@@ -139,12 +139,12 @@ export function createSessionDispatcher({
                     .then(undefined, logAsyncRuntimeError(`command:${msg.command}`));
                 return;
 
-            case "validateNodeChecks":
-                await handleValidateNodeChecksMessage(msg, reply);
+            case "validateNodeFields":
+                await handleValidateNodeFieldsMessage(msg, reply);
                 return;
 
-            case "resolveNodeArgVisibility":
-                await handleResolveNodeArgVisibilityMessage(msg, reply);
+            case "resolveNodeFieldVisibility":
+                await handleResolveNodeFieldVisibilityMessage(msg, reply);
                 return;
 
             case "webviewLog":

@@ -124,7 +124,7 @@ export function useNodeInspectorCommitters({
         queueNodeMutation(["name"], (values) => {
             const nextName =
                 String(values.name ?? selectedNode.data.name).trim() || selectedNode.data.name;
-            return buildRenamedNodeData(selectedNode, nextName);
+            return buildRenamedNodeData(selectedNode, nextName, nodeDef);
         });
     };
 

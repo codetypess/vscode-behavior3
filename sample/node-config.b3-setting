@@ -420,13 +420,41 @@
     "name": "TestOneof",
     "desc": "测试oneof",
     "type": "Action",
-    "input": ["选项?"],
+    "input": [
+      "选项?"
+    ],
     "args": [
       {
         "name": "option",
         "desc": "选项",
         "type": "int[]?",
         "oneof": "选项"
+      }
+    ]
+  },
+  {
+    "name": "TestVisibleAndChecker",
+    "desc": "测试注入函数检查",
+    "type": "Action",
+    "input": [
+      {
+        "name": "目标?",
+        "visible": "test_input_visible",
+        "checker": "test_input_checker"
+      }
+    ],
+    "args": [
+      {
+        "name": "type",
+        "desc": "类型",
+        "type": "int"
+      },
+      {
+        "name": "health",
+        "desc": "血量",
+        "type": "int?",
+        "checker": "test_args_health_checker",
+        "visible": "test_args_health_visible"
       }
     ]
   }

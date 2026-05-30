@@ -4,6 +4,7 @@
  * crosses into these shapes.
  */
 import type { NodeDef, VarDecl, ImportDecl } from "./b3type";
+import type { NodeFieldKind } from "./b3build-model";
 
 export type { NodeDef, VarDecl, ImportDecl };
 
@@ -139,8 +140,8 @@ export interface WorkspaceState {
     importDecls: ImportDecl[];
     subtreeDecls: ImportDecl[];
     subtreeSources: Record<WorkdirRelativeJsonPath, SubtreeSourceCacheEntry>;
-    nodeCheckDiagnostics: Record<string, NodeCheckDiagnostic[]>;
-    selectedNodeArgVisibility: Record<string, boolean>;
+    nodeFieldDiagnostics: Record<string, NodeFieldDiagnostic[]>;
+    selectedNodeFieldVisibility: NodeFieldVisibilityState;
 }
 
 export interface SelectionState {
@@ -244,31 +245,39 @@ export interface RevertDocumentResponse {
     error?: string;
 }
 
-export interface NodeCheckValidationNode {
+export interface NodeFieldValidationNode {
     instanceKey: string;
     treePath: WorkdirRelativeJsonPath | null;
     node: PersistedNodeModel;
 }
 
-export interface NodeArgVisibilityTarget {
+export interface NodeFieldVisibilityTarget {
     treePath: WorkdirRelativeJsonPath | null;
     node: PersistedNodeModel;
 }
 
-export interface NodeCheckDiagnostic {
+export interface NodeFieldVisibilityState {
+    args: Record<string, boolean>;
+    input: Record<number, boolean>;
+    output: Record<number, boolean>;
+}
+
+export interface NodeFieldDiagnostic {
     instanceKey: string;
-    argName: string;
+    fieldKind: NodeFieldKind;
+    fieldName: string;
+    fieldIndex?: number;
     checker: string;
     message: string;
 }
 
-export interface ValidateNodeChecksResponse {
-    diagnostics: NodeCheckDiagnostic[];
+export interface ValidateNodeFieldsResponse {
+    diagnostics: NodeFieldDiagnostic[];
     error?: string;
 }
 
-export interface ResolveNodeArgVisibilityResponse {
-    visibility: Record<string, boolean>;
+export interface ResolveNodeFieldVisibilityResponse {
+    visibility: NodeFieldVisibilityState;
     error?: string;
 }
 
@@ -439,16 +448,16 @@ export interface HostAdapter {
     sendRequestSetting(): void;
     sendBuild(opts?: { buildScriptDebug?: boolean }): void;
     executeInspectorHostCommand(command: InspectorHostCommandId): void;
-    validateNodeChecks(
+    validateNodeFields(
         content: string,
         treePath: string,
-        nodes: NodeCheckValidationNode[]
-    ): Promise<ValidateNodeChecksResponse>;
-    resolveNodeArgVisibility?(
+        nodes: NodeFieldValidationNode[]
+    ): Promise<ValidateNodeFieldsResponse>;
+    resolveNodeFieldVisibility?(
         content: string,
         treePath: string,
-        target: NodeArgVisibilityTarget
-    ): Promise<ResolveNodeArgVisibilityResponse>;
+        target: NodeFieldVisibilityTarget
+    ): Promise<ResolveNodeFieldVisibilityResponse>;
     saveDocument(): Promise<SaveDocumentResponse>;
     revertDocument(): Promise<RevertDocumentResponse>;
     readFile(

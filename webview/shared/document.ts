@@ -10,7 +10,7 @@ import type {
 } from "./contracts";
 import { isJsonEqual } from "./json";
 import { getNodeArgOverrideCompareValue } from "./node-overrides";
-import { createNodeDefMap, findNodeDef } from "./node-utils";
+import { createNodeDefMap, findNodeDef, parseSlotDefinition } from "./node-utils";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
 import { translateRuntimeMessage, type SupportedLanguage } from "./runtime-i18n";
 import {
@@ -175,7 +175,10 @@ const computeNodeOverride = (
     edited: PersistedNodeModel,
     def: Pick<NodeDef, "args"> | null | undefined
 ): Pick<PersistedNodeModel, "desc" | "input" | "output" | "args" | "debug" | "disabled"> | null => {
-    const diff: Pick<PersistedNodeModel, "desc" | "input" | "output" | "args" | "debug" | "disabled"> = {};
+    const diff: Pick<
+        PersistedNodeModel,
+        "desc" | "input" | "output" | "args" | "debug" | "disabled"
+    > = {};
     let hasDiff = false;
 
     if ((edited.desc || undefined) !== (original.desc || undefined)) {
@@ -223,6 +226,51 @@ const computeNodeOverride = (
     }
 
     return hasDiff ? diff : null;
+};
+
+const pruneNodeArgsByDefinition = (
+    args: PersistedNodeModel["args"],
+    nodeDef: NodeDef | null
+): PersistedNodeModel["args"] => {
+    if (!args || !nodeDef) {
+        return args;
+    }
+
+    const argDefs = nodeDef.args ?? [];
+    if (argDefs.length === 0) {
+        return undefined;
+    }
+
+    const declaredNames = new Set(argDefs.map((arg) => arg.name));
+    const nextEntries = Object.entries(args).filter(([argName]) => declaredNames.has(argName));
+    if (nextEntries.length === Object.keys(args).length) {
+        return args;
+    }
+
+    return nextEntries.length > 0 ? Object.fromEntries(nextEntries) : undefined;
+};
+
+const pruneNodeSlotsByDefinition = (
+    slots: PersistedNodeModel["input"] | PersistedNodeModel["output"],
+    slotDefs: NodeDef["input"] | NodeDef["output"] | undefined
+): string[] | undefined => {
+    if (!slots) {
+        return slots;
+    }
+
+    if (!slotDefs?.length) {
+        return undefined;
+    }
+
+    const lastIndex = slotDefs.length - 1;
+    const keepVariadicTail = parseSlotDefinition(
+        slotDefs[lastIndex] ?? "",
+        slotDefs,
+        lastIndex
+    ).variadic;
+    const nextSlots = keepVariadicTail ? slots.slice(0) : slots.slice(0, slotDefs.length);
+
+    return isJsonEqual(nextSlots, slots) ? slots : nextSlots;
 };
 
 const matchesSelectedNodeTarget = (selectedNode: EditNode, payload: UpdateNodeInput): boolean => {
@@ -363,9 +411,9 @@ const reduceUpdateNode = (
 
     const nextDebug = payload.data.debug ? true : undefined;
     const nextDisabled = payload.data.disabled ? true : undefined;
-    const nextInput = payload.data.input;
-    const nextOutput = payload.data.output;
-    const nextArgs = payload.data.args;
+    const nextInput = pruneNodeSlotsByDefinition(payload.data.input, nextNodeDef?.input);
+    const nextOutput = pruneNodeSlotsByDefinition(payload.data.output, nextNodeDef?.output);
+    const nextArgs = pruneNodeArgsByDefinition(payload.data.args, nextNodeDef);
 
     if (
         nextName === selectedNode.data.name &&

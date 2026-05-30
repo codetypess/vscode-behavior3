@@ -26,6 +26,8 @@ const NODE_ARG_TYPE_PATTERN = /^(bool|boolean|int|float|string|json|expr|code)(\
 const CHILDREN_ARITIES = new Set<NonNullable<NodeDef["children"]>>([-1, 0, 1, 2, 3]);
 
 type PlainRecord = Record<string, unknown>;
+type NodeSlotEntry = Exclude<NonNullable<NodeDef["input"]>[number], undefined>;
+type StructuredNodeSlotEntry = Exclude<NodeSlotEntry, string>;
 
 const isPlainRecord = (value: unknown): value is PlainRecord => {
     return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -76,6 +78,42 @@ const asStringArray = (value: unknown, label: string): string[] => {
         }
         return entry;
     });
+};
+
+const normalizeNodeLabel = (label: string, record: PlainRecord): string => {
+    const rawNodeName = record.name;
+    if (typeof rawNodeName !== "string" || !rawNodeName.trim()) {
+        return label;
+    }
+    return `${label}(${rawNodeName.trim()})`;
+};
+
+const normalizeNodeSlotEntry = (value: unknown, label: string): NodeSlotEntry => {
+    if (typeof value === "string") {
+        return asRequiredString(value, label);
+    }
+
+    const record = expectPlainRecord(value, label);
+    return {
+        name: asRequiredString(record.name, `${label}.name`),
+        checker: asOptionalNonEmptyString(record.checker, `${label}.checker`),
+        visible: asOptionalNonEmptyString(record.visible, `${label}.visible`),
+    } as StructuredNodeSlotEntry;
+};
+
+const normalizeNodeSlots = <T extends NodeDef["input"] | NodeDef["output"]>(
+    value: unknown,
+    label: string
+): T | undefined => {
+    if (value === undefined) {
+        return undefined;
+    }
+    if (!Array.isArray(value)) {
+        throw new Error(`${label} must be an array`);
+    }
+
+    const slots = value.map((entry, index) => normalizeNodeSlotEntry(entry, `${label}[${index}]`));
+    return slots.length > 0 ? (slots as T) : undefined;
 };
 
 const asWorkdirRelativeJsonPathArray = (value: unknown, label: string): string[] => {
@@ -213,9 +251,13 @@ const normalizeNodeArgs = (value: unknown, label: string): NodeDef["args"] | und
 
 const normalizeNodeDef = (value: unknown, label: string): NodeDef => {
     const record = expectPlainRecord(value, label);
-    const type = asRequiredString(record.type, `${label}.type`) as NodeDef["type"];
+    const nodeLabel = normalizeNodeLabel(label, record);
+    const name = asRequiredString(record.name, `${nodeLabel}.name`);
+    const type = asRequiredString(record.type, `${nodeLabel}.type`) as NodeDef["type"];
     if (!NODE_DEF_TYPES.has(type)) {
-        throw new Error(`${label}.type must be one of ${Array.from(NODE_DEF_TYPES).join(", ")}`);
+        throw new Error(
+            `${nodeLabel}.type must be one of ${Array.from(NODE_DEF_TYPES).join(", ")}`
+        );
     }
 
     const groupValue = record.group;
@@ -224,39 +266,33 @@ const normalizeNodeDef = (value: unknown, label: string): NodeDef => {
             ? undefined
             : Array.isArray(groupValue)
               ? groupValue.map((entry, index) =>
-                    asRequiredString(entry, `${label}.group[${index}]`)
+                    asRequiredString(entry, `${nodeLabel}.group[${index}]`)
                 )
-              : [asRequiredString(groupValue, `${label}.group`)];
+              : [asRequiredString(groupValue, `${nodeLabel}.group`)];
 
     const childrenValue = record.children;
     if (childrenValue !== undefined && !CHILDREN_ARITIES.has(childrenValue as never)) {
-        throw new Error(`${label}.children must be one of -1, 0, 1, 2, 3`);
+        throw new Error(`${nodeLabel}.children must be one of -1, 0, 1, 2, 3`);
     }
 
     const statusValue = record.status;
     const status =
         statusValue === undefined
             ? undefined
-            : asStringArray(statusValue, `${label}.status`).map((entry) => {
+            : asStringArray(statusValue, `${nodeLabel}.status`).map((entry) => {
                   if (!NODE_STATUS_VALUES.has(entry as never)) {
-                      throw new Error(`${label}.status contains unsupported value: ${entry}`);
+                      throw new Error(`${nodeLabel}.status contains unsupported value: ${entry}`);
                   }
                   return entry as NonNullable<NodeDef["status"]>[number];
               });
 
     return {
-        name: asRequiredString(record.name, `${label}.name`),
+        name,
         type,
         desc: asOptionalString(record.desc) ?? "",
-        input: (() => {
-            const input = asStringArray(record.input, `${label}.input`);
-            return input.length > 0 ? input : undefined;
-        })(),
-        output: (() => {
-            const output = asStringArray(record.output, `${label}.output`);
-            return output.length > 0 ? output : undefined;
-        })(),
-        args: normalizeNodeArgs(record.args, `${label}.args`),
+        input: normalizeNodeSlots<NodeDef["input"]>(record.input, `${nodeLabel}.input`),
+        output: normalizeNodeSlots<NodeDef["output"]>(record.output, `${nodeLabel}.output`),
+        args: normalizeNodeArgs(record.args, `${nodeLabel}.args`),
         doc: asOptionalString(record.doc),
         icon: asOptionalString(record.icon),
         color: asOptionalString(record.color),

@@ -1,12 +1,12 @@
 import type {
     DocumentMutationResponse,
     ReadFileResponse,
-    ResolveNodeArgVisibilityResponse,
+    ResolveNodeFieldVisibilityResponse,
     RevertDocumentResponse,
     SaveDocumentResponse,
     SaveSubtreeAsResponse,
     SaveSubtreeResponse,
-    ValidateNodeChecksResponse,
+    ValidateNodeFieldsResponse,
     WorkdirRelativeJsonPath,
 } from "./contracts";
 import type { HostToEditorMessage } from "./message-protocol";
@@ -18,8 +18,8 @@ export interface PendingRequestMap {
     saveDocument: SaveDocumentResponse;
     revertDocument: RevertDocumentResponse;
     mutateDocument: DocumentMutationResponse;
-    validateNodeChecks: ValidateNodeChecksResponse;
-    resolveNodeArgVisibility: ResolveNodeArgVisibilityResponse;
+    validateNodeFields: ValidateNodeFieldsResponse;
+    resolveNodeFieldVisibility: ResolveNodeFieldVisibilityResponse;
 }
 
 export type PendingRequestType = keyof PendingRequestMap;
@@ -31,10 +31,10 @@ type PendingRequestResultMessageMap = {
     saveDocument: Extract<HostToEditorMessage, { type: "saveDocumentResult" }>;
     revertDocument: Extract<HostToEditorMessage, { type: "revertDocumentResult" }>;
     mutateDocument: Extract<HostToEditorMessage, { type: "mutateDocumentResult" }>;
-    validateNodeChecks: Extract<HostToEditorMessage, { type: "validateNodeChecksResult" }>;
-    resolveNodeArgVisibility: Extract<
+    validateNodeFields: Extract<HostToEditorMessage, { type: "validateNodeFieldsResult" }>;
+    resolveNodeFieldVisibility: Extract<
         HostToEditorMessage,
-        { type: "resolveNodeArgVisibilityResult" }
+        { type: "resolveNodeFieldVisibilityResult" }
     >;
 };
 
@@ -119,22 +119,22 @@ const hostRequestSpecs = {
             error: message.error,
         }),
     },
-    validateNodeChecks: {
-        resultType: "validateNodeChecksResult",
+    validateNodeFields: {
+        resultType: "validateNodeFieldsResult",
         createTimeoutResponse: () => ({
             diagnostics: [],
-            error: "Host request 'validateNodeChecks' timed out",
+            error: "Host request 'validateNodeFields' timed out",
         }),
         resolveResult: (message) => ({
             diagnostics: message.diagnostics,
             error: message.error,
         }),
     },
-    resolveNodeArgVisibility: {
-        resultType: "resolveNodeArgVisibilityResult",
+    resolveNodeFieldVisibility: {
+        resultType: "resolveNodeFieldVisibilityResult",
         createTimeoutResponse: () => ({
-            visibility: {},
-            error: "Host request 'resolveNodeArgVisibility' timed out",
+            visibility: { args: {}, input: {}, output: {} },
+            error: "Host request 'resolveNodeFieldVisibility' timed out",
         }),
         resolveResult: (message) => ({
             visibility: message.visibility,

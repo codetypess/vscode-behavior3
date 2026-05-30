@@ -57,7 +57,7 @@ export async function resolveTreeEditorSession(
         handleRevertDocumentMessage,
         handleMainDocumentFileChange,
     } = createSessionDocumentLifecycle(context, inspectorSync, subtreeTracking, fileVersionGuard);
-    const { handleValidateNodeChecksMessage, handleResolveNodeArgVisibilityMessage } =
+    const { handleValidateNodeFieldsMessage, handleResolveNodeFieldVisibilityMessage } =
         createSessionNodeChecks(context);
 
     const fileRequestHandlers = createSessionFileRequestHandlers({
@@ -86,8 +86,8 @@ export async function resolveTreeEditorSession(
         handleSaveDocumentMessage,
         handleRevertDocumentMessage,
         refreshSettings,
-        handleValidateNodeChecksMessage,
-        handleResolveNodeArgVisibilityMessage,
+        handleValidateNodeFieldsMessage,
+        handleResolveNodeFieldVisibilityMessage,
         fileRequestHandlers,
     });
 

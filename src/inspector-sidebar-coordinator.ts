@@ -421,20 +421,20 @@ export class InspectorSidebarCoordinator {
                 });
                 return;
 
-            case "validateNodeChecks":
+            case "validateNodeFields":
                 await reply({
-                    type: "validateNodeChecksResult",
+                    type: "validateNodeFieldsResult",
                     requestId: message.requestId,
                     diagnostics: [],
                     error,
                 });
                 return;
 
-            case "resolveNodeArgVisibility":
+            case "resolveNodeFieldVisibility":
                 await reply({
-                    type: "resolveNodeArgVisibilityResult",
+                    type: "resolveNodeFieldVisibilityResult",
                     requestId: message.requestId,
-                    visibility: {},
+                    visibility: { args: {}, input: {}, output: {} },
                     error,
                 });
                 return;

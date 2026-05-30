@@ -49,7 +49,7 @@
 ### `rebuildGraph(opts?)`
 
 - 基于 `persistedTree + subtreeSources + nodeDefs + subtreeEditable` 重新 resolve graph
-- 请求节点参数检查结果
+- 请求节点字段检查结果
 - 重建 `ResolvedGraphModel`
 - 交给 graph adapter render；若当前存在一次性结构变更锚点，则随 render 一起传入
 - 视情况恢复 selection
@@ -184,11 +184,12 @@ webview 在发送 intent 前只补齐 host reducer 需要的上下文：
 - payload 会先补齐 `currentNodeSnapshot`
 - 若本次是把 subtree link 改回本地节点，还会补齐 `detachedSubtreeRoot`
 - Inspector 可按单字段或局部提交单元构造本次 payload；无关字段错误不应阻断本次 intent
-- `name` 字段提交属于单字段 intent；仅修改名称时，webview 不得顺带生成或重写 `input`、`output`、`args`
+- Inspector 的 `updateNode` intent 不得因预览而补齐新的 `input`、`output`、`args` 默认值；但若目标 `nodeDef` 已不再声明旧字段，则该次 intent 及其 host reducer 结果必须裁剪这些陈旧 committed 数据
 - 节点切换导致的 Inspector 表单重建属于本地展示状态刷新；在写入新节点 form values 前应先清空旧节点的局部表单状态
 - `name` 驱动的 nodeDef 预览切换同样属于本地展示状态刷新；依赖字段不得通过 `setFieldsValue` merge 继承旧节点或旧类型留下的嵌套值
 - 对当前无值的 arg，webview 预览态应通过“缺少该 key”而不是“key 存在但值为 `undefined`”来表达 unset
 - 当节点类型切换引入新的 required args 时，未显式设置的 arg 在首次提交中保持 unset，不应被静默写成占位空值
+- 当 host-side field visibility 将某个 arg / input / output 隐藏时，webview 必须先清空该字段的本地表单值，再通过现有 host-first `updateNode` intent 清除 committed 数据
 - 对 optional `Select` arg，webview 预览态的“未设置”必须表现为空选中态；局部校验与提交序列化都应把它视为 `undefined`，而不是内部哨兵字符串
 - 对主树普通节点，Inspector 可展示 resolved/effective arg 默认值，但 `updateNode.payload.currentNodeSnapshot.data.args` 仍必须保持 committed JSON 语义，不能因为展示默认值而把默认参数带入提交基线
 - 对 subtree 内部节点，`updateNode.payload.currentNodeSnapshot.data.args` 必须保留当前 resolved/current args，作为与 `subtreeOriginal` 比较的编辑基线

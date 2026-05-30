@@ -2,6 +2,18 @@ import type { NodeDef } from "behavior3";
 import type { NodeData, TreeData } from "./b3type";
 
 export type NodeArg = Exclude<NodeDef["args"], undefined>[number];
+export type NodeInputSlot = Exclude<Exclude<NodeDef["input"], undefined>[number], string>;
+export type NodeOutputSlot = Exclude<Exclude<NodeDef["output"], undefined>[number], string>;
+export type NodeFieldKind = "arg" | "input" | "output";
+
+export type NodeSlotField = {
+    name: string;
+    label: string;
+    required: boolean;
+    variadic: boolean;
+    checker?: string;
+    visible?: string;
+};
 
 export type BuildLogger = {
     log: (...args: unknown[]) => void;
@@ -48,25 +60,46 @@ export type BuildEnv = {
     logger: BuildLogger;
 };
 
-export type NodeArgCheckResult = string | string[] | null | undefined;
-export type NodeArgVisibleResult = boolean | null | undefined;
+export type NodeFieldCheckResult = string | string[] | null | undefined;
+export type NodeFieldVisibleResult = boolean | null | undefined;
 
-export type NodeArgCheckContext = {
+type NodeFieldBaseContext = {
     node: NodeData;
     tree: TreeData;
     nodeDef: NodeDef;
-    arg: NodeArg;
-    argName: string;
+    fieldKind: NodeFieldKind;
+    fieldName: string;
+    fieldIndex?: number;
     treePath: string;
     env: BuildEnv;
 };
 
-export interface NodeArgChecker {
-    validate(value: unknown, ctx: NodeArgCheckContext): NodeArgCheckResult;
+export type NodeFieldCheckContext =
+    | (NodeFieldBaseContext & {
+          fieldKind: "arg";
+          arg: NodeArg;
+      })
+    | (NodeFieldBaseContext & {
+          fieldKind: "input";
+          slot: NodeInputSlot;
+          slotField: NodeSlotField;
+          fieldIndex: number;
+      })
+    | (NodeFieldBaseContext & {
+          fieldKind: "output";
+          slot: NodeOutputSlot;
+          slotField: NodeSlotField;
+          fieldIndex: number;
+      });
+
+export type NodeFieldVisibleContext = NodeFieldCheckContext;
+
+export interface NodeFieldChecker {
+    validate(value: unknown, ctx: NodeFieldCheckContext): NodeFieldCheckResult;
 }
 
-export interface NodeArgVisible {
-    visible(value: unknown, ctx: NodeArgCheckContext): NodeArgVisibleResult;
+export interface NodeFieldVisible {
+    visible(value: unknown, ctx: NodeFieldVisibleContext): NodeFieldVisibleResult;
 }
 
 export type BuildScript = {
@@ -82,10 +115,10 @@ export type BatchScript = BuildScript & {
 
 export type BuildHookClass<T extends BuildScript = BuildScript> = new (...args: any[]) => T;
 export type BatchHookClass<T extends BatchScript = BatchScript> = new (...args: any[]) => T;
-export type NodeArgCheckerClass<T extends NodeArgChecker = NodeArgChecker> = new (
+export type NodeFieldCheckerClass<T extends NodeFieldChecker = NodeFieldChecker> = new (
     ...args: any[]
 ) => T;
-export type NodeArgVisibleClass<T extends NodeArgVisible = NodeArgVisible> = new (
+export type NodeFieldVisibleClass<T extends NodeFieldVisible = NodeFieldVisible> = new (
     ...args: any[]
 ) => T;
 
@@ -100,15 +133,15 @@ export type BatchDecorator = {
 };
 
 export type CheckDecorator = {
-    <T extends NodeArgCheckerClass>(target: T): T | void;
-    <T extends NodeArgCheckerClass>(target: T, context: ClassDecoratorContext<T>): T | void;
-    (name?: string): <T extends NodeArgCheckerClass>(target: T) => T | void;
+    <T extends NodeFieldCheckerClass>(target: T): T | void;
+    <T extends NodeFieldCheckerClass>(target: T, context: ClassDecoratorContext<T>): T | void;
+    (name?: string): <T extends NodeFieldCheckerClass>(target: T) => T | void;
 };
 
 export type VisibleDecorator = {
-    <T extends NodeArgVisibleClass>(target: T): T | void;
-    <T extends NodeArgVisibleClass>(target: T, context: ClassDecoratorContext<T>): T | void;
-    (name?: string): <T extends NodeArgVisibleClass>(target: T) => T | void;
+    <T extends NodeFieldVisibleClass>(target: T): T | void;
+    <T extends NodeFieldVisibleClass>(target: T, context: ClassDecoratorContext<T>): T | void;
+    (name?: string): <T extends NodeFieldVisibleClass>(target: T) => T | void;
 };
 
 export type BuildRuntime = {

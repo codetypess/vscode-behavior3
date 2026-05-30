@@ -49,8 +49,8 @@ export const createInitialWorkspaceState = (): WorkspaceState => ({
     importDecls: [],
     subtreeDecls: [],
     subtreeSources: {},
-    nodeCheckDiagnostics: {},
-    selectedNodeArgVisibility: {},
+    nodeFieldDiagnostics: {},
+    selectedNodeFieldVisibility: { args: {}, input: {}, output: {} },
 });
 
 export const createWorkspaceStore = (): StoreApi<WorkspaceState> => {

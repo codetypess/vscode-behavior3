@@ -4,15 +4,22 @@ import type {
     BatchScript,
     BuildEnv,
     BuildScript,
-    NodeArgChecker,
-    NodeArgCheckResult,
-    NodeArgVisible,
-    NodeArgVisibleResult,
+    NodeFieldCheckContext,
+    NodeFieldChecker,
+    NodeFieldCheckResult,
+    NodeFieldKind,
+    NodeFieldVisible,
+    NodeFieldVisibleContext,
+    NodeFieldVisibleResult,
+    NodeInputSlot,
+    NodeOutputSlot,
+    NodeSlotField,
 } from "./b3build-model";
 import { resolveCheckScriptPaths } from "./b3build-check-scripts";
 import { logger } from "./logger";
 import b3path from "./b3path";
 import { stringifyJson } from "./json";
+import { isStructuredSlotDefinition, parseSlotDefinition, type NodeSlotDef } from "./node-utils";
 import { materializePersistedTree, type MaterializedTreeNode } from "./tree-materializer";
 import {
     loadSubtreeSourceCache,
@@ -70,13 +77,18 @@ export type {
     BuildLogger,
     BuildScript,
     FsLike,
-    NodeArgCheckContext,
-    NodeArgChecker,
-    NodeArgCheckerClass,
-    NodeArgCheckResult,
-    NodeArgVisible,
-    NodeArgVisibleClass,
-    NodeArgVisibleResult,
+    NodeFieldCheckContext,
+    NodeFieldChecker,
+    NodeFieldCheckerClass,
+    NodeFieldCheckResult,
+    NodeFieldKind,
+    NodeFieldVisible,
+    NodeFieldVisibleClass,
+    NodeFieldVisibleContext,
+    NodeFieldVisibleResult,
+    NodeInputSlot,
+    NodeOutputSlot,
+    NodeSlotField,
     PathLike,
     VisibleDecorator,
 } from "./b3build-model";
@@ -84,8 +96,8 @@ export { resolveCheckScriptPaths } from "./b3build-check-scripts";
 
 type BuildHookCtor = new (env: BuildEnv) => BuildScript;
 type BatchHookCtor = new (env: BuildEnv) => BatchScript;
-type NodeArgCheckerCtor = new (env: BuildEnv) => NodeArgChecker;
-type NodeArgVisibleCtor = new (env: BuildEnv) => NodeArgVisible;
+type NodeFieldCheckerCtor = new (env: BuildEnv) => NodeFieldChecker;
+type NodeFieldVisibleCtor = new (env: BuildEnv) => NodeFieldVisible;
 
 type OptionalRequire = {
     cache?: Record<string, unknown>;
@@ -167,12 +179,12 @@ type MarkedBatchHookCtor = BatchHookCtor & {
     [BATCH_HOOK_MARKER]?: true;
 };
 
-type MarkedCheckCtor = NodeArgCheckerCtor & {
+type MarkedCheckCtor = NodeFieldCheckerCtor & {
     [CHECK_HOOK_MARKER]?: true;
     [CHECK_HOOK_NAME]?: string;
 };
 
-type MarkedVisibleCtor = NodeArgVisibleCtor & {
+type MarkedVisibleCtor = NodeFieldVisibleCtor & {
     [VISIBLE_HOOK_MARKER]?: true;
     [VISIBLE_HOOK_NAME]?: string;
 };
@@ -381,11 +393,11 @@ const createBatchHooks = (
     return undefined;
 };
 
-const createNodeArgCheckers = (
+const createNodeFieldCheckers = (
     moduleExports: unknown,
     env: BuildEnv
-): { checkers: Map<string, NodeArgChecker>; hasError: boolean; hasCheckers: boolean } => {
-    const checkers = new Map<string, NodeArgChecker>();
+): { checkers: Map<string, NodeFieldChecker>; hasError: boolean; hasCheckers: boolean } => {
+    const checkers = new Map<string, NodeFieldChecker>();
     let hasError = false;
     if (!moduleExports || typeof moduleExports !== "object") {
         return { checkers, hasError, hasCheckers: false };
@@ -421,13 +433,14 @@ const createNodeArgCheckers = (
     return { checkers, hasError, hasCheckers: decorated.length > 0 };
 };
 
-const normalizeNodeArgVisibleResult = (result: NodeArgVisibleResult): boolean => result !== false;
+const normalizeNodeFieldVisibleResult = (result: NodeFieldVisibleResult): boolean =>
+    result !== false;
 
-const createNodeArgVisibles = (
+const createNodeFieldVisibles = (
     moduleExports: unknown,
     env: BuildEnv
-): { visibles: Map<string, NodeArgVisible>; hasError: boolean; hasVisibles: boolean } => {
-    const visibles = new Map<string, NodeArgVisible>();
+): { visibles: Map<string, NodeFieldVisible>; hasError: boolean; hasVisibles: boolean } => {
+    const visibles = new Map<string, NodeFieldVisible>();
     let hasError = false;
     if (!moduleExports || typeof moduleExports !== "object") {
         return { visibles, hasError, hasVisibles: false };
@@ -463,23 +476,23 @@ const createNodeArgVisibles = (
     return { visibles, hasError, hasVisibles: decorated.length > 0 };
 };
 
-export const createNodeArgVisibleRuntimeWithCheckModules = (
+export const createNodeFieldVisibleRuntimeWithCheckModules = (
     buildScriptModule: unknown,
     checkScriptModules: CheckScriptModule[],
     env: BuildEnv
-): { nodeArgVisibles: Map<string, NodeArgVisible>; hasError: boolean } => {
-    const nodeArgVisibles = new Map<string, NodeArgVisible>();
+): { nodeFieldVisibles: Map<string, NodeFieldVisible>; hasError: boolean } => {
+    const nodeFieldVisibles = new Map<string, NodeFieldVisible>();
     let hasError = false;
     const mergeModuleVisibles = (moduleExports: unknown) => {
-        const visibleResult = createNodeArgVisibles(moduleExports, env);
+        const visibleResult = createNodeFieldVisibles(moduleExports, env);
         hasError = hasError || visibleResult.hasError;
         for (const [name, visible] of visibleResult.visibles) {
-            if (nodeArgVisibles.has(name)) {
+            if (nodeFieldVisibles.has(name)) {
                 logger.error(`duplicate @behavior3.visible registration: ${name}`);
                 hasError = true;
                 continue;
             }
-            nodeArgVisibles.set(name, visible);
+            nodeFieldVisibles.set(name, visible);
         }
     };
 
@@ -489,14 +502,14 @@ export const createNodeArgVisibleRuntimeWithCheckModules = (
     }
 
     return {
-        nodeArgVisibles,
+        nodeFieldVisibles,
         hasError,
     };
 };
 
 export type BuildScriptRuntime = {
     buildScript?: BuildScript;
-    nodeArgCheckers: Map<string, NodeArgChecker>;
+    nodeFieldCheckers: Map<string, NodeFieldChecker>;
     hasError: boolean;
     hasEntries: boolean;
 };
@@ -512,7 +525,7 @@ export const createBuildScriptRuntime = (
 ): BuildScriptRuntime => {
     if (!moduleExports || typeof moduleExports !== "object") {
         return {
-            nodeArgCheckers: new Map(),
+            nodeFieldCheckers: new Map(),
             hasError: false,
             hasEntries: false,
         };
@@ -527,7 +540,7 @@ export const createBuildScriptRuntime = (
             !isDecoratedCheckCtor(moduleRecord.default) &&
             !isDecoratedBatchHookCtor(moduleRecord.default));
     const buildScript = createBuildHooks(moduleExports, env, false);
-    const checkerResult = createNodeArgCheckers(moduleExports, env);
+    const checkerResult = createNodeFieldCheckers(moduleExports, env);
     const hasEntries = Boolean(buildScript) || checkerResult.hasCheckers;
     if (!hasEntries) {
         logger.error(
@@ -536,7 +549,7 @@ export const createBuildScriptRuntime = (
     }
     return {
         buildScript,
-        nodeArgCheckers: checkerResult.checkers,
+        nodeFieldCheckers: checkerResult.checkers,
         hasError: checkerResult.hasError || !hasEntries || (hasBuildHookCandidate && !buildScript),
         hasEntries,
     };
@@ -548,32 +561,32 @@ export const createBuildScriptRuntimeWithCheckModules = (
     env: BuildEnv
 ): BuildScriptRuntime => {
     const runtime = createBuildScriptRuntime(buildScriptModule, env);
-    const nodeArgCheckers = new Map(runtime.nodeArgCheckers);
+    const nodeFieldCheckers = new Map(runtime.nodeFieldCheckers);
     let hasError = runtime.hasError;
     let hasCheckEntries = false;
 
     for (const checkScript of checkScriptModules) {
-        const checkerResult = createNodeArgCheckers(checkScript.moduleExports, env);
+        const checkerResult = createNodeFieldCheckers(checkScript.moduleExports, env);
         if (!checkerResult.hasCheckers) {
             // Mixed script folders can contain build or batch hooks alongside checkers.
-            // Only actual @behavior3.check exports participate in node-arg validation.
+            // Only actual @behavior3.check exports participate in field validation.
             continue;
         }
         hasCheckEntries = true;
         hasError = hasError || checkerResult.hasError;
         for (const [name, checker] of checkerResult.checkers) {
-            if (nodeArgCheckers.has(name)) {
+            if (nodeFieldCheckers.has(name)) {
                 logger.error(`duplicate @behavior3.check registration: ${name}`);
                 hasError = true;
                 continue;
             }
-            nodeArgCheckers.set(name, checker);
+            nodeFieldCheckers.set(name, checker);
         }
     }
 
     return {
         ...runtime,
-        nodeArgCheckers,
+        nodeFieldCheckers,
         hasError,
         hasEntries: runtime.hasEntries || hasCheckEntries,
     };
@@ -749,24 +762,36 @@ export const processBatchTree = (
     return tree;
 };
 
-export type NodeArgCheckTarget = {
+export type NodeFieldCheckTarget = {
     node: NodeData;
     instanceKey?: string;
     treePath?: string | null;
 };
 
-export type NodeArgCheckDiagnostic = {
+export type NodeFieldCheckDiagnostic = {
     instanceKey?: string;
     nodeId: string;
     nodeName: string;
-    argName: string;
+    fieldKind: NodeFieldKind;
+    fieldName: string;
+    fieldIndex?: number;
     checker: string;
     message: string;
 };
 
-export type NodeArgVisibilityState = Record<string, boolean>;
+export type NodeFieldVisibilityState = {
+    args: Record<string, boolean>;
+    input: Record<number, boolean>;
+    output: Record<number, boolean>;
+};
 
-const normalizeNodeArgCheckResult = (result: NodeArgCheckResult): string[] => {
+const createEmptyNodeFieldVisibilityState = (): NodeFieldVisibilityState => ({
+    args: {},
+    input: {},
+    output: {},
+});
+
+const normalizeNodeFieldCheckResult = (result: NodeFieldCheckResult): string[] => {
     if (Array.isArray(result)) {
         return result.filter((entry) => typeof entry === "string" && entry.trim());
     }
@@ -787,19 +812,178 @@ const walkTreeNodes = (node: NodeData, visit: (node: NodeData) => void): void =>
     }
 };
 
-export const collectNodeArgCheckDiagnostics = (params: {
+const buildNodeSlotField = (
+    slot: NodeSlotDef,
+    slotDefs: readonly NodeSlotDef[] | null | undefined,
+    index: number
+): NodeSlotField => {
+    const parsed = parseSlotDefinition(slot, slotDefs, index);
+    return {
+        name: parsed.name,
+        label: parsed.label,
+        required: parsed.required,
+        variadic: parsed.variadic,
+        checker: parsed.checker,
+        visible: parsed.visible,
+    };
+};
+
+const getSlotValue = (
+    values: string[] | undefined,
+    slotDefs: readonly NodeSlotDef[] | null | undefined,
+    index: number
+): string | string[] | undefined => {
+    const slotField = parseSlotDefinition(slotDefs?.[index] ?? "", slotDefs, index);
+    return slotField.variadic ? (values?.slice(index) ?? []) : values?.[index];
+};
+
+const formatFieldLocator = (
+    node: NodeData,
+    fieldKind: NodeFieldKind,
+    fieldName: string,
+    fieldIndex?: number
+) => {
+    if (fieldKind === "arg") {
+        return `${node.id}|${node.name}.${fieldName}`;
+    }
+    return `${node.id}|${node.name}.${fieldKind}[${fieldIndex ?? 0}:${fieldName}]`;
+};
+
+const getNodeSlotContext = (params: {
+    fieldKind: "input" | "output";
+    node: NodeData;
+    tree: TreeData;
+    nodeDef: NodeDef;
+    slotDefs: readonly NodeSlotDef[] | null | undefined;
+    slot: NodeSlotDef;
+    index: number;
+    treePath: string;
+    env: BuildEnv;
+}): NodeFieldCheckContext | null => {
+    if (!isStructuredSlotDefinition(params.slot)) {
+        return null;
+    }
+    return {
+        node: params.node,
+        tree: params.tree,
+        nodeDef: params.nodeDef,
+        fieldKind: params.fieldKind,
+        fieldName: buildNodeSlotField(params.slot, params.slotDefs, params.index).name,
+        fieldIndex: params.index,
+        slot:
+            params.fieldKind === "input"
+                ? (params.slot as NodeInputSlot)
+                : (params.slot as NodeOutputSlot),
+        slotField: buildNodeSlotField(params.slot, params.slotDefs, params.index),
+        treePath: params.treePath,
+        env: params.env,
+    };
+};
+
+const visitCustomNodeFields = (params: {
+    node: NodeData;
+    tree: TreeData;
+    nodeDef: NodeDef;
+    treePath: string;
+    env: BuildEnv;
+    onArg?: (entry: {
+        fieldName: string;
+        checkerName?: string;
+        visibleName?: string;
+        value: unknown;
+        ctx: NodeFieldCheckContext;
+    }) => void;
+    onInput?: (entry: {
+        fieldName: string;
+        fieldIndex: number;
+        checkerName?: string;
+        visibleName?: string;
+        value: unknown;
+        ctx: NodeFieldVisibleContext;
+    }) => void;
+    onOutput?: (entry: {
+        fieldName: string;
+        fieldIndex: number;
+        checkerName?: string;
+        visibleName?: string;
+        value: unknown;
+        ctx: NodeFieldVisibleContext;
+    }) => void;
+}) => {
+    for (const arg of params.nodeDef.args ?? []) {
+        const checkerName = arg.checker?.trim() || undefined;
+        const visibleName = arg.visible?.trim() || undefined;
+        if (!(checkerName || visibleName)) {
+            continue;
+        }
+        const ctx: NodeFieldCheckContext = {
+            node: params.node,
+            tree: params.tree,
+            nodeDef: params.nodeDef,
+            fieldKind: "arg",
+            fieldName: arg.name,
+            arg,
+            treePath: params.treePath,
+            env: params.env,
+        };
+        params.onArg?.({
+            fieldName: arg.name,
+            checkerName,
+            visibleName,
+            value: params.node.args?.[arg.name],
+            ctx,
+        });
+    }
+
+    for (const [fieldKind, slotDefs, values, visitor] of [
+        ["input", params.nodeDef.input, params.node.input, params.onInput],
+        ["output", params.nodeDef.output, params.node.output, params.onOutput],
+    ] as const) {
+        for (let index = 0; index < (slotDefs?.length ?? 0); index += 1) {
+            const slot = slotDefs?.[index] ?? "";
+            const slotField = buildNodeSlotField(slot, slotDefs, index);
+            if (!(slotField.checker || slotField.visible)) {
+                continue;
+            }
+            const ctx = getNodeSlotContext({
+                fieldKind,
+                node: params.node,
+                tree: params.tree,
+                nodeDef: params.nodeDef,
+                slotDefs,
+                slot,
+                index,
+                treePath: params.treePath,
+                env: params.env,
+            });
+            if (!ctx) {
+                continue;
+            }
+            visitor?.({
+                fieldName: slotField.name,
+                fieldIndex: index,
+                checkerName: slotField.checker,
+                visibleName: slotField.visible,
+                value: getSlotValue(values, slotDefs, index),
+                ctx,
+            });
+        }
+    }
+};
+
+export const collectNodeFieldCheckDiagnostics = (params: {
     tree: TreeData;
     treePath: string;
     env: BuildEnv;
-    checkers: ReadonlyMap<string, NodeArgChecker>;
-    targets?: NodeArgCheckTarget[];
-}): NodeArgCheckDiagnostic[] => {
-    const diagnostics: NodeArgCheckDiagnostic[] = [];
+    checkers: ReadonlyMap<string, NodeFieldChecker>;
+    targets?: NodeFieldCheckTarget[];
+}): NodeFieldCheckDiagnostic[] => {
+    const diagnostics: NodeFieldCheckDiagnostic[] = [];
     const targets = params.targets ?? [];
     const entries = targets.length
         ? targets
         : (() => {
-              const collected: NodeArgCheckTarget[] = [];
+              const collected: NodeFieldCheckTarget[] = [];
               walkTreeNodes(params.tree.root, (node) => collected.push({ node }));
               return collected;
           })();
@@ -810,103 +994,199 @@ export const collectNodeArgCheckDiagnostics = (params: {
         if (!nodeDef) {
             continue;
         }
-        for (const arg of nodeDef.args ?? []) {
-            // Node definitions opt into custom validation by naming a registered checker.
-            const checkerName = arg.checker?.trim();
-            if (!checkerName) {
-                continue;
-            }
-            const pushDiagnostic = (message: string) => {
-                diagnostics.push({
-                    instanceKey: target.instanceKey,
-                    nodeId: node.id,
-                    nodeName: node.name,
-                    argName: arg.name,
-                    checker: checkerName,
-                    message,
-                });
-            };
-            const checker = params.checkers.get(checkerName);
-            if (!checker) {
-                pushDiagnostic(`checker '${checkerName}' is not registered`);
-                continue;
-            }
-            try {
-                const messages = normalizeNodeArgCheckResult(
-                    checker.validate(node.args?.[arg.name], {
-                        node,
-                        tree: params.tree,
-                        nodeDef,
-                        arg,
-                        argName: arg.name,
-                        treePath: target.treePath ?? params.treePath,
-                        env: params.env,
-                    })
-                );
-                messages.forEach(pushDiagnostic);
-            } catch (error) {
-                pushDiagnostic(`checker '${checkerName}' failed: ${formatRuntimeError(error)}`);
-            }
-        }
+        visitCustomNodeFields({
+            node,
+            tree: params.tree,
+            nodeDef,
+            treePath: target.treePath ?? params.treePath,
+            env: params.env,
+            onArg: ({ fieldName, checkerName, value, ctx }) => {
+                if (!checkerName) {
+                    return;
+                }
+                const pushDiagnostic = (message: string) => {
+                    diagnostics.push({
+                        instanceKey: target.instanceKey,
+                        nodeId: node.id,
+                        nodeName: node.name,
+                        fieldKind: "arg",
+                        fieldName,
+                        checker: checkerName,
+                        message,
+                    });
+                };
+                const checker = params.checkers.get(checkerName);
+                if (!checker) {
+                    pushDiagnostic(`checker '${checkerName}' is not registered`);
+                    return;
+                }
+                try {
+                    const messages = normalizeNodeFieldCheckResult(checker.validate(value, ctx));
+                    messages.forEach(pushDiagnostic);
+                } catch (error) {
+                    pushDiagnostic(`checker '${checkerName}' failed: ${formatRuntimeError(error)}`);
+                }
+            },
+            onInput: ({ fieldName, fieldIndex, checkerName, value, ctx }) => {
+                if (!checkerName) {
+                    return;
+                }
+                const pushDiagnostic = (message: string) => {
+                    diagnostics.push({
+                        instanceKey: target.instanceKey,
+                        nodeId: node.id,
+                        nodeName: node.name,
+                        fieldKind: "input",
+                        fieldName,
+                        fieldIndex,
+                        checker: checkerName,
+                        message,
+                    });
+                };
+                const checker = params.checkers.get(checkerName);
+                if (!checker) {
+                    pushDiagnostic(`checker '${checkerName}' is not registered`);
+                    return;
+                }
+                try {
+                    const messages = normalizeNodeFieldCheckResult(checker.validate(value, ctx));
+                    messages.forEach(pushDiagnostic);
+                } catch (error) {
+                    pushDiagnostic(`checker '${checkerName}' failed: ${formatRuntimeError(error)}`);
+                }
+            },
+            onOutput: ({ fieldName, fieldIndex, checkerName, value, ctx }) => {
+                if (!checkerName) {
+                    return;
+                }
+                const pushDiagnostic = (message: string) => {
+                    diagnostics.push({
+                        instanceKey: target.instanceKey,
+                        nodeId: node.id,
+                        nodeName: node.name,
+                        fieldKind: "output",
+                        fieldName,
+                        fieldIndex,
+                        checker: checkerName,
+                        message,
+                    });
+                };
+                const checker = params.checkers.get(checkerName);
+                if (!checker) {
+                    pushDiagnostic(`checker '${checkerName}' is not registered`);
+                    return;
+                }
+                try {
+                    const messages = normalizeNodeFieldCheckResult(checker.validate(value, ctx));
+                    messages.forEach(pushDiagnostic);
+                } catch (error) {
+                    pushDiagnostic(`checker '${checkerName}' failed: ${formatRuntimeError(error)}`);
+                }
+            },
+        });
     }
 
     return diagnostics;
 };
 
-export const resolveNodeArgVisibility = (params: {
+export const resolveNodeFieldVisibility = (params: {
     tree: TreeData;
     treePath: string;
     env: BuildEnv;
-    visibles: ReadonlyMap<string, NodeArgVisible>;
+    visibles: ReadonlyMap<string, NodeFieldVisible>;
     target: NodeData;
     targetTreePath?: string | null;
-}): NodeArgVisibilityState => {
-    const visibility: NodeArgVisibilityState = {};
+}): NodeFieldVisibilityState => {
+    const visibility = createEmptyNodeFieldVisibilityState();
     const node = params.target;
     const nodeDef = params.env.nodeDefs.get(node.name);
     if (!nodeDef) {
         return visibility;
     }
 
-    for (const arg of nodeDef.args ?? []) {
-        const visibleName = arg.visible?.trim();
-        if (!visibleName) {
-            continue;
-        }
-
-        const visible = params.visibles.get(visibleName);
-        if (!visible) {
-            params.env.logger.warn(
-                `visible '${visibleName}' is not registered for ${node.id}|${node.name}.${arg.name}`
-            );
-            continue;
-        }
-
-        try {
-            visibility[arg.name] = normalizeNodeArgVisibleResult(
-                visible.visible(node.args?.[arg.name], {
-                    node,
-                    tree: params.tree,
-                    nodeDef,
-                    arg,
-                    argName: arg.name,
-                    treePath: params.targetTreePath ?? params.treePath,
-                    env: params.env,
-                })
-            );
-        } catch (error) {
-            params.env.logger.warn(
-                `visible '${visibleName}' failed for ${node.id}|${node.name}.${arg.name}: ${formatRuntimeError(error)}`
-            );
-            visibility[arg.name] = true;
-        }
-    }
+    visitCustomNodeFields({
+        node,
+        tree: params.tree,
+        nodeDef,
+        treePath: params.targetTreePath ?? params.treePath,
+        env: params.env,
+        onArg: ({ fieldName, visibleName, value, ctx }) => {
+            if (!visibleName) {
+                return;
+            }
+            const visible = params.visibles.get(visibleName);
+            if (!visible) {
+                params.env.logger.warn(
+                    `visible '${visibleName}' is not registered for ${formatFieldLocator(node, "arg", fieldName)}`
+                );
+                return;
+            }
+            try {
+                visibility.args[fieldName] = normalizeNodeFieldVisibleResult(
+                    visible.visible(value, ctx)
+                );
+            } catch (error) {
+                params.env.logger.warn(
+                    `visible '${visibleName}' failed for ${formatFieldLocator(node, "arg", fieldName)}: ${formatRuntimeError(error)}`
+                );
+                visibility.args[fieldName] = true;
+            }
+        },
+        onInput: ({ fieldName, fieldIndex, visibleName, value, ctx }) => {
+            if (!visibleName) {
+                return;
+            }
+            const visible = params.visibles.get(visibleName);
+            if (!visible) {
+                params.env.logger.warn(
+                    `visible '${visibleName}' is not registered for ${formatFieldLocator(node, "input", fieldName, fieldIndex)}`
+                );
+                return;
+            }
+            try {
+                visibility.input[fieldIndex] = normalizeNodeFieldVisibleResult(
+                    visible.visible(value, ctx)
+                );
+            } catch (error) {
+                params.env.logger.warn(
+                    `visible '${visibleName}' failed for ${formatFieldLocator(node, "input", fieldName, fieldIndex)}: ${formatRuntimeError(error)}`
+                );
+                visibility.input[fieldIndex] = true;
+            }
+        },
+        onOutput: ({ fieldName, fieldIndex, visibleName, value, ctx }) => {
+            if (!visibleName) {
+                return;
+            }
+            const visible = params.visibles.get(visibleName);
+            if (!visible) {
+                params.env.logger.warn(
+                    `visible '${visibleName}' is not registered for ${formatFieldLocator(node, "output", fieldName, fieldIndex)}`
+                );
+                return;
+            }
+            try {
+                visibility.output[fieldIndex] = normalizeNodeFieldVisibleResult(
+                    visible.visible(value, ctx)
+                );
+            } catch (error) {
+                params.env.logger.warn(
+                    `visible '${visibleName}' failed for ${formatFieldLocator(node, "output", fieldName, fieldIndex)}: ${formatRuntimeError(error)}`
+                );
+                visibility.output[fieldIndex] = true;
+            }
+        },
+    });
 
     return visibility;
 };
 
-export const formatNodeArgCheckBuildDiagnostic = (diagnostic: NodeArgCheckDiagnostic): string =>
-    `check ${diagnostic.nodeId}|${diagnostic.nodeName}: ${diagnostic.argName}: ${diagnostic.message}`;
+export const formatNodeFieldCheckBuildDiagnostic = (
+    diagnostic: NodeFieldCheckDiagnostic
+): string =>
+    diagnostic.fieldKind === "arg"
+        ? `check ${diagnostic.nodeId}|${diagnostic.nodeName}: ${diagnostic.fieldName}: ${diagnostic.message}`
+        : `check ${diagnostic.nodeId}|${diagnostic.nodeName}: ${diagnostic.fieldKind}[${diagnostic.fieldIndex ?? 0}:${diagnostic.fieldName}]: ${diagnostic.message}`;
 
 export const syncFilesFromDiskWithContext = (
     files: Record<string, number>,
@@ -1486,16 +1766,16 @@ export const buildProjectWithContext = async (
         if (!context.checkNodeData(tree.root, (message) => errors.push(message))) {
             hasError = true;
         }
-        const checkDiagnostics = collectNodeArgCheckDiagnostics({
+        const checkDiagnostics = collectNodeFieldCheckDiagnostics({
             tree,
             treePath: candidatePath,
             env: scriptEnv,
-            checkers: buildRuntime.nodeArgCheckers,
+            checkers: buildRuntime.nodeFieldCheckers,
         });
         if (checkDiagnostics.length) {
             hasError = true;
             checkDiagnostics.forEach((diagnostic) =>
-                errors.push(formatNodeArgCheckBuildDiagnostic(diagnostic))
+                errors.push(formatNodeFieldCheckBuildDiagnostic(diagnostic))
             );
         }
         if (errors.length) {

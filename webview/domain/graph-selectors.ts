@@ -4,7 +4,7 @@ import type {
     GraphHighlightState,
     GraphNodeVM,
     GraphSearchState,
-    NodeCheckDiagnostic,
+    NodeFieldDiagnostic,
     PersistedTreeModel,
     ResolvedDocumentGraph,
     ResolvedNodeModel,
@@ -62,7 +62,7 @@ export const buildResolvedGraphModel = (
         usingVars: Record<string, VarDecl> | null;
         usingGroups: Record<string, boolean> | null;
         checkExpr: boolean;
-        nodeCheckDiagnostics?: Record<string, NodeCheckDiagnostic[]>;
+        nodeFieldDiagnostics?: Record<string, NodeFieldDiagnostic[]>;
     }
 ): ResolvedGraphModel => {
     const defsByName = createNodeDefMap(nodeDefs);
@@ -72,7 +72,7 @@ export const buildResolvedGraphModel = (
     for (const key of graph.nodeOrder) {
         const node = graph.nodesByInstanceKey[key];
         const def = findNodeDef(defsByName, node.name);
-        const customDiagnostics = validation?.nodeCheckDiagnostics?.[node.ref.instanceKey] ?? [];
+        const customDiagnostics = validation?.nodeFieldDiagnostics?.[node.ref.instanceKey] ?? [];
         // Built-in validation and user build-script diagnostics both drive the error style.
         const invalid =
             collectResolvedNodeDiagnostics({

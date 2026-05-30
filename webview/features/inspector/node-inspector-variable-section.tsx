@@ -3,8 +3,9 @@ import { AutoComplete, Button, Flex, Form } from "antd";
 import type { FormInstance } from "antd/es/form";
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { parseSlotDefinition } from "../../shared/node-utils";
+import { parseSlotDefinition, type NodeSlotDef } from "../../shared/node-utils";
 import type { NodeArg, VarDecl } from "../../shared/b3type";
+import type { NodeFieldDiagnostic } from "../../shared/contracts";
 import { validateNodeArgOneof } from "../../shared/validation";
 import {
     OverrideBar,
@@ -12,19 +13,27 @@ import {
     createInspectorLabelProps,
     filterOptionByLabel,
 } from "./inspector-shared";
-import { formatValidationDiagnostic, validateVariableValue } from "./inspector-validation";
+import { getNodeSlotFormValue } from "./inspector-form-values";
+import {
+    compareJsonValue,
+    formatValidationDiagnostic,
+    validateVariableValue,
+} from "./inspector-validation";
 import type { VariableOption } from "./inspector-variable-options";
 import type { SlotFieldName } from "./node-inspector-committers";
 
 const NodeVariableField: React.FC<{
     form: FormInstance;
     fieldName: SlotFieldName;
-    slotDefs: string[];
-    slot: string;
+    slotDefs: NodeSlotDef[];
+    slot: NodeSlotDef;
     index: number;
     usingVars: Record<string, VarDecl> | null;
     variableOptions: VariableOption[];
     fieldEditDisabled: boolean;
+    fieldKind: "input" | "output";
+    currentSlotValue: string | string[] | undefined;
+    nodeFieldDiagnostics: NodeFieldDiagnostic[];
     isOverridden: (index: number, variadic?: boolean) => boolean;
     onReset: (index: number, variadic?: boolean) => void;
     onCommit: () => void;
@@ -39,6 +48,9 @@ const NodeVariableField: React.FC<{
     usingVars,
     variableOptions,
     fieldEditDisabled,
+    fieldKind,
+    currentSlotValue,
+    nodeFieldDiagnostics,
     isOverridden,
     onReset,
     onCommit,
@@ -66,6 +78,18 @@ const NodeVariableField: React.FC<{
             if (oneofDiagnostic) {
                 throw new Error(formatValidationDiagnostic(oneofDiagnostic));
             }
+        }
+
+        const customDiagnostic = nodeFieldDiagnostics.find(
+            (entry) => entry.fieldKind === fieldKind && entry.fieldIndex === index
+        );
+        const normalizedValue = variadic
+            ? (((form.getFieldValue([fieldName, index]) as string[] | undefined) ?? []) as string[])
+            : typeof value === "string"
+              ? value
+              : "";
+        if (customDiagnostic && compareJsonValue(normalizedValue, currentSlotValue ?? "")) {
+            throw new Error(customDiagnostic.message);
         }
     };
 
@@ -151,10 +175,13 @@ export const NodeVariableSection: React.FC<{
     form: FormInstance;
     title: string;
     fieldName: SlotFieldName;
-    slotDefs?: string[];
+    slotDefs?: NodeSlotDef[];
     usingVars: Record<string, VarDecl> | null;
     variableOptions: VariableOption[];
     fieldEditDisabled: boolean;
+    visibility?: Readonly<Record<number, boolean>>;
+    currentSlots?: string[];
+    nodeFieldDiagnostics: NodeFieldDiagnostic[];
     isOverridden: (index: number, variadic?: boolean) => boolean;
     onReset: (index: number, variadic?: boolean) => void;
     onCommit: (index: number, variadic?: boolean) => void;
@@ -168,6 +195,9 @@ export const NodeVariableSection: React.FC<{
     usingVars,
     variableOptions,
     fieldEditDisabled,
+    visibility,
+    currentSlots,
+    nodeFieldDiagnostics,
     isOverridden,
     onReset,
     onCommit,
@@ -181,28 +211,37 @@ export const NodeVariableSection: React.FC<{
     return (
         <>
             <SectionDivider>{title}</SectionDivider>
-            {slotDefs.map((slot, index) => (
-                <NodeVariableField
-                    key={`${fieldName}-${index}`}
-                    form={form}
-                    fieldName={fieldName}
-                    slotDefs={slotDefs}
-                    slot={slot}
-                    index={index}
-                    usingVars={usingVars}
-                    variableOptions={variableOptions}
-                    fieldEditDisabled={fieldEditDisabled}
-                    isOverridden={isOverridden}
-                    onReset={onReset}
-                    onCommit={() =>
-                        onCommit(index, parseSlotDefinition(slot, slotDefs, index).variadic)
-                    }
-                    onQueueCommit={() =>
-                        onQueueCommit(index, parseSlotDefinition(slot, slotDefs, index).variadic)
-                    }
-                    getRelatedArg={getRelatedArg}
-                />
-            ))}
+            {slotDefs
+                .map((slot, index) => ({ slot, index }))
+                .filter(({ index }) => visibility?.[index] !== false)
+                .map(({ slot, index }) => {
+                    const slotDefinition = parseSlotDefinition(slot, slotDefs, index);
+                    return (
+                        <NodeVariableField
+                            key={`${fieldName}-${index}`}
+                            form={form}
+                            fieldName={fieldName}
+                            slotDefs={slotDefs}
+                            slot={slot}
+                            index={index}
+                            usingVars={usingVars}
+                            variableOptions={variableOptions}
+                            fieldEditDisabled={fieldEditDisabled}
+                            fieldKind={fieldName === "inputSlots" ? "input" : "output"}
+                            currentSlotValue={getNodeSlotFormValue(
+                                currentSlots,
+                                index,
+                                slotDefinition.variadic
+                            )}
+                            nodeFieldDiagnostics={nodeFieldDiagnostics}
+                            isOverridden={isOverridden}
+                            onReset={onReset}
+                            onCommit={() => onCommit(index, slotDefinition.variadic)}
+                            onQueueCommit={() => onQueueCommit(index, slotDefinition.variadic)}
+                            getRelatedArg={getRelatedArg}
+                        />
+                    );
+                })}
         </>
     );
 };

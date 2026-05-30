@@ -18,6 +18,7 @@ import {
     getNodeArgRawType,
     isNodeArgArray,
     isNodeArgOptional,
+    type NodeSlotDef,
     parseSlotDefinition,
 } from "./node-utils";
 
@@ -73,11 +74,13 @@ export const isValidVariableName = (name: string): boolean => {
 };
 
 export const parseExpressionVariables = (expr: string): string[] => {
-    return expr
-        // Split on operators/punctuation, then keep the base identifier from property access.
-        .split(/[^a-zA-Z0-9_.'"]/)
-        .map((value) => value.split(".")[0])
-        .filter((value) => isValidVariableName(value));
+    return (
+        expr
+            // Split on operators/punctuation, then keep the base identifier from property access.
+            .split(/[^a-zA-Z0-9_.'"]/)
+            .map((value) => value.split(".")[0])
+            .filter((value) => isValidVariableName(value))
+    );
 };
 
 export const validateVariableReference = (
@@ -135,7 +138,7 @@ const getArgLabel = (arg: NodeArg): string => arg.desc || arg.name;
 
 const findNodeArgOneofInputIndex = (
     arg: NodeArg,
-    inputDefs: readonly string[] | null | undefined
+    inputDefs: readonly NodeSlotDef[] | null | undefined
 ): number => {
     if (!arg.oneof || !inputDefs?.length) {
         return -1;
@@ -147,7 +150,7 @@ const findNodeArgOneofInputIndex = (
 };
 
 export const isRequiredSlotMissing = (
-    slots: string[] | undefined,
+    slots: readonly NodeSlotDef[] | undefined,
     values: string[] | undefined,
     index: number
 ): boolean => {
@@ -309,7 +312,7 @@ export const validateNodeArgOneof = (params: {
     arg: NodeArg;
     argValue: unknown;
     inputValues?: string[];
-    inputDefs?: readonly string[] | null;
+    inputDefs?: readonly NodeSlotDef[] | null;
 }): TreeValidationDiagnostic | null => {
     const { arg, argValue, inputValues, inputDefs } = params;
 

@@ -9,9 +9,10 @@ import type {
     HostDocumentSessionState,
     HostSelectionState,
     InspectorHostCommandId,
-    NodeArgVisibilityTarget,
-    NodeCheckDiagnostic,
-    NodeCheckValidationNode,
+    NodeFieldDiagnostic,
+    NodeFieldValidationNode,
+    NodeFieldVisibilityState,
+    NodeFieldVisibilityTarget,
     NodeInstanceRef,
 } from "./contracts";
 
@@ -32,18 +33,18 @@ export type EditorToHostMessage =
     | { type: "build"; buildScriptDebug?: boolean }
     | { type: "runInspectorCommand"; command: InspectorHostCommandId }
     | {
-          type: "validateNodeChecks";
+          type: "validateNodeFields";
           requestId: string;
           content: string;
           treePath: string;
-          nodes: NodeCheckValidationNode[];
+          nodes: NodeFieldValidationNode[];
       }
     | {
-          type: "resolveNodeArgVisibility";
+          type: "resolveNodeFieldVisibility";
           requestId: string;
           content: string;
           treePath: string;
-          target: NodeArgVisibilityTarget;
+          target: NodeFieldVisibilityTarget;
       }
     | {
           type: "readFile";
@@ -99,15 +100,15 @@ export type HostToEditorMessage =
       }
     | { type: "buildResult"; success: boolean; message: string }
     | {
-          type: "validateNodeChecksResult";
+          type: "validateNodeFieldsResult";
           requestId: string;
-          diagnostics: NodeCheckDiagnostic[];
+          diagnostics: NodeFieldDiagnostic[];
           error?: string;
       }
     | {
-          type: "resolveNodeArgVisibilityResult";
+          type: "resolveNodeFieldVisibilityResult";
           requestId: string;
-          visibility: Record<string, boolean>;
+          visibility: NodeFieldVisibilityState;
           error?: string;
       }
     | { type: "readFileResult"; requestId: string; content: string | null }

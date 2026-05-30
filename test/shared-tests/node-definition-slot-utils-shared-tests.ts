@@ -58,15 +58,21 @@ export const nodeDefinitionSlotUtilsSharedTests = defineSharedTests([
         run() {
             assert.deepEqual(parseSlotDefinition("target?"), {
                 raw: "target?",
+                name: "target",
                 label: "target",
                 required: false,
                 variadic: false,
+                checker: undefined,
+                visible: undefined,
             });
             assert.deepEqual(parseSlotDefinition("output"), {
                 raw: "output",
+                name: "output",
                 label: "output",
                 required: true,
                 variadic: false,
+                checker: undefined,
+                visible: undefined,
             });
         },
     },
@@ -86,9 +92,12 @@ export const nodeDefinitionSlotUtilsSharedTests = defineSharedTests([
         run() {
             assert.deepEqual(parseSlotDefinition("target?...", ["target?..."], 0), {
                 raw: "target?...",
+                name: "target",
                 label: "target",
                 required: false,
                 variadic: true,
+                checker: undefined,
+                visible: undefined,
             });
         },
     },

@@ -15,13 +15,13 @@ export const hostRequestSpecSharedTests = defineSharedTests([
                 success: false,
                 error: "Host request 'saveDocument' timed out",
             });
-            assert.deepEqual(createHostRequestTimeoutResponse("validateNodeChecks"), {
+            assert.deepEqual(createHostRequestTimeoutResponse("validateNodeFields"), {
                 diagnostics: [],
-                error: "Host request 'validateNodeChecks' timed out",
+                error: "Host request 'validateNodeFields' timed out",
             });
-            assert.deepEqual(createHostRequestTimeoutResponse("resolveNodeArgVisibility"), {
-                visibility: {},
-                error: "Host request 'resolveNodeArgVisibility' timed out",
+            assert.deepEqual(createHostRequestTimeoutResponse("resolveNodeFieldVisibility"), {
+                visibility: { args: {}, input: {}, output: {} },
+                error: "Host request 'resolveNodeFieldVisibility' timed out",
             });
         },
     },
@@ -50,10 +50,12 @@ export const hostRequestSpecSharedTests = defineSharedTests([
 
             const resolvedVisibility = resolveHostRequestResult(
                 {
-                    type: "resolveNodeArgVisibilityResult",
+                    type: "resolveNodeFieldVisibilityResult",
                     requestId: "req-visible",
                     visibility: {
-                        time: false,
+                        args: { time: false },
+                        input: {},
+                        output: {},
                     },
                 },
                 {
@@ -63,10 +65,12 @@ export const hostRequestSpecSharedTests = defineSharedTests([
 
             assert.deepEqual(resolvedVisibility, {
                 requestId: "req-visible",
-                type: "resolveNodeArgVisibility",
+                type: "resolveNodeFieldVisibility",
                 value: {
                     visibility: {
-                        time: false,
+                        args: { time: false },
+                        input: {},
+                        output: {},
                     },
                     error: undefined,
                 },

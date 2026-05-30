@@ -1,10 +1,19 @@
 import { type NodeArg, type NodeDef, hasArgOptions } from "./b3type";
 
+export type NodeSlotDef =
+    | Exclude<Exclude<NodeDef["input"], undefined>[number], undefined>
+    | Exclude<Exclude<NodeDef["output"], undefined>[number], undefined>;
+
+export type StructuredNodeSlotDef = Exclude<NodeSlotDef, string>;
+
 export type ParsedSlotDefinition = {
     raw: string;
+    name: string;
     label: string;
     required: boolean;
     variadic: boolean;
+    checker?: string;
+    visible?: string;
 };
 
 export const createNodeDefMap = (nodeDefs: readonly NodeDef[]): Map<string, NodeDef> =>
@@ -32,23 +41,37 @@ export const findNodeDef = (
 
 const cleanSlotLabel = (value: string) => value.replace(/\.\.\.$/, "").replace(/\?/g, "");
 
+export const isStructuredSlotDefinition = (
+    slot: NodeSlotDef | null | undefined
+): slot is StructuredNodeSlotDef =>
+    Boolean(slot && typeof slot === "object" && !Array.isArray(slot));
+
 export const parseSlotDefinition = (
-    slot: string,
-    slotDefs?: readonly string[] | null,
+    slot: NodeSlotDef | "",
+    slotDefs?: readonly NodeSlotDef[] | null,
     index?: number
 ): ParsedSlotDefinition => {
-    const raw = slot ?? "";
+    const raw = typeof slot === "string" ? slot : (slot?.name ?? "");
     const hasOptionalMarker = raw.includes("?");
     const hasVariadicMarker = raw.endsWith("...");
     const variadic =
         hasVariadicMarker &&
         (slotDefs && index !== undefined ? index === slotDefs.length - 1 : true);
+    const checker = isStructuredSlotDefinition(slot)
+        ? slot.checker?.trim() || undefined
+        : undefined;
+    const visible = isStructuredSlotDefinition(slot)
+        ? slot.visible?.trim() || undefined
+        : undefined;
 
     return {
         raw,
+        name: cleanSlotLabel(raw),
         label: cleanSlotLabel(raw),
         required: !hasOptionalMarker,
         variadic,
+        checker,
+        visible,
     };
 };
 

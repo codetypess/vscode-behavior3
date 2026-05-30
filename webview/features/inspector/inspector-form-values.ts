@@ -1,5 +1,5 @@
 import { stringifySearchValueAsJson5 } from "../../shared/json";
-import { parseSlotDefinition } from "../../shared/node-utils";
+import { parseSlotDefinition, type NodeSlotDef } from "../../shared/node-utils";
 import type { EditNode, UpdateNodeInput, UpdateTreeMetaInput } from "../../shared/contracts";
 import type { NodeArg, NodeDef } from "../../shared/b3type";
 import { formatArgInitialValue, parseArgSubmitValue } from "./inspector-arg-values";
@@ -65,16 +65,13 @@ export type TreeInspectorFormValues = {
 export type NodeInspectorSyncMode = "replace" | "patch" | "patch-and-clear-scoped-fields";
 
 export const isSameLogicalInspectorNode = (
-    previousSelectedNode:
-        | Pick<EditNode, "ref">
-        | null
-        | undefined,
+    previousSelectedNode: Pick<EditNode, "ref"> | null | undefined,
     nextSelectedNode: Pick<EditNode, "ref"> | null | undefined
 ) =>
     Boolean(
         previousSelectedNode &&
-            nextSelectedNode &&
-            isSameInspectorNodeIdentity(previousSelectedNode.ref, nextSelectedNode.ref)
+        nextSelectedNode &&
+        isSameInspectorNodeIdentity(previousSelectedNode.ref, nextSelectedNode.ref)
     );
 
 export const buildCommittedNodeData = (selectedNode: EditNode): UpdateNodeInput["data"] => ({
@@ -88,11 +85,88 @@ export const buildCommittedNodeData = (selectedNode: EditNode): UpdateNodeInput[
     args: selectedNode.data.args ? { ...selectedNode.data.args } : undefined,
 });
 
+const areSlotArraysEqual = (
+    left: ReadonlyArray<string> | undefined,
+    right: ReadonlyArray<string> | undefined
+) => {
+    if (left === right) {
+        return true;
+    }
+    if (!left || !right) {
+        return !left && !right;
+    }
+    if (left.length !== right.length) {
+        return false;
+    }
+    return left.every((entry, index) => entry === right[index]);
+};
+
+const buildDefinitionScopedArgs = (
+    committedArgs: Record<string, unknown> | undefined,
+    nodeDef: NodeDef | null | undefined
+) => {
+    if (!committedArgs) {
+        return committedArgs;
+    }
+
+    const committedEntries = Object.entries(committedArgs);
+    if (committedEntries.length === 0) {
+        return committedArgs;
+    }
+
+    const declaredArgNames = new Set((nodeDef?.args ?? []).map((arg) => arg.name));
+    if (declaredArgNames.size === 0) {
+        return undefined;
+    }
+
+    const nextEntries = committedEntries.filter(([argName]) => declaredArgNames.has(argName));
+    if (nextEntries.length === committedEntries.length) {
+        return committedArgs;
+    }
+
+    return nextEntries.length > 0 ? Object.fromEntries(nextEntries) : undefined;
+};
+
+const buildDefinitionScopedSlotArray = (
+    slotDefs: readonly NodeSlotDef[] | undefined,
+    committedSlots: string[] | undefined
+) => {
+    if (!committedSlots) {
+        return committedSlots;
+    }
+
+    if (!slotDefs?.length) {
+        return undefined;
+    }
+
+    if (committedSlots.length === 0) {
+        return committedSlots;
+    }
+
+    const scopedRawSlots = slotDefs.map((slotDef, slotIndex) => {
+        const currentValue = getNodeSlotFormValue(
+            committedSlots,
+            slotIndex,
+            parseSlotDefinition(slotDef, slotDefs, slotIndex).variadic
+        );
+        return Array.isArray(currentValue) ? [...currentValue] : currentValue;
+    }) as Array<string | string[]>;
+
+    const normalizedSlots = buildNodeSlotArray(
+        slotDefs,
+        scopedRawSlots,
+        committedSlots
+    ) ?? [];
+    const nextSlots =
+        normalizedSlots.length > committedSlots.length
+            ? normalizedSlots.slice(0, committedSlots.length)
+            : normalizedSlots;
+
+    return areSlotArraysEqual(committedSlots, nextSlots) ? committedSlots : nextSlots;
+};
+
 export const getNodeInspectorSyncMode = (
-    previousSelectedNode:
-        | Pick<EditNode, "ref" | "data">
-        | null
-        | undefined,
+    previousSelectedNode: Pick<EditNode, "ref" | "data"> | null | undefined,
     nextSelectedNode: Pick<EditNode, "ref" | "data">
 ): NodeInspectorSyncMode => {
     if (!isSameLogicalInspectorNode(previousSelectedNode, nextSelectedNode)) {
@@ -111,10 +185,7 @@ export const getNodeInspectorSyncMode = (
 export const shouldLockPendingInspectorForm = (params: {
     readOnly: boolean;
     pendingSelectedNodeSnapshot: boolean;
-    previousSelectedNode:
-        | Pick<EditNode, "ref">
-        | null
-        | undefined;
+    previousSelectedNode: Pick<EditNode, "ref"> | null | undefined;
     nextSelectedNode: Pick<EditNode, "ref"> | null | undefined;
 }) => {
     if (params.readOnly) {
@@ -134,10 +205,14 @@ export const getEffectiveNodeArgs = (
 
 export const buildRenamedNodeData = (
     selectedNode: EditNode,
-    nextName: string
+    nextName: string,
+    nextNodeDef?: NodeDef | null
 ): UpdateNodeInput["data"] => ({
     ...buildCommittedNodeData(selectedNode),
     name: nextName,
+    input: buildDefinitionScopedSlotArray(nextNodeDef?.input, selectedNode.data.input),
+    output: buildDefinitionScopedSlotArray(nextNodeDef?.output, selectedNode.data.output),
+    args: buildDefinitionScopedArgs(selectedNode.data.args, nextNodeDef),
 });
 
 export const parseVisibleArgs = (
@@ -158,7 +233,7 @@ export const parseVisibleArgs = (
 };
 
 export const buildScopedSlotArray = (
-    slotDefs: string[] | undefined,
+    slotDefs: readonly NodeSlotDef[] | undefined,
     committedSlots: string[] | undefined,
     rawFormSlots: unknown,
     index: number
@@ -233,7 +308,7 @@ export const getNodeSlotFormValue = (
 };
 
 export const buildNodeSlotArray = (
-    slotDefs: string[] | undefined,
+    slotDefs: readonly NodeSlotDef[] | undefined,
     rawSlots: unknown,
     fallback: string[] | undefined
 ) => {
@@ -278,10 +353,10 @@ export const createNodeInspectorFormValues = (
         disabled: Boolean(selectedNode.data.disabled),
         args: Object.fromEntries(
             (currentNodeDef?.args ?? [])
-                .map((arg) => [
-                    arg.name,
-                    formatArgInitialValue(arg, effectiveArgs?.[arg.name]),
-                ] as const)
+                .map(
+                    (arg) =>
+                        [arg.name, formatArgInitialValue(arg, effectiveArgs?.[arg.name])] as const
+                )
                 .filter(([, value]) => value !== undefined)
         ),
         inputSlots: (currentNodeDef?.input ?? []).map((_, index) =>

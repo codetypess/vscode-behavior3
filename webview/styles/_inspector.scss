@@ -192,7 +192,11 @@
 }
 
 .b3-node-identity-field .b3-node-identity-id {
-    flex: none;
+    flex: 0 0 auto;
+    width: auto;
+    min-inline-size: 4ch;
+    max-inline-size: 100%;
+    field-sizing: content;
 }
 
 .b3-node-identity-field .b3-node-identity-uuid {

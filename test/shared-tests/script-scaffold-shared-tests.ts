@@ -51,7 +51,7 @@ export const scriptScaffoldSharedTests = defineSharedTests([
             const checker = createScriptScaffoldContent("checker", "Positive Rule");
             assert.match(checker, /@behavior3\.check\("positive-rule"\)/);
             assert.match(checker, /export class PositiveRuleChecker/);
-            assert.match(checker, /ctx\.argName/);
+            assert.match(checker, /ctx\.fieldName/);
 
             const fallback = createScriptScaffoldContent("checker", "行为");
             assert.match(fallback, /@behavior3\.check\("checker"\)/);
