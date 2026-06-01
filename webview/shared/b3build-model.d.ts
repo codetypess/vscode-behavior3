@@ -23,18 +23,140 @@ export type BuildLogger = {
     error: (...args: unknown[]) => void;
 };
 
+export type FsEncoding =
+    | "ascii"
+    | "base64"
+    | "base64url"
+    | "binary"
+    | "hex"
+    | "latin1"
+    | "ucs-2"
+    | "ucs2"
+    | "utf-8"
+    | "utf16le"
+    | "utf8";
+
+export type FsFileData = string | Uint8Array;
+
+export type FsReadFileOptions = {
+    encoding?: FsEncoding | null;
+    flag?: string;
+};
+
+export type FsWriteFileOptions = {
+    encoding?: FsEncoding | null;
+    mode?: number | string;
+    flag?: string;
+    flush?: boolean;
+};
+
+export type FsDirentLike = {
+    name: string;
+    path?: string;
+    parentPath?: string;
+    isBlockDevice(): boolean;
+    isCharacterDevice(): boolean;
+    isDirectory(): boolean;
+    isFIFO(): boolean;
+    isFile(): boolean;
+    isSocket(): boolean;
+    isSymbolicLink(): boolean;
+};
+
+export type FsStatsLike = {
+    atime: Date;
+    atimeMs: number;
+    birthtime: Date;
+    birthtimeMs: number;
+    blocks: number;
+    blksize: number;
+    ctime: Date;
+    ctimeMs: number;
+    dev: number;
+    gid: number;
+    ino: number;
+    mode: number;
+    mtime: Date;
+    mtimeMs: number;
+    nlink: number;
+    rdev: number;
+    size: number;
+    uid: number;
+    isBlockDevice(): boolean;
+    isCharacterDevice(): boolean;
+    isDirectory(): boolean;
+    isFIFO(): boolean;
+    isFile(): boolean;
+    isSocket(): boolean;
+    isSymbolicLink(): boolean;
+};
+
+export type FsMkdirOptions = {
+    recursive?: boolean;
+    mode?: number | string;
+};
+
+export type FsReaddirOptions = {
+    encoding?: FsEncoding;
+    recursive?: boolean;
+    withFileTypes?: false;
+};
+
+export type FsReaddirDirentOptions = {
+    encoding?: FsEncoding;
+    recursive?: boolean;
+    withFileTypes: true;
+};
+
+export type FsMkdtempOptions = {
+    encoding?: FsEncoding;
+};
+
+export type FsRmOptions = {
+    force?: boolean;
+    maxRetries?: number;
+    recursive?: boolean;
+    retryDelay?: number;
+};
+
+export type FsCpOptions = {
+    dereference?: boolean;
+    errorOnExist?: boolean;
+    filter?: (source: string, destination: string) => boolean;
+    force?: boolean;
+    mode?: number;
+    preserveTimestamps?: boolean;
+    recursive?: boolean;
+    verbatimSymlinks?: boolean;
+};
+
 export type FsLike = {
-    readFileSync(path: string, encoding: "utf8" | "utf-8"): string;
-    writeFileSync(path: string, data: string, encoding?: "utf8" | "utf-8"): void;
+    accessSync(path: string, mode?: number): void;
+    appendFileSync(path: string, data: FsFileData, options?: FsEncoding | FsWriteFileOptions): void;
+    chmodSync(path: string, mode: number | string): void;
     readdirSync(path: string): string[];
-    readdirSync(
-        path: string,
-        options: { encoding: "utf8" | "utf-8"; recursive?: boolean }
-    ): string[];
-    statSync(path: string): { mtimeMs: number; isFile(): boolean };
-    mkdirSync(path: string, options?: { recursive?: boolean }): unknown;
-    copyFileSync(source: string, destination: string): void;
+    readdirSync(path: string, options: FsReaddirOptions): string[];
+    readdirSync(path: string, options: FsReaddirDirentOptions): FsDirentLike[];
+    readFileSync(path: string): Uint8Array;
+    readFileSync(path: string, encoding: FsEncoding): string;
+    readFileSync(path: string, options: FsReadFileOptions & { encoding: FsEncoding }): string;
+    readFileSync(path: string, options?: FsReadFileOptions): Uint8Array;
+    readlinkSync(path: string, options?: FsEncoding | { encoding?: FsEncoding }): string;
+    realpathSync(path: string, options?: FsEncoding | { encoding?: FsEncoding }): string;
+    writeFileSync(path: string, data: FsFileData, options?: FsEncoding | FsWriteFileOptions): void;
+    copyFileSync(source: string, destination: string, mode?: number): void;
+    cpSync(source: string, destination: string, options?: FsCpOptions): void;
+    existsSync(path: string): boolean;
+    lstatSync(path: string): FsStatsLike;
+    mkdirSync(path: string, options?: FsMkdirOptions | number | string): string | undefined;
+    mkdtempSync(prefix: string, options?: FsEncoding | FsMkdtempOptions): string;
+    renameSync(oldPath: string, newPath: string): void;
+    rmSync(path: string, options?: FsRmOptions): void;
+    rmdirSync(path: string, options?: FsRmOptions): void;
+    statSync(path: string): FsStatsLike;
+    symlinkSync(target: string, path: string, type?: "dir" | "file" | "junction"): void;
     unlinkSync(path: string): void;
+    utimesSync(path: string, atime: string | number | Date, mtime: string | number | Date): void;
 };
 
 export type PathLike = {

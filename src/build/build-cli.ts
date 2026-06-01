@@ -13,7 +13,7 @@ import {
     findBehaviorWorkspaceFileSync,
 } from "../project-path-discovery";
 
-setFs(fs);
+setFs(fs as Parameters<typeof setFs>[0]);
 
 export interface BehaviorProjectPaths {
     workspaceFile: string;
@@ -60,6 +60,28 @@ export interface BehaviorBatchProcessResult {
 
 const normalizePosixPath = (filePath: string) => filePath.replace(/\\/g, "/");
 
+const resolveExistingPath = (filePath: string): string => {
+    const resolved = path.resolve(filePath);
+    if (!fs.existsSync(resolved)) {
+        return resolved;
+    }
+    return fs.realpathSync.native(resolved);
+};
+
+async function withProcessCwd<T>(cwd: string, run: () => Promise<T>): Promise<T> {
+    const previousCwd = process.cwd();
+    if (previousCwd === cwd) {
+        return run();
+    }
+
+    process.chdir(cwd);
+    try {
+        return await run();
+    } finally {
+        process.chdir(previousCwd);
+    }
+}
+
 const ensureExistingFile = (filePath: string, suffix: string, label: string): string => {
     const resolved = path.resolve(filePath);
     if (!resolved.endsWith(suffix)) {
@@ -68,7 +90,7 @@ const ensureExistingFile = (filePath: string, suffix: string, label: string): st
     if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) {
         throw new Error(`${label} does not exist: ${resolved}`);
     }
-    return resolved;
+    return resolveExistingPath(resolved);
 };
 
 const ensureExistingScriptFile = (filePath: string, label: string): string => {
@@ -80,7 +102,7 @@ const ensureExistingScriptFile = (filePath: string, label: string): string => {
     if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) {
         throw new Error(`${label} does not exist: ${resolved}`);
     }
-    return resolved;
+    return resolveExistingPath(resolved);
 };
 
 const resolveBehaviorProjectPaths = (
@@ -160,10 +182,12 @@ export const buildBehaviorProject = async (
             buildScriptDebug: options.buildScriptDebug,
             alertError: () => {},
         });
-        const hasError = await buildProjectWithContext(
-            normalizePosixPath(paths.workspaceFile),
-            normalizePosixPath(paths.outputDir),
-            buildContext
+        const hasError = await withProcessCwd(paths.workdir, async () =>
+            buildProjectWithContext(
+                normalizePosixPath(paths.workspaceFile),
+                normalizePosixPath(paths.outputDir),
+                buildContext
+            )
         );
 
         return {

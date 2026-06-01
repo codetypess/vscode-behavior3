@@ -66,6 +66,7 @@ function cleanupRuntimeModulesUnder(dir: string): void {
 async function startBuildScriptDebugSession(params: {
     context: vscode.ExtensionContext;
     folder: vscode.WorkspaceFolder;
+    projectDir: string;
     projectPath: string;
     workspaceFile: string;
     settingPath: string;
@@ -84,7 +85,7 @@ async function startBuildScriptDebugSession(params: {
         request: "launch",
         name: "Debug Behavior3 Build Script",
         program,
-        cwd: params.folder.uri.fsPath,
+        cwd: params.projectDir,
         console: "integratedTerminal",
         sourceMaps: true,
         smartStep: true,
@@ -254,6 +255,7 @@ export async function runBuild(
 
         const outputDirFs = picked[0].fsPath;
         const outputDirPosix = outputDirFs.replace(/\\/g, "/");
+        const projectDir = path.dirname(workspaceFile);
         await saveLastBuildOutput(context, folder.uri, outputDirFs);
 
         const config = vscode.workspace.getConfiguration("behavior3");
@@ -268,6 +270,7 @@ export async function runBuild(
             const started = await startBuildScriptDebugSession({
                 context,
                 folder,
+                projectDir,
                 projectPath: treeUri?.fsPath ?? workspaceFile,
                 workspaceFile,
                 settingPath,

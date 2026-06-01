@@ -34,7 +34,7 @@ interface CreateSessionNodeCheckRuntimeParams {
 
 export function createSessionBuildScriptEnv(workdir: string, nodeDefs: NodeDef[]): BuildEnv {
     return {
-        fs,
+        fs: fs as BuildEnv["fs"],
         path: b3path,
         workdir,
         nodeDefs: createNodeDefMap(nodeDefs),

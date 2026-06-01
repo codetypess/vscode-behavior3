@@ -20,7 +20,7 @@ import { setFs } from "../../webview/shared/b3fs";
 
 export type { ActiveTreeEditorWebview } from "./session/context";
 
-setFs(fs);
+setFs(fs as Parameters<typeof setFs>[0]);
 
 export async function resolveTreeEditorSession(
     params: ResolveTreeEditorSessionParams

@@ -19,6 +19,8 @@ import {
 import { createTestTree } from "../shared-test-fixtures";
 import { defineSharedTests } from "../shared-test-types";
 
+const canonicalPath = (filePath: string) => fs.realpathSync.native(filePath);
+
 export const buildCliSharedTests = defineSharedTests([
     {
         name: "resolves project files and builds from the CLI API",
@@ -91,9 +93,9 @@ export const buildCliSharedTests = defineSharedTests([
                     outputDir,
                 });
 
-                assert.equal(resolved.workspaceFile, workspaceFile);
-                assert.equal(resolved.settingFile, settingFile);
-                assert.equal(resolved.workdir, root);
+                assert.equal(resolved.workspaceFile, canonicalPath(workspaceFile));
+                assert.equal(resolved.settingFile, canonicalPath(settingFile));
+                assert.equal(resolved.workdir, canonicalPath(root));
                 assert.equal(resolved.outputDir, outputDir);
 
                 const result = await buildBehaviorProject({
@@ -215,6 +217,95 @@ export const buildCliSharedTests = defineSharedTests([
                 assert.equal(outputTree.custom.helperValue, "imported-helper");
                 assert.deepEqual(runtimeFiles, []);
             } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+    },
+    {
+        name: "runs build scripts with process cwd set to the resolved project directory",
+        async run() {
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-build-cwd-"));
+            const scriptsDir = path.join(root, "scripts");
+            const workspaceFile = path.join(root, "workspace.b3-workspace");
+            const settingFile = path.join(root, "node-config.b3-setting");
+            const treeFile = path.join(root, "main.json");
+            const buildScriptFile = path.join(scriptsDir, "build.ts");
+            const outputDir = path.join(root, "dist");
+            const previousCwd = process.cwd();
+
+            try {
+                fs.mkdirSync(scriptsDir, { recursive: true });
+                fs.writeFileSync(
+                    workspaceFile,
+                    JSON.stringify({
+                        settings: {
+                            buildScript: "scripts/build.ts",
+                        },
+                    })
+                );
+                fs.writeFileSync(
+                    settingFile,
+                    JSON.stringify([
+                        {
+                            name: "Root",
+                            type: "Composite",
+                            desc: "",
+                            children: -1,
+                        },
+                    ])
+                );
+                fs.writeFileSync(
+                    treeFile,
+                    JSON.stringify({
+                        version: "2.0.0",
+                        name: "main",
+                        prefix: "",
+                        group: [],
+                        variables: {
+                            imports: [],
+                            locals: [],
+                        },
+                        custom: {},
+                        overrides: {},
+                        root: {
+                            uuid: "root",
+                            id: "1",
+                            name: "Root",
+                            children: [],
+                        },
+                    })
+                );
+                fs.writeFileSync(
+                    buildScriptFile,
+                    [
+                        'import fs from "node:fs";',
+                        'import path from "node:path";',
+                        "",
+                        "@behavior3.build",
+                        "export class CwdBuildScript {",
+                        "  onProcessTree(tree) {",
+                        '    tree.custom = { cwd: process.cwd(), hasWorkspace: fs.existsSync(path.join(process.cwd(), "workspace.b3-workspace")) };',
+                        "    return tree;",
+                        "  }",
+                        "}",
+                        "",
+                    ].join("\n")
+                );
+
+                const result = await buildBehaviorProject({
+                    projectPath: treeFile,
+                    outputDir,
+                });
+                const outputTree = JSON.parse(
+                    fs.readFileSync(path.join(outputDir, "main.json"), "utf-8")
+                );
+
+                assert.equal(result.hasError, false);
+                assert.equal(outputTree.custom.cwd, canonicalPath(root));
+                assert.equal(outputTree.custom.hasWorkspace, true);
+                assert.equal(process.cwd(), previousCwd);
+            } finally {
+                process.chdir(previousCwd);
                 fs.rmSync(root, { recursive: true, force: true });
             }
         },
