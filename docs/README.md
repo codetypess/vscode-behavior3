@@ -8,6 +8,7 @@
 ## 快速入口
 
 - [../README.md](../README.md): 面向仓库使用者的总览、快速开始与脚本说明
+- [../README.zh-CN.md](../README.zh-CN.md): 面向中文使用者的安装、使用与脚本说明
 - [spec-driven-development.md](spec-driven-development.md): 本仓库的 SDD 工作流说明
 - [spec/README.md](spec/README.md): 基线 spec 地图、阅读顺序与 work-item 索引
 
