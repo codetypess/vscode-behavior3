@@ -56,8 +56,10 @@
     - payload: `{ buildScriptDebug? }`
 - `validateNodeFields`
     - payload: `{ requestId, content, treePath, nodes }`
+    - 语义：返回字段级 diagnostics；除 `checker` 外，也承载 `visible` 解析/执行失败这类必须显示在具体字段上的错误
 - `resolveNodeFieldVisibility`
     - payload: `{ requestId, content, treePath, target }`
+    - 语义：只返回当前字段可见状态；单字段 `visible` 失败不得塞进 request 级 `error`
 
 ### 文件读写
 
@@ -128,6 +130,8 @@
 
 这些 request/response pair 必须登记在 shared `HostRequestSpec` registry 中。registry 是 request type、result message type、timeout fallback 与 result payload resolver 的单一映射表；adapter 的 pending request map 只能通过该 registry 解析 result message，不能另写一份平行 switch。
 
+补充规则：单字段 `visible` 解析失败、运行时异常或 capability gating 失败，必须通过 `validateNodeFieldsResult.diagnostics` 返回到对应字段；`resolveNodeFieldVisibilityResult.error` 只保留给 request 级失败，例如宿主运行时整体异常或消息处理失败。
+
 ## Normalized DTOs
 
 ### HostInitPayload
@@ -141,6 +145,7 @@
 - `nodeDefs`
 - `allFiles`
 - `settings`
+    - 包含当前 editor/webview 运行所需的稳定设置快照；除既有字段外，也包含 workspace-gated capability，例如 `.b3-workspace.settings.allowNewFunction`
 - `documentSession`
     - 当前宿主 document session 元数据
 - `selection`

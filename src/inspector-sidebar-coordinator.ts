@@ -48,6 +48,7 @@ const buildEmbeddedModeSettingsMessage = (
     type: "settingLoaded",
     nodeDefs: snapshot?.initMessage.nodeDefs ?? [],
     settings: {
+        allowNewFunction: snapshot?.initMessage.allowNewFunction,
         checkExpr: snapshot?.initMessage.checkExpr,
         subtreeEditable: snapshot?.initMessage.subtreeEditable,
         language: snapshot?.initMessage.language,

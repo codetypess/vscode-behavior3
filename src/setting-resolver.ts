@@ -8,6 +8,11 @@ import {
     findBehaviorWorkspaceFileSync,
 } from "./project-path-discovery";
 
+export interface WorkspaceFileSettings {
+    allowNewFunction?: boolean;
+    nodeColors?: Record<string, string>;
+}
+
 /**
  * Walk from the opened file's directory up to the workspace root; return the first `*.b3-setting` found.
  * Matches desktop / monorepo layouts where the config lives in e.g. `sample/` while trees are under `sample/workdir/`.
@@ -93,6 +98,37 @@ async function resolveB3SettingFilePath(
     return undefined;
 }
 
+async function resolveB3WorkspaceFilePath(
+    workspaceFolder: vscode.Uri,
+    documentUri?: vscode.Uri
+): Promise<string | undefined> {
+    if (documentUri) {
+        const wf = vscode.workspace.getWorkspaceFolder(documentUri);
+        const foundFs = findB3WorkspacePath(documentUri, wf?.uri ?? workspaceFolder);
+        if (foundFs) {
+            try {
+                await vscode.workspace.fs.stat(vscode.Uri.file(foundFs));
+                return foundFs;
+            } catch {
+                /* ignore */
+            }
+        }
+    }
+
+    const pattern = new vscode.RelativePattern(workspaceFolder.fsPath, "*.b3-workspace");
+    const found = await vscode.workspace.findFiles(pattern, null, 1);
+    if (found.length > 0) {
+        try {
+            await vscode.workspace.fs.stat(found[0]);
+            return found[0].fsPath;
+        } catch {
+            /* ignore */
+        }
+    }
+
+    return undefined;
+}
+
 /**
  * Load node definitions from `.b3-setting`.
  *
@@ -119,6 +155,32 @@ export async function resolveNodeDefs(
 }
 
 /**
+ * Read selected `settings.*` fields from the resolved `.b3-workspace` file.
+ * Returns `undefined` when no workspace file is found or it cannot be parsed.
+ */
+export async function resolveWorkspaceFileSettings(
+    workspaceFolder: vscode.Uri,
+    documentUri?: vscode.Uri
+): Promise<WorkspaceFileSettings | undefined> {
+    const wfPath = await resolveB3WorkspaceFilePath(workspaceFolder, documentUri);
+    if (!wfPath) {
+        return undefined;
+    }
+
+    try {
+        const raw = await vscode.workspace.fs.readFile(vscode.Uri.file(wfPath));
+        const data = parseWorkspaceModelContent(Buffer.from(raw).toString("utf-8"));
+        const nodeColors = data.settings.nodeColors;
+        return {
+            allowNewFunction: data.settings.allowNewFunction,
+            nodeColors: nodeColors && Object.keys(nodeColors).length > 0 ? nodeColors : undefined,
+        };
+    } catch {
+        return undefined;
+    }
+}
+
+/**
  * Read `settings.nodeColors` from the resolved `.b3-workspace` file.
  * Returns `undefined` when no workspace file is found or it has no `nodeColors`.
  */
@@ -126,29 +188,7 @@ export async function resolveWorkspaceNodeColors(
     workspaceFolder: vscode.Uri,
     documentUri?: vscode.Uri
 ): Promise<Record<string, string> | undefined> {
-    let wfPath: string | undefined;
-
-    if (documentUri) {
-        const wf = vscode.workspace.getWorkspaceFolder(documentUri);
-        wfPath = findB3WorkspacePath(documentUri, wf?.uri ?? workspaceFolder);
-    }
-
-    if (!wfPath) {
-        const pattern = new vscode.RelativePattern(workspaceFolder.fsPath, "*.b3-workspace");
-        const found = await vscode.workspace.findFiles(pattern, null, 1);
-        if (found.length > 0) wfPath = found[0].fsPath;
-    }
-
-    if (!wfPath) return undefined;
-
-    try {
-        const raw = await vscode.workspace.fs.readFile(vscode.Uri.file(wfPath));
-        const data = parseWorkspaceModelContent(Buffer.from(raw).toString("utf-8"));
-        const nc = data.settings.nodeColors;
-        return nc && Object.keys(nc).length > 0 ? nc : undefined;
-    } catch {
-        return undefined;
-    }
+    return (await resolveWorkspaceFileSettings(workspaceFolder, documentUri))?.nodeColors;
 }
 
 /**
@@ -169,8 +209,8 @@ export function watchSettingFile(
 }
 
 /**
- * Watch any `*.b3-workspace` under the workspace folder so settings such as `settings.nodeColors`
- * can be refreshed without reopening the editor.
+ * Watch any `*.b3-workspace` under the workspace folder so workspace-backed settings such as
+ * `settings.nodeColors` and `settings.allowNewFunction` can be refreshed without reopening the editor.
  */
 export function watchWorkspaceFile(
     workspaceFolder: vscode.Uri,

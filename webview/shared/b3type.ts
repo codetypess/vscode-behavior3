@@ -87,6 +87,7 @@ export const hasArgOptions = (arg: NodeArg) => arg.options !== undefined;
 /** `.b3-workspace` file shape. Extension build only reads `settings`; `files` is optional (desktop may still use it). */
 export interface WorkspaceModel {
     settings: {
+        allowNewFunction?: boolean;
         checkExpr?: boolean;
         buildScript?: string;
         checkScripts?: string[];

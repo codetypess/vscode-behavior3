@@ -37,6 +37,7 @@ export const createInitialWorkspaceState = (): WorkspaceState => ({
     groupDefs: [],
     allFiles: [],
     settings: {
+        allowNewFunction: false,
         checkExpr: true,
         subtreeEditable: true,
         language: "zh",

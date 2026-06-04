@@ -1,6 +1,7 @@
 {
   "settings": {
     "checkExpr": true,
+    "allowNewFunction": true,
     "buildScript": "scripts/build.ts",
     "checkScripts": ["scripts/checkers/**/*.ts"]
   }

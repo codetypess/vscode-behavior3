@@ -180,6 +180,8 @@ export type BuildEnv = {
     workdir: string;
     nodeDefs: ReadonlyMap<string, NodeDef>;
     logger: BuildLogger;
+    allowNewFunction?: boolean;
+    language?: string;
 };
 
 export type NodeFieldCheckResult = string | string[] | null | undefined;

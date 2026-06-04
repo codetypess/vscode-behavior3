@@ -195,19 +195,22 @@ Inspector 暴露同一组 project/document quick actions，但承载位置随模
 - 按 nodeDef 的 slot 声明渲染
 - variadic 槽位使用数组式列表
 - required / optional / oneof 约束即时校验
-- 若 slot 定义了 `visible`，Inspector 通过 host-side 字段可见性决定当前是否渲染；隐藏后必须清除该 slot 的 committed 值与本地表单缓存
-- 若 slot 定义了 `checker`，自定义 field checker 结果会映射到对应 input/output 字段校验提示
+- 若 slot 定义了 `visible`，其值可以是 host-side hook 名称或 inline expression；只有可见性结果显式为 `false` 时才隐藏，隐藏后必须清除该 slot 的 committed 值与本地表单缓存
+- 若 slot 的 `visible` 无法解析、被 capability setting 禁用、编译失败或运行时报错，该 slot 仍保持渲染，但对应 input/output 字段必须显示错误提示
+- 若 slot 定义了 `checker`，以及 `visible` 执行链路产出的字段错误，都会映射到对应 input/output 字段校验提示
 
 ### Args
 
 - 按 arg 类型渲染为 `Select` / `Switch` / `InputNumber` / `TextArea` 等
-- 若 arg 定义了 `visible`，Inspector 通过 host-side 可见性函数决定该 structured arg 当前是否渲染；只有返回 `false` 时隐藏
+- 若 arg 定义了 `visible`，其值可以是 host-side 可见性 hook 名称或 inline expression；只有返回显式 `false` 时隐藏
+- 若 arg 的 `visible` 无法解析、被 capability setting 禁用、编译失败或运行时报错，该 structured arg 仍保持渲染，但对应 arg 字段必须显示错误提示
 - args / input / output 共用一份 host-side field visibility 状态；raw JSON 视图不参与该可见性裁剪
+- args / input / output 共用一套 host-side field diagnostics 通道；`checker` 与 `visible` 失败都按字段种类映射到对应表单错误
 - 带 `options` 的参数渲染为可搜索 `Select`，搜索按显示 label 匹配 option name/value 文本
 - 可选且带 `options` 的标量参数在当前没有 committed/effective 值时，Select 显示为空选中态，不向用户暴露内部 unset 哨兵文案
 - `bool` / `bool?` 标量参数统一渲染为 `Switch`；项目内 bool 参数不通过 `options` 配置枚举值
 - 表达式型参数校验变量引用与表达式合法性
-- 自定义 field check 结果会按字段种类映射到对应 arg 校验提示
+- 自定义 field check 结果与 `visible` 执行失败都会按字段种类映射到对应 arg 校验提示
 - hidden arg 会退出 structured 视图，并清除该字段的 committed 值与本地表单缓存；raw JSON 视图仍展示节点当前剩余数据
 - 新切入的 required arg 若当前还没有 committed 值，初始态保持 unset；在用户显式输入前不得静默序列化成 `""`、`false` 或其他占位值
 - 若 arg 定义了 nodeDef 默认值，则该字段右侧显示独立 reset action；点击后先二次确认，再清除当前显式值并回退到默认值语义

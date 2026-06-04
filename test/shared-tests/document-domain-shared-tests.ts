@@ -1207,6 +1207,7 @@ export const documentDomainSharedTests = defineSharedTests([
             const workspace = parseWorkspaceModelContent(
                 JSON.stringify({
                     settings: {
+                        allowNewFunction: true,
                         checkExpr: true,
                         buildScript: "scripts/build.ts",
                         checkScripts: ["scripts/checkers/**/*.ts"],
@@ -1217,6 +1218,7 @@ export const documentDomainSharedTests = defineSharedTests([
                 })
             );
 
+            assert.equal(workspace.settings.allowNewFunction, true);
             assert.equal(workspace.settings.checkExpr, true);
             assert.equal(workspace.settings.buildScript, "scripts/build.ts");
             assert.deepEqual(workspace.settings.checkScripts, ["scripts/checkers/**/*.ts"]);

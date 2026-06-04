@@ -20,6 +20,11 @@ import { logger } from "./logger";
 import b3path from "./b3path";
 import { stringifyJson } from "./json";
 import { isStructuredSlotDefinition, parseSlotDefinition, type NodeSlotDef } from "./node-utils";
+import {
+    normalizeI18nLanguage,
+    translateRuntimeMessage,
+    type RuntimeTranslationParams,
+} from "./runtime-i18n";
 import { materializePersistedTree, type MaterializedTreeNode } from "./tree-materializer";
 import {
     loadSubtreeSourceCache,
@@ -435,6 +440,353 @@ const createNodeFieldCheckers = (
 
 const normalizeNodeFieldVisibleResult = (result: NodeFieldVisibleResult): boolean =>
     result !== false;
+
+const VISIBLE_HANDLER_NAME_PATTERN = /^\w+$/;
+const VISIBLE_EXPRESSION_TOKEN_PATTERN = /[\s()[\].!=<>|&+*\/?:'"]/;
+const VISIBLE_ARRAY_INDEX_PATTERN = /^(0|[1-9]\d*)$/;
+
+type VisibleExpressionEvaluator = (
+    args: Record<string, unknown>,
+    input: string[],
+    output: string[],
+    value: unknown
+) => unknown;
+
+type NodeFieldVisibleDiagnostic = {
+    source: string;
+    message: string;
+};
+
+type NodeFieldVisibleResolution = {
+    visible?: boolean;
+    diagnostic?: NodeFieldVisibleDiagnostic;
+};
+
+const visibleExpressionCache = new Map<string, VisibleExpressionEvaluator>();
+
+const getBuildEnvLanguage = (env: BuildEnv) => normalizeI18nLanguage(env.language);
+
+const translateVisibleRuntimeMessage = (
+    env: BuildEnv,
+    key: Parameters<typeof translateRuntimeMessage>[1],
+    params?: RuntimeTranslationParams
+): string => translateRuntimeMessage(getBuildEnvLanguage(env), key, params);
+
+const formatVisibleArgScope = (env: BuildEnv, definedArgNames: readonly string[]): string =>
+    getBuildEnvLanguage(env) === "zh" ? definedArgNames.join("、") : definedArgNames.join(", ");
+
+const getVisibleFieldKindLabel = (env: BuildEnv, fieldKind: "input" | "output"): string => {
+    if (getBuildEnvLanguage(env) === "zh") {
+        return fieldKind === "input" ? "输入" : "输出";
+    }
+    return fieldKind;
+};
+
+const parseVisibleArrayIndex = (property: PropertyKey): number | null => {
+    if (typeof property === "number") {
+        return Number.isInteger(property) && property >= 0 ? property : null;
+    }
+    if (typeof property === "string" && VISIBLE_ARRAY_INDEX_PATTERN.test(property)) {
+        return Number(property);
+    }
+    return null;
+};
+
+const isVisibleSlotIndexDefined = (
+    slotDefs: readonly NodeSlotDef[] | null | undefined,
+    index: number
+): boolean => {
+    if (index < 0) {
+        return false;
+    }
+    const slotCount = slotDefs?.length ?? 0;
+    if (slotCount === 0) {
+        return false;
+    }
+    if (index < slotCount) {
+        return true;
+    }
+    const normalizedSlotDefs = slotDefs ?? [];
+    return parseSlotDefinition(
+        normalizedSlotDefs[slotCount - 1] ?? "",
+        normalizedSlotDefs,
+        slotCount - 1
+    ).variadic;
+};
+
+const formatVisibleSlotScope = (
+    env: BuildEnv,
+    fieldKind: "input" | "output",
+    slotDefs: readonly NodeSlotDef[] | null | undefined
+): string => {
+    const slotCount = slotDefs?.length ?? 0;
+    const fieldKindLabel = getVisibleFieldKindLabel(env, fieldKind);
+    if (slotCount === 0) {
+        return translateVisibleRuntimeMessage(env, "runtime.visibleSlotScopeNone", {
+            fieldKind: fieldKindLabel,
+        });
+    }
+    if (parseSlotDefinition(slotDefs?.[slotCount - 1] ?? "", slotDefs, slotCount - 1).variadic) {
+        return translateVisibleRuntimeMessage(env, "runtime.visibleSlotScopeRangeVariadic", {
+            fieldKind: fieldKindLabel,
+            start: 0,
+            end: slotCount - 1,
+        });
+    }
+    return slotCount === 1
+        ? translateVisibleRuntimeMessage(env, "runtime.visibleSlotScopeIndex", {
+              fieldKind: fieldKindLabel,
+              start: 0,
+          })
+        : translateVisibleRuntimeMessage(env, "runtime.visibleSlotScopeRange", {
+              fieldKind: fieldKindLabel,
+              start: 0,
+              end: slotCount - 1,
+          });
+};
+
+const createVisibleArgScope = (ctx: NodeFieldVisibleContext): Record<string, unknown> => {
+    const definedArgNames = (ctx.nodeDef.args ?? []).map((arg) => arg.name);
+    const definedArgNameSet = new Set(definedArgNames);
+    const target = Object.assign(
+        Object.create(null) as Record<string, unknown>,
+        ctx.node.args ?? {}
+    );
+
+    return new Proxy(target, {
+        get(currentTarget, property) {
+            if (typeof property === "symbol") {
+                return Reflect.get(currentTarget, property);
+            }
+            if (definedArgNameSet.has(property)) {
+                return currentTarget[property];
+            }
+            throw new Error(
+                definedArgNames.length
+                    ? translateVisibleRuntimeMessage(
+                          ctx.env,
+                          "runtime.visibleExpressionUnknownArg",
+                          {
+                              property,
+                              definedArgs: formatVisibleArgScope(ctx.env, definedArgNames),
+                          }
+                      )
+                    : translateVisibleRuntimeMessage(ctx.env, "runtime.visibleExpressionNoArgs", {
+                          property,
+                      })
+            );
+        },
+        has(_currentTarget, property) {
+            if (typeof property === "symbol") {
+                return false;
+            }
+            return definedArgNameSet.has(property);
+        },
+    });
+};
+
+const createVisibleSlotScope = (
+    fieldKind: "input" | "output",
+    values: string[] | undefined,
+    slotDefs: readonly NodeSlotDef[] | null | undefined,
+    env: BuildEnv
+): string[] => {
+    const target = values ?? [];
+    return new Proxy(target, {
+        get(currentTarget, property, receiver) {
+            if (typeof property === "symbol") {
+                return Reflect.get(currentTarget, property, receiver);
+            }
+
+            const index = parseVisibleArrayIndex(property);
+            if (index !== null) {
+                if (!isVisibleSlotIndexDefined(slotDefs, index)) {
+                    throw new Error(
+                        translateVisibleRuntimeMessage(
+                            env,
+                            "runtime.visibleExpressionUnknownSlotIndex",
+                            {
+                                fieldKind: getVisibleFieldKindLabel(env, fieldKind),
+                                index,
+                                definedScope: formatVisibleSlotScope(env, fieldKind, slotDefs),
+                            }
+                        )
+                    );
+                }
+                return Reflect.get(currentTarget, property, receiver);
+            }
+
+            if (property in currentTarget || property in Array.prototype) {
+                return Reflect.get(currentTarget, property, receiver);
+            }
+
+            throw new Error(
+                translateVisibleRuntimeMessage(
+                    env,
+                    "runtime.visibleExpressionInvalidSlotProperty",
+                    {
+                        fieldKind: getVisibleFieldKindLabel(env, fieldKind),
+                        property: String(property),
+                    }
+                )
+            );
+        },
+        has(currentTarget, property) {
+            if (typeof property === "symbol") {
+                return property in currentTarget;
+            }
+            const index = parseVisibleArrayIndex(property);
+            if (index !== null) {
+                return isVisibleSlotIndexDefined(slotDefs, index);
+            }
+            return property in currentTarget || property in Array.prototype;
+        },
+    });
+};
+
+const isNamedNodeFieldVisible = (visibleName: string): boolean =>
+    VISIBLE_HANDLER_NAME_PATTERN.test(visibleName);
+
+const isInlineNodeFieldVisibleExpression = (
+    visibleName: string,
+    visibles: ReadonlyMap<string, NodeFieldVisible>
+): boolean => {
+    if (visibles.has(visibleName)) {
+        return false;
+    }
+    if (isNamedNodeFieldVisible(visibleName)) {
+        return false;
+    }
+    return VISIBLE_EXPRESSION_TOKEN_PATTERN.test(visibleName);
+};
+
+const getVisibleExpressionEvaluator = (expression: string): VisibleExpressionEvaluator => {
+    const cached = visibleExpressionCache.get(expression);
+    if (cached) {
+        return cached;
+    }
+
+    const evaluator = new Function(
+        "args",
+        "input",
+        "output",
+        "value",
+        `"use strict"; return (${expression});`
+    ) as VisibleExpressionEvaluator;
+    visibleExpressionCache.set(expression, evaluator);
+    return evaluator;
+};
+
+const resolveNodeFieldVisible = (params: {
+    visibleName: string;
+    value: unknown;
+    ctx: NodeFieldVisibleContext;
+    visibles: ReadonlyMap<string, NodeFieldVisible>;
+}): NodeFieldVisibleResolution => {
+    if (!isInlineNodeFieldVisibleExpression(params.visibleName, params.visibles)) {
+        const visible = params.visibles.get(params.visibleName);
+        if (!visible) {
+            return {
+                diagnostic: {
+                    source: params.visibleName,
+                    message: translateVisibleRuntimeMessage(
+                        params.ctx.env,
+                        "runtime.visibleHookNotRegistered",
+                        {
+                            name: params.visibleName,
+                        }
+                    ),
+                },
+            };
+        }
+
+        try {
+            return {
+                visible: normalizeNodeFieldVisibleResult(visible.visible(params.value, params.ctx)),
+            };
+        } catch (error) {
+            return {
+                diagnostic: {
+                    source: params.visibleName,
+                    message: translateVisibleRuntimeMessage(
+                        params.ctx.env,
+                        "runtime.visibleHookFailed",
+                        {
+                            name: params.visibleName,
+                            error: formatRuntimeError(error),
+                        }
+                    ),
+                },
+            };
+        }
+    }
+
+    if (!params.ctx.env.allowNewFunction) {
+        return {
+            diagnostic: {
+                source: params.visibleName,
+                message: translateVisibleRuntimeMessage(
+                    params.ctx.env,
+                    "runtime.visibleExpressionDisabled"
+                ),
+            },
+        };
+    }
+
+    let evaluator: VisibleExpressionEvaluator;
+    try {
+        evaluator = getVisibleExpressionEvaluator(params.visibleName);
+    } catch (error) {
+        return {
+            diagnostic: {
+                source: params.visibleName,
+                message: translateVisibleRuntimeMessage(
+                    params.ctx.env,
+                    "runtime.visibleExpressionCompileFailed",
+                    {
+                        error: formatRuntimeError(error),
+                    }
+                ),
+            },
+        };
+    }
+
+    try {
+        return {
+            visible: normalizeNodeFieldVisibleResult(
+                evaluator(
+                    createVisibleArgScope(params.ctx),
+                    createVisibleSlotScope(
+                        "input",
+                        params.ctx.node.input ?? [],
+                        params.ctx.nodeDef.input,
+                        params.ctx.env
+                    ),
+                    createVisibleSlotScope(
+                        "output",
+                        params.ctx.node.output ?? [],
+                        params.ctx.nodeDef.output,
+                        params.ctx.env
+                    ),
+                    params.value
+                ) as NodeFieldVisibleResult
+            ),
+        };
+    } catch (error) {
+        return {
+            diagnostic: {
+                source: params.visibleName,
+                message: translateVisibleRuntimeMessage(
+                    params.ctx.env,
+                    "runtime.visibleExpressionFailed",
+                    {
+                        error: formatRuntimeError(error),
+                    }
+                ),
+            },
+        };
+    }
+};
 
 const createNodeFieldVisibles = (
     moduleExports: unknown,
@@ -976,6 +1328,7 @@ export const collectNodeFieldCheckDiagnostics = (params: {
     treePath: string;
     env: BuildEnv;
     checkers: ReadonlyMap<string, NodeFieldChecker>;
+    visibles?: ReadonlyMap<string, NodeFieldVisible>;
     targets?: NodeFieldCheckTarget[];
 }): NodeFieldCheckDiagnostic[] => {
     const diagnostics: NodeFieldCheckDiagnostic[] = [];
@@ -1000,38 +1353,49 @@ export const collectNodeFieldCheckDiagnostics = (params: {
             nodeDef,
             treePath: target.treePath ?? params.treePath,
             env: params.env,
-            onArg: ({ fieldName, checkerName, value, ctx }) => {
-                if (!checkerName) {
-                    return;
-                }
-                const pushDiagnostic = (message: string) => {
+            onArg: ({ fieldName, checkerName, visibleName, value, ctx }) => {
+                const pushDiagnostic = (source: string, message: string) => {
                     diagnostics.push({
                         instanceKey: target.instanceKey,
                         nodeId: node.id,
                         nodeName: node.name,
                         fieldKind: "arg",
                         fieldName,
-                        checker: checkerName,
+                        checker: source,
                         message,
                     });
                 };
+                if (visibleName) {
+                    const resolution = resolveNodeFieldVisible({
+                        visibleName,
+                        value,
+                        ctx,
+                        visibles: params.visibles ?? new Map(),
+                    });
+                    if (resolution.diagnostic) {
+                        pushDiagnostic(resolution.diagnostic.source, resolution.diagnostic.message);
+                    }
+                }
+                if (!checkerName) {
+                    return;
+                }
                 const checker = params.checkers.get(checkerName);
                 if (!checker) {
-                    pushDiagnostic(`checker '${checkerName}' is not registered`);
+                    pushDiagnostic(checkerName, `checker '${checkerName}' is not registered`);
                     return;
                 }
                 try {
                     const messages = normalizeNodeFieldCheckResult(checker.validate(value, ctx));
-                    messages.forEach(pushDiagnostic);
+                    messages.forEach((message) => pushDiagnostic(checkerName, message));
                 } catch (error) {
-                    pushDiagnostic(`checker '${checkerName}' failed: ${formatRuntimeError(error)}`);
+                    pushDiagnostic(
+                        checkerName,
+                        `checker '${checkerName}' failed: ${formatRuntimeError(error)}`
+                    );
                 }
             },
-            onInput: ({ fieldName, fieldIndex, checkerName, value, ctx }) => {
-                if (!checkerName) {
-                    return;
-                }
-                const pushDiagnostic = (message: string) => {
+            onInput: ({ fieldName, fieldIndex, checkerName, visibleName, value, ctx }) => {
+                const pushDiagnostic = (source: string, message: string) => {
                     diagnostics.push({
                         instanceKey: target.instanceKey,
                         nodeId: node.id,
@@ -1039,27 +1403,41 @@ export const collectNodeFieldCheckDiagnostics = (params: {
                         fieldKind: "input",
                         fieldName,
                         fieldIndex,
-                        checker: checkerName,
+                        checker: source,
                         message,
                     });
                 };
+                if (visibleName) {
+                    const resolution = resolveNodeFieldVisible({
+                        visibleName,
+                        value,
+                        ctx,
+                        visibles: params.visibles ?? new Map(),
+                    });
+                    if (resolution.diagnostic) {
+                        pushDiagnostic(resolution.diagnostic.source, resolution.diagnostic.message);
+                    }
+                }
+                if (!checkerName) {
+                    return;
+                }
                 const checker = params.checkers.get(checkerName);
                 if (!checker) {
-                    pushDiagnostic(`checker '${checkerName}' is not registered`);
+                    pushDiagnostic(checkerName, `checker '${checkerName}' is not registered`);
                     return;
                 }
                 try {
                     const messages = normalizeNodeFieldCheckResult(checker.validate(value, ctx));
-                    messages.forEach(pushDiagnostic);
+                    messages.forEach((message) => pushDiagnostic(checkerName, message));
                 } catch (error) {
-                    pushDiagnostic(`checker '${checkerName}' failed: ${formatRuntimeError(error)}`);
+                    pushDiagnostic(
+                        checkerName,
+                        `checker '${checkerName}' failed: ${formatRuntimeError(error)}`
+                    );
                 }
             },
-            onOutput: ({ fieldName, fieldIndex, checkerName, value, ctx }) => {
-                if (!checkerName) {
-                    return;
-                }
-                const pushDiagnostic = (message: string) => {
+            onOutput: ({ fieldName, fieldIndex, checkerName, visibleName, value, ctx }) => {
+                const pushDiagnostic = (source: string, message: string) => {
                     diagnostics.push({
                         instanceKey: target.instanceKey,
                         nodeId: node.id,
@@ -1067,20 +1445,37 @@ export const collectNodeFieldCheckDiagnostics = (params: {
                         fieldKind: "output",
                         fieldName,
                         fieldIndex,
-                        checker: checkerName,
+                        checker: source,
                         message,
                     });
                 };
+                if (visibleName) {
+                    const resolution = resolveNodeFieldVisible({
+                        visibleName,
+                        value,
+                        ctx,
+                        visibles: params.visibles ?? new Map(),
+                    });
+                    if (resolution.diagnostic) {
+                        pushDiagnostic(resolution.diagnostic.source, resolution.diagnostic.message);
+                    }
+                }
+                if (!checkerName) {
+                    return;
+                }
                 const checker = params.checkers.get(checkerName);
                 if (!checker) {
-                    pushDiagnostic(`checker '${checkerName}' is not registered`);
+                    pushDiagnostic(checkerName, `checker '${checkerName}' is not registered`);
                     return;
                 }
                 try {
                     const messages = normalizeNodeFieldCheckResult(checker.validate(value, ctx));
-                    messages.forEach(pushDiagnostic);
+                    messages.forEach((message) => pushDiagnostic(checkerName, message));
                 } catch (error) {
-                    pushDiagnostic(`checker '${checkerName}' failed: ${formatRuntimeError(error)}`);
+                    pushDiagnostic(
+                        checkerName,
+                        `checker '${checkerName}' failed: ${formatRuntimeError(error)}`
+                    );
                 }
             },
         });
@@ -1114,66 +1509,60 @@ export const resolveNodeFieldVisibility = (params: {
             if (!visibleName) {
                 return;
             }
-            const visible = params.visibles.get(visibleName);
-            if (!visible) {
+            const resolution = resolveNodeFieldVisible({
+                visibleName,
+                value,
+                ctx,
+                visibles: params.visibles,
+            });
+            if (resolution.diagnostic) {
                 params.env.logger.warn(
-                    `visible '${visibleName}' is not registered for ${formatFieldLocator(node, "arg", fieldName)}`
+                    `${resolution.diagnostic.message} for ${formatFieldLocator(node, "arg", fieldName)}`
                 );
                 return;
             }
-            try {
-                visibility.args[fieldName] = normalizeNodeFieldVisibleResult(
-                    visible.visible(value, ctx)
-                );
-            } catch (error) {
-                params.env.logger.warn(
-                    `visible '${visibleName}' failed for ${formatFieldLocator(node, "arg", fieldName)}: ${formatRuntimeError(error)}`
-                );
-                visibility.args[fieldName] = true;
+            if (typeof resolution.visible === "boolean") {
+                visibility.args[fieldName] = resolution.visible;
             }
         },
         onInput: ({ fieldName, fieldIndex, visibleName, value, ctx }) => {
             if (!visibleName) {
                 return;
             }
-            const visible = params.visibles.get(visibleName);
-            if (!visible) {
+            const resolution = resolveNodeFieldVisible({
+                visibleName,
+                value,
+                ctx,
+                visibles: params.visibles,
+            });
+            if (resolution.diagnostic) {
                 params.env.logger.warn(
-                    `visible '${visibleName}' is not registered for ${formatFieldLocator(node, "input", fieldName, fieldIndex)}`
+                    `${resolution.diagnostic.message} for ${formatFieldLocator(node, "input", fieldName, fieldIndex)}`
                 );
                 return;
             }
-            try {
-                visibility.input[fieldIndex] = normalizeNodeFieldVisibleResult(
-                    visible.visible(value, ctx)
-                );
-            } catch (error) {
-                params.env.logger.warn(
-                    `visible '${visibleName}' failed for ${formatFieldLocator(node, "input", fieldName, fieldIndex)}: ${formatRuntimeError(error)}`
-                );
-                visibility.input[fieldIndex] = true;
+            if (typeof resolution.visible === "boolean") {
+                visibility.input[fieldIndex] = resolution.visible;
             }
         },
         onOutput: ({ fieldName, fieldIndex, visibleName, value, ctx }) => {
             if (!visibleName) {
                 return;
             }
-            const visible = params.visibles.get(visibleName);
-            if (!visible) {
+            const resolution = resolveNodeFieldVisible({
+                visibleName,
+                value,
+                ctx,
+                visibles: params.visibles,
+            });
+            if (resolution.diagnostic) {
                 params.env.logger.warn(
-                    `visible '${visibleName}' is not registered for ${formatFieldLocator(node, "output", fieldName, fieldIndex)}`
+                    `${resolution.diagnostic.message} for ${formatFieldLocator(node, "output", fieldName, fieldIndex)}`
                 );
                 return;
             }
-            try {
-                visibility.output[fieldIndex] = normalizeNodeFieldVisibleResult(
-                    visible.visible(value, ctx)
-                );
-            } catch (error) {
-                params.env.logger.warn(
-                    `visible '${visibleName}' failed for ${formatFieldLocator(node, "output", fieldName, fieldIndex)}: ${formatRuntimeError(error)}`
-                );
-                visibility.output[fieldIndex] = true;
+            if (typeof resolution.visible === "boolean") {
+                visibility.output[fieldIndex] = resolution.visible;
             }
         },
     });
@@ -1717,8 +2106,14 @@ export const buildProjectWithContext = async (
         workdir: context.workdir,
         nodeDefs: context.nodeDefs,
         logger,
+        allowNewFunction: settings.allowNewFunction ?? false,
     };
     const buildRuntime = createBuildScriptRuntimeWithCheckModules(
+        buildScriptModule,
+        checkScriptModules,
+        scriptEnv
+    );
+    const visibleRuntime = createNodeFieldVisibleRuntimeWithCheckModules(
         buildScriptModule,
         checkScriptModules,
         scriptEnv
@@ -1771,6 +2166,7 @@ export const buildProjectWithContext = async (
             treePath: candidatePath,
             env: scriptEnv,
             checkers: buildRuntime.nodeFieldCheckers,
+            visibles: visibleRuntime.nodeFieldVisibles,
         });
         if (checkDiagnostics.length) {
             hasError = true;
@@ -1815,6 +2211,7 @@ export const batchProcessProjectWithContext = async (
     const allErrors: string[] = [];
     const stagedWrites: Array<{ path: string; tree: TreeData; content: string }> = [];
 
+    const settings = readWorkspaceSettings(project);
     let buildScriptModule: unknown;
     try {
         buildScriptModule = await loadRuntimeModule(scriptPath, {
@@ -1830,6 +2227,7 @@ export const batchProcessProjectWithContext = async (
         workdir: context.workdir,
         nodeDefs: context.nodeDefs,
         logger,
+        allowNewFunction: settings.allowNewFunction ?? false,
     };
     const buildScript = createBatchHooks(buildScriptModule, scriptEnv);
     if (!buildScriptModule || !buildScript) {

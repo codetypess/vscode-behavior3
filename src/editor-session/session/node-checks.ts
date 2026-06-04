@@ -34,6 +34,7 @@ export function createSessionNodeChecks(context: TreeEditorSessionContext): Sess
             documentUri: document.uri,
             workspaceFolderUri,
             nodeDefs: state.nodeDefs,
+            language: state.currentSettings.language,
             readWorkspaceFileContent,
         });
     };
@@ -48,8 +49,14 @@ export function createSessionNodeChecks(context: TreeEditorSessionContext): Sess
             const diagnostics = collectNodeFieldCheckDiagnostics({
                 tree,
                 treePath: msg.treePath || runtimeResult.treePath,
-                env: createSessionBuildScriptEnv(runtimeResult.treePath, state.nodeDefs),
+                env: createSessionBuildScriptEnv(
+                    runtimeResult.treePath,
+                    state.nodeDefs,
+                    runtimeResult.allowNewFunction,
+                    state.currentSettings.language
+                ),
                 checkers: runtimeResult.buildScriptRuntime.nodeFieldCheckers,
+                visibles: runtimeResult.nodeFieldVisibleHandlers,
                 targets: msg.nodes.map((entry) => ({
                     instanceKey: entry.instanceKey,
                     treePath: entry.treePath,
@@ -99,7 +106,12 @@ export function createSessionNodeChecks(context: TreeEditorSessionContext): Sess
             const visibility = resolveNodeFieldVisibility({
                 tree,
                 treePath: msg.treePath || runtimeResult.treePath,
-                env: createSessionBuildScriptEnv(runtimeResult.treePath, state.nodeDefs),
+                env: createSessionBuildScriptEnv(
+                    runtimeResult.treePath,
+                    state.nodeDefs,
+                    runtimeResult.allowNewFunction,
+                    state.currentSettings.language
+                ),
                 visibles: runtimeResult.nodeFieldVisibleHandlers,
                 target: toNodeData(msg.target.node),
                 targetTreePath: msg.target.treePath,

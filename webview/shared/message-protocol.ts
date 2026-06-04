@@ -66,6 +66,7 @@ export type HostToEditorMessage =
           filePath: string;
           workdir: string;
           nodeDefs: NodeDef[];
+          allowNewFunction: boolean;
           checkExpr: boolean;
           subtreeEditable: boolean;
           language: "zh" | "en";
@@ -91,6 +92,7 @@ export type HostToEditorMessage =
           type: "settingLoaded";
           nodeDefs: NodeDef[];
           settings?: {
+              allowNewFunction?: boolean;
               checkExpr?: boolean;
               subtreeEditable?: boolean;
               language?: "zh" | "en";

@@ -1443,7 +1443,591 @@ export const buildCliSharedTests = defineSharedTests([
 
             assert.deepEqual(visibility, { args: {}, input: {}, output: {} });
             assert.equal(warnings.length, 1);
-            assert.match(warnings[0] ?? "", /visible 'show-time' is not registered/);
+            assert.match(warnings[0] ?? "", /visible 'show-time' is not registered/i);
+        },
+    },
+    {
+        name: "reports disabled visible expressions as field diagnostics and keeps fields visible",
+        run() {
+            const warnings: string[] = [];
+            const workdir = "/work";
+            const visibleExpression = 'args.type==4 || input[0] == "x"';
+            const env = {
+                fs,
+                path: b3path,
+                workdir,
+                allowNewFunction: false,
+                nodeDefs: new Map([
+                    [
+                        "Wait",
+                        {
+                            name: "Wait",
+                            type: "Action",
+                            desc: "",
+                            input: ["condition"],
+                            args: [
+                                {
+                                    name: "type",
+                                    type: "int",
+                                    desc: "",
+                                },
+                                {
+                                    name: "time",
+                                    type: "float",
+                                    desc: "",
+                                    visible: visibleExpression,
+                                },
+                            ],
+                        },
+                    ],
+                ]),
+                logger: {
+                    log() {},
+                    debug() {},
+                    info() {},
+                    warn: (...args: unknown[]) => warnings.push(args.map(String).join(" ")),
+                    error() {},
+                },
+            };
+
+            const tree = {
+                ...createTestTree(),
+                root: {
+                    uuid: "root",
+                    id: "1",
+                    name: "Wait",
+                    args: {
+                        type: 4,
+                        time: 1,
+                    },
+                    input: ["x"],
+                },
+            };
+
+            const diagnostics = collectNodeFieldCheckDiagnostics({
+                tree,
+                treePath: `${workdir}/main.json`,
+                env,
+                checkers: new Map(),
+                visibles: new Map(),
+            });
+
+            assert.equal(diagnostics.length, 1);
+            assert.equal(diagnostics[0]?.fieldKind, "arg");
+            assert.equal(diagnostics[0]?.fieldName, "time");
+            assert.equal(diagnostics[0]?.checker, visibleExpression);
+            assert.match(diagnostics[0]?.message ?? "", /allowNewFunction/);
+
+            const visibility = resolveNodeFieldVisibility({
+                tree,
+                treePath: `${workdir}/main.json`,
+                env,
+                visibles: new Map(),
+                target: {
+                    uuid: "root",
+                    id: "1",
+                    name: "Wait",
+                    args: {
+                        type: 4,
+                        time: 1,
+                    },
+                    input: ["x"],
+                },
+            });
+
+            assert.deepEqual(visibility, { args: {}, input: {}, output: {} });
+            assert.equal(warnings.length, 1);
+            assert.match(warnings[0] ?? "", /allowNewFunction/);
+        },
+    },
+    {
+        name: "evaluates visible expressions when allowNewFunction is enabled",
+        run() {
+            const warnings: string[] = [];
+            const workdir = "/work";
+            const visibleExpression = 'args.type==4 || input[0] == "x"';
+            const env = {
+                fs,
+                path: b3path,
+                workdir,
+                allowNewFunction: true,
+                nodeDefs: new Map([
+                    [
+                        "Wait",
+                        {
+                            name: "Wait",
+                            type: "Action",
+                            desc: "",
+                            input: ["condition"],
+                            args: [
+                                {
+                                    name: "type",
+                                    type: "int",
+                                    desc: "",
+                                },
+                                {
+                                    name: "time",
+                                    type: "float",
+                                    desc: "",
+                                    visible: visibleExpression,
+                                },
+                            ],
+                        },
+                    ],
+                ]),
+                logger: {
+                    log() {},
+                    debug() {},
+                    info() {},
+                    warn: (...args: unknown[]) => warnings.push(args.map(String).join(" ")),
+                    error() {},
+                },
+            };
+
+            const hiddenTree = {
+                ...createTestTree(),
+                root: {
+                    uuid: "root",
+                    id: "1",
+                    name: "Wait",
+                    args: {
+                        type: 3,
+                        time: 1,
+                    },
+                    input: ["y"],
+                },
+            };
+            const shownTree = {
+                ...createTestTree(),
+                root: {
+                    uuid: "root",
+                    id: "1",
+                    name: "Wait",
+                    args: {
+                        type: 4,
+                        time: 1,
+                    },
+                    input: ["y"],
+                },
+            };
+
+            const hiddenDiagnostics = collectNodeFieldCheckDiagnostics({
+                tree: hiddenTree,
+                treePath: `${workdir}/main.json`,
+                env,
+                checkers: new Map(),
+                visibles: new Map(),
+            });
+            assert.deepEqual(hiddenDiagnostics, []);
+
+            const hiddenVisibility = resolveNodeFieldVisibility({
+                tree: hiddenTree,
+                treePath: `${workdir}/main.json`,
+                env,
+                visibles: new Map(),
+                target: {
+                    uuid: "root",
+                    id: "1",
+                    name: "Wait",
+                    args: {
+                        type: 3,
+                        time: 1,
+                    },
+                    input: ["y"],
+                },
+            });
+            assert.deepEqual(hiddenVisibility, { args: { time: false }, input: {}, output: {} });
+
+            const shownDiagnostics = collectNodeFieldCheckDiagnostics({
+                tree: shownTree,
+                treePath: `${workdir}/main.json`,
+                env,
+                checkers: new Map(),
+                visibles: new Map(),
+            });
+            assert.deepEqual(shownDiagnostics, []);
+
+            const shownVisibility = resolveNodeFieldVisibility({
+                tree: shownTree,
+                treePath: `${workdir}/main.json`,
+                env,
+                visibles: new Map(),
+                target: {
+                    uuid: "root",
+                    id: "1",
+                    name: "Wait",
+                    args: {
+                        type: 4,
+                        time: 1,
+                    },
+                    input: ["y"],
+                },
+            });
+            assert.deepEqual(shownVisibility, { args: { time: true }, input: {}, output: {} });
+            assert.deepEqual(warnings, []);
+        },
+    },
+    {
+        name: "reports visible expressions that reference undefined args as field diagnostics",
+        run() {
+            const warnings: string[] = [];
+            const workdir = "/work";
+            const visibleExpression = "args.typexxx == 4";
+            const env = {
+                fs,
+                path: b3path,
+                workdir,
+                allowNewFunction: true,
+                nodeDefs: new Map([
+                    [
+                        "Wait",
+                        {
+                            name: "Wait",
+                            type: "Action",
+                            desc: "",
+                            args: [
+                                {
+                                    name: "type",
+                                    type: "int",
+                                    desc: "",
+                                },
+                                {
+                                    name: "time",
+                                    type: "float",
+                                    desc: "",
+                                    visible: visibleExpression,
+                                },
+                            ],
+                        },
+                    ],
+                ]),
+                logger: {
+                    log() {},
+                    debug() {},
+                    info() {},
+                    warn: (...args: unknown[]) => warnings.push(args.map(String).join(" ")),
+                    error() {},
+                },
+            };
+
+            const tree = {
+                ...createTestTree(),
+                root: {
+                    uuid: "root",
+                    id: "1",
+                    name: "Wait",
+                    args: {
+                        type: 4,
+                        time: 1,
+                    },
+                },
+            };
+
+            const diagnostics = collectNodeFieldCheckDiagnostics({
+                tree,
+                treePath: `${workdir}/main.json`,
+                env,
+                checkers: new Map(),
+                visibles: new Map(),
+            });
+
+            assert.equal(diagnostics.length, 1);
+            assert.equal(diagnostics[0]?.fieldKind, "arg");
+            assert.equal(diagnostics[0]?.fieldName, "time");
+            assert.match(diagnostics[0]?.message ?? "", /args\.typexxx/);
+            assert.match(diagnostics[0]?.message ?? "", /defined arg scope/);
+
+            const visibility = resolveNodeFieldVisibility({
+                tree,
+                treePath: `${workdir}/main.json`,
+                env,
+                visibles: new Map(),
+                target: {
+                    uuid: "root",
+                    id: "1",
+                    name: "Wait",
+                    args: {
+                        type: 4,
+                        time: 1,
+                    },
+                },
+            });
+
+            assert.deepEqual(visibility, { args: {}, input: {}, output: {} });
+            assert.equal(warnings.length, 1);
+            assert.match(warnings[0] ?? "", /args\.typexxx/);
+            assert.match(warnings[0] ?? "", /defined arg scope/);
+        },
+    },
+    {
+        name: "localizes visible expression diagnostics using the configured language",
+        run() {
+            const warnings: string[] = [];
+            const workdir = "/work";
+            const visibleExpression = "args.typexxx == 4";
+            const env = {
+                fs,
+                path: b3path,
+                workdir,
+                allowNewFunction: true,
+                language: "zh",
+                nodeDefs: new Map([
+                    [
+                        "Wait",
+                        {
+                            name: "Wait",
+                            type: "Action",
+                            desc: "",
+                            args: [
+                                {
+                                    name: "type",
+                                    type: "int",
+                                    desc: "",
+                                },
+                                {
+                                    name: "health",
+                                    type: "int",
+                                    desc: "",
+                                },
+                                {
+                                    name: "time",
+                                    type: "float",
+                                    desc: "",
+                                    visible: visibleExpression,
+                                },
+                            ],
+                        },
+                    ],
+                ]),
+                logger: {
+                    log() {},
+                    debug() {},
+                    info() {},
+                    warn: (...args: unknown[]) => warnings.push(args.map(String).join(" ")),
+                    error() {},
+                },
+            };
+
+            const tree = {
+                ...createTestTree(),
+                root: {
+                    uuid: "root",
+                    id: "1",
+                    name: "Wait",
+                    args: {
+                        type: 4,
+                        health: 100,
+                        time: 1,
+                    },
+                },
+            };
+
+            const diagnostics = collectNodeFieldCheckDiagnostics({
+                tree,
+                treePath: `${workdir}/main.json`,
+                env,
+                checkers: new Map(),
+                visibles: new Map(),
+            });
+
+            assert.equal(diagnostics.length, 1);
+            assert.match(diagnostics[0]?.message ?? "", /不在已定义的参数范围内/);
+            assert.match(diagnostics[0]?.message ?? "", /已定义参数：type、health/);
+
+            const visibility = resolveNodeFieldVisibility({
+                tree,
+                treePath: `${workdir}/main.json`,
+                env,
+                visibles: new Map(),
+                target: {
+                    uuid: "root",
+                    id: "1",
+                    name: "Wait",
+                    args: {
+                        type: 4,
+                        health: 100,
+                        time: 1,
+                    },
+                },
+            });
+
+            assert.deepEqual(visibility, { args: {}, input: {}, output: {} });
+            assert.equal(warnings.length, 1);
+            assert.match(warnings[0] ?? "", /不在已定义的参数范围内/);
+        },
+    },
+    {
+        name: "reports visible expression compile failures as field diagnostics",
+        run() {
+            const warnings: string[] = [];
+            const workdir = "/work";
+            const visibleExpression = "args.type ==";
+            const env = {
+                fs,
+                path: b3path,
+                workdir,
+                allowNewFunction: true,
+                nodeDefs: new Map([
+                    [
+                        "Wait",
+                        {
+                            name: "Wait",
+                            type: "Action",
+                            desc: "",
+                            args: [
+                                {
+                                    name: "type",
+                                    type: "int",
+                                    desc: "",
+                                },
+                                {
+                                    name: "time",
+                                    type: "float",
+                                    desc: "",
+                                    visible: visibleExpression,
+                                },
+                            ],
+                        },
+                    ],
+                ]),
+                logger: {
+                    log() {},
+                    debug() {},
+                    info() {},
+                    warn: (...args: unknown[]) => warnings.push(args.map(String).join(" ")),
+                    error() {},
+                },
+            };
+
+            const tree = {
+                ...createTestTree(),
+                root: {
+                    uuid: "root",
+                    id: "1",
+                    name: "Wait",
+                    args: {
+                        type: 4,
+                        time: 1,
+                    },
+                },
+            };
+
+            const diagnostics = collectNodeFieldCheckDiagnostics({
+                tree,
+                treePath: `${workdir}/main.json`,
+                env,
+                checkers: new Map(),
+                visibles: new Map(),
+            });
+
+            assert.equal(diagnostics.length, 1);
+            assert.match(diagnostics[0]?.message ?? "", /failed to compile/);
+
+            const visibility = resolveNodeFieldVisibility({
+                tree,
+                treePath: `${workdir}/main.json`,
+                env,
+                visibles: new Map(),
+                target: {
+                    uuid: "root",
+                    id: "1",
+                    name: "Wait",
+                    args: {
+                        type: 4,
+                        time: 1,
+                    },
+                },
+            });
+
+            assert.deepEqual(visibility, { args: {}, input: {}, output: {} });
+            assert.equal(warnings.length, 1);
+            assert.match(warnings[0] ?? "", /failed to compile/);
+        },
+    },
+    {
+        name: "reports visible expression runtime failures as field diagnostics",
+        run() {
+            const warnings: string[] = [];
+            const workdir = "/work";
+            const visibleExpression = "args.type.name == 4";
+            const env = {
+                fs,
+                path: b3path,
+                workdir,
+                allowNewFunction: true,
+                nodeDefs: new Map([
+                    [
+                        "Wait",
+                        {
+                            name: "Wait",
+                            type: "Action",
+                            desc: "",
+                            args: [
+                                {
+                                    name: "type",
+                                    type: "int?",
+                                    desc: "",
+                                },
+                                {
+                                    name: "time",
+                                    type: "float",
+                                    desc: "",
+                                    visible: visibleExpression,
+                                },
+                            ],
+                        },
+                    ],
+                ]),
+                logger: {
+                    log() {},
+                    debug() {},
+                    info() {},
+                    warn: (...args: unknown[]) => warnings.push(args.map(String).join(" ")),
+                    error() {},
+                },
+            };
+
+            const tree = {
+                ...createTestTree(),
+                root: {
+                    uuid: "root",
+                    id: "1",
+                    name: "Wait",
+                    args: {
+                        time: 1,
+                    },
+                },
+            };
+
+            const diagnostics = collectNodeFieldCheckDiagnostics({
+                tree,
+                treePath: `${workdir}/main.json`,
+                env,
+                checkers: new Map(),
+                visibles: new Map(),
+            });
+
+            assert.equal(diagnostics.length, 1);
+            assert.match(diagnostics[0]?.message ?? "", /visible expression failed/i);
+
+            const visibility = resolveNodeFieldVisibility({
+                tree,
+                treePath: `${workdir}/main.json`,
+                env,
+                visibles: new Map(),
+                target: {
+                    uuid: "root",
+                    id: "1",
+                    name: "Wait",
+                    args: {
+                        time: 1,
+                    },
+                },
+            });
+
+            assert.deepEqual(visibility, { args: {}, input: {}, output: {} });
+            assert.equal(warnings.length, 1);
+            assert.match(warnings[0] ?? "", /visible expression failed/i);
         },
     },
     {

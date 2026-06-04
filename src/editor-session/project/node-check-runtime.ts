@@ -23,22 +23,31 @@ export interface SessionNodeCheckRuntimeResult {
     buildScriptRuntime: BuildScriptRuntime;
     nodeFieldVisibleHandlers: Map<string, NodeFieldVisible>;
     treePath: string;
+    allowNewFunction: boolean;
 }
 
 interface CreateSessionNodeCheckRuntimeParams {
     documentUri: vscode.Uri;
     workspaceFolderUri: vscode.Uri;
     nodeDefs: NodeDef[];
+    language?: string;
     readWorkspaceFileContent: (fileUri: vscode.Uri) => Promise<string>;
 }
 
-export function createSessionBuildScriptEnv(workdir: string, nodeDefs: NodeDef[]): BuildEnv {
+export function createSessionBuildScriptEnv(
+    workdir: string,
+    nodeDefs: NodeDef[],
+    allowNewFunction = false,
+    language?: string
+): BuildEnv {
     return {
         fs: fs as BuildEnv["fs"],
         path: b3path,
         workdir,
         nodeDefs: createNodeDefMap(nodeDefs),
         logger: createBuildScriptLogger(),
+        allowNewFunction,
+        language,
     };
 }
 
@@ -46,6 +55,7 @@ export async function createSessionNodeCheckRuntime({
     documentUri,
     workspaceFolderUri,
     nodeDefs,
+    language,
     readWorkspaceFileContent,
 }: CreateSessionNodeCheckRuntimeParams): Promise<SessionNodeCheckRuntimeResult> {
     const workspaceFile = findB3WorkspacePath(documentUri, workspaceFolderUri);
@@ -53,10 +63,11 @@ export async function createSessionNodeCheckRuntime({
         return {
             buildScriptRuntime: createBuildScriptRuntime(
                 null,
-                createSessionBuildScriptEnv(workspaceFolderUri.fsPath, nodeDefs)
+                createSessionBuildScriptEnv(workspaceFolderUri.fsPath, nodeDefs, false, language)
             ),
             nodeFieldVisibleHandlers: new Map(),
             treePath: workspaceFolderUri.fsPath,
+            allowNewFunction: false,
         };
     }
 
@@ -64,8 +75,9 @@ export async function createSessionNodeCheckRuntime({
     const workspaceModel = parseWorkspaceModelContent(workspaceText);
     const buildScript = workspaceModel.settings.buildScript;
     const checkScripts = workspaceModel.settings.checkScripts ?? [];
+    const allowNewFunction = workspaceModel.settings.allowNewFunction ?? false;
     const workdir = path.dirname(workspaceFile).replace(/\\/g, "/");
-    const env = createSessionBuildScriptEnv(workdir, nodeDefs);
+    const env = createSessionBuildScriptEnv(workdir, nodeDefs, allowNewFunction, language);
 
     let buildScriptModule: unknown = null;
     let hasRuntimeLoadError = false;
@@ -108,5 +120,6 @@ export async function createSessionNodeCheckRuntime({
         },
         nodeFieldVisibleHandlers: visibleRuntime.nodeFieldVisibles,
         treePath: workdir,
+        allowNewFunction,
     };
 }

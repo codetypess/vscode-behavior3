@@ -451,6 +451,10 @@ export const normalizeWorkspaceModel = (value: unknown): WorkspaceModel => {
 
     return {
         settings: {
+            allowNewFunction:
+                typeof settingsRecord.allowNewFunction === "boolean"
+                    ? settingsRecord.allowNewFunction
+                    : undefined,
             checkExpr:
                 typeof settingsRecord.checkExpr === "boolean"
                     ? settingsRecord.checkExpr

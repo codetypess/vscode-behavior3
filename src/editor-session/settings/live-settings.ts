@@ -1,8 +1,9 @@
 import * as vscode from "vscode";
-import { resolveWorkspaceNodeColors } from "../../setting-resolver";
+import { resolveWorkspaceFileSettings } from "../../setting-resolver";
 import { getEditorLanguage, type EditorLanguage } from "./editor-settings";
 
 export interface EditorLiveSettings {
+    allowNewFunction: boolean;
     checkExpr: boolean;
     subtreeEditable: boolean;
     language: EditorLanguage;
@@ -16,12 +17,17 @@ export function createLiveSettingsResolver(
 ): () => Promise<EditorLiveSettings> {
     return async () => {
         const config = vscode.workspace.getConfiguration("behavior3");
+        const workspaceSettings = await resolveWorkspaceFileSettings(
+            workspaceFolderUri,
+            documentUri
+        );
         return {
+            allowNewFunction: workspaceSettings?.allowNewFunction ?? false,
             checkExpr: config.get<boolean>("checkExpr", true),
             subtreeEditable: config.get<boolean>("subtreeEditable", true),
             language: getEditorLanguage(config.get<string>("language", "auto")),
             inspectorMode: config.get<"sidebar" | "embedded">("inspectorMode", "sidebar"),
-            nodeColors: await resolveWorkspaceNodeColors(workspaceFolderUri, documentUri),
+            nodeColors: workspaceSettings?.nodeColors,
         };
     };
 }

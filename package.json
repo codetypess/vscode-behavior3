@@ -2,7 +2,7 @@
   "name": "vscode-behavior3",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "2.5.1",
+  "version": "2.6.0",
   "publisher": "codetypess",
   "repository": {
     "type": "git",

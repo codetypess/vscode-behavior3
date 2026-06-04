@@ -106,6 +106,7 @@ export const normalizeHostInitMessage = (
 ): HostInitPayload => {
     // Normalize once at the host boundary so stores and UI components can trust path shapes.
     const settings: Settings = {
+        allowNewFunction: message.allowNewFunction,
         checkExpr: message.checkExpr,
         subtreeEditable: message.subtreeEditable,
         language: message.language,

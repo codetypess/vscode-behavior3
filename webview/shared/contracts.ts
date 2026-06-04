@@ -50,6 +50,7 @@ export interface PersistedTreeModel {
 }
 
 export interface Settings {
+    allowNewFunction: boolean;
     checkExpr: boolean;
     subtreeEditable: boolean;
     language: "zh" | "en";

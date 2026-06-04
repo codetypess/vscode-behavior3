@@ -454,7 +454,7 @@
         "desc": "血量",
         "type": "int?",
         "checker": "test_args_health_checker",
-        "visible": "test_args_health_visible"
+        "visible": "args.type == 4"
       }
     ]
   }

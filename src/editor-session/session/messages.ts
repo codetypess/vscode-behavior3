@@ -1,9 +1,6 @@
 import type { HostSelectionState } from "../../../webview/shared/contracts";
 import type { DocumentMutationSelection } from "../../../webview/shared/document";
-import type {
-    HostToEditorMessage,
-    NodeDef,
-} from "../../../webview/shared/message-protocol";
+import type { HostToEditorMessage, NodeDef } from "../../../webview/shared/message-protocol";
 import type { DocumentSessionSnapshot } from "../document/document-session-state";
 import type { VarDeclResult } from "../project/project-index";
 import { buildPendingSelectionRef } from "./selection-state";
@@ -75,6 +72,7 @@ export function buildInitMessage(params: {
         filePath: params.filePath,
         workdir: params.workdir,
         nodeDefs: params.nodeDefs,
+        allowNewFunction: params.settings.allowNewFunction,
         checkExpr: params.settings.checkExpr,
         subtreeEditable: params.settings.subtreeEditable,
         language: params.settings.language,
