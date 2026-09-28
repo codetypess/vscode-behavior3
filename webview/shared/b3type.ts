@@ -1,10 +1,26 @@
-import type { NodeDef } from "behavior3";
+import type { NodeDef as Behavior3NodeDef } from "behavior3";
 
-export type { NodeDef };
+/** Editor node definition. Adds editor-only fields on top of the behavior3 runtime definition. */
+export interface NodeDef<GroupType extends string = string> extends Behavior3NodeDef<GroupType> {
+    /** Whether nodes of this definition may carry an attached decorator branch. Absent means false. */
+    supportDecorator?: boolean;
+}
 export type NodeType = NodeDef["type"] | "Other" | "Error";
 export type NodeArg = Exclude<NodeDef["args"], undefined>[number];
 
 export const DOCUMENT_VERSION = "2.7.0";
+
+/** Extra data carried with an attached decorator branch. `root` is not a child of the host. */
+export const ABORT_TYPES = ["None", "Self", "Lower Priority", "Both"] as const;
+export type AbortType = (typeof ABORT_TYPES)[number];
+export const DEFAULT_ABORT_TYPE: AbortType = "None";
+
+export interface DecoratorAttachment<TNode> {
+    enterPriority: number;
+    maintainPriority: number;
+    abortType: AbortType;
+    root: TNode;
+}
 
 export interface NodeData {
     id: string;
@@ -17,6 +33,8 @@ export interface NodeData {
     debug?: boolean;
     disabled?: boolean;
     path?: string;
+    /** Attached decorator. Not a member of `children`. */
+    decorator?: DecoratorAttachment<NodeData>;
 
     // Stable node identity, for overrides
     uuid: string;
@@ -70,7 +88,10 @@ export interface TreeData {
     root: NodeData;
 
     overrides: {
-        [key: string]: Pick<NodeData, "desc" | "input" | "output" | "args" | "debug" | "disabled">;
+        [key: string]: Pick<
+            NodeData,
+            "desc" | "input" | "output" | "args" | "debug" | "disabled" | "decorator"
+        >;
     };
 }
 

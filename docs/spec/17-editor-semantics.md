@@ -175,6 +175,7 @@
 - 排序 locals 与 import refs
 - Inspector 可按字段或局部列表独立构造 payload；无关字段错误不应阻断本次 intent
 - `custom` 的重复 key、对象/数组字面量或非法结构化输入不得静默写入主文档
+- 当前树用到装饰器时，`$decorator_type` 保持为 `local` 或 `global`。缺失或无法识别时写成 `local`。提交自定义数据时不能删掉这一项
 - webview 只发送 intent，宿主仅在值确实变化时提交 mutation
 
 ### `updateNode(payload)`
@@ -214,6 +215,30 @@ host reducer 当前分三条路径：
     - `debug` / `disabled` 的提交结果必须保留显式 `false`，以支持把 subtree 源节点中的 `true` 关闭成主文档 override
     - 仅因 nodeDef 默认值补齐而出现的值，不得单独生成 main-document `overrides`
 - 写入或清理主文档 `overrides`
+- 子树节点的 `decorator` 可以写入 override，但不能靠省略字段把源节点上已有的装饰器清掉
+
+### `attachDecorator(entryName)`
+
+- 仅当节点定义 `supportDecorator === true` 且当前还没有 `decorator` 时可用
+- 入口节点成为 `decorator.root`，不进入宿主的 `children`。两个优先级都是整数，添加时都等于宿主节点 id 的整数值。`abortType` 添加时为 `None`
+- 入口节点定义的 `status` 含字面量 `running` 时拒绝。`|running` 只表示子节点返回 `running` 时向上传递，允许作为入口
+- 装饰器枝干内部不能再挂 `decorator`，也不能放入自身会返回 `running` 的节点。同样只拒绝字面量 `running`
+- 子树内部节点的结果写入主文档 `overrides`
+
+### `removeDecorator()`
+
+- 仅当节点定义 `supportDecorator === true` 且当前已有 `decorator` 时可用
+- 主树节点直接去掉自己的 `decorator`，`children` 保持不变
+- 子树节点上仅由主文档 override 挂上的装饰器可以去掉；去掉后若没有其他差异，删除对应 override 条目
+- 子树源文件里已经有的装饰器不能清掉。右键菜单不显示这项，reducer 也会拒绝
+
+### 装饰器临时页面
+
+- 装饰器面板的「打开编辑视图」按钮，或双击节点上方的装饰器附属，进入临时页面。页面复用当前画布和 Inspector，把该 `decorator` 枝干当作当前树根
+- 页面里的结构修改提交到父文档，写成对该节点 `decorator` 的变更
+- 关闭时若枝干相对进入页面时有变化，提示保存、撤销或取消关闭
+- 保存写父文档并离开；撤销把 `decorator` 恢复成进入页面时的枝干并离开；取消关闭留在页面
+- 双击节点本体仍打开 subtree
 
 #### C. 从 subtree link 脱链
 
@@ -260,6 +285,7 @@ host reducer 当前分三条路径：
 
 - 主编辑器或侧栏发起保存后，最终都进入 VS Code custom editor 保存生命周期
 - 宿主写盘前会重新解析当前主文档，并用 resolved graph 的主树 display id 回写 persisted `id`
+- 这次回写同时更新宿主节点装饰器的优先级。进入优先级写成新的节点 id。维持优先级若仍等于旧的进入优先级，也写成新 id；已经改小的值保持不变，大于新的进入优先级时降到该值
 - 该回写只作用于主树结构节点，不把 subtree 内部实例 id 反写到主文档
 - 同一次保存动作会显式写回当前可达 legacy subtree 的规范化内容
 - 保存成功后，宿主当前 history 游标快照同步替换为写盘后的规范化内容

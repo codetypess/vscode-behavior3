@@ -78,6 +78,7 @@ Inspector 暴露同一组 project/document quick actions，但承载位置随模
 ### Node Selected
 
 - 显示 Node Inspector
+- 当前选中是宿主节点上的装饰器时，显示装饰器面板，而不是 Node Inspector。进入优先级只读且等于该节点 id 的整数；维持优先级可改，且只能是 0 到进入优先级之间的整数。节点 id 变化时，仍等于旧进入优先级的维持优先级显示并保存为新 id，已经改小的值保持不变。中断类型是下拉框，选项为 `None`、`Self`、`Lower Priority`、`Both`，默认 `None`。面板有「打开编辑视图」按钮，进入该装饰器枝干的临时页面
 - `sidebar` 模式下，即使当前共享选中仍然是同一逻辑节点，重复的显式节点选中手势也应重新激活 Inspector Sidebar，而不是要求用户先切到别的节点
 - 若 host 已确认当前为 node selection，但新文档 graph 仍在重建、`selectedNodeSnapshot` 尚未恢复，Inspector 仍停留在 node 通道，并显示 pending/loading 态，而不是闪回 Tree Inspector
 - 若当前文档此前已经成功渲染过同一逻辑节点，两种模式下的 Inspector 都应先复用该文档缓存的 node snapshot，待真实 snapshot 恢复后再覆盖，从而避免重复 loading 动画
@@ -142,6 +143,7 @@ Inspector 暴露同一组 project/document quick actions，但承载位置随模
 
 - 由 `document.custom` 驱动
 - 使用可增删的 `key:value` 行编辑
+- 当前树用到装饰器时，自动包含 `$decorator_type`。这一行的键不可改、不可删，值是 `local` / `global` 下拉框，缺省 `local`
 - 每行左侧显示一个根据当前输入推断出的类型徽章
 - `key` 必填且不能重复
 - `value` 仅支持 `string`、`number`、`boolean`

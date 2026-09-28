@@ -1,15 +1,18 @@
-import { DOCUMENT_VERSION, type TreeData } from "./b3type";
+import { DOCUMENT_VERSION, type NodeDef, type TreeData } from "./b3type";
+import { createNodeDefMap } from "./node-utils";
 import { getFs } from "./b3fs";
 import b3path from "./b3path";
 import { parseTreeContent } from "./schema";
 import { stringifyJson } from "./json";
 import { createNode, subtreeNeedsMissingIds } from "./tree-model";
 import type {
+    PersistedDecoratorAttachment,
     PersistedNodeModel,
     PersistedTreeModel,
     SubtreeSourceCacheEntry,
     WorkdirRelativeJsonPath,
 } from "./contracts";
+import { refreshDecoratorPriorities } from "./decorator-branch";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
 
 export const cloneJsonValue = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -19,6 +22,10 @@ export const clonePersistedTree = (tree: PersistedTreeModel): PersistedTreeModel
 
 export const clonePersistedNode = (node: PersistedNodeModel): PersistedNodeModel =>
     cloneJsonValue(node);
+
+export const cloneDecoratorAttachment = (
+    attachment: PersistedDecoratorAttachment
+): PersistedDecoratorAttachment => cloneJsonValue(attachment);
 
 export const treeDataForPersistence = (data: TreeData, name: string): TreeData => {
     return {
@@ -81,6 +88,47 @@ export const walkPersistedNodes = (
     for (const child of node.children ?? []) {
         walkPersistedNodes(child, visitor, node, depth + 1);
     }
+    if (node.decorator) {
+        walkPersistedNodes(node.decorator.root, visitor, node, depth + 1);
+    }
+};
+
+export const nodeDefSupportsDecorator = (nodeDef: NodeDef | null | undefined): boolean =>
+    nodeDef?.supportDecorator === true;
+
+/** Drop decorator branches whose node definition does not allow them. */
+export const pruneUnsupportedNodeDecorators = (
+    tree: PersistedTreeModel,
+    nodeDefs: readonly NodeDef[]
+): boolean => {
+    const defsByName = createNodeDefMap(nodeDefs);
+    let changed = false;
+
+    const visit = (node: PersistedNodeModel) => {
+        if (node.decorator && !nodeDefSupportsDecorator(defsByName.get(node.name))) {
+            delete node.decorator;
+            changed = true;
+        } else if (node.decorator) {
+            visit(node.decorator.root);
+        }
+
+        for (const child of node.children ?? []) {
+            visit(child);
+        }
+    };
+
+    visit(tree.root);
+    return changed;
+};
+
+export const readPersistedTreeForEditor = (
+    content: string,
+    filePath: string | undefined,
+    nodeDefs: readonly NodeDef[]
+): PersistedTreeModel => {
+    const tree = parsePersistedTreeContent(content, filePath);
+    pruneUnsupportedNodeDecorators(tree, nodeDefs);
+    return tree;
 };
 
 export const findPersistedNodeByStableId = (
@@ -231,6 +279,15 @@ export const applyMainTreeDisplayIds = (
         const nextId = idsByStableId[node.uuid];
         if (nextId) {
             node.id = nextId;
+        }
+        if (node.decorator) {
+            const priorities = refreshDecoratorPriorities(
+                node.decorator.enterPriority,
+                node.decorator.maintainPriority,
+                node.id
+            );
+            node.decorator.enterPriority = priorities.enterPriority;
+            node.decorator.maintainPriority = priorities.maintainPriority;
         }
     });
 };

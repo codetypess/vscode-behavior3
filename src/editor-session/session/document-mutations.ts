@@ -26,6 +26,7 @@ import {
     clonePersistedTree,
     findPersistedNodeByStableId,
     parsePersistedTreeContent,
+    readPersistedTreeForEditor,
     serializePersistedTree,
 } from "../../../webview/shared/tree";
 import { DOCUMENT_VERSION } from "../../../webview/shared/b3type";
@@ -118,7 +119,11 @@ async function handleSaveSelectedAsSubtreeMutation(
     }
 
     // This mutation crosses the file-system boundary, so it stays host-side instead of reducer-only.
-    const currentTree = parsePersistedTreeContent(deps.document.content, deps.document.uri.fsPath);
+    const currentTree = readPersistedTreeForEditor(
+        deps.document.content,
+        deps.document.uri.fsPath,
+        deps.state.nodeDefs
+    );
     if (currentTree.root.uuid === msg.mutation.payload.target.structuralStableId) {
         return {
             kind: "handled",
@@ -298,9 +303,10 @@ async function handleMutateDocumentMessage(
         let reduced: ReturnType<typeof reduceDocumentMutation>;
         let currentTree: ReturnType<typeof parsePersistedTreeContent> | null = null;
         try {
-            currentTree = parsePersistedTreeContent(
+            currentTree = readPersistedTreeForEditor(
                 deps.document.content,
-                deps.document.uri.fsPath
+                deps.document.uri.fsPath,
+                deps.state.nodeDefs
             );
             reduced = reduceDocumentMutation(msg.mutation, {
                 tree: currentTree,

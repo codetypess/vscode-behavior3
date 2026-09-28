@@ -109,6 +109,15 @@ export function createSessionDispatcher({
                 }
                 return;
 
+            case "openDecoratorEditor":
+                if (source !== "editor") {
+                    await postMessage({
+                        type: "relayOpenDecoratorEditor",
+                        target: msg.target,
+                    });
+                }
+                return;
+
             case "mutateDocument":
                 await handleMutateDocumentMessage(msg, reply, source);
                 return;

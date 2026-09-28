@@ -17,6 +17,7 @@ import type {
     NodeFieldVisibilityTarget,
     NodeDef,
     NodeInstanceRef,
+    PersistedDecoratorAttachment,
     PersistedNodeModel,
     PersistedTreeModel,
     ResolvedDocumentGraph,
@@ -26,9 +27,13 @@ import type {
 } from "../shared/contracts";
 import type { GraphAdapter } from "../shared/graph-contracts";
 import { parseWorkdirRelativeJsonPath } from "../shared/protocol";
+import { DEFAULT_ABORT_TYPE } from "../shared/b3type";
+import { readAbortType } from "../shared/decorator-branch";
 import { createNodeDefMap, findNodeDef, parseSlotDefinition } from "../shared/node-utils";
 import {
+    cloneDecoratorAttachment,
     cloneJsonValue,
+    clonePersistedNode,
     findPersistedNodeByStableId,
     loadSubtreeSourceCache,
     parsePersistedTreeContent,
@@ -40,6 +45,11 @@ import {
     buildSearchState,
     computeVariableHighlights,
 } from "../domain/graph-selectors";
+import {
+    persistedTreeFromDecoratorBranch,
+    projectDecoratorBranchMutation,
+    readHostDecoratorBranch,
+} from "../domain/decorator-edit";
 import { resolveDocumentGraph } from "../domain/resolve-graph";
 import { createInitialGraphUiState, patchGraphUiSearchState } from "../stores/graph-ui-store";
 import { isJsonEqual } from "../shared/json";
@@ -62,7 +72,11 @@ export interface ControllerDeps {
 export type SelectionPatch = Partial<
     Pick<
         SelectionState,
-        "selectedTree" | "selectedNodeKey" | "selectedNodeRef" | "selectedNodeSnapshot"
+        | "selectedTree"
+        | "selectedNodeKey"
+        | "selectedNodeRef"
+        | "selectedNodeSnapshot"
+        | "inspectorSurface"
     >
 >;
 
@@ -162,6 +176,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             selectedNodeKey: null,
             selectedNodeRef: null,
             selectedNodeSnapshot: null,
+            inspectorSurface: null,
         };
     };
 
@@ -196,6 +211,9 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
                 debug: node.debug,
                 disabled: node.disabled,
                 path: node.path,
+                decorator: node.attachedDecorator
+                    ? cloneDecoratorAttachment(node.attachedDecorator)
+                    : undefined,
             },
             effectiveArgs: node.args
                 ? (cloneJsonValue(node.args) as Record<string, unknown>)
@@ -210,6 +228,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             subtreeEditable: node.subtreeEditable,
             subtreeOriginal: node.subtreeOriginal,
             resolutionError: node.resolutionError,
+            hasAttachedDecorator: Boolean(node.attachedDecoratorName),
         };
     };
 
@@ -231,11 +250,15 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         };
     };
 
-    const buildPendingNodeSelectionPatch = (ref: NodeInstanceRef): SelectionPatch => ({
+    const buildPendingNodeSelectionPatch = (
+        ref: NodeInstanceRef,
+        inspectorSurface: "node" | "decorator" = "node"
+    ): SelectionPatch => ({
         selectedTree: null,
         selectedNodeKey: null,
         selectedNodeRef: ref,
         selectedNodeSnapshot: null,
+        inspectorSurface,
     });
 
     const hasSameSelectionContext = (left: NodeInstanceRef, right: NodeInstanceRef) =>
@@ -382,7 +405,12 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             return;
         }
 
-        updateSelectionState(() => buildPendingNodeSelectionPatch(selection.ref));
+        updateSelectionState(() =>
+            buildPendingNodeSelectionPatch(
+                selection.ref,
+                selection.kind === "decorator" ? "decorator" : "node"
+            )
+        );
         deps.workspaceStore.setState((state) => ({
             ...state,
             selectedNodeFieldVisibility: createEmptyNodeFieldVisibility(),
@@ -396,7 +424,10 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             return;
         }
 
-        updateSelectionState(() => projectSelectionRef(selection.ref));
+        updateSelectionState(() => ({
+            ...projectSelectionRef(selection.ref),
+            inspectorSurface: selection.kind === "decorator" ? "decorator" : "node",
+        }));
         void requestSelectedNodeFieldVisibility();
     };
 
@@ -421,6 +452,35 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
      * Subtree links own their contents via `path`, so pasted roots must drop
      * inline `children` when a subtree reference is present.
      */
+    const readClipboardPriority = (value: unknown) =>
+        typeof value === "number" && Number.isFinite(value) ? value : 0;
+
+    const normalizeClipboardDecorator = (
+        value: unknown
+    ): PersistedDecoratorAttachment | undefined => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+            return undefined;
+        }
+        const record = value as Record<string, unknown>;
+        if (record.root && typeof record.root === "object" && !Array.isArray(record.root)) {
+            return {
+                enterPriority: readClipboardPriority(record.enterPriority),
+                maintainPriority: readClipboardPriority(record.maintainPriority),
+                abortType: readAbortType(record.abortType),
+                root: normalizeClipboardNode(record.root),
+            };
+        }
+        if (typeof record.name === "string") {
+            return {
+                enterPriority: 0,
+                maintainPriority: 0,
+                abortType: DEFAULT_ABORT_TYPE,
+                root: normalizeClipboardNode(record),
+            };
+        }
+        return undefined;
+    };
+
     const normalizeClipboardNode = (value: unknown): PersistedNodeModel => {
         if (!value || typeof value !== "object" || Array.isArray(value)) {
             throw new Error("invalid clipboard node");
@@ -462,6 +522,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
                 typeof candidate.path === "string" && candidate.path.trim()
                     ? (parseWorkdirRelativeJsonPath(candidate.path) ?? undefined)
                     : undefined,
+            decorator: normalizeClipboardDecorator(candidate.decorator),
         };
 
         if (normalized.path) {
@@ -795,8 +856,25 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             return;
         }
 
+        const decoratorEdit = deps.graphUiStore.getState().decoratorEdit;
+        let graphTree = tree;
+        if (decoratorEdit) {
+            const branch = readHostDecoratorBranch({
+                tree,
+                subtreeSources: workspace.subtreeSources,
+                nodeDefs: workspace.nodeDefs,
+                subtreeEditable: workspace.settings.subtreeEditable,
+                hostRef: decoratorEdit.hostRef,
+            });
+            if (!branch) {
+                updateGraphUiState(() => ({ decoratorEdit: null }));
+            } else {
+                graphTree = persistedTreeFromDecoratorBranch(branch, tree);
+            }
+        }
+
         const result = resolveDocumentGraph({
-            persistedTree: tree,
+            persistedTree: graphTree,
             subtreeSources: workspace.subtreeSources,
             nodeDefs: workspace.nodeDefs,
             subtreeEditable: workspace.settings.subtreeEditable,

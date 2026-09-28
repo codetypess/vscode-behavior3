@@ -36,6 +36,7 @@ export const createInitialGraphUiState = (): GraphUiState => ({
     activeVariableNames: [],
     selectionVisualHint: null,
     search: createInitialGraphUiSearchState(),
+    decoratorEdit: null,
 });
 
 export const createGraphUiStore = (): StoreApi<GraphUiState> => {

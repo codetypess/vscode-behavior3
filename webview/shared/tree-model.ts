@@ -71,6 +71,15 @@ export const createNode = (data: NodeData, includeChildren: boolean = true): Nod
         }
     }
 
+    if (data.decorator) {
+        node.decorator = {
+            enterPriority: data.decorator.enterPriority,
+            maintainPriority: data.decorator.maintainPriority,
+            abortType: data.decorator.abortType,
+            root: createNode(data.decorator.root),
+        };
+    }
+
     return node;
 };
 
@@ -79,8 +88,17 @@ export const subtreeNeedsMissingIds = (root: unknown): boolean => {
         return false;
     }
 
-    const node = root as { uuid?: string; $id?: string; children?: unknown[] };
+    const node = root as {
+        uuid?: string;
+        $id?: string;
+        children?: unknown[];
+        decorator?: { root?: unknown };
+    };
     if (!node.uuid || node.$id) {
+        return true;
+    }
+
+    if (node.decorator?.root && subtreeNeedsMissingIds(node.decorator.root)) {
         return true;
     }
 

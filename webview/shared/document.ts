@@ -1,10 +1,11 @@
 import { generateUuid } from "./stable-id";
-import { DOCUMENT_VERSION } from "./b3type";
+import { DEFAULT_ABORT_TYPE, DOCUMENT_VERSION } from "./b3type";
 import type {
     DocumentMutation,
     EditNode,
     NodeDef,
     PersistedNodeModel,
+    PersistedNodeOverride,
     PersistedTreeModel,
     UpdateNodeInput,
 } from "./contracts";
@@ -14,10 +15,23 @@ import { createNodeDefMap, findNodeDef, parseSlotDefinition } from "./node-utils
 import { parseWorkdirRelativeJsonPath } from "./protocol";
 import { translateRuntimeMessage, type SupportedLanguage } from "./runtime-i18n";
 import {
+    DECORATOR_TYPE_CUSTOM_KEY,
+    DEFAULT_DECORATOR_TYPE,
+    ensureDecoratorTypeCustom,
+    findDecoratorBranchViolation,
+    findEnclosingDecoratorBranch,
+    nodeDefReturnsRunning,
+    normalizeDecoratorPriorities,
+    readDecoratorType,
+    treeUsesAttachedDecorator,
+} from "./decorator-branch";
+import {
     cloneJsonValue,
+    cloneDecoratorAttachment,
     clonePersistedNode,
     clonePersistedTree,
     findPersistedNodeByStableId,
+    nodeDefSupportsDecorator,
 } from "./tree";
 
 export const compareDocumentVersion = (left: string, right: string): number => {
@@ -61,7 +75,14 @@ export type DocumentMutationReducerError =
     | { code: "add-child-to-subtree-ref-denied" }
     | { code: "move-into-descendant-denied" }
     | { code: "delete-root-node-denied" }
-    | { code: "edit-subtree-denied" };
+    | { code: "edit-subtree-denied" }
+    | { code: "decorator-not-supported" }
+    | { code: "decorator-already-attached" }
+    | { code: "decorator-not-attached" }
+    | { code: "decorator-clear-denied" }
+    | { code: "decorator-running-status" }
+    | { code: "decorator-nested" }
+    | { code: "missing-node-def" };
 
 export type DocumentMutationReducerResult =
     | { status: "noop" }
@@ -77,6 +98,8 @@ export type ReducibleDocumentMutation = Extract<
     DocumentMutation,
     | { type: "updateTreeMeta" }
     | { type: "updateNode" }
+    | { type: "attachDecorator" }
+    | { type: "removeDecorator" }
     | { type: "performDrop" }
     | { type: "pasteNode" }
     | { type: "insertNode" }
@@ -159,8 +182,46 @@ const isDescendantStableId = (
     return found;
 };
 
+const decoratorViolationResult = (
+    violation: ReturnType<typeof findDecoratorBranchViolation>
+): DocumentMutationReducerResult | null => {
+    if (violation === "nested-decorator") {
+        return { status: "error", error: { code: "decorator-nested" } };
+    }
+    if (violation === "running-status") {
+        return { status: "error", error: { code: "decorator-running-status" } };
+    }
+    return null;
+};
+
+const touchedDecoratorError = (
+    tree: PersistedTreeModel,
+    nodeDefs: NodeDef[],
+    stableIds: Array<string | undefined>
+): DocumentMutationReducerResult | null => {
+    for (const stableId of stableIds) {
+        if (!stableId) {
+            continue;
+        }
+        const branch = findEnclosingDecoratorBranch(tree.root, stableId);
+        if (!branch) {
+            continue;
+        }
+        const violation = decoratorViolationResult(
+            findDecoratorBranchViolation(branch, nodeDefs)
+        );
+        if (violation) {
+            return violation;
+        }
+    }
+    return null;
+};
+
 const assignFreshStableIds = (node: PersistedNodeModel): void => {
     node.uuid = generateUuid();
+    if (node.decorator) {
+        assignFreshStableIds(node.decorator.root);
+    }
     for (const child of node.children ?? []) {
         assignFreshStableIds(child);
     }
@@ -182,11 +243,8 @@ const computeNodeOverride = (
     original: PersistedNodeModel,
     edited: PersistedNodeModel,
     def: Pick<NodeDef, "args"> | null | undefined
-): Pick<PersistedNodeModel, "desc" | "input" | "output" | "args" | "debug" | "disabled"> | null => {
-    const diff: Pick<
-        PersistedNodeModel,
-        "desc" | "input" | "output" | "args" | "debug" | "disabled"
-    > = {};
+): PersistedNodeOverride | null => {
+    const diff: PersistedNodeOverride = {};
     let hasDiff = false;
 
     if ((edited.desc || undefined) !== (original.desc || undefined)) {
@@ -230,6 +288,11 @@ const computeNodeOverride = (
     const editedOutput = (edited.output ?? []).filter(Boolean);
     if (!isJsonEqual(originalOutput, editedOutput)) {
         diff.output = editedOutput.length ? edited.output : undefined;
+        hasDiff = true;
+    }
+
+    if (!isJsonEqual(original.decorator, edited.decorator) && edited.decorator) {
+        diff.decorator = cloneDecoratorAttachment(edited.decorator);
         hasDiff = true;
     }
 
@@ -281,7 +344,10 @@ const pruneNodeSlotsByDefinition = (
     return isJsonEqual(nextSlots, slots) ? slots : nextSlots;
 };
 
-const matchesSelectedNodeTarget = (selectedNode: EditNode, payload: UpdateNodeInput): boolean => {
+const matchesSelectedNodeTarget = (
+    selectedNode: EditNode,
+    payload: { target: UpdateNodeInput["target"] }
+): boolean => {
     // Inspector edits are rejected if selection moved between render and commit.
     return (
         selectedNode.ref.structuralStableId === payload.target.structuralStableId &&
@@ -291,7 +357,10 @@ const matchesSelectedNodeTarget = (selectedNode: EditNode, payload: UpdateNodeIn
 };
 
 const resolveUpdateNodeSnapshot = (
-    payload: UpdateNodeInput,
+    payload: {
+        target: UpdateNodeInput["target"];
+        currentNodeSnapshot?: UpdateNodeInput["currentNodeSnapshot"];
+    },
     context: DocumentMutationReducerContext
 ):
     | {
@@ -336,6 +405,11 @@ const reduceUpdateTreeMeta = (
     const nextCustom = payload.custom
         ? cloneJsonValue(payload.custom)
         : cloneJsonValue(tree.custom);
+    if (treeUsesAttachedDecorator(tree)) {
+        const nextType = readDecoratorType(nextCustom[DECORATOR_TYPE_CUSTOM_KEY]);
+        const previousType = readDecoratorType(tree.custom[DECORATOR_TYPE_CUSTOM_KEY]);
+        nextCustom[DECORATOR_TYPE_CUSTOM_KEY] = nextType ?? previousType ?? DEFAULT_DECORATOR_TYPE;
+    }
     const nextVars = cloneVars(payload.variables.locals).sort((a, b) =>
         a.name.localeCompare(b.name)
     );
@@ -422,6 +496,8 @@ const reduceUpdateNode = (
     const nextInput = pruneNodeSlotsByDefinition(payload.data.input, nextNodeDef?.input);
     const nextOutput = pruneNodeSlotsByDefinition(payload.data.output, nextNodeDef?.output);
     const nextArgs = pruneNodeArgsByDefinition(payload.data.args, nextNodeDef);
+    const decoratorProvided = Object.prototype.hasOwnProperty.call(payload.data, "decorator");
+    const nextDecorator = decoratorProvided ? payload.data.decorator : selectedNode.data.decorator;
 
     if (
         nextName === selectedNode.data.name &&
@@ -431,9 +507,19 @@ const reduceUpdateNode = (
         !hasBooleanStateChanged(nextDisabled, selectedNode.data.disabled) &&
         isJsonEqual(nextInput ?? [], selectedNode.data.input ?? []) &&
         isJsonEqual(nextOutput ?? [], selectedNode.data.output ?? []) &&
-        isJsonEqual(nextArgs ?? {}, selectedNode.data.args ?? {})
+        isJsonEqual(nextArgs ?? {}, selectedNode.data.args ?? {}) &&
+        isJsonEqual(nextDecorator, selectedNode.data.decorator)
     ) {
         return { status: "noop" };
+    }
+
+    if (decoratorProvided && nextDecorator) {
+        const violation = decoratorViolationResult(
+            findDecoratorBranchViolation(nextDecorator.root, context.nodeDefs)
+        );
+        if (violation) {
+            return violation;
+        }
     }
 
     const tree = clonePersistedTree(context.tree);
@@ -459,6 +545,7 @@ const reduceUpdateNode = (
             debug: nextDebug,
             disabled: nextDisabled,
             path: selectedNode.data.path,
+            decorator: nextDecorator,
         };
 
         const diff = computeNodeOverride(original, editedNode, nextNodeDef);
@@ -467,6 +554,14 @@ const reduceUpdateNode = (
             tree.overrides[payload.target.sourceStableId] = diff;
         } else {
             delete tree.overrides[payload.target.sourceStableId];
+        }
+
+        const subtreeViolation = touchedDecoratorError(tree, context.nodeDefs, [
+            payload.target.structuralStableId,
+            payload.target.sourceStableId,
+        ]);
+        if (subtreeViolation) {
+            return subtreeViolation;
         }
 
         return {
@@ -504,6 +599,7 @@ const reduceUpdateNode = (
         detached.debug = nextDebug;
         detached.disabled = nextDisabled;
         detached.path = undefined;
+        detached.decorator = nextDecorator;
         overwritePersistedNode(node, detached);
     } else {
         node.name = nextName;
@@ -514,9 +610,19 @@ const reduceUpdateNode = (
         node.debug = nextDebug;
         node.disabled = nextDisabled;
         node.path = nextPath;
+        if (decoratorProvided) {
+            node.decorator = nextDecorator;
+        }
         if (nextPath && nextPath !== selectedNode.data.path) {
             node.children = undefined;
         }
+    }
+
+    const inlineViolation = touchedDecoratorError(tree, context.nodeDefs, [
+        payload.target.structuralStableId,
+    ]);
+    if (inlineViolation) {
+        return inlineViolation;
     }
 
     return {
@@ -528,7 +634,8 @@ const reduceUpdateNode = (
 
 const reducePerformDrop = (
     mutation: Extract<ReducibleDocumentMutation, { type: "performDrop" }>,
-    tree: PersistedTreeModel
+    tree: PersistedTreeModel,
+    nodeDefs: NodeDef[]
 ): DocumentMutationReducerResult => {
     if (mutation.payload.source.structuralStableId === mutation.payload.target.structuralStableId) {
         return { status: "noop" };
@@ -606,6 +713,14 @@ const reducePerformDrop = (
         );
     }
 
+    const dropViolation = touchedDecoratorError(nextTree, nodeDefs, [
+        movedNode.uuid,
+        mutation.payload.target.structuralStableId,
+    ]);
+    if (dropViolation) {
+        return dropViolation;
+    }
+
     return {
         status: "changed",
         tree: nextTree,
@@ -616,7 +731,8 @@ const reducePerformDrop = (
 
 const reducePasteNode = (
     mutation: Extract<ReducibleDocumentMutation, { type: "pasteNode" }>,
-    tree: PersistedTreeModel
+    tree: PersistedTreeModel,
+    nodeDefs: NodeDef[]
 ): DocumentMutationReducerResult => {
     const nextTree = clonePersistedTree(tree);
     const targetNode = findPersistedNodeByStableId(
@@ -635,6 +751,11 @@ const reducePasteNode = (
     targetNode.children ||= [];
     targetNode.children.push(nextNode);
 
+    const pasteViolation = touchedDecoratorError(nextTree, nodeDefs, [nextNode.uuid]);
+    if (pasteViolation) {
+        return pasteViolation;
+    }
+
     return {
         status: "changed",
         tree: nextTree,
@@ -645,7 +766,8 @@ const reducePasteNode = (
 
 const reduceInsertNode = (
     mutation: Extract<ReducibleDocumentMutation, { type: "insertNode" }>,
-    tree: PersistedTreeModel
+    tree: PersistedTreeModel,
+    nodeDefs: NodeDef[]
 ): DocumentMutationReducerResult => {
     const nextTree = clonePersistedTree(tree);
     const targetNode = findPersistedNodeByStableId(
@@ -667,6 +789,11 @@ const reduceInsertNode = (
     targetNode.children ||= [];
     targetNode.children.push(nextNode);
 
+    const insertViolation = touchedDecoratorError(nextTree, nodeDefs, [nextNode.uuid]);
+    if (insertViolation) {
+        return insertViolation;
+    }
+
     return {
         status: "changed",
         tree: nextTree,
@@ -677,7 +804,8 @@ const reduceInsertNode = (
 
 const reduceReplaceNode = (
     mutation: Extract<ReducibleDocumentMutation, { type: "replaceNode" }>,
-    tree: PersistedTreeModel
+    tree: PersistedTreeModel,
+    nodeDefs: NodeDef[]
 ): DocumentMutationReducerResult => {
     const nextTree = clonePersistedTree(tree);
     const targetNode = findPersistedNodeByStableId(
@@ -694,6 +822,9 @@ const reduceReplaceNode = (
     const replacement = clonePersistedNode(mutation.payload.snapshot);
     // Preserve the target identity so existing selections/edges still point at the replaced slot.
     replacement.uuid = targetNode.uuid;
+    if (replacement.decorator) {
+        assignFreshStableIds(replacement.decorator.root);
+    }
     for (const child of replacement.children ?? []) {
         // Children are copied content and must not alias nodes from their source tree.
         assignFreshStableIds(child);
@@ -703,11 +834,179 @@ const reduceReplaceNode = (
     }
     overwritePersistedNode(targetNode, replacement);
 
+    const replaceViolation = touchedDecoratorError(nextTree, nodeDefs, [replacement.uuid]);
+    if (replaceViolation) {
+        return replaceViolation;
+    }
+
     return {
         status: "changed",
         tree: nextTree,
         rebuildGraph: true,
         nextSelection: { kind: "node", structuralStableId: replacement.uuid },
+    };
+};
+
+const reduceAttachDecorator = (
+    mutation: Extract<ReducibleDocumentMutation, { type: "attachDecorator" }>,
+    context: DocumentMutationReducerContext
+): DocumentMutationReducerResult => {
+    const entryName = mutation.payload.entryName.trim();
+    const entryDef = getNodeDef(context.nodeDefs, entryName);
+    if (!entryDef) {
+        return { status: "error", error: { code: "missing-node-def" } };
+    }
+    if (nodeDefReturnsRunning(entryDef)) {
+        return { status: "error", error: { code: "decorator-running-status" } };
+    }
+    if (
+        findEnclosingDecoratorBranch(
+            context.tree.root,
+            mutation.payload.target.structuralStableId
+        )
+    ) {
+        return { status: "error", error: { code: "decorator-nested" } };
+    }
+
+    const tree = clonePersistedTree(context.tree);
+    const inlineNode = findPersistedNodeByStableId(
+        tree.root,
+        mutation.payload.target.structuralStableId
+    );
+    const entryNode: PersistedNodeModel = {
+        uuid: generateUuid(),
+        id: "",
+        name: entryName,
+    };
+
+    if (inlineNode) {
+        const hostDef = getNodeDef(context.nodeDefs, inlineNode.name);
+        if (!nodeDefSupportsDecorator(hostDef)) {
+            return { status: "error", error: { code: "decorator-not-supported" } };
+        }
+        if (inlineNode.decorator) {
+            return { status: "error", error: { code: "decorator-already-attached" } };
+        }
+        inlineNode.decorator = {
+            ...normalizeDecoratorPriorities(
+                mutation.payload.target.displayId || inlineNode.id,
+                undefined
+            ),
+            abortType: DEFAULT_ABORT_TYPE,
+            root: entryNode,
+        };
+        return {
+            status: "changed",
+            tree,
+            rebuildGraph: true,
+        };
+    }
+
+    const snapshot = resolveUpdateNodeSnapshot(mutation.payload, context);
+    if ("error" in snapshot) {
+        return { status: "error", error: snapshot.error };
+    }
+    if (!snapshot.subtreeNode) {
+        return { status: "error", error: { code: "missing-target-node" } };
+    }
+    const original = snapshot.subtreeOriginal;
+    if (!original) {
+        return { status: "error", error: { code: "missing-subtree-original" } };
+    }
+    const hostDef = getNodeDef(context.nodeDefs, snapshot.data.name);
+    if (!nodeDefSupportsDecorator(hostDef)) {
+        return { status: "error", error: { code: "decorator-not-supported" } };
+    }
+    if (snapshot.data.decorator) {
+        return { status: "error", error: { code: "decorator-already-attached" } };
+    }
+
+    const editedNode: PersistedNodeModel = {
+        ...clonePersistedNode(snapshot.data),
+        decorator: {
+            ...normalizeDecoratorPriorities(
+                mutation.payload.target.displayId || snapshot.data.id,
+                undefined
+            ),
+            abortType: DEFAULT_ABORT_TYPE,
+            root: entryNode,
+        },
+    };
+    const diff = computeNodeOverride(original, editedNode, hostDef);
+    if (diff) {
+        tree.overrides[mutation.payload.target.sourceStableId] = diff;
+    } else {
+        delete tree.overrides[mutation.payload.target.sourceStableId];
+    }
+
+    return {
+        status: "changed",
+        tree,
+        rebuildGraph: true,
+    };
+};
+
+const reduceRemoveDecorator = (
+    mutation: Extract<ReducibleDocumentMutation, { type: "removeDecorator" }>,
+    context: DocumentMutationReducerContext
+): DocumentMutationReducerResult => {
+    const tree = clonePersistedTree(context.tree);
+    const inlineNode = findPersistedNodeByStableId(
+        tree.root,
+        mutation.payload.target.structuralStableId
+    );
+
+    if (inlineNode) {
+        const hostDef = getNodeDef(context.nodeDefs, inlineNode.name);
+        if (!nodeDefSupportsDecorator(hostDef)) {
+            return { status: "error", error: { code: "decorator-not-supported" } };
+        }
+        if (!inlineNode.decorator) {
+            return { status: "error", error: { code: "decorator-not-attached" } };
+        }
+        delete inlineNode.decorator;
+        return {
+            status: "changed",
+            tree,
+            rebuildGraph: true,
+        };
+    }
+
+    const snapshot = resolveUpdateNodeSnapshot(mutation.payload, context);
+    if ("error" in snapshot) {
+        return { status: "error", error: snapshot.error };
+    }
+    if (!snapshot.subtreeNode) {
+        return { status: "error", error: { code: "missing-target-node" } };
+    }
+    const original = snapshot.subtreeOriginal;
+    if (!original) {
+        return { status: "error", error: { code: "missing-subtree-original" } };
+    }
+    const hostDef = getNodeDef(context.nodeDefs, snapshot.data.name);
+    if (!nodeDefSupportsDecorator(hostDef)) {
+        return { status: "error", error: { code: "decorator-not-supported" } };
+    }
+    if (!snapshot.data.decorator) {
+        return { status: "error", error: { code: "decorator-not-attached" } };
+    }
+    if (original.decorator) {
+        return { status: "error", error: { code: "decorator-clear-denied" } };
+    }
+
+    const editedNode = clonePersistedNode(snapshot.data);
+    delete editedNode.decorator;
+    const diff = computeNodeOverride(original, editedNode, hostDef);
+    if (diff) {
+        tree.overrides[mutation.payload.target.sourceStableId] = diff;
+    } else {
+        delete tree.overrides[mutation.payload.target.sourceStableId];
+    }
+
+    return {
+        status: "changed",
+        tree,
+        rebuildGraph: true,
     };
 };
 
@@ -744,6 +1043,8 @@ export const isReducibleDocumentMutation = (
 ): mutation is ReducibleDocumentMutation =>
     mutation.type === "updateTreeMeta" ||
     mutation.type === "updateNode" ||
+    mutation.type === "attachDecorator" ||
+    mutation.type === "removeDecorator" ||
     mutation.type === "performDrop" ||
     mutation.type === "pasteNode" ||
     mutation.type === "insertNode" ||
@@ -755,6 +1056,17 @@ export const reduceDocumentMutation = (
     mutation: ReducibleDocumentMutation,
     context: DocumentMutationReducerContext
 ): DocumentMutationReducerResult => {
+    const reduced = reduceDocumentMutationUnchecked(mutation, context);
+    if (reduced.status === "changed") {
+        ensureDecoratorTypeCustom(reduced.tree);
+    }
+    return reduced;
+};
+
+const reduceDocumentMutationUnchecked = (
+    mutation: ReducibleDocumentMutation,
+    context: DocumentMutationReducerContext
+): DocumentMutationReducerResult => {
     switch (mutation.type) {
         case "updateTreeMeta":
             return reduceUpdateTreeMeta(mutation, context.tree);
@@ -762,17 +1074,23 @@ export const reduceDocumentMutation = (
         case "updateNode":
             return reduceUpdateNode(mutation, context);
 
+        case "attachDecorator":
+            return reduceAttachDecorator(mutation, context);
+
+        case "removeDecorator":
+            return reduceRemoveDecorator(mutation, context);
+
         case "performDrop":
-            return reducePerformDrop(mutation, context.tree);
+            return reducePerformDrop(mutation, context.tree, context.nodeDefs);
 
         case "pasteNode":
-            return reducePasteNode(mutation, context.tree);
+            return reducePasteNode(mutation, context.tree, context.nodeDefs);
 
         case "insertNode":
-            return reduceInsertNode(mutation, context.tree);
+            return reduceInsertNode(mutation, context.tree, context.nodeDefs);
 
         case "replaceNode":
-            return reduceReplaceNode(mutation, context.tree);
+            return reduceReplaceNode(mutation, context.tree, context.nodeDefs);
 
         case "deleteNode":
             return reduceDeleteNode(mutation, context.tree);
@@ -824,5 +1142,26 @@ export const formatDocumentMutationReducerError = (
 
         case "edit-subtree-denied":
             return translateRuntimeMessage(language, "mutation.editSubtreeDenied");
+
+        case "decorator-not-supported":
+            return translateRuntimeMessage(language, "mutation.decoratorNotSupported");
+
+        case "decorator-already-attached":
+            return translateRuntimeMessage(language, "mutation.decoratorAlreadyAttached");
+
+        case "decorator-not-attached":
+            return translateRuntimeMessage(language, "mutation.decoratorNotAttached");
+
+        case "decorator-clear-denied":
+            return translateRuntimeMessage(language, "mutation.decoratorClearDenied");
+
+        case "decorator-running-status":
+            return translateRuntimeMessage(language, "mutation.decoratorRunningStatus");
+
+        case "decorator-nested":
+            return translateRuntimeMessage(language, "mutation.decoratorNested");
+
+        case "missing-node-def":
+            return translateRuntimeMessage(language, "mutation.missingNodeDef");
     }
 };

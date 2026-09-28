@@ -210,6 +210,13 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
                         });
                         return;
 
+                    case "relayOpenDecoratorEditor":
+                        onMessage({
+                            type: "openDecoratorEditor",
+                            target: normalizeNodeInstanceRef(message.target),
+                        });
+                        return;
+
                     case "varDeclLoaded":
                         onMessage({
                             type: "varDeclLoaded",
@@ -301,12 +308,16 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
             postMessage({ type: "selectTree" });
         },
 
-        selectNode(target) {
-            postMessage({ type: "selectNode", target });
+        selectNode(target, surface) {
+            postMessage({ type: "selectNode", target, surface });
         },
 
         requestFocusVariable(names) {
             postMessage({ type: "requestFocusVariable", names });
+        },
+
+        requestOpenDecoratorEditor(target) {
+            postMessage({ type: "openDecoratorEditor", target });
         },
 
         sendRequestSetting() {

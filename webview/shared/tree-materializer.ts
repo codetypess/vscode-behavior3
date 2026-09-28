@@ -2,6 +2,7 @@ import type { NodeDef } from "./b3type";
 import type {
     InvalidSubtreeSource,
     PersistedNodeModel,
+    PersistedNodeOverride,
     PersistedTreeModel,
     SubtreeSourceCacheEntry,
     WorkdirRelativeJsonPath,
@@ -43,9 +44,7 @@ export interface MaterializedTreeNode {
 
 const applyPatchIfAny = (
     node: PersistedNodeModel,
-    patch:
-        | Pick<PersistedNodeModel, "desc" | "input" | "output" | "args" | "debug" | "disabled">
-        | undefined
+    patch: PersistedNodeOverride | undefined
 ) => {
     // Override patches are sparse; absent fields intentionally keep the source node value.
     if (!patch) {
@@ -68,6 +67,14 @@ const applyPatchIfAny = (
     }
     if (patch.disabled !== undefined) {
         node.disabled = patch.disabled;
+    }
+    if (patch.decorator !== undefined) {
+        node.decorator = {
+            enterPriority: patch.decorator.enterPriority,
+            maintainPriority: patch.decorator.maintainPriority,
+            abortType: patch.decorator.abortType,
+            root: clonePersistedNode(patch.decorator.root),
+        };
     }
 };
 

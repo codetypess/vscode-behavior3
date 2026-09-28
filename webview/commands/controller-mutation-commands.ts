@@ -1,3 +1,9 @@
+import { DOCUMENT_VERSION } from "../shared/b3type";
+import {
+    buildDecoratorRestoreUpdate,
+    projectDecoratorBranchMutation,
+    readHostDecoratorBranch,
+} from "../domain/decorator-edit";
 import i18n from "../shared/i18n";
 import type {
     DropIntent,
@@ -9,9 +15,14 @@ import type {
     UpdateNodeInput,
     UpdateTreeMetaInput,
 } from "../shared/contracts";
-import { stringifyJson } from "../shared/json";
+import {
+    compareDocumentVersion,
+    isReducibleDocumentMutation,
+    formatDocumentMutationReducerError,
+} from "../shared/document";
+import { isJsonEqual, stringifyJson } from "../shared/json";
 import { parseWorkdirRelativeJsonPath } from "../shared/protocol";
-import { clonePersistedNode } from "../shared/tree";
+import { clonePersistedNode, nodeDefSupportsDecorator } from "../shared/tree";
 import { type ControllerRuntime } from "./controller-runtime";
 
 type MutationCommandKeys =
@@ -25,7 +36,12 @@ type MutationCommandKeys =
     | "deleteNode"
     | "openSubtreePath"
     | "openSelectedSubtree"
-    | "saveSelectedAsSubtree";
+    | "saveSelectedAsSubtree"
+    | "attachDecorator"
+    | "removeDecorator"
+    | "openDecoratorEditor"
+    | "decoratorEditIsDirty"
+    | "finishDecoratorEditor";
 
 type DropPreflightDenialReason =
     | "missing-context"
@@ -103,6 +119,41 @@ const forwardDocumentMutation = async (
     runtime: ControllerRuntime,
     mutation: DocumentMutation
 ): Promise<DocumentMutationResponse> => {
+    const session = runtime.deps.graphUiStore.getState().decoratorEdit;
+    const tree = runtime.deps.documentStore.getState().persistedTree;
+    if (session && tree && isReducibleDocumentMutation(mutation)) {
+        const workspace = runtime.deps.workspaceStore.getState();
+        const projected = projectDecoratorBranchMutation({
+            tree,
+            subtreeSources: workspace.subtreeSources,
+            nodeDefs: workspace.nodeDefs,
+            subtreeEditable: workspace.settings.subtreeEditable,
+            session,
+            mutation,
+        });
+        if (projected.kind === "error") {
+            const message = formatDocumentMutationReducerError(
+                projected.error,
+                workspace.settings.language
+            );
+            runtime.notifyError(message);
+            return { success: false, error: message };
+        }
+        if (projected.kind === "noop") {
+            return { success: true };
+        }
+        if (projected.kind === "update") {
+            const response = await runtime.deps.hostAdapter.mutateDocument({
+                type: "updateNode",
+                payload: projected.update,
+            });
+            if (!response.success) {
+                runtime.notifyError(response.error ?? "Document mutation failed");
+            }
+            return response;
+        }
+    }
+
     // Mutations always round-trip through the host so undo history and filesystem state stay canonical.
     const response = await runtime.deps.hostAdapter.mutateDocument(mutation);
     if (!response.success) {
@@ -472,6 +523,227 @@ export const createMutationCommands = (
                     suggestedBaseName,
                 },
             });
+        },
+
+        async attachDecorator(entryName) {
+            const selected = runtime.getSelectedResolvedNode();
+            if (!selected) {
+                runtime.notifyError(i18n.t("node.noNodeSelected"));
+                return;
+            }
+            if (runtime.deps.graphUiStore.getState().decoratorEdit) {
+                runtime.notifyError(i18n.t("mutation.decoratorNested"));
+                return;
+            }
+            const nodeDef = runtime.getNodeDef(selected.name);
+            if (!nodeDefSupportsDecorator(nodeDef) || selected.attachedDecoratorName) {
+                runtime.notifyError(i18n.t("mutation.decoratorNotSupported"));
+                return;
+            }
+
+            const selectedSnapshot = runtime.deps.selectionStore.getState().selectedNodeSnapshot;
+            await forwardDocumentMutation(runtime, {
+                type: "attachDecorator",
+                payload: {
+                    target: selected.ref,
+                    entryName,
+                    currentNodeSnapshot: selectedSnapshot
+                        ? {
+                              data: clonePersistedNode(selectedSnapshot.data),
+                              subtreeNode: selectedSnapshot.subtreeNode,
+                              subtreeOriginal: selectedSnapshot.subtreeOriginal
+                                  ? clonePersistedNode(selectedSnapshot.subtreeOriginal)
+                                  : undefined,
+                          }
+                        : undefined,
+                },
+            });
+        },
+
+        async removeDecorator() {
+            const selected = runtime.getSelectedResolvedNode();
+            if (!selected) {
+                runtime.notifyError(i18n.t("node.noNodeSelected"));
+                return;
+            }
+            if (runtime.deps.graphUiStore.getState().decoratorEdit) {
+                runtime.notifyError(i18n.t("mutation.decoratorNested"));
+                return;
+            }
+            const nodeDef = runtime.getNodeDef(selected.name);
+            if (!nodeDefSupportsDecorator(nodeDef) || !selected.attachedDecoratorName) {
+                runtime.notifyError(i18n.t("mutation.decoratorNotAttached"));
+                return;
+            }
+            const selectedSnapshot = runtime.deps.selectionStore.getState().selectedNodeSnapshot;
+            if (selected.subtreeNode && selectedSnapshot?.subtreeOriginal?.decorator) {
+                runtime.notifyError(i18n.t("mutation.decoratorClearDenied"));
+                return;
+            }
+
+            await forwardDocumentMutation(runtime, {
+                type: "removeDecorator",
+                payload: {
+                    target: selected.ref,
+                    currentNodeSnapshot: selectedSnapshot
+                        ? {
+                              data: clonePersistedNode(selectedSnapshot.data),
+                              subtreeNode: selectedSnapshot.subtreeNode,
+                              subtreeOriginal: selectedSnapshot.subtreeOriginal
+                                  ? clonePersistedNode(selectedSnapshot.subtreeOriginal)
+                                  : undefined,
+                          }
+                        : undefined,
+                },
+            });
+        },
+
+        async openDecoratorEditor(target) {
+            if (runtime.deps.graphUiStore.getState().decoratorEdit) {
+                return;
+            }
+            const resolved = runtime.getResolvedGraph()?.nodesByInstanceKey[target.instanceKey];
+            const tree = runtime.deps.documentStore.getState().persistedTree;
+            const workspace = runtime.deps.workspaceStore.getState();
+            if (!resolved?.attachedDecoratorName || !tree) {
+                return;
+            }
+            const branch = readHostDecoratorBranch({
+                tree,
+                subtreeSources: workspace.subtreeSources,
+                nodeDefs: workspace.nodeDefs,
+                subtreeEditable: workspace.settings.subtreeEditable,
+                hostRef: resolved.ref,
+            });
+            if (!branch) {
+                return;
+            }
+
+            runtime.deps.graphUiStore.setState((state) => ({
+                ...state,
+                decoratorEdit: {
+                    hostRef: resolved.ref,
+                    hostName: resolved.name,
+                    hostSubtreeNode: resolved.subtreeNode,
+                    entryDecorator: branch,
+                },
+            }));
+            await runtime.rebuildGraph({ preserveSelection: false });
+            const rootKey = runtime.getResolvedGraph()?.rootKey;
+            const root = rootKey
+                ? runtime.getResolvedGraph()?.nodesByInstanceKey[rootKey]
+                : undefined;
+            if (root) {
+                runtime.deps.hostAdapter.selectNode(root.ref);
+                await runtime.showSelectionVisualHint(root.ref.instanceKey);
+            }
+        },
+
+        decoratorEditIsDirty() {
+            const session = runtime.deps.graphUiStore.getState().decoratorEdit;
+            const tree = runtime.deps.documentStore.getState().persistedTree;
+            const workspace = runtime.deps.workspaceStore.getState();
+            if (!session || !tree) {
+                return false;
+            }
+            const branch = readHostDecoratorBranch({
+                tree,
+                subtreeSources: workspace.subtreeSources,
+                nodeDefs: workspace.nodeDefs,
+                subtreeEditable: workspace.settings.subtreeEditable,
+                hostRef: session.hostRef,
+            });
+            return !isJsonEqual(branch, session.entryDecorator);
+        },
+
+        async finishDecoratorEditor(action) {
+            const session = runtime.deps.graphUiStore.getState().decoratorEdit;
+            if (!session) {
+                return true;
+            }
+
+            const leave = async () => {
+                runtime.deps.graphUiStore.setState((state) => ({
+                    ...state,
+                    decoratorEdit: null,
+                }));
+                await runtime.rebuildGraph({ preserveSelection: false });
+                const graph = runtime.getResolvedGraph();
+                const host = graph
+                    ? Object.values(graph.nodesByInstanceKey).find(
+                          (node) =>
+                              node.ref.structuralStableId === session.hostRef.structuralStableId &&
+                              node.ref.sourceStableId === session.hostRef.sourceStableId
+                      )
+                    : undefined;
+                if (host) {
+                    runtime.deps.hostAdapter.selectNode(host.ref);
+                    await runtime.showSelectionVisualHint(host.ref.instanceKey);
+                }
+            };
+
+            if (action === "save") {
+                const currentTree = runtime.deps.documentStore.getState().persistedTree;
+                if (
+                    currentTree &&
+                    compareDocumentVersion(currentTree.version, DOCUMENT_VERSION) > 0
+                ) {
+                    runtime.deps.hostAdapter.log(
+                        "warn",
+                        `[v2] refusing to save newer file version: ${currentTree.version}`
+                    );
+                    return false;
+                }
+                const saved = await runtime.deps.hostAdapter.saveDocument();
+                if (!saved.success) {
+                    const error = saved.error ?? "Save failed";
+                    runtime.notifyError(
+                        error.includes("decorator-nested")
+                            ? i18n.t("mutation.decoratorNested")
+                            : error.includes("decorator-running-status")
+                              ? i18n.t("mutation.decoratorRunningStatus")
+                              : error
+                    );
+                    return false;
+                }
+                await leave();
+                return true;
+            }
+
+            const tree = runtime.deps.documentStore.getState().persistedTree;
+            const workspace = runtime.deps.workspaceStore.getState();
+            if (tree) {
+                const current = readHostDecoratorBranch({
+                    tree,
+                    subtreeSources: workspace.subtreeSources,
+                    nodeDefs: workspace.nodeDefs,
+                    subtreeEditable: workspace.settings.subtreeEditable,
+                    hostRef: session.hostRef,
+                });
+                if (!isJsonEqual(current, session.entryDecorator)) {
+                    const update = buildDecoratorRestoreUpdate({
+                        tree,
+                        subtreeSources: workspace.subtreeSources,
+                        nodeDefs: workspace.nodeDefs,
+                        subtreeEditable: workspace.settings.subtreeEditable,
+                        session,
+                    });
+                    if (!update) {
+                        runtime.notifyError(i18n.t("mutation.missingTargetNode"));
+                        return false;
+                    }
+                    const response = await runtime.deps.hostAdapter.mutateDocument({
+                        type: "updateNode",
+                        payload: update,
+                    });
+                    if (!response.success) {
+                        runtime.notifyError(response.error ?? "Document mutation failed");
+                        return false;
+                    }
+                }
+            }
+            await leave();
+            return true;
         },
     };
 };

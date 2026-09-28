@@ -28,3 +28,21 @@ export const eventHasShapeClass = (
 ): boolean =>
     hasShapeClassInChain(event.originalTarget, shapeClassName) ||
     hasShapeClassInChain(event.target, shapeClassName);
+
+export const DECORATOR_DOUBLE_CLICK_MS = 500;
+
+export type ShapeClickStamp = {
+    key: string;
+    time: number;
+};
+
+/** True when two clicks land on the same logical target inside one double-click window. */
+export const isDoubleShapeClick = (
+    previous: ShapeClickStamp | null,
+    next: ShapeClickStamp,
+    intervalMs = DECORATOR_DOUBLE_CLICK_MS
+): boolean =>
+    previous !== null &&
+    previous.key === next.key &&
+    next.time >= previous.time &&
+    next.time - previous.time <= intervalMs;

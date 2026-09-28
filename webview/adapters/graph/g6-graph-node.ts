@@ -13,6 +13,7 @@ import i18n from "../../shared/i18n";
 import { isMacos } from "../../shared/keys";
 import type { GraphNodeVM } from "../../shared/contracts";
 import {
+    G6_GRAPH_DECORATOR_TAB_HEIGHT,
     G6_GRAPH_NODE_CONTENT_X,
     G6_GRAPH_NODE_METADATA_BG_WIDTH,
     G6_GRAPH_NODE_MIN_HEIGHT,
@@ -78,7 +79,10 @@ let didRegisterGraphNode = false;
 
 class GraphNode extends Rect {
     private width = G6_GRAPH_NODE_WIDTH;
+    private contentWidth = G6_GRAPH_NODE_WIDTH;
     private height = G6_GRAPH_NODE_MIN_HEIGHT;
+    private bodyTop = 0;
+    private bodyHeight = G6_GRAPH_NODE_MIN_HEIGHT;
     private radius = RADIUS;
     private node!: GraphNodeVM;
     private accent = accentColorMap.Other;
@@ -90,7 +94,7 @@ class GraphNode extends Rect {
         const style = super.getKeyStyle(attributes);
         if (style) {
             style.x = 0;
-            style.y = 0;
+            style.y = this.bodyTop;
         }
         return style;
     }
@@ -99,7 +103,7 @@ class GraphNode extends Rect {
         const style = super.getHaloStyle(attributes);
         if (style) {
             style.x = 0;
-            style.y = 0;
+            style.y = this.bodyTop;
         }
         return style;
     }
@@ -149,9 +153,9 @@ class GraphNode extends Rect {
     private drawBackground(attributes: Required<RectStyleProps>, container: Group) {
         const style = {
             ...attributes,
-            size: [this.width, this.height] as [number, number],
+            size: [this.width, this.bodyHeight] as [number, number],
             lineWidth: 2,
-            radius: this.radius,
+            radius: this.bodyTop > 0 ? [0, 0, this.radius, this.radius] : this.radius,
         };
         this.applyStyle("key-shape", style);
         this.drawKeyShape(style as Required<RectStyleProps>, container);
@@ -162,10 +166,14 @@ class GraphNode extends Rect {
             "name-bg",
             GRect,
             {
+                y: this.bodyTop,
                 width: LEFT_RAIL_WIDTH,
-                height: this.height,
+                height: this.bodyHeight,
                 fill: this.accent,
-                radius: [this.radius, 0, 0, this.radius],
+                radius:
+                    this.bodyTop > 0
+                        ? [0, 0, 0, this.radius]
+                        : [this.radius, 0, 0, this.radius],
             },
             container
         );
@@ -175,8 +183,8 @@ class GraphNode extends Rect {
             GPath,
             {
                 d: [
-                    ["M", G6_GRAPH_NODE_CONTENT_X, 23],
-                    ["L", this.width - 40, 23],
+                    ["M", G6_GRAPH_NODE_CONTENT_X, this.bodyTop + 23],
+                    ["L", this.contentWidth - 40, this.bodyTop + 23],
                 ],
                 stroke: this.palette.divider,
                 lineWidth: 1,
@@ -199,7 +207,7 @@ class GraphNode extends Rect {
                 textAlign: "right",
                 textBaseline: "top",
                 x: -3,
-                y: this.height / 2 - 8,
+                y: this.bodyTop + this.bodyHeight / 2 - 8,
             },
             container
         );
@@ -211,7 +219,7 @@ class GraphNode extends Rect {
             GImage,
             {
                 x: 5,
-                y: this.height / 2 - 16,
+                y: this.bodyTop + this.bodyHeight / 2 - 16,
                 height: 30,
                 opacity: 1,
                 width: 30,
@@ -226,8 +234,8 @@ class GraphNode extends Rect {
             "status",
             GImage,
             {
-                x: this.width - 18,
-                y: 3,
+                x: this.contentWidth - 18,
+                y: this.bodyTop + 3,
                 height: 20,
                 opacity: 1,
                 width: 20,
@@ -242,8 +250,8 @@ class GraphNode extends Rect {
             "debug",
             GImage,
             {
-                x: this.width - 30,
-                y: 4,
+                x: this.contentWidth - 30,
+                y: this.bodyTop + 4,
                 height: 16,
                 opacity: 1,
                 width: 16,
@@ -259,8 +267,8 @@ class GraphNode extends Rect {
             "disabled",
             GImage,
             {
-                x: this.width - 30 - (this.node.debug ? 18 : 0),
-                y: 4,
+                x: this.contentWidth - 30 - (this.node.debug ? 18 : 0),
+                y: this.bodyTop + 4,
                 height: 16,
                 opacity: 1,
                 width: 16,
@@ -276,14 +284,19 @@ class GraphNode extends Rect {
             "override-bar",
             GRect,
             {
-                x: this.width - 17,
-                y: 1,
+                x: this.contentWidth - 17,
+                y: this.bodyTop + 1,
                 width: 16,
-                height: this.height - 2,
+                height: this.bodyHeight - 2,
                 fill: this.palette.overrideBar,
                 lineWidth: 2,
                 opacity: 1,
-                radius: [0, this.radius - 1, this.radius - 1, 0],
+                radius: [
+                    0,
+                    this.bodyTop > 0 ? 0 : this.radius - 1,
+                    this.radius - 1,
+                    0,
+                ],
                 visibility: this.node.hasOverride ? "visible" : "hidden",
             },
             container
@@ -301,7 +314,7 @@ class GraphNode extends Rect {
                 text: this.node.title,
                 textBaseline: "top",
                 x: G6_GRAPH_NODE_CONTENT_X,
-                y: isMacos ? 3 : 2,
+                y: this.bodyTop + (isMacos ? 3 : 2),
             },
             container
         );
@@ -498,6 +511,74 @@ class GraphNode extends Rect {
         this.contentY = layout.nextSectionTop;
     }
 
+    private drawDecoratorTab(container: Group) {
+        const label = this.node.attachedDecoratorName ? i18n.t("decorator.adornment") : "";
+        const abortType = label ? (this.node.attachedDecoratorAbortType ?? "") : "";
+        const abortReserve = abortType ? 112 : 0;
+        const adornment = this.upsert(
+            "decorator-adornment",
+            GRect,
+            label
+                ? {
+                      x: 0,
+                      y: 0,
+                      width: this.width,
+                      height: G6_GRAPH_DECORATOR_TAB_HEIGHT,
+                      fill: this.accent,
+                      fillOpacity: 0.22,
+                      stroke: this.accent,
+                      lineWidth: 1,
+                      radius: [this.radius, this.radius, 0, 0],
+                      cursor: "pointer",
+                  }
+                : false,
+            container
+        );
+        if (adornment) {
+            adornment.className = "decorator-adornment";
+        }
+        const adornmentLabel = this.upsert(
+            "decorator-label",
+            GText,
+            label
+                ? {
+                      x: 8,
+                      y: G6_GRAPH_DECORATOR_TAB_HEIGHT / 2,
+                      text: cutWordTo(label, this.width - 16 - abortReserve, "12px"),
+                      fontSize: 12,
+                      textAlign: "left",
+                      textBaseline: "middle",
+                      fill: "#ffffff",
+                      cursor: "pointer",
+                  }
+                : false,
+            container
+        );
+        if (adornmentLabel) {
+            adornmentLabel.className = "decorator-label";
+        }
+        const abortLabel = this.upsert(
+            "decorator-abort",
+            GText,
+            abortType
+                ? {
+                      x: this.width - 8,
+                      y: G6_GRAPH_DECORATOR_TAB_HEIGHT / 2,
+                      text: abortType,
+                      fontSize: 12,
+                      textAlign: "right",
+                      textBaseline: "middle",
+                      fill: "#ffffff",
+                      cursor: "pointer",
+                  }
+                : false,
+            container
+        );
+        if (abortLabel) {
+            abortLabel.className = "decorator-label";
+        }
+    }
+
     private drawCollapseBadge(attributes: Required<RectStyleProps>, container: Group) {
         this.upsert(
             "collapse",
@@ -517,24 +598,26 @@ class GraphNode extends Rect {
                 textAlign: "center",
                 textBaseline: "middle",
                 visibility: this.node.childKeys.length > 0 ? "visible" : "hidden",
-                x: this.width,
-                y: this.height / 2,
+                x: this.contentWidth,
+                y: this.bodyTop + this.bodyHeight / 2,
             },
             container
         );
     }
 
     private drawDragShapes(container: Group) {
+        const topRadius = this.bodyTop > 0 ? 0 : this.radius;
         this.upsert(
             "drag-src",
             GRect,
             {
+                y: this.bodyTop,
                 width: this.width,
-                height: this.height,
+                height: this.bodyHeight,
                 lineWidth: 0,
                 fillOpacity: 0.8,
                 fill: this.palette.dragSource,
-                radius: this.radius,
+                radius: this.bodyTop > 0 ? [0, 0, this.radius, this.radius] : this.radius,
                 visibility: "hidden",
             },
             container
@@ -544,14 +627,15 @@ class GraphNode extends Rect {
             "drag-up",
             GRect,
             {
+                y: this.bodyTop,
                 width: this.width,
-                height: this.height / 2,
+                height: this.bodyHeight / 2,
                 lineWidth: 2,
                 stroke: this.palette.dropChild,
                 strokeOpacity: 0.8,
                 fill: this.palette.dropChild,
                 fillOpacity: 0.8,
-                radius: [this.radius, this.radius, 0, 0],
+                radius: [topRadius, topRadius, 0, 0],
                 visibility: "hidden",
             },
             container
@@ -561,9 +645,9 @@ class GraphNode extends Rect {
             "drag-down",
             GRect,
             {
-                y: this.height / 2,
+                y: this.bodyTop + this.bodyHeight / 2,
                 width: this.width,
-                height: this.height / 2,
+                height: this.bodyHeight / 2,
                 lineWidth: 2,
                 stroke: this.palette.dropChild,
                 strokeOpacity: 0.8,
@@ -580,14 +664,15 @@ class GraphNode extends Rect {
             GRect,
             {
                 x: this.width / 2,
+                y: this.bodyTop,
                 width: this.width / 2,
-                height: this.height,
+                height: this.bodyHeight,
                 lineWidth: 2,
                 stroke: this.palette.dropChild,
                 strokeOpacity: 0.8,
                 fill: this.palette.dropChild,
                 fillOpacity: 0.8,
-                radius: [0, this.radius, this.radius, 0],
+                radius: [0, topRadius, this.radius, 0],
                 visibility: "hidden",
             },
             container
@@ -601,12 +686,15 @@ class GraphNode extends Rect {
         this.node = data.vm;
         this.palette = getGraphNodePalette();
         this.width = data.width;
+        this.contentWidth = data.width;
         this.height = data.height;
+        this.bodyTop = this.node.attachedDecoratorName ? G6_GRAPH_DECORATOR_TAB_HEIGHT : 0;
+        this.bodyHeight = Math.max(G6_GRAPH_NODE_MIN_HEIGHT, data.height - this.bodyTop);
         this.accent =
             this.node.accentColor ??
             accentColorMap[this.node.nodeStyleKind] ??
             accentColorMap.Other;
-        this.contentY = CONTENT_Y;
+        this.contentY = this.bodyTop + CONTENT_Y;
         this.states = this.context.graph.getElementState(this.id) as GraphNodeState[];
         this.resetStyle();
 
@@ -633,6 +721,7 @@ class GraphNode extends Rect {
         this.drawOutputText(container);
         this.drawSubtreeText(container);
         this.drawDragShapes(container);
+        this.drawDecoratorTab(container);
         this.drawCollapseBadge(attributes, container);
         this.drawIdText(container);
     }

@@ -39,6 +39,7 @@ type TreeInspectorDocument = {
 export type NodeInspectorFormValues = {
     id: string;
     type: string;
+    supportDecorator: string;
     children: string;
     group: string[];
     name: string;
@@ -347,6 +348,7 @@ export const createNodeInspectorFormValues = (
     return {
         id: `${selectedNode.ref.displayId} (${selectedNode.data.uuid})`,
         type: currentNodeDef?.type ?? unknownTypeLabel,
+        supportDecorator: currentNodeDef?.supportDecorator === true ? "true" : "false",
         children: formatChildrenLabel(currentNodeDef),
         group: currentNodeDef?.group ?? [],
         name: selectedNode.data.name,

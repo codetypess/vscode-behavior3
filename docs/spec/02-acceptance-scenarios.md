@@ -145,6 +145,15 @@
 - embedded inspector header 也不显示“创建行为树文件”按钮
 - `createTree` 仍可从非 inspector 入口触发，例如 explorer `Behavior3` 菜单
 
+### BB-17 节点附属装饰器
+
+- 允许装饰器的节点可以右键添加枝干。已经挂上的装饰器可以删除；子树源文件里已有的装饰器不能删
+- 主图在节点上方显示附属。左侧文字为当前语言的「decorator」，右侧为 Abort Type，文字为白色
+- 单击附属打开装饰器面板，而不是节点面板。进入优先级等于节点 id；维持优先级可以改小；Abort Type 为 `None`、`Self`、`Lower Priority`、`Both`，默认 `None`
+- 节点 id 重新分配后，仍等于旧进入优先级的维持优先级改为新 id。已经改小的值保持不变，大于新进入优先级时降到该值
+- 双击附属或面板中的「打开编辑视图」进入临时页面。双击节点本体仍打开 subtree
+- 树上出现装饰器后，自定义数据包含 `$decorator_type`，值为 `local` 或 `global`，默认 `local`。树上仍有装饰器时，这一项不能删除
+
 ## 最低回归样例
 
 每次涉及架构、协议、保存、subtree 或 Inspector 语义的改动，至少应人工回归：
@@ -154,3 +163,4 @@
 3. 执行 copy / paste / replace / insert / delete / drag-drop，确认 history 与 dirty 正常
 4. 触发 subtree 打开、另存和外部 subtree 改动，确认父树刷新
 5. 触发 `settingLoaded`、主题切换与 build，确认图和侧栏行为不漂移
+6. 点击装饰器附属，确认打开的是装饰器面板；双击附属进入临时页面，双击节点本体仍打开 subtree

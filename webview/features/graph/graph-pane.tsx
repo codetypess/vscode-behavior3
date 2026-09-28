@@ -1,11 +1,13 @@
-import { App, Dropdown, Flex } from "antd";
+import { App, Button, Dropdown, Flex, Modal, Select } from "antd";
 import type { MenuProps } from "antd";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useRuntime } from "../../app/runtime";
+import { useGraphUiStore, useRuntime, useWorkspaceStore } from "../../app/runtime";
 import { canOpenSubtreeTarget } from "../../domain/subtree-navigation";
+import { nodeDefReturnsRunning } from "../../shared/decorator-branch";
 import { isEditableEventTarget } from "../../shared/editable-event-target";
 import { Hotkey, isMacos, useKeyPress } from "../../shared/keys";
+import { nodeDefSupportsDecorator } from "../../shared/tree";
 import { useGraphPaneState } from "./graph-pane-state";
 import { SearchBar } from "../search/search-bar";
 
@@ -32,7 +34,29 @@ export const GraphPane: React.FC = () => {
     const mountRef = useRef<HTMLDivElement | null>(null);
     const shellRef = useRef<HTMLDivElement | null>(null);
     const [searchFocusToken, setSearchFocusToken] = useState(0);
+    const [decoratorPickerOpen, setDecoratorPickerOpen] = useState(false);
+    const [decoratorEntryName, setDecoratorEntryName] = useState<string | undefined>();
+    const [decoratorCloseOpen, setDecoratorCloseOpen] = useState(false);
     const { selectedNode, selectedNodeRef, searchOpen, rootStableId } = useGraphPaneState();
+    const nodeDefs = useWorkspaceStore((state) => state.nodeDefs);
+    const decoratorEdit = useGraphUiStore((state) => state.decoratorEdit);
+    const selectedNodeDef = nodeDefs.find((entry) => entry.name === selectedNode?.data.name);
+    const canAddDecorator = Boolean(
+        selectedNode &&
+        !decoratorEdit &&
+        nodeDefSupportsDecorator(selectedNodeDef) &&
+        !selectedNode.hasAttachedDecorator
+    );
+    const canRemoveDecorator = Boolean(
+        selectedNode &&
+        !decoratorEdit &&
+        nodeDefSupportsDecorator(selectedNodeDef) &&
+        selectedNode.hasAttachedDecorator &&
+        !(selectedNode.subtreeNode && selectedNode.subtreeOriginal?.decorator)
+    );
+    const decoratorEntryOptions = nodeDefs
+        .filter((entry) => !nodeDefReturnsRunning(entry))
+        .map((entry) => ({ value: entry.name, label: entry.name }));
 
     const structureLocked = Boolean(selectedNode?.subtreeNode || selectedNode?.data.path);
     const isRootSelected = Boolean(
@@ -99,6 +123,20 @@ export const GraphPane: React.FC = () => {
                 !selectedNode || structureLocked
             ),
             createItem(
+                "addDecorator",
+                t("addDecorator"),
+                renderCodicon("symbol-misc"),
+                undefined,
+                !canAddDecorator
+            ),
+            canRemoveDecorator
+                ? createItem(
+                      "removeDecorator",
+                      t("removeDecorator"),
+                      renderCodicon("close")
+                  )
+                : null,
+            createItem(
                 "delete",
                 t("deleteNode"),
                 renderCodicon("trash"),
@@ -116,7 +154,15 @@ export const GraphPane: React.FC = () => {
                 !selectedNode || structureLocked || isRootSelected
             ),
         ].filter(Boolean);
-    }, [canOpenSubtree, isRootSelected, selectedNode, structureLocked, t]);
+    }, [
+        canAddDecorator,
+        canOpenSubtree,
+        canRemoveDecorator,
+        isRootSelected,
+        selectedNode,
+        structureLocked,
+        t,
+    ]);
 
     const runMenuCommand = async (key: string) => {
         switch (key) {
@@ -131,6 +177,13 @@ export const GraphPane: React.FC = () => {
                 break;
             case "insert":
                 await runtime.controller.insertNode();
+                break;
+            case "addDecorator":
+                setDecoratorEntryName(decoratorEntryOptions[0]?.value);
+                setDecoratorPickerOpen(true);
+                break;
+            case "removeDecorator":
+                await runtime.controller.removeDecorator();
                 break;
             case "delete":
                 await runtime.controller.deleteNode();
@@ -221,8 +274,15 @@ export const GraphPane: React.FC = () => {
                 void runtime.controller.selectNode(node.instanceKey, {
                     force: opts?.force,
                     clearVariableFocus: opts?.clearVariableFocus,
+                    surface: opts?.surface,
                 }),
-            onNodeDoubleClicked: (node) => void runtime.controller.openSelectedSubtree(node),
+            onNodeDoubleClicked: (node, source) => {
+                if (source === "decorator") {
+                    void runtime.controller.openDecoratorEditor(node);
+                    return;
+                }
+                void runtime.controller.openSelectedSubtree(node);
+            },
             onVariableHotspotClicked: (_node, payload) =>
                 void runtime.controller.focusVariable(payload.variableNames),
             onDropCommitted: async (intent) => {
@@ -237,8 +297,29 @@ export const GraphPane: React.FC = () => {
         return () => adapter.unmount();
     }, [adapter, message, runtime.controller]);
 
+    const requestCloseDecoratorEditor = () => {
+        if (runtime.controller.decoratorEditIsDirty()) {
+            setDecoratorCloseOpen(true);
+            return;
+        }
+        void runtime.controller.finishDecoratorEditor("discard");
+    };
+
     return (
         <div ref={shellRef} className="b3-graph-shell" tabIndex={-1}>
+            {decoratorEdit ? (
+                <Flex
+                    align="center"
+                    justify="space-between"
+                    gap={12}
+                    style={{ padding: "6px 12px" }}
+                >
+                    <span>{t("decorator.editing", { name: decoratorEdit.hostName })}</span>
+                    <Button size="small" onClick={requestCloseDecoratorEditor}>
+                        {t("decorator.close")}
+                    </Button>
+                </Flex>
+            ) : null}
             {searchOpen ? (
                 <SearchBar
                     focusToken={searchFocusToken}
@@ -251,6 +332,64 @@ export const GraphPane: React.FC = () => {
             >
                 <div ref={mountRef} className="b3-graph" tabIndex={-1} />
             </Dropdown>
+            <Modal
+                title={t("decorator.pickEntry")}
+                open={decoratorPickerOpen}
+                okText={t("addDecorator")}
+                cancelText={t("cancel")}
+                okButtonProps={{ disabled: !decoratorEntryName }}
+                onCancel={() => setDecoratorPickerOpen(false)}
+                onOk={() => {
+                    if (!decoratorEntryName) {
+                        return;
+                    }
+                    setDecoratorPickerOpen(false);
+                    void runtime.controller.attachDecorator(decoratorEntryName);
+                }}
+            >
+                <Select
+                    showSearch
+                    style={{ width: "100%" }}
+                    value={decoratorEntryName}
+                    options={decoratorEntryOptions}
+                    onChange={(value) => setDecoratorEntryName(value)}
+                />
+            </Modal>
+            <Modal
+                title={t("decorator.unsavedTitle")}
+                open={decoratorCloseOpen}
+                onCancel={() => setDecoratorCloseOpen(false)}
+                footer={[
+                    <Button key="cancel" onClick={() => setDecoratorCloseOpen(false)}>
+                        {t("decorator.cancelClose")}
+                    </Button>,
+                    <Button
+                        key="discard"
+                        onClick={() => {
+                            setDecoratorCloseOpen(false);
+                            void runtime.controller.finishDecoratorEditor("discard");
+                        }}
+                    >
+                        {t("decorator.discard")}
+                    </Button>,
+                    <Button
+                        key="save"
+                        type="primary"
+                        onClick={() => {
+                            void (async () => {
+                                const saved = await runtime.controller.finishDecoratorEditor("save");
+                                if (saved) {
+                                    setDecoratorCloseOpen(false);
+                                }
+                            })();
+                        }}
+                    >
+                        {t("decorator.save")}
+                    </Button>,
+                ]}
+            >
+                {t("decorator.unsavedBody")}
+            </Modal>
         </div>
     );
 };

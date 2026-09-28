@@ -63,6 +63,8 @@ const flattenMaterializedTree = (
             subtreeEditable: node.subtreeEditable,
             subtreeOriginal: node.subtreeOriginal,
             resolutionError: node.resolutionError,
+            attachedDecoratorName: node.data.decorator?.root.name,
+            attachedDecorator: node.data.decorator,
         };
         nodeOrder.push(instanceKey);
         return instanceKey;

@@ -87,10 +87,15 @@ export const normalizeNodeInstanceRef = (ref: NodeInstanceRef): NodeInstanceRef 
         : [],
 });
 
-export const normalizeHostSelectionState = (selection: HostSelectionState): HostSelectionState =>
-    selection.kind === "tree"
-        ? { kind: "tree" }
-        : { kind: "node", ref: normalizeNodeInstanceRef(selection.ref) };
+export const normalizeHostSelectionState = (selection: HostSelectionState): HostSelectionState => {
+    if (selection.kind === "tree") {
+        return { kind: "tree" };
+    }
+    if (selection.kind === "decorator") {
+        return { kind: "decorator", ref: normalizeNodeInstanceRef(selection.ref) };
+    }
+    return { kind: "node", ref: normalizeNodeInstanceRef(selection.ref) };
+};
 
 export const normalizeHostDocumentSnapshot = (
     snapshot: HostDocumentSnapshot

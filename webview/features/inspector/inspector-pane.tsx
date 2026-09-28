@@ -1,9 +1,10 @@
 import { Alert, Button, Flex, Skeleton, Tooltip, Typography } from "antd";
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { useRuntime, useWorkspaceStore } from "../../app/runtime";
+import { useRuntime, useSelectionStore, useWorkspaceStore } from "../../app/runtime";
 import type { InspectorHostCommandId } from "../../shared/contracts";
 import { getInspectorPaneMode } from "./inspector-pane-mode";
+import { DecoratorInspectorForm } from "./decorator-inspector-form";
 import { NodeInspectorForm } from "./node-inspector-form";
 import { useInspectorPaneState } from "./inspector-state";
 import { TreeInspectorForm } from "./tree-inspector-form";
@@ -135,11 +136,13 @@ export const InspectorPane: React.FC = () => {
     const runtime = useRuntime();
     const { document, alertReload, pendingExternalContent, selectedNode, selectedNodeRef } =
         useInspectorPaneState();
+    const inspectorSurface = useSelectionStore((state) => state.inspectorSurface);
     const inspectorMode = useWorkspaceStore((state) => state.settings.inspectorMode);
     const paneMode = getInspectorPaneMode({
         documentPresent: Boolean(document),
         selectedNode,
         selectedNodeRef,
+        inspectorSurface,
     });
 
     if (paneMode === "skeleton") {
@@ -158,6 +161,7 @@ export const InspectorPane: React.FC = () => {
                 />
             ) : null}
 
+            {paneMode === "decorator" ? <DecoratorInspectorForm /> : null}
             {paneMode === "node" ? <NodeInspectorForm /> : null}
             {paneMode === "node-pending" ? (
                 <div className="b3-inspector-skeleton">

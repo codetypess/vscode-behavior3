@@ -23,9 +23,11 @@ export type EditorToHostMessage =
     | { type: "undo" }
     | { type: "redo" }
     | { type: "selectTree" }
-    | { type: "selectNode"; target: NodeInstanceRef }
+    | { type: "selectNode"; target: NodeInstanceRef; surface?: "node" | "decorator" }
     /** Ask the host to relay a one-shot variable highlight intent to the active editor. */
     | { type: "requestFocusVariable"; names: string[] }
+    /** Ask the host to relay opening a decorator editor page into the active editor. */
+    | { type: "openDecoratorEditor"; target: NodeInstanceRef }
     | { type: "mutateDocument"; requestId: string; mutation: DocumentMutation }
     | { type: "saveDocument"; requestId: string }
     | { type: "revertDocument"; requestId: string }
@@ -82,6 +84,8 @@ export type HostToEditorMessage =
     | { type: "relayFocusVariable"; names: string[] }
     /** One-shot node reveal relay into the active editor; selection authority still comes from snapshots. */
     | { type: "relayFocusNode"; target: NodeInstanceRef }
+    /** One-shot request for the active editor to open a decorator editing page. */
+    | { type: "relayOpenDecoratorEditor"; target: NodeInstanceRef }
     /** A referenced subtree file was saved or edited; parent canvas should reload subtree data. */
     | { type: "subtreeFileChanged" }
     /** No active Behavior3 editor is currently driving the sidebar inspector. */

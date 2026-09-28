@@ -6,7 +6,10 @@ import {
     pruneCollapsedNodeRefs,
     toggleCollapsedNodeRefs,
 } from "../../webview/adapters/graph/graph-collapse-state";
-import { eventHasShapeClass } from "../../webview/adapters/graph/graph-event-shape";
+import {
+    eventHasShapeClass,
+    isDoubleShapeClick,
+} from "../../webview/adapters/graph/graph-event-shape";
 import { canOpenSubtreeTarget } from "../../webview/domain/subtree-navigation";
 import {
     cloneInspectorNodeSnapshotForRef,
@@ -87,6 +90,47 @@ export const editorStateSharedTests = defineSharedTests([
                         subtreeNode: false,
                         subtreeEditable: true,
                     },
+                }),
+                "node"
+            );
+            const decoratedNode = {
+                ref: pendingNodeRef,
+                data: {
+                    uuid: "child",
+                    id: "2",
+                    name: "Action",
+                    decorator: {
+                        enterPriority: 2,
+                        maintainPriority: 2,
+                        abortType: "Self",
+                        root: {
+                            uuid: "guard",
+                            id: "3",
+                            name: "Guard",
+                        },
+                    },
+                },
+                prefix: "",
+                activeChildCount: 0,
+                disabled: false,
+                subtreeNode: false,
+                subtreeEditable: true,
+            };
+            assert.equal(
+                getInspectorPaneMode({
+                    documentPresent: true,
+                    selectedNodeRef: pendingNodeRef,
+                    selectedNode: decoratedNode,
+                    inspectorSurface: "decorator",
+                }),
+                "decorator"
+            );
+            assert.equal(
+                getInspectorPaneMode({
+                    documentPresent: true,
+                    selectedNodeRef: pendingNodeRef,
+                    selectedNode: decoratedNode,
+                    inspectorSurface: "node",
                 }),
                 "node"
             );
@@ -266,6 +310,19 @@ export const editorStateSharedTests = defineSharedTests([
                 },
             };
 
+            assert.equal(
+                isDoubleShapeClick({ key: "node-1", time: 1000 }, { key: "node-1", time: 1400 }),
+                true
+            );
+            assert.equal(
+                isDoubleShapeClick({ key: "node-1", time: 1000 }, { key: "node-1", time: 1600 }),
+                false
+            );
+            assert.equal(
+                isDoubleShapeClick({ key: "node-1", time: 1000 }, { key: "node-2", time: 1100 }),
+                false
+            );
+            assert.equal(isDoubleShapeClick(null, { key: "node-1", time: 1100 }), false);
             assert.equal(eventHasShapeClass({ originalTarget: badgeText }, "collapse"), true);
             assert.equal(eventHasShapeClass({ originalTarget: badgeText }, "input-text"), false);
             assert.equal(

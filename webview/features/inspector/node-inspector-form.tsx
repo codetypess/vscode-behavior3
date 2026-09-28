@@ -118,6 +118,12 @@ const NodeMetaFields: React.FC<{
             <Form.Item {...createInspectorLabelProps(t("node.type"))} name="type">
                 <Input disabled />
             </Form.Item>
+            <Form.Item
+                {...createInspectorLabelProps(t("node.supportDecorator"))}
+                name="supportDecorator"
+            >
+                <Input disabled />
+            </Form.Item>
 
             {nodeDef?.group?.length ? (
                 <Form.Item
@@ -396,9 +402,10 @@ export const NodeInspectorForm: React.FC = () => {
         form.setFieldValue("args", {});
         form.setFieldValue("inputSlots", []);
         form.setFieldValue("outputSlots", []);
-        form.resetFields(["type", "children", "group"]);
+        form.resetFields(["type", "supportDecorator", "children", "group"]);
         form.setFieldsValue({
             type: previewValues.type,
+            supportDecorator: previewValues.supportDecorator,
             children: previewValues.children,
             group: previewValues.group,
             args: previewValues.args,

@@ -1,5 +1,6 @@
 import {
     DOCUMENT_VERSION,
+    type DecoratorAttachment,
     type NodeData,
     type TreeData,
     type VarDecl,
@@ -7,6 +8,12 @@ import {
 } from "./b3type";
 import type { NodeDef } from "./b3type";
 import { generateDeterministicUuid, generateUuid } from "./stable-id";
+import {
+    ensureDecoratorTypeCustom,
+    normalizeDecoratorPriorities,
+    readAbortType,
+    readDecoratorInt,
+} from "./decorator-branch";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
 
 const NODE_DEF_TYPES = new Set<NodeDef["type"]>(["Action", "Decorator", "Condition", "Composite"]);
@@ -286,6 +293,8 @@ const normalizeNodeDef = (value: unknown, label: string): NodeDef => {
                   return entry as NonNullable<NodeDef["status"]>[number];
               });
 
+    const supportDecorator = record.supportDecorator === true ? true : undefined;
+
     return {
         name,
         type,
@@ -299,6 +308,30 @@ const normalizeNodeDef = (value: unknown, label: string): NodeDef => {
         group,
         status,
         children: childrenValue as NodeDef["children"],
+        supportDecorator,
+    };
+};
+
+const normalizeDecoratorAttachment = (
+    value: unknown,
+    label: string,
+    hostId: string | undefined,
+    stableIdSeed?: string
+): DecoratorAttachment<NodeData> => {
+    const record = expectPlainRecord(value, label);
+    const branch = isPlainRecord(record.root) ? record.root : record;
+    const branchLabel = isPlainRecord(record.root) ? `${label}.root` : label;
+    const priorityId =
+        hostId !== undefined
+            ? hostId
+            : readDecoratorInt(record.enterPriority) !== undefined
+              ? String(readDecoratorInt(record.enterPriority))
+              : "";
+    const priorities = normalizeDecoratorPriorities(priorityId, record.maintainPriority);
+    return {
+        ...priorities,
+        abortType: readAbortType(record.abortType),
+        root: normalizeNodeData(branch, branchLabel, stableIdSeed),
     };
 };
 
@@ -330,6 +363,14 @@ const normalizeOverrideMap = (value: unknown, label: string): TreeData["override
             args: argsValue ? { ...argsValue } : undefined,
             debug: typeof patch.debug === "boolean" ? patch.debug : undefined,
             disabled: typeof patch.disabled === "boolean" ? patch.disabled : undefined,
+            decorator:
+                patch.decorator === undefined
+                    ? undefined
+                    : normalizeDecoratorAttachment(
+                          patch.decorator,
+                          `${label}.${key}.decorator`,
+                          undefined
+                      ),
         };
     }
 
@@ -417,6 +458,15 @@ const normalizeNodeData = (value: unknown, label: string, stableIdSeed?: string)
             typeof record.$status === "number" && Number.isFinite(record.$status)
                 ? record.$status
                 : undefined,
+        decorator:
+            record.decorator === undefined
+                ? undefined
+                : normalizeDecoratorAttachment(
+                      record.decorator,
+                      `${label}.decorator`,
+                      record.id === undefined ? "" : String(record.id),
+                      stableIdSeed
+                  ),
     };
 };
 
@@ -500,7 +550,7 @@ export const normalizeTreeData = (value: unknown, opts?: { stableIdSeed?: string
             ? undefined
             : expectPlainRecord(variablesValue, "tree file variables");
 
-    return {
+    const tree: TreeData = {
         version: normalizeTreeVersion(record.version),
         name: asRequiredString(record.name, "tree file name"),
         prefix: asOptionalString(record.prefix) ?? "",
@@ -521,6 +571,8 @@ export const normalizeTreeData = (value: unknown, opts?: { stableIdSeed?: string
         root: normalizeNodeData(record.root, "tree file root", opts?.stableIdSeed),
         overrides: normalizeOverrideMap(overridesValue, "tree file overrides"),
     };
+    ensureDecoratorTypeCustom(tree);
+    return tree;
 };
 
 export const parseTreeContent = (content: string, opts?: { stableIdSeed?: string }): TreeData => {

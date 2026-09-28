@@ -1,3 +1,4 @@
+import { assertDecoratorBranchesSavable } from "../shared/decorator-branch";
 import { resolveDocumentGraph } from "./resolve-graph";
 import type { NodeDef } from "../shared/b3type";
 import type {
@@ -9,6 +10,7 @@ import {
     clonePersistedTree,
     loadSubtreeSourceCache,
     pruneStaleSubtreeOverrides,
+    pruneUnsupportedNodeDecorators,
     serializePersistedTree,
 } from "../shared/tree";
 
@@ -28,8 +30,11 @@ export const preparePersistedTreeForMainDocumentSave = async (params: {
     readSubtreeContent: (path: WorkdirRelativeJsonPath) => Promise<string | null>;
 }): Promise<MainDocumentSavePlan> => {
     const subtreeWritebacks: MainDocumentSubtreeWriteback[] = [];
+    const nextTree = clonePersistedTree(params.tree);
+    pruneUnsupportedNodeDecorators(nextTree, params.nodeDefs);
+    assertDecoratorBranchesSavable(nextTree, params.nodeDefs);
     const subtreeSources = await loadSubtreeSourceCache({
-        root: params.tree.root,
+        root: nextTree.root,
         readContent: params.readSubtreeContent,
         onTreeLoaded: ({ path, tree, needsWriteback }) => {
             if (!needsWriteback) {
@@ -43,13 +48,12 @@ export const preparePersistedTreeForMainDocumentSave = async (params: {
     });
 
     const resolved = resolveDocumentGraph({
-        persistedTree: params.tree,
+        persistedTree: nextTree,
         subtreeSources,
         nodeDefs: params.nodeDefs,
         subtreeEditable: true,
     });
 
-    const nextTree = clonePersistedTree(params.tree);
     pruneStaleSubtreeOverrides({
         tree: nextTree,
         subtreeSources,

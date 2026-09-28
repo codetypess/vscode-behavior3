@@ -78,6 +78,7 @@ export const editorControllerSharedTests = defineSharedTests([
                 selectTree() {},
                 selectNode() {},
                 requestFocusVariable() {},
+                requestOpenDecoratorEditor() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -168,6 +169,7 @@ export const editorControllerSharedTests = defineSharedTests([
                 selectTree() {},
                 selectNode() {},
                 requestFocusVariable() {},
+                requestOpenDecoratorEditor() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -341,6 +343,7 @@ export const editorControllerSharedTests = defineSharedTests([
                 selectTree() {},
                 selectNode() {},
                 requestFocusVariable() {},
+                requestOpenDecoratorEditor() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -481,6 +484,7 @@ export const editorControllerSharedTests = defineSharedTests([
                 selectTree() {},
                 selectNode() {},
                 requestFocusVariable() {},
+                requestOpenDecoratorEditor() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -640,6 +644,7 @@ export const editorControllerSharedTests = defineSharedTests([
                     selectedNodeTargets.push(target);
                 },
                 requestFocusVariable() {},
+                requestOpenDecoratorEditor() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -797,6 +802,7 @@ export const editorControllerSharedTests = defineSharedTests([
                 requestFocusVariable(names) {
                     requestedVariableNames = [...names];
                 },
+                requestOpenDecoratorEditor() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -917,6 +923,7 @@ export const editorControllerSharedTests = defineSharedTests([
                     selectedNodeTargets.push(target);
                 },
                 requestFocusVariable() {},
+                requestOpenDecoratorEditor() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -1078,6 +1085,7 @@ export const editorControllerSharedTests = defineSharedTests([
                     selectedNodeTargets.push(target);
                 },
                 requestFocusVariable() {},
+                requestOpenDecoratorEditor() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -1212,6 +1220,7 @@ export const editorControllerSharedTests = defineSharedTests([
                     selectedNodeTargets.push(target);
                 },
                 requestFocusVariable() {},
+                requestOpenDecoratorEditor() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -1370,6 +1379,7 @@ export const editorControllerSharedTests = defineSharedTests([
                     selectedNodeTarget = target;
                 },
                 requestFocusVariable() {},
+                requestOpenDecoratorEditor() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -1680,6 +1690,7 @@ export const editorControllerSharedTests = defineSharedTests([
                         selectedNodeTargets.push(target);
                     },
                     requestFocusVariable() {},
+                    requestOpenDecoratorEditor() {},
                     sendRequestSetting() {},
                     sendBuild() {},
                     executeInspectorHostCommand() {},
@@ -1898,6 +1909,7 @@ export const editorControllerSharedTests = defineSharedTests([
                     selectedNodeTarget = target;
                 },
                 requestFocusVariable() {},
+                requestOpenDecoratorEditor() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -2055,6 +2067,7 @@ export const editorControllerSharedTests = defineSharedTests([
                     selectedNodeTarget = target;
                 },
                 requestFocusVariable() {},
+                requestOpenDecoratorEditor() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -2223,6 +2236,7 @@ export const editorControllerSharedTests = defineSharedTests([
                     selectedNodeTarget = target;
                 },
                 requestFocusVariable() {},
+                requestOpenDecoratorEditor() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -2444,6 +2458,7 @@ export const editorControllerSharedTests = defineSharedTests([
                     selectedNodeTarget = target;
                 },
                 requestFocusVariable() {},
+                requestOpenDecoratorEditor() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -2596,6 +2611,7 @@ export const editorControllerSharedTests = defineSharedTests([
                 selectTree() {},
                 selectNode() {},
                 requestFocusVariable() {},
+                requestOpenDecoratorEditor() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -2785,6 +2801,7 @@ export const editorControllerSharedTests = defineSharedTests([
                 selectTree() {},
                 selectNode() {},
                 requestFocusVariable() {},
+                requestOpenDecoratorEditor() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -2977,6 +2994,7 @@ export const editorControllerSharedTests = defineSharedTests([
                 selectTree() {},
                 selectNode() {},
                 requestFocusVariable() {},
+                requestOpenDecoratorEditor() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},

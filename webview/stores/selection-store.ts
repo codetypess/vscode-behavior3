@@ -6,6 +6,7 @@ export const createInitialSelectionState = (): SelectionState => ({
     selectedNodeKey: null,
     selectedNodeRef: null,
     selectedNodeSnapshot: null,
+    inspectorSurface: null,
 });
 
 export const createSelectionStore = (): StoreApi<SelectionState> => {

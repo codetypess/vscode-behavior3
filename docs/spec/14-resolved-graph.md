@@ -181,6 +181,7 @@
 - `displayId` / `instanceKey` 也按这个顺序生成
 - `mainTreeDisplayIdsByStableId` 记录所有属于主文档结构锚点的节点
 - 带 `path` 的主树锚点也会记录；只有 subtree 内部节点不会记录
+- 节点上的 `decorator` 不进入 `children`，也不参与主图父子布局。resolved node 用 `attachedDecoratorName` 表示上方附属是否存在，并用附件上的 `abortType` 供附属右侧显示
 
 ## 降级显示规则
 

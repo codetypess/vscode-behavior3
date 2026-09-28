@@ -125,6 +125,8 @@ export const buildResolvedGraphModel = (
                 node.args && Object.keys(node.args).length > 0
                     ? stringifyCompactJson5(node.args)
                     : undefined,
+            attachedDecoratorName: node.attachedDecoratorName,
+            attachedDecoratorAbortType: node.attachedDecorator?.abortType,
         });
 
         for (const childKey of node.childKeys) {

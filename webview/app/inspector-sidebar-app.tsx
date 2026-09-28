@@ -71,8 +71,13 @@ const applySidebarVars = (runtime: EditorRuntime, payload: HostVarsPayload) => {
 };
 
 const buildCurrentHostSelection = (runtime: EditorRuntime): HostSelectionState => {
-    const { selectedNodeRef } = runtime.selectionStore.getState();
-    return selectedNodeRef ? { kind: "node", ref: selectedNodeRef } : { kind: "tree" };
+    const { selectedNodeRef, inspectorSurface } = runtime.selectionStore.getState();
+    if (!selectedNodeRef) {
+        return { kind: "tree" };
+    }
+    return inspectorSurface === "decorator"
+        ? { kind: "decorator", ref: selectedNodeRef }
+        : { kind: "node", ref: selectedNodeRef };
 };
 
 const queueSidebarSelectionBlur = (runtime: EditorRuntime) => {
@@ -179,6 +184,9 @@ const SidebarHostBridge: React.FC = () => {
 
                 case "subtreeFileChanged":
                 case "buildResult":
+                case "focusVariable":
+                case "focusNode":
+                case "openDecoratorEditor":
                     return;
             }
         };

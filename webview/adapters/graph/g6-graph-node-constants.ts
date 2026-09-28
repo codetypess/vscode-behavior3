@@ -1,4 +1,5 @@
 export const G6_GRAPH_NODE_WIDTH = 260;
+export const G6_GRAPH_DECORATOR_TAB_HEIGHT = 22;
 export const G6_GRAPH_NODE_MIN_HEIGHT = 52;
 export const G6_GRAPH_NODE_CONTENT_X = 46;
 export const G6_GRAPH_NODE_CONTENT_RIGHT_PADDING = 8;

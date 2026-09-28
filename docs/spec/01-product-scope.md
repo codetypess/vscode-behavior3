@@ -70,13 +70,16 @@ Extension-host 持有文件监听、项目索引、设置解析、构建执行�
 
 - 画布展示树结构
 - 节点选中、拖放、复制粘贴、替换、插入、删除
+- 在允许 `supportDecorator` 的节点上添加、删除装饰器枝干，并在同一编辑器的临时页面里编辑它
+- 节点上方显示装饰器附属：左侧为当前语言的「decorator」，右侧为 Abort Type。单击附属打开装饰器面板
+- 树上用到装饰器时，自定义数据包含 `$decorator_type`，值为 `local` 或 `global`
 - 搜索、跳转、变量高亮
 - 保存、回滚、构建、打开 subtree、另存为 subtree
 
 ### 2. Inspector
 
 - 根据当前激活的 Behavior3 编辑器或当前 editor webview 同步上下文
-- Tree Inspector 与 Node Inspector 共用当前文档状态
+- Tree Inspector、Node Inspector 与装饰器面板共用当前文档状态
 - `sidebar` 模式下支持代理树/节点变更、保存、撤销、重做
 - `embedded` 模式下在主编辑器内部直接编辑
 - 在无激活编辑器或非当前模式入口时显示空状态或提示态

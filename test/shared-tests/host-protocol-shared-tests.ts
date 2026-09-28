@@ -108,11 +108,14 @@ export const hostProtocolSharedTests = defineSharedTests([
                 const adapter = createVsCodeHostAdapter();
                 let relayedNames: string[] | null = null;
                 let relayedNode: NodeInstanceRef | null = null;
+                let openedDecorator: NodeInstanceRef | null = null;
                 const off = adapter.connect((message) => {
                     if (message.type === "focusVariable") {
                         relayedNames = message.names;
                     } else if (message.type === "focusNode") {
                         relayedNode = message.target;
+                    } else if (message.type === "openDecoratorEditor") {
+                        openedDecorator = message.target;
                     }
                 });
 
@@ -159,6 +162,27 @@ export const hostProtocolSharedTests = defineSharedTests([
                     subtreeStack: [],
                 });
 
+                const decoratorTarget: NodeInstanceRef = {
+                    instanceKey: "host",
+                    displayId: "1",
+                    structuralStableId: "host",
+                    sourceStableId: "host",
+                    sourceTreePath: null,
+                    subtreeStack: [],
+                };
+                adapter.requestOpenDecoratorEditor(decoratorTarget);
+                assert.deepEqual(posts.at(-1), {
+                    type: "openDecoratorEditor",
+                    target: decoratorTarget,
+                });
+                messageListener?.({
+                    data: {
+                        type: "relayOpenDecoratorEditor",
+                        target: decoratorTarget,
+                    },
+                } as MessageEvent);
+                assert.deepEqual(openedDecorator, decoratorTarget);
+
                 const resultPromise = adapter.readFile(
                     parseWorkdirRelativeJsonPath("sub/a.json")!,
                     {
@@ -174,13 +198,13 @@ export const hostProtocolSharedTests = defineSharedTests([
                     }
                 );
 
-                assert.equal((posts[1] as { type?: string } | undefined)?.type, "readFile");
+                assert.equal((posts[2] as { type?: string } | undefined)?.type, "readFile");
                 assert.equal(
-                    (posts[1] as { openIfSubtree?: boolean } | undefined)?.openIfSubtree,
+                    (posts[2] as { openIfSubtree?: boolean } | undefined)?.openIfSubtree,
                     true
                 );
                 assert.deepEqual(
-                    (posts[1] as { openSelection?: NodeInstanceRef } | undefined)?.openSelection,
+                    (posts[2] as { openSelection?: NodeInstanceRef } | undefined)?.openSelection,
                     {
                         instanceKey: "sub-root",
                         displayId: "",

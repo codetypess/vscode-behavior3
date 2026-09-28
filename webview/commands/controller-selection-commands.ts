@@ -38,7 +38,7 @@ export const createSelectionCommands = (
 
         async selectNode(
             nodeKey: string,
-            opts?: { force?: boolean; clearVariableFocus?: boolean }
+            opts?: { force?: boolean; clearVariableFocus?: boolean; surface?: "node" | "decorator" }
         ) {
             const resolvedGraph = runtime.getResolvedGraph();
             if (!resolvedGraph) {
@@ -52,7 +52,7 @@ export const createSelectionCommands = (
             const shouldClearVariableFocus =
                 Boolean(opts?.clearVariableFocus) && runtime.clearActiveVariableFocus();
             const needsVisualHint = runtime.getCurrentGraphSelectionKey() !== node.ref.instanceKey;
-            deps.hostAdapter.selectNode(node.ref);
+            deps.hostAdapter.selectNode(node.ref, opts?.surface);
 
             if (needsVisualHint) {
                 await runtime.showSelectionVisualHint(node.ref.instanceKey);

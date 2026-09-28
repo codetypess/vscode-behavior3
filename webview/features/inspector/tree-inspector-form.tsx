@@ -4,6 +4,11 @@ import type { FormInstance } from "antd/es/form";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useRuntime, useWebviewKind } from "../../app/runtime";
+import {
+    DECORATOR_TYPE_CUSTOM_KEY,
+    DECORATOR_TYPE_VALUES,
+    treeUsesAttachedDecorator,
+} from "../../shared/decorator-branch";
 import { isValidVariableName } from "../../shared/validation";
 import {
     SectionDivider,
@@ -299,10 +304,11 @@ const ImportRefsSection: React.FC<{
 const TreeCustomRow: React.FC<{
     value?: TreeCustomRowValue;
     disabled?: boolean;
+    lockDecoratorType?: boolean;
     onChange?: (next: TreeCustomRowValue) => void;
     onRemove?: () => void;
     onSubmit?: () => void;
-}> = ({ value, disabled = false, onChange, onRemove, onSubmit }) => {
+}> = ({ value, disabled = false, lockDecoratorType = false, onChange, onRemove, onSubmit }) => {
     const { t } = useTranslation();
     const [localValue, setLocalValue] = React.useState<TreeCustomRowValue>(
         value ?? { key: "", value: "" }
@@ -330,6 +336,8 @@ const TreeCustomRow: React.FC<{
         onChange?.(localValue);
         onSubmit?.();
     };
+    const isDecoratorType = localValue.key?.trim() === DECORATOR_TYPE_CUSTOM_KEY;
+    const decoratorTypeLocked = isDecoratorType && lockDecoratorType;
 
     return (
         <Flex gap={4} align="start" className="b3-var-row">
@@ -343,7 +351,7 @@ const TreeCustomRow: React.FC<{
                     </div>
                 </Tooltip>
                 <Input
-                    disabled={disabled}
+                    disabled={disabled || isDecoratorType}
                     value={localValue.key}
                     placeholder={t("tree.custom.key")}
                     onChange={(event) =>
@@ -354,20 +362,42 @@ const TreeCustomRow: React.FC<{
                     }
                     onBlur={commit}
                 />
-                <Input
-                    disabled={disabled}
-                    value={localValue.value}
-                    placeholder={t("tree.custom.value")}
-                    onChange={(event) =>
-                        setLocalValue((current) => ({
-                            ...current,
-                            value: event.target.value,
-                        }))
-                    }
-                    onBlur={commit}
-                />
+                {isDecoratorType ? (
+                    <Select
+                        disabled={disabled}
+                        style={{ width: "100%" }}
+                        value={
+                            localValue.value === "local" || localValue.value === "global"
+                                ? localValue.value
+                                : undefined
+                        }
+                        options={DECORATOR_TYPE_VALUES.map((entry) => ({
+                            value: entry,
+                            label: entry,
+                        }))}
+                        onChange={(next: (typeof DECORATOR_TYPE_VALUES)[number]) => {
+                            const updated = { ...localValue, value: next };
+                            setLocalValue(updated);
+                            onChange?.(updated);
+                            onSubmit?.();
+                        }}
+                    />
+                ) : (
+                    <Input
+                        disabled={disabled}
+                        value={localValue.value}
+                        placeholder={t("tree.custom.value")}
+                        onChange={(event) =>
+                            setLocalValue((current) => ({
+                                ...current,
+                                value: event.target.value,
+                            }))
+                        }
+                        onBlur={commit}
+                    />
+                )}
             </Space.Compact>
-            {disabled ? (
+            {disabled || decoratorTypeLocked ? (
                 <div className="b3-row-spacer" />
             ) : (
                 <MinusCircleOutlined className="b3-inline-remove" onClick={onRemove} />
@@ -379,8 +409,9 @@ const TreeCustomRow: React.FC<{
 const CustomDataSection: React.FC<{
     form: FormInstance;
     readOnly: boolean;
+    lockDecoratorType: boolean;
     queueCommitCustomRows: () => void;
-}> = ({ form, readOnly, queueCommitCustomRows }) => {
+}> = ({ form, readOnly, lockDecoratorType, queueCommitCustomRows }) => {
     const { t } = useTranslation();
 
     return (
@@ -432,6 +463,7 @@ const CustomDataSection: React.FC<{
                             >
                                 <TreeCustomRow
                                     disabled={readOnly}
+                                    lockDecoratorType={lockDecoratorType}
                                     onSubmit={queueCommitCustomRows}
                                     onRemove={() => {
                                         remove(field.name);
@@ -596,6 +628,7 @@ export const TreeInspectorForm: React.FC = () => {
                 <CustomDataSection
                     form={form}
                     readOnly={readOnly}
+                    lockDecoratorType={treeUsesAttachedDecorator(document)}
                     queueCommitCustomRows={() => queueCommitTreeFields(["customRows"])}
                 />
             </Form>

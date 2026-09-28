@@ -2,6 +2,7 @@ import type { GraphNodeVM } from "../../shared/contracts";
 import i18n from "../../shared/i18n";
 import { stringifyCompactJson5 } from "../../shared/json";
 import {
+    G6_GRAPH_DECORATOR_TAB_HEIGHT,
     G6_GRAPH_NODE_MIN_HEIGHT,
     G6_GRAPH_NODE_ROW_HEIGHT,
     G6_GRAPH_NODE_TEXT_WRAP_WIDTH,
@@ -198,6 +199,8 @@ export const measureGraphNode = (node: GraphNodeVM) => {
 
     return {
         width: G6_GRAPH_NODE_WIDTH,
-        height: Math.max(G6_GRAPH_NODE_MIN_HEIGHT, height),
+        height:
+            Math.max(G6_GRAPH_NODE_MIN_HEIGHT, height) +
+            (node.attachedDecoratorName ? G6_GRAPH_DECORATOR_TAB_HEIGHT : 0),
     };
 };

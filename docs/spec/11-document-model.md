@@ -27,7 +27,7 @@
 - `group`
 - `variables.imports`
 - `variables.locals`
-- `custom`
+- `custom`。树用到装饰器时必须包含 `$decorator_type`，值只能是 `local` 或 `global`，缺省为 `local`
 - `root`
 - `overrides`
 
@@ -50,6 +50,7 @@
 - `debug`
 - `disabled`
 - `path`
+- `decorator`
 - `$status`
 
 其中：
@@ -57,6 +58,7 @@
 - `uuid` 是稳定结构锚点
 - `id` 是面向展示或兼容旧数据的字段，不再被视为唯一运行时主键
 - `path` 表示该节点引用了外部 subtree 文件
+- `decorator` 是挂在节点上的附属数据，包含整数 `enterPriority`、`maintainPriority`、`abortType` 和 `root`。`root` 是一棵枝干，不是 `children` 的成员。`enterPriority` 固定等于该节点 id 的整数值。`maintainPriority` 不能大于 `enterPriority`，也不能小于 0。节点 id 变化时，仍等于旧进入优先级的维持优先级改为新 id；已经改小的值保持不变，超出新上限时降到新进入优先级。`abortType` 只能是 `None`、`Self`、`Lower Priority`、`Both`，缺省或无法识别时写成 `None`。节点定义未写 `supportDecorator: true` 时，读入会去掉该字段
 - `$status` 是物化后按 nodeDefs 和子节点状态计算出的位标记
 
 ## Webview 文档态
@@ -157,6 +159,7 @@
 - `activeVariableNames`
 - `search`
 - `selectionVisualHint`
+- `decoratorEdit`
 
 说明：
 
@@ -165,6 +168,7 @@
 - `search` 驱动 search overlay、结果列表与当前结果 index
 - `selectionVisualHint` 是 host snapshot 收敛前的 graph-only transient selection hint
 - 这些状态可以在 reload/reset 时整体清空，而不影响 committed host selection projection
+- `decoratorEdit` 是当前编辑器里的临时装饰器页面。它只决定画布当前把哪一棵 `decorator` 枝干当作树根来画，不另建 `TreeEditorDocument`
 
 ## Override Model
 
@@ -182,6 +186,7 @@
 - `args`
 - `debug`
 - `disabled`
+- `decorator`
 
 ### 规则
 
@@ -191,6 +196,7 @@
 4. 若差异为空，应删除对应 override 条目。
 5. override 不会直接回写 subtree 源文件。
 6. 若某个 override 对应的 subtree 源节点已不再从当前主树可达，则宿主在可完整解析当前 reachable subtree graph 时应清理该条目。
+7. `decorator` 覆盖只能写上或替换整份附属数据，包括优先级和 `root`。省略该字段表示沿用子树源，不能用来把源文件里已有的装饰器清掉。
 
 ## History 与 Dirty
 
@@ -198,6 +204,8 @@
 
 - `updateTreeMeta`
 - `updateNode`
+- `attachDecorator`
+- `removeDecorator`
 - `performDrop`
 - `copyNode`
 - `pasteNode`

@@ -3,10 +3,12 @@
  * and adapters. UI and VS Code transport code should normalize data before it
  * crosses into these shapes.
  */
-import type { NodeDef, VarDecl, ImportDecl } from "./b3type";
+import type { AbortType, DecoratorAttachment, NodeDef, VarDecl, ImportDecl } from "./b3type";
 import type { NodeFieldKind } from "./b3build-model";
 
-export type { NodeDef, VarDecl, ImportDecl };
+export type { DecoratorAttachment, NodeDef, VarDecl, ImportDecl };
+
+export type PersistedDecoratorAttachment = DecoratorAttachment<PersistedNodeModel>;
 
 declare const workdirRelativeJsonPathBrand: unique symbol;
 
@@ -28,7 +30,13 @@ export interface PersistedNodeModel {
     disabled?: boolean;
     path?: WorkdirRelativeJsonPath;
     $status?: number;
+    decorator?: PersistedDecoratorAttachment;
 }
+
+export type PersistedNodeOverride = Pick<
+    PersistedNodeModel,
+    "desc" | "input" | "output" | "args" | "debug" | "disabled" | "decorator"
+>;
 
 export interface PersistedTreeModel {
     version: string;
@@ -43,10 +51,7 @@ export interface PersistedTreeModel {
     };
     custom: Record<string, string | number | boolean | object>;
     root: PersistedNodeModel;
-    overrides: Record<
-        string,
-        Pick<PersistedNodeModel, "desc" | "input" | "output" | "args" | "debug" | "disabled">
-    >;
+    overrides: Record<string, PersistedNodeOverride>;
 }
 
 export interface Settings {
@@ -98,7 +103,10 @@ export interface NodeInstanceRef {
 }
 
 /** Host snapshot authority is limited to shared tree/node selection. */
-export type HostSelectionState = { kind: "tree" } | { kind: "node"; ref: NodeInstanceRef };
+export type HostSelectionState =
+    | { kind: "tree" }
+    | { kind: "node"; ref: NodeInstanceRef }
+    | { kind: "decorator"; ref: NodeInstanceRef };
 
 /** Committed document fanout; local graph UI state such as variable focus is excluded. */
 export interface HostDocumentSnapshot {
@@ -119,6 +127,7 @@ export interface EditNode {
     subtreeEditable: boolean;
     subtreeOriginal?: PersistedNodeModel;
     resolutionError?: "missing-subtree" | "invalid-subtree" | "cyclic-subtree";
+    hasAttachedDecorator?: boolean;
 }
 
 export interface DocumentState {
@@ -150,6 +159,8 @@ export interface SelectionState {
     selectedNodeKey: string | null;
     selectedNodeRef: NodeInstanceRef | null;
     selectedNodeSnapshot: EditNode | null;
+    /** Which inspector the current node selection should show. */
+    inspectorSurface: "node" | "decorator" | null;
 }
 
 export interface GraphUiSearchState {
@@ -162,11 +173,20 @@ export interface GraphUiSearchState {
     index: number;
 }
 
+/** Same-editor view of one host node's decorator branch. Not a second document. */
+export interface DecoratorEditSession {
+    hostRef: NodeInstanceRef;
+    hostName: string;
+    hostSubtreeNode: boolean;
+    entryDecorator: PersistedNodeModel;
+}
+
 export interface GraphUiState {
     /** Editor-local visual focus, optionally set by a fresh variable-focus relay. */
     activeVariableNames: string[];
     selectionVisualHint: GraphSelectionState | null;
     search: GraphUiSearchState;
+    decoratorEdit: DecoratorEditSession | null;
 }
 
 export interface UpdateTreeMetaInput {
@@ -192,6 +212,7 @@ export interface UpdateNodeInput {
         debug?: boolean;
         disabled?: boolean;
         path?: string;
+        decorator?: PersistedDecoratorAttachment;
     };
     currentNodeSnapshot?: {
         data: PersistedNodeModel;
@@ -282,9 +303,22 @@ export interface ResolveNodeFieldVisibilityResponse {
     error?: string;
 }
 
+export interface AttachDecoratorInput {
+    target: NodeInstanceRef;
+    entryName: string;
+    currentNodeSnapshot?: UpdateNodeInput["currentNodeSnapshot"];
+}
+
+export interface RemoveDecoratorInput {
+    target: NodeInstanceRef;
+    currentNodeSnapshot?: UpdateNodeInput["currentNodeSnapshot"];
+}
+
 export type DocumentMutation =
     | { type: "updateTreeMeta"; payload: UpdateTreeMetaInput }
     | { type: "updateNode"; payload: UpdateNodeInput }
+    | { type: "attachDecorator"; payload: AttachDecoratorInput }
+    | { type: "removeDecorator"; payload: RemoveDecoratorInput }
     | { type: "performDrop"; payload: DropIntent }
     | { type: "pasteNode"; payload: ClipboardNodeMutationInput }
     | { type: "insertNode"; payload: TargetNodeMutationInput }
@@ -309,6 +343,8 @@ export type HostEvent =
     | { type: "focusVariable"; names: string[] }
     /** Normalized editor-local node reveal event from a raw `relayFocusNode` message. */
     | { type: "focusNode"; target: NodeInstanceRef }
+    /** Normalized editor-local request to open a decorator editing page. */
+    | { type: "openDecoratorEditor"; target: NodeInstanceRef }
     | { type: "themeChanged"; theme: Settings["theme"] }
     | { type: "subtreeFileChanged" }
     | { type: "inspectorContextCleared" }
@@ -337,6 +373,8 @@ export interface ResolvedNodeModel {
     subtreeEditable: boolean;
     subtreeOriginal?: PersistedNodeModel;
     resolutionError?: "missing-subtree" | "invalid-subtree" | "cyclic-subtree";
+    attachedDecoratorName?: string;
+    attachedDecorator?: PersistedDecoratorAttachment;
 }
 
 export interface ResolvedDocumentGraph {
@@ -383,6 +421,8 @@ export interface GraphNodeVM {
     inputs: Array<{ label: string; variable?: string }>;
     outputs: Array<{ label: string; variable?: string }>;
     argsText?: string;
+    attachedDecoratorName?: string;
+    attachedDecoratorAbortType?: AbortType;
 }
 
 export interface ResolvedGraphModel {
@@ -428,9 +468,10 @@ export interface GraphEventHandlers {
             force?: boolean;
             via?: "click" | "contextMenu" | "restore";
             clearVariableFocus?: boolean;
+            surface?: "node" | "decorator";
         }
     ): void;
-    onNodeDoubleClicked(node: NodeInstanceRef): void;
+    onNodeDoubleClicked(node: NodeInstanceRef, source?: "body" | "decorator"): void;
     onVariableHotspotClicked(node: NodeInstanceRef, payload: VariableHotspotClick): void;
     onDropCommitted(intent: DropIntent): Promise<void>;
 }
@@ -442,9 +483,11 @@ export interface HostAdapter {
     redo(): void;
     mutateDocument(mutation: DocumentMutation): Promise<DocumentMutationResponse>;
     selectTree(): void;
-    selectNode(target: NodeInstanceRef): void;
+    selectNode(target: NodeInstanceRef, surface?: "node" | "decorator"): void;
     /** Send a raw `requestFocusVariable` message; callers must not treat it as persisted state. */
     requestFocusVariable(names: string[]): void;
+    /** Ask the host to open this node's decorator editor in the active editor. */
+    requestOpenDecoratorEditor(target: NodeInstanceRef): void;
     sendRequestSetting(): void;
     sendBuild(opts?: { buildScriptDebug?: boolean }): void;
     executeInspectorHostCommand(command: InspectorHostCommandId): void;
@@ -479,7 +522,7 @@ export interface EditorCommand {
     selectTree(): Promise<void>;
     selectNode(
         nodeKey: string,
-        opts?: { force?: boolean; clearVariableFocus?: boolean }
+        opts?: { force?: boolean; clearVariableFocus?: boolean; surface?: "node" | "decorator" }
     ): Promise<void>;
     revealNode(target: NodeInstanceRef): Promise<void>;
     focusVariable(names: string[]): Promise<void>;
@@ -498,7 +541,12 @@ export interface EditorCommand {
     undo(): Promise<void>;
     redo(): Promise<void>;
     refreshGraph(opts?: { preserveSelection?: boolean }): Promise<void>;
-    saveDocument(): Promise<void>;
+    saveDocument(): Promise<boolean>;
+    attachDecorator(entryName: string): Promise<void>;
+    removeDecorator(): Promise<void>;
+    openDecoratorEditor(target: NodeInstanceRef): Promise<void>;
+    decoratorEditIsDirty(): boolean;
+    finishDecoratorEditor(action: "save" | "discard"): Promise<boolean>;
     revertDocument(): Promise<void>;
     buildDocument(opts?: { buildScriptDebug?: boolean }): Promise<void>;
     openSubtreePath(path: string, opts?: { openSelection?: NodeInstanceRef }): Promise<void>;

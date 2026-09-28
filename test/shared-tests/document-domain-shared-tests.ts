@@ -7,18 +7,40 @@ import {
     preparePersistedTreeForMainDocumentSave,
     serializePersistedTreeForMainDocumentSave,
 } from "../../webview/domain/main-document-save";
+import { projectDecoratorBranchMutation } from "../../webview/domain/decorator-edit";
 import { DOCUMENT_VERSION } from "../../webview/shared/b3type";
-import type { NodeDef, PersistedTreeModel } from "../../webview/shared/contracts";
+import { DecoratorBranchSaveError } from "../../webview/shared/decorator-branch";
+import type {
+    NodeDef,
+    PersistedDecoratorAttachment,
+    PersistedNodeModel,
+    PersistedTreeModel,
+} from "../../webview/shared/contracts";
 import { reduceDocumentMutation } from "../../webview/shared/document";
 import { parseWorkdirRelativeJsonPath } from "../../webview/shared/protocol";
 import { parseNodeDefsContent, parseWorkspaceModelContent } from "../../webview/shared/schema";
+import { materializePersistedTree } from "../../webview/shared/tree-materializer";
 import {
+    applyMainTreeDisplayIds,
+    collectReachableSubtreePaths,
     parsePersistedTreeContent,
     pruneStaleSubtreeOverrides,
+    pruneUnsupportedNodeDecorators,
     serializePersistedTree,
 } from "../../webview/shared/tree";
 import { createTestTree } from "../shared-test-fixtures";
 import { defineSharedTests } from "../shared-test-types";
+
+const attachedDecorator = (
+    root: PersistedNodeModel,
+    enterPriority = 0,
+    maintainPriority = 0
+): PersistedDecoratorAttachment => ({
+    enterPriority,
+    maintainPriority,
+    abortType: "Self",
+    root,
+});
 
 export const documentDomainSharedTests = defineSharedTests([
     {
@@ -176,6 +198,36 @@ export const documentDomainSharedTests = defineSharedTests([
                 "sub-child": { desc: "keep" },
                 stale: { desc: "keep-too" },
             });
+        },
+    },
+    {
+        name: "moves a tracking maintain priority when the node id changes",
+        run() {
+            const root: PersistedNodeModel = {
+                uuid: "root",
+                id: "1",
+                name: "Attack",
+                decorator: attachedDecorator({ uuid: "guard", id: "", name: "Guard" }, 1, 1),
+                children: [{ uuid: "child", id: "2", name: "Wait" }],
+            };
+            applyMainTreeDisplayIds(root, { root: "3", child: "4" });
+            assert.equal(root.id, "3");
+            assert.equal(root.decorator?.enterPriority, 3);
+            assert.equal(root.decorator?.maintainPriority, 3);
+
+            const lowered: PersistedNodeModel = {
+                uuid: "root",
+                id: "5",
+                name: "Attack",
+                decorator: attachedDecorator({ uuid: "guard", id: "", name: "Guard" }, 5, 2),
+            };
+            applyMainTreeDisplayIds(lowered, { root: "8" });
+            assert.equal(lowered.decorator?.enterPriority, 8);
+            assert.equal(lowered.decorator?.maintainPriority, 2);
+
+            applyMainTreeDisplayIds(lowered, { root: "1" });
+            assert.equal(lowered.decorator?.enterPriority, 1);
+            assert.equal(lowered.decorator?.maintainPriority, 1);
         },
     },
     {
@@ -1432,6 +1484,878 @@ export const documentDomainSharedTests = defineSharedTests([
                         })
                     ),
                 /workspace settings\.checkScripts\[1\] must be a non-empty string/
+            );
+        },
+    },
+    {
+        name: "omits supportDecorator unless a node definition explicitly enables it",
+        run() {
+            const defs = parseNodeDefsContent(
+                JSON.stringify([
+                    { name: "Plain", type: "Action", desc: "" },
+                    { name: "Denied", type: "Action", desc: "", supportDecorator: false },
+                    { name: "Allowed", type: "Action", desc: "", supportDecorator: true },
+                    { name: "Bad", type: "Action", desc: "", supportDecorator: "yes" },
+                ])
+            );
+
+            assert.equal(defs[0].supportDecorator, undefined);
+            assert.equal(defs[1].supportDecorator, undefined);
+            assert.equal(defs[2].supportDecorator, true);
+            assert.equal(defs[3].supportDecorator, undefined);
+            assert.equal(JSON.stringify(defs[0]).includes("supportDecorator"), false);
+            assert.equal(JSON.stringify(defs[1]).includes("supportDecorator"), false);
+            assert.equal(JSON.stringify(defs[2]).includes('"supportDecorator":true'), true);
+        },
+    },
+    {
+        name: "round-trips an attached decorator branch outside node children",
+        run() {
+            const content = JSON.stringify({
+                version: "2.7.0",
+                name: "main",
+                prefix: "",
+                export: true,
+                group: [],
+                variables: { imports: [], locals: [] },
+                custom: {},
+                overrides: {},
+                root: {
+                    uuid: "root",
+                    id: "1",
+                    name: "Attack",
+                    children: [{ uuid: "child", id: "2", name: "Wait" }],
+                    decorator: {
+                        enterPriority: 4,
+                        maintainPriority: 7,
+                        abortType: "Nope",
+                        root: {
+                            uuid: "guard",
+                            id: "9",
+                            name: "Guard",
+                            args: { limit: 1 },
+                            children: [{ uuid: "guard-child", id: "10", name: "Check" }],
+                        },
+                    },
+                },
+            });
+
+            const tree = parsePersistedTreeContent(content, "/tmp/main.json");
+            assert.equal(tree.root.decorator?.enterPriority, 1);
+            assert.equal(tree.root.decorator?.maintainPriority, 1);
+            assert.equal(tree.root.decorator?.abortType, "None");
+            assert.equal(tree.root.decorator?.root.name, "Guard");
+            assert.equal(tree.root.decorator?.root.args?.limit, 1);
+            assert.equal(tree.root.decorator?.root.children?.[0].name, "Check");
+            assert.deepEqual(
+                tree.root.children?.map((child) => child.name),
+                ["Wait"]
+            );
+
+            const saved = parsePersistedTreeContent(
+                serializePersistedTree(tree),
+                "/tmp/main.json"
+            );
+            assert.equal(saved.root.decorator?.enterPriority, 1);
+            assert.equal(saved.root.decorator?.maintainPriority, 1);
+            assert.equal(saved.root.decorator?.abortType, "None");
+            assert.equal(saved.root.decorator?.root.name, "Guard");
+            assert.equal(saved.root.decorator?.root.children?.[0].name, "Check");
+            assert.deepEqual(
+                saved.root.children?.map((child) => child.name),
+                ["Wait"]
+            );
+            assert.deepEqual(collectReachableSubtreePaths(tree.root), []);
+        },
+    },
+    {
+        name: "reads a legacy decorator branch as an attachment",
+        run() {
+            const tree = parsePersistedTreeContent(
+                JSON.stringify({
+                    version: "2.7.0",
+                    name: "main",
+                    prefix: "",
+                    group: [],
+                    variables: { imports: [], locals: [] },
+                    custom: {},
+                    overrides: {},
+                    root: {
+                        uuid: "root",
+                        id: "1",
+                        name: "Attack",
+                        decorator: { uuid: "guard", id: "9", name: "Guard" },
+                    },
+                }),
+                "/tmp/main.json"
+            );
+            assert.equal(tree.root.decorator?.enterPriority, 1);
+            assert.equal(tree.root.decorator?.maintainPriority, 1);
+            assert.equal(tree.root.decorator?.abortType, "None");
+            assert.equal(tree.root.decorator?.root.name, "Guard");
+
+            const lowered = parsePersistedTreeContent(
+                JSON.stringify({
+                    version: "2.7.0",
+                    name: "main",
+                    prefix: "",
+                    group: [],
+                    variables: { imports: [], locals: [] },
+                    custom: {},
+                    overrides: {},
+                    root: {
+                        uuid: "root",
+                        id: "5",
+                        name: "Attack",
+                        decorator: {
+                            enterPriority: 9,
+                            maintainPriority: 0,
+                            abortType: "Both",
+                            root: { uuid: "guard", id: "9", name: "Guard" },
+                        },
+                    },
+                }),
+                "/tmp/main.json"
+            );
+            assert.equal(lowered.root.decorator?.enterPriority, 5);
+            assert.equal(lowered.root.decorator?.maintainPriority, 0);
+            assert.equal(lowered.root.decorator?.abortType, "Both");
+            const saved = parsePersistedTreeContent(
+                serializePersistedTree(lowered),
+                "/tmp/main.json"
+            );
+            assert.equal(saved.root.decorator?.abortType, "Both");
+        },
+    },
+    {
+        name: "defaults $decorator_type while the tree uses a decorator",
+        run() {
+            const withDecorator = (custom: Record<string, unknown>, overrides: Record<string, unknown> = {}) =>
+                parsePersistedTreeContent(
+                    JSON.stringify({
+                        version: "2.7.0",
+                        name: "main",
+                        prefix: "",
+                        group: [],
+                        variables: { imports: [], locals: [] },
+                        custom,
+                        overrides,
+                        root: {
+                            uuid: "root",
+                            id: "1",
+                            name: "Attack",
+                            decorator: {
+                                enterPriority: 1,
+                                maintainPriority: 0,
+                                abortType: "None",
+                                root: { uuid: "guard", id: "9", name: "Guard" },
+                            },
+                        },
+                    }),
+                    "/tmp/main.json"
+                );
+
+            assert.equal(withDecorator({}).custom.$decorator_type, "local");
+            assert.equal(withDecorator({ $decorator_type: "global" }).custom.$decorator_type, "global");
+            assert.equal(withDecorator({ $decorator_type: "shared" }).custom.$decorator_type, "local");
+
+            const plain = parsePersistedTreeContent(
+                JSON.stringify({
+                    version: "2.7.0",
+                    name: "main",
+                    prefix: "",
+                    group: [],
+                    variables: { imports: [], locals: [] },
+                    custom: {},
+                    overrides: {},
+                    root: { uuid: "root", id: "1", name: "Attack" },
+                }),
+                "/tmp/main.json"
+            );
+            assert.equal(plain.custom.$decorator_type, undefined);
+
+            const fromOverride = parsePersistedTreeContent(
+                JSON.stringify({
+                    version: "2.7.0",
+                    name: "main",
+                    prefix: "",
+                    group: [],
+                    variables: { imports: [], locals: [] },
+                    custom: {},
+                    overrides: {
+                        child: {
+                            decorator: {
+                                enterPriority: 2,
+                                maintainPriority: 0,
+                                abortType: "None",
+                                root: { uuid: "guard", id: "9", name: "Guard" },
+                            },
+                        },
+                    },
+                    root: { uuid: "root", id: "1", name: "Attack" },
+                }),
+                "/tmp/main.json"
+            );
+            assert.equal(fromOverride.custom.$decorator_type, "local");
+
+            const kept = reduceDocumentMutation(
+                {
+                    type: "updateTreeMeta",
+                    payload: {
+                        prefix: "",
+                        export: true,
+                        group: [],
+                        custom: { label: "keep" },
+                        variables: { imports: [], locals: [] },
+                    },
+                },
+                { tree: withDecorator({ $decorator_type: "global" }), nodeDefs: [] }
+            );
+            assert.equal(kept.status, "changed");
+            if (kept.status !== "changed") {
+                return;
+            }
+            assert.equal(kept.tree.custom.label, "keep");
+            assert.equal(kept.tree.custom.$decorator_type, "global");
+        },
+    },
+    {
+        name: "strips decorator branches when the node definition does not allow them",
+        run() {
+            const tree = createTestTree();
+            tree.root.children = [
+                {
+                    uuid: "allowed-node",
+                    id: "2",
+                    name: "Allowed",
+                    decorator: attachedDecorator({
+                        uuid: "kept",
+                        id: "3",
+                        name: "Guard",
+                        path: parseWorkdirRelativeJsonPath("subtree/guard.json") ?? undefined,
+                    }),
+                },
+                {
+                    uuid: "denied-node",
+                    id: "4",
+                    name: "Denied",
+                    decorator: attachedDecorator({
+                        uuid: "dropped",
+                        id: "5",
+                        name: "Guard",
+                    }),
+                },
+            ];
+
+            const changed = pruneUnsupportedNodeDecorators(tree, [
+                { name: "Allowed", type: "Action", desc: "", supportDecorator: true },
+                { name: "Denied", type: "Action", desc: "", supportDecorator: false },
+                { name: "Sequence", type: "Composite", desc: "" },
+            ]);
+
+            assert.equal(changed, true);
+            assert.equal(tree.root.children?.[0].decorator?.root.name, "Guard");
+            assert.equal(tree.root.children?.[1].decorator, undefined);
+            assert.deepEqual(collectReachableSubtreePaths(tree.root), ["subtree/guard.json"]);
+        },
+    },
+    {
+        name: "stores subtree decorator edits in main-document overrides",
+        run() {
+            const tree = createTestTree();
+            const decorator = attachedDecorator({
+                uuid: "guard",
+                id: "9",
+                name: "Guard",
+                children: [{ uuid: "guard-child", id: "10", name: "Check" }],
+            });
+            const result = reduceDocumentMutation(
+                {
+                    type: "updateNode",
+                    payload: {
+                        target: {
+                            instanceKey: "node-1",
+                            displayId: "2",
+                            structuralStableId: "sub-node",
+                            sourceStableId: "sub-node",
+                            sourceTreePath: "subtree/child.json" as any,
+                            subtreeStack: [],
+                        },
+                        data: {
+                            name: "Wait",
+                            decorator,
+                        },
+                        currentNodeSnapshot: {
+                            data: {
+                                uuid: "sub-node",
+                                id: "2",
+                                name: "Wait",
+                            },
+                            subtreeNode: true,
+                            subtreeOriginal: {
+                                uuid: "sub-node",
+                                id: "2",
+                                name: "Wait",
+                            },
+                        },
+                    },
+                },
+                {
+                    tree,
+                    nodeDefs: [
+                        {
+                            name: "Wait",
+                            type: "Action",
+                            desc: "",
+                            supportDecorator: true,
+                        },
+                    ],
+                }
+            );
+
+            assert.equal(result.status, "changed");
+            if (result.status !== "changed") {
+                return;
+            }
+
+            assert.equal(result.tree.root.children?.length ?? 0, 0);
+            assert.equal(result.tree.overrides["sub-node"]?.decorator?.root.name, "Guard");
+            assert.equal(
+                result.tree.overrides["sub-node"]?.decorator?.root.children?.[0].name,
+                "Check"
+            );
+
+            const subtreePath = parseWorkdirRelativeJsonPath("subtree/child.json");
+            assert.ok(subtreePath);
+            const materialized = materializePersistedTree({
+                persistedTree: {
+                    ...tree,
+                    root: {
+                        uuid: "link",
+                        id: "1",
+                        name: "Wait",
+                        path: subtreePath,
+                    },
+                    overrides: result.tree.overrides,
+                },
+                subtreeSources: {
+                    [subtreePath]: {
+                        ...createTestTree(),
+                        name: "child",
+                        root: {
+                            uuid: "sub-node",
+                            id: "1",
+                            name: "Wait",
+                            children: [{ uuid: "leaf", id: "2", name: "Leaf" }],
+                        },
+                    },
+                },
+                nodeDefs: [{ name: "Wait", type: "Action", desc: "", supportDecorator: true }],
+                subtreeEditable: true,
+            });
+
+            assert.equal(materialized.data.decorator?.root.name, "Guard");
+            assert.deepEqual(
+                materialized.children.map((child) => child.data.name),
+                ["Leaf"]
+            );
+        },
+    },
+    {
+        name: "copies and deletes an attached decorator branch with its host node",
+        run() {
+            const tree = createTestTree();
+            const pasted = reduceDocumentMutation(
+                {
+                    type: "pasteNode",
+                    payload: {
+                        target: {
+                            instanceKey: "1",
+                            displayId: "1",
+                            structuralStableId: "root",
+                            sourceStableId: "root",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                        snapshot: {
+                            uuid: "clip-root",
+                            id: "9",
+                            name: "Attack",
+                            decorator: attachedDecorator({
+                                uuid: "clip-guard",
+                                id: "10",
+                                name: "Guard",
+                                children: [{ uuid: "clip-check", id: "11", name: "Check" }],
+                            }),
+                        },
+                    },
+                },
+                { tree, nodeDefs: [] }
+            );
+
+            assert.equal(pasted.status, "changed");
+            if (pasted.status !== "changed") {
+                return;
+            }
+
+            const host = pasted.tree.root.children?.[0];
+            assert.equal(host?.name, "Attack");
+            assert.equal(host?.decorator?.root.name, "Guard");
+            assert.notEqual(host?.decorator?.root.uuid, "clip-guard");
+            assert.notEqual(host?.decorator?.root.children?.[0].uuid, "clip-check");
+
+            const deleted = reduceDocumentMutation(
+                {
+                    type: "deleteNode",
+                    payload: {
+                        target: {
+                            instanceKey: "2",
+                            displayId: "2",
+                            structuralStableId: host?.uuid ?? "",
+                            sourceStableId: host?.uuid ?? "",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                    },
+                },
+                { tree: pasted.tree, nodeDefs: [] }
+            );
+
+            assert.equal(deleted.status, "changed");
+            if (deleted.status !== "changed") {
+                return;
+            }
+            assert.equal(deleted.tree.root.children?.length ?? 0, 0);
+            assert.equal(JSON.stringify(deleted.tree).includes("Guard"), false);
+        },
+    },
+    {
+        name: "attaches a decorator entry node without adding it to children",
+        run() {
+            const tree = createTestTree();
+            tree.root.name = "Attack";
+            const result = reduceDocumentMutation(
+                {
+                    type: "attachDecorator",
+                    payload: {
+                        target: {
+                            instanceKey: "1",
+                            displayId: "1",
+                            structuralStableId: "root",
+                            sourceStableId: "root",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                        entryName: "Guard",
+                    },
+                },
+                {
+                    tree,
+                    nodeDefs: [
+                        { name: "Attack", type: "Action", desc: "", supportDecorator: true },
+                        { name: "Guard", type: "Condition", desc: "", status: ["success", "failure"] },
+                    ],
+                }
+            );
+
+            assert.equal(result.status, "changed");
+            if (result.status !== "changed") {
+                return;
+            }
+            assert.equal(result.tree.root.decorator?.enterPriority, 1);
+            assert.equal(result.tree.root.decorator?.maintainPriority, 1);
+            assert.equal(result.tree.root.decorator?.abortType, "None");
+            assert.equal(result.tree.root.decorator?.root.name, "Guard");
+            assert.equal(result.tree.root.children?.length ?? 0, 0);
+            assert.equal(result.tree.custom.$decorator_type, "local");
+
+            const removed = reduceDocumentMutation(
+                {
+                    type: "removeDecorator",
+                    payload: {
+                        target: {
+                            instanceKey: "1",
+                            displayId: "1",
+                            structuralStableId: "root",
+                            sourceStableId: "root",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                    },
+                },
+                { tree: result.tree, nodeDefs: [
+                    { name: "Attack", type: "Action", desc: "", supportDecorator: true },
+                    { name: "Guard", type: "Condition", desc: "", status: ["success", "failure"] },
+                ] }
+            );
+            assert.equal(removed.status, "changed");
+            if (removed.status !== "changed") {
+                return;
+            }
+            assert.equal(removed.tree.root.decorator, undefined);
+            assert.equal(removed.tree.root.children?.length ?? 0, 0);
+            assert.equal(removed.tree.custom.$decorator_type, "local");
+        },
+    },
+    {
+        name: "removes an override-added subtree decorator and keeps a source decorator",
+        run() {
+            const tree = createTestTree();
+            const target = {
+                instanceKey: "node-1",
+                displayId: "2",
+                structuralStableId: "sub-node",
+                sourceStableId: "sub-node",
+                sourceTreePath: "subtree/child.json" as any,
+                subtreeStack: [],
+            };
+            const nodeDefs = [
+                { name: "Wait", type: "Action" as const, desc: "", supportDecorator: true },
+            ];
+            const added = reduceDocumentMutation(
+                {
+                    type: "updateNode",
+                    payload: {
+                        target,
+                        data: {
+                            name: "Wait",
+                            decorator: attachedDecorator({
+                                uuid: "guard",
+                                id: "9",
+                                name: "Guard",
+                            }),
+                        },
+                        currentNodeSnapshot: {
+                            data: { uuid: "sub-node", id: "2", name: "Wait" },
+                            subtreeNode: true,
+                            subtreeOriginal: { uuid: "sub-node", id: "2", name: "Wait" },
+                        },
+                    },
+                },
+                { tree, nodeDefs }
+            );
+            assert.equal(added.status, "changed");
+            if (added.status !== "changed") {
+                return;
+            }
+
+            const removed = reduceDocumentMutation(
+                {
+                    type: "removeDecorator",
+                    payload: {
+                        target,
+                        currentNodeSnapshot: {
+                            data: {
+                                uuid: "sub-node",
+                                id: "2",
+                                name: "Wait",
+                                decorator: added.tree.overrides["sub-node"]?.decorator,
+                            },
+                            subtreeNode: true,
+                            subtreeOriginal: { uuid: "sub-node", id: "2", name: "Wait" },
+                        },
+                    },
+                },
+                { tree: added.tree, nodeDefs }
+            );
+            assert.equal(removed.status, "changed");
+            if (removed.status !== "changed") {
+                return;
+            }
+            assert.equal(removed.tree.overrides["sub-node"], undefined);
+
+            const denied = reduceDocumentMutation(
+                {
+                    type: "removeDecorator",
+                    payload: {
+                        target,
+                        currentNodeSnapshot: {
+                            data: {
+                                uuid: "sub-node",
+                                id: "2",
+                                name: "Wait",
+                                decorator: attachedDecorator({
+                                    uuid: "guard",
+                                    id: "9",
+                                    name: "Guard",
+                                }),
+                            },
+                            subtreeNode: true,
+                            subtreeOriginal: {
+                                uuid: "sub-node",
+                                id: "2",
+                                name: "Wait",
+                                decorator: attachedDecorator({
+                                    uuid: "source-guard",
+                                    id: "3",
+                                    name: "Check",
+                                }),
+                            },
+                        },
+                    },
+                },
+                { tree, nodeDefs }
+            );
+            assert.equal(denied.status, "error");
+            if (denied.status === "error") {
+                assert.equal(denied.error.code, "decorator-clear-denied");
+            }
+        },
+    },
+    {
+        name: "rejects a decorator entry whose own status returns running",
+        run() {
+            const tree = createTestTree();
+            const result = reduceDocumentMutation(
+                {
+                    type: "attachDecorator",
+                    payload: {
+                        target: {
+                            instanceKey: "1",
+                            displayId: "1",
+                            structuralStableId: "root",
+                            sourceStableId: "root",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                        entryName: "Wait",
+                    },
+                },
+                {
+                    tree,
+                    nodeDefs: [
+                        { name: "Sequence", type: "Composite", desc: "", supportDecorator: true },
+                        { name: "Wait", type: "Action", desc: "", status: ["success", "running"] },
+                    ],
+                }
+            );
+
+            assert.equal(result.status, "error");
+            if (result.status !== "error") {
+                return;
+            }
+            assert.equal(result.error.code, "decorator-running-status");
+            assert.equal(tree.root.decorator, undefined);
+        },
+    },
+    {
+        name: "allows a decorator entry that only propagates child running",
+        run() {
+            const tree = createTestTree();
+            const result = reduceDocumentMutation(
+                {
+                    type: "attachDecorator",
+                    payload: {
+                        target: {
+                            instanceKey: "1",
+                            displayId: "1",
+                            structuralStableId: "root",
+                            sourceStableId: "root",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                        entryName: "Wait",
+                    },
+                },
+                {
+                    tree,
+                    nodeDefs: [
+                        { name: "Sequence", type: "Composite", desc: "", supportDecorator: true },
+                        { name: "Wait", type: "Action", desc: "", status: ["success", "|running"] },
+                    ],
+                }
+            );
+
+            assert.equal(result.status, "changed");
+            if (result.status !== "changed") {
+                return;
+            }
+            assert.equal(result.tree.root.decorator?.root.name, "Wait");
+        },
+    },
+    {
+        name: "rejects nested decorators and running nodes inside a decorator branch",
+        run() {
+            const tree = createTestTree();
+            tree.root.decorator = attachedDecorator({
+                uuid: "guard",
+                id: "",
+                name: "Guard",
+            });
+            const nodeDefs: NodeDef[] = [
+                { name: "Sequence", type: "Composite", desc: "", supportDecorator: true },
+                { name: "Guard", type: "Condition", desc: "", status: ["success", "failure"] },
+                { name: "Wait", type: "Action", desc: "", status: ["running"] },
+                { name: "Check", type: "Condition", desc: "", status: ["success", "failure"] },
+                { name: "Repeat", type: "Decorator", desc: "", status: ["success", "|running"] },
+            ];
+            const pasted = reduceDocumentMutation(
+                {
+                    type: "pasteNode",
+                    payload: {
+                        target: {
+                            instanceKey: "guard",
+                            displayId: "",
+                            structuralStableId: "guard",
+                            sourceStableId: "guard",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                        snapshot: {
+                            uuid: "wait",
+                            id: "",
+                            name: "Wait",
+                        },
+                    },
+                },
+                { tree, nodeDefs }
+            );
+            assert.equal(pasted.status, "error");
+            if (pasted.status === "error") {
+                assert.equal(pasted.error.code, "decorator-running-status");
+            }
+            assert.equal(tree.root.decorator?.root.children, undefined);
+
+            const nested = reduceDocumentMutation(
+                {
+                    type: "pasteNode",
+                    payload: {
+                        target: {
+                            instanceKey: "guard",
+                            displayId: "",
+                            structuralStableId: "guard",
+                            sourceStableId: "guard",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                        snapshot: {
+                            uuid: "check",
+                            id: "",
+                            name: "Check",
+                            decorator: attachedDecorator({ uuid: "inner", id: "", name: "Guard" }),
+                        },
+                    },
+                },
+                { tree, nodeDefs }
+            );
+            assert.equal(nested.status, "error");
+            if (nested.status === "error") {
+                assert.equal(nested.error.code, "decorator-nested");
+            }
+
+            const propagated = reduceDocumentMutation(
+                {
+                    type: "pasteNode",
+                    payload: {
+                        target: {
+                            instanceKey: "guard",
+                            displayId: "",
+                            structuralStableId: "guard",
+                            sourceStableId: "guard",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                        snapshot: {
+                            uuid: "repeat",
+                            id: "",
+                            name: "Repeat",
+                        },
+                    },
+                },
+                { tree, nodeDefs }
+            );
+            assert.equal(propagated.status, "changed");
+            if (propagated.status === "changed") {
+                assert.equal(propagated.tree.root.decorator?.root.children?.[0]?.name, "Repeat");
+            }
+        },
+    },
+    {
+        name: "writes decorator-page edits back onto the host branch",
+        run() {
+            const tree = createTestTree();
+            tree.root.name = "Attack";
+            tree.root.decorator = attachedDecorator(
+                {
+                    uuid: "guard",
+                    id: "",
+                    name: "Guard",
+                },
+                3,
+                9
+            );
+            const nodeDefs: NodeDef[] = [
+                { name: "Attack", type: "Action", desc: "", supportDecorator: true },
+                { name: "Guard", type: "Condition", desc: "", status: ["success", "failure"] },
+            ];
+            const projected = projectDecoratorBranchMutation({
+                tree,
+                subtreeSources: {},
+                nodeDefs,
+                subtreeEditable: true,
+                session: {
+                    hostRef: {
+                        instanceKey: "1",
+                        displayId: "1",
+                        structuralStableId: "root",
+                        sourceStableId: "root",
+                        sourceTreePath: null,
+                        subtreeStack: [],
+                    },
+                    hostName: "Attack",
+                    hostSubtreeNode: false,
+                    entryDecorator: tree.root.decorator.root,
+                },
+                mutation: {
+                    type: "insertNode",
+                    payload: {
+                        target: {
+                            instanceKey: "guard",
+                            displayId: "",
+                            structuralStableId: "guard",
+                            sourceStableId: "guard",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                    },
+                },
+            });
+
+            assert.equal(projected.kind, "update");
+            if (projected.kind !== "update") {
+                return;
+            }
+            assert.equal(projected.update.target.structuralStableId, "root");
+            assert.equal(projected.update.data.decorator?.enterPriority, 3);
+            assert.equal(projected.update.data.decorator?.maintainPriority, 9);
+            assert.equal(projected.update.data.decorator?.abortType, "Self");
+            assert.equal(projected.update.data.decorator?.root.name, "Guard");
+            assert.equal(projected.update.data.decorator?.root.children?.length, 1);
+            assert.equal(tree.root.children?.length ?? 0, 0);
+        },
+    },
+    {
+        name: "refuses to save a decorator branch that nests another decorator",
+        async run() {
+            const tree = createTestTree();
+            tree.root.decorator = attachedDecorator({
+                uuid: "guard",
+                id: "",
+                name: "Guard",
+                decorator: attachedDecorator({ uuid: "inner", id: "", name: "Check" }),
+            });
+            await assert.rejects(
+                () =>
+                    preparePersistedTreeForMainDocumentSave({
+                        tree,
+                        nodeDefs: [
+                            { name: "Sequence", type: "Composite", desc: "", supportDecorator: true },
+                            { name: "Guard", type: "Condition", desc: "", supportDecorator: true },
+                            { name: "Check", type: "Condition", desc: "" },
+                        ],
+                        readSubtreeContent: async () => null,
+                    }),
+                (error: unknown) => error instanceof DecoratorBranchSaveError
             );
         },
     },

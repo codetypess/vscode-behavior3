@@ -21,6 +21,7 @@ import type {
     ResolvedGraphModel,
 } from "../../shared/contracts";
 import type { GraphAdapter, GraphRenderOptions } from "../../shared/graph-contracts";
+import { G6_GRAPH_DECORATOR_TAB_HEIGHT } from "./g6-graph-node-constants";
 import {
     G6_GRAPH_NODE_H_GAP,
     G6_GRAPH_NODE_MIN_HEIGHT,
@@ -54,7 +55,11 @@ import {
     pruneCollapsedNodeRefs,
     toggleCollapsedNodeRefs,
 } from "./graph-collapse-state";
-import { eventHasShapeClass } from "./graph-event-shape";
+import {
+    eventHasShapeClass,
+    isDoubleShapeClick,
+    type ShapeClickStamp,
+} from "./graph-event-shape";
 import { handleNativeWheelZoom } from "./g6-wheel-zoom";
 
 const DEFAULT_VIEWPORT: GraphViewport = { zoom: 1, x: 0, y: 0 };
@@ -145,6 +150,7 @@ export class G6GraphAdapter implements GraphAdapter {
     private resizeRestoreFrame: number | null = null;
     private model: ResolvedGraphModel | null = null;
     private selection: GraphSelectionState = { selectedNodeKey: null };
+    private lastDecoratorClick: ShapeClickStamp | null = null;
     private highlights: GraphHighlightState = { activeVariableNames: [], variableHits: {} };
     private search: GraphSearchState = {
         query: "",
@@ -699,10 +705,25 @@ export class G6GraphAdapter implements GraphAdapter {
             }
         }
 
+        const surface =
+            eventHasShapeClass(event, "decorator-adornment") ||
+            eventHasShapeClass(event, "decorator-label")
+                ? "decorator"
+                : "node";
+        const decoratorClick = surface === "decorator" ? { key: nodeKey, time: Date.now() } : null;
+        const openDecoratorEditor =
+            decoratorClick !== null && isDoubleShapeClick(this.lastDecoratorClick, decoratorClick);
+        this.lastDecoratorClick = openDecoratorEditor ? null : decoratorClick;
         this.handlers?.onNodeSelected(node.ref, {
             via: "click",
             clearVariableFocus: !keepVariableFocus,
+            surface,
         });
+        if (openDecoratorEditor) {
+            // G6 only emits dblclick when both clicks hit the same display object.
+            // Selection refresh replaces the tab rect, so repeat the click hit test here.
+            this.handlers?.onNodeDoubleClicked(node.ref, "decorator");
+        }
     };
 
     private readonly handleNodeDoubleClick = (event: G6PointerEvent<any>) => {
@@ -713,7 +734,12 @@ export class G6GraphAdapter implements GraphAdapter {
 
         const node = this.getNodeVM(nodeKey);
         if (node) {
-            this.handlers?.onNodeDoubleClicked(node.ref);
+            const source =
+                eventHasShapeClass(event, "decorator-adornment") ||
+                eventHasShapeClass(event, "decorator-label")
+                    ? "decorator"
+                    : "body";
+            this.handlers?.onNodeDoubleClicked(node.ref, source);
         }
     };
 
@@ -784,9 +810,12 @@ export class G6GraphAdapter implements GraphAdapter {
 
         const x = canvas[0] - position[0];
         const y = canvas[1] - position[1];
-        // Left half drops around the target; right half nests as a child.
+        const tabHeight = data.vm.attachedDecoratorName ? G6_GRAPH_DECORATOR_TAB_HEIGHT : 0;
+        const bodyHeight = Math.max(1, data.height - tabHeight);
+        const yInBody = y - tabHeight;
+        // Left half of the node card drops around the target; right half nests as a child.
         const nextPosition: DropIntent["position"] =
-            x > data.width / 2 ? "child" : y > data.height / 2 ? "after" : "before";
+            x > data.width / 2 ? "child" : yInBody > bodyHeight / 2 ? "after" : "before";
 
         this.updateDragIntent(targetKey, nextPosition);
     };
