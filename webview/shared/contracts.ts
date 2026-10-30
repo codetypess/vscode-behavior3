@@ -299,7 +299,6 @@ export interface DocumentMutationResponse {
 
 export type InspectorHostCommandId =
     | "behavior3.build"
-    | "behavior3.toggleEditorMode"
     | "behavior3.toggleInspectorNodeJson"
     | "behavior3.createProject";
 

@@ -52,9 +52,10 @@ Inspector 暴露同一组 project/document quick actions，但承载位置随模
 两种模式下都包含以下 command：
 
 - `behavior3.build`
-- `behavior3.toggleEditorMode`
 - `behavior3.toggleInspectorNodeJson`
 - `behavior3.createProject`
+
+`behavior3.toggleInspectorNodeJson` 只切换当前选中节点的结构化字段与只读原始 JSON 视图，两个 Inspector 模式都必须保留该入口。文件级的 `behavior3.toggleEditorMode` 由主编辑器标题栏提供，不出现在 Inspector toolbar 中。
 
 这些按钮只复用既有 extension-host command。`embedded` 模式允许 Inspector webview 通过受限 allowlist host message 转发这几个命令，但不直接修改文档真源，也不引入任意命令执行面。若当前没有合适的 active editor、workspace 或目标路径，仍由对应 command 自己给出提示。
 
@@ -217,7 +218,7 @@ Inspector 暴露同一组 project/document quick actions，但承载位置随模
 
 ### Raw JSON View
 
-- `sidebar` 模式下，已知节点可通过 view title 上的 `behavior3.toggleInspectorNodeJson` 切到原始节点 JSON 只读视图
+- 已知节点可通过 `behavior3.toggleInspectorNodeJson` 切到原始节点 JSON 只读视图；`sidebar` 模式下入口位于 view title，`embedded` 模式下入口位于 Inspector pane 顶部 toolbar
 - raw JSON 内容来自当前 `selectedNode.data`
 - raw JSON 视图使用可选中复制的只读控件，而不是 disabled 文本框
 - 当前 nodeDef 不存在时，不渲染结构化 args

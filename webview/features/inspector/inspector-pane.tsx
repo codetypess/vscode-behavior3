@@ -86,11 +86,6 @@ const EMBEDDED_INSPECTOR_ACTIONS: Array<{
         codicon: "build",
     },
     {
-        command: "behavior3.toggleEditorMode",
-        titleKey: "inspector.embeddedToolbar.toggleEditorMode",
-        codicon: "edit-code",
-    },
-    {
         command: "behavior3.toggleInspectorNodeJson",
         titleKey: "inspector.embeddedToolbar.toggleInspectorNodeJson",
         codicon: "code",

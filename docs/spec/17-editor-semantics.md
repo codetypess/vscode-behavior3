@@ -313,10 +313,16 @@ host reducer 当前分三条路径：
 - `Ctrl+B` / `Cmd+B` 与 `Ctrl+Shift+B` / `Cmd+Shift+B` 由 VS Code contributed keybindings 直接触发 extension-host build command；webview 不应重复绑定同一组 build 快捷键
 - Inspector view title 中的 build action 同样触发 `behavior3.build` extension-host command，不新增 webview 内部 build 入口
 
+### File editor mode action
+
+- `behavior3.toggleEditorMode` 是 extension-host command，不经过 editor `EditorCommand` catalog
+- 主编辑器标题栏在激活 Behavior3 editor 或 JSON 文本文件时提供此按钮，与 `F4` 使用相同上下文；它在同一文件的 Behavior3 可视编辑器和文本编辑器之间切换
+- Inspector toolbar 不承载文件级切换；`behavior3.toggleInspectorNodeJson` 保留在 sidebar 与 embedded Inspector 中，只切换当前选中节点的结构化字段与只读原始 JSON 视图
+
 ### Inspector view title project actions
 
-- `behavior3.toggleEditorMode`、`behavior3.createProject` 是 extension-host command，不经过 editor `EditorCommand` catalog
-- Inspector view title 可以暴露这些 command 作为快捷入口，但不得绕过对应 command 内部的 active editor、workspace 与文件路径校验
+- `behavior3.createProject` 是 extension-host command，不经过 editor `EditorCommand` catalog
+- Inspector view title 可以暴露此 command 作为快捷入口，但不得绕过 command 内部的 workspace 与文件路径校验
 
 ### Picker-backed batch project flow
 

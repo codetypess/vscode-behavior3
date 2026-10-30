@@ -194,11 +194,6 @@
           "group": "navigation@1"
         },
         {
-          "command": "behavior3.toggleEditorMode",
-          "when": "view == behavior3.inspectorView",
-          "group": "navigation@2"
-        },
-        {
           "command": "behavior3.toggleInspectorNodeJson",
           "when": "view == behavior3.inspectorView && behavior3.inspectorSidebarMode",
           "group": "navigation@2.5"
@@ -210,6 +205,11 @@
         }
       ],
       "editor/title": [
+        {
+          "command": "behavior3.toggleEditorMode",
+          "when": "activeCustomEditorId == 'behavior3.treeEditor' || resourceExtname == .json",
+          "group": "navigation@0"
+        },
         {
           "command": "behavior3.build",
           "when": "activeCustomEditorId == 'behavior3.treeEditor'",

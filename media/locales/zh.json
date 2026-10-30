@@ -170,7 +170,6 @@
   "inspector.noActiveDocument": "打开一个 Behavior3 编辑器后，这里会显示当前行为树的 Inspector，并支持直接编辑。",
   "inspector.embeddedModeNotice": "Inspector 当前配置为在 Behavior3 编辑器内部显示。",
   "inspector.embeddedToolbar.build": "构建行为树",
-  "inspector.embeddedToolbar.toggleEditorMode": "切换编辑器模式",
   "inspector.embeddedToolbar.toggleInspectorNodeJson": "切换原始节点 JSON",
   "inspector.embeddedToolbar.createProject": "新建项目",
   "inspector.embeddedToolbar.createTree": "新建行为树",

@@ -13,6 +13,7 @@
 - 打开一个 Behavior3 JSON 文件后，主编辑器发送 `ready`，宿主返回 `init` 与后续 `varDeclLoaded`
 - 画布加载主树，主题、语言、nodeDefs、allFiles 与 settings 一并生效
 - Inspector Sidebar 若已挂载，应同步获得同一份 init/vars/selection 上下文
+- 文件工具栏提供“切换文本 / Behavior3”按钮，在 Behavior3 可视编辑器与 JSON 文本编辑器中均可用；`F4` 继续执行同一文件级切换
 
 ### BB-02 主编辑器与侧栏上下文同步
 
@@ -41,7 +42,7 @@
 ### BB-05 Node Inspector 编辑
 
 - Node Inspector 展示节点 `displayId`、`uuid`、类型、children、name、desc、debug、disabled、path
-- 已知 nodeDef 默认走结构化字段编辑；在 `sidebar` 模式下可通过顶部 `JSON` 按钮切换到只读原始 JSON 视图
+- 已知 nodeDef 默认走结构化字段编辑；`sidebar` 与 `embedded` Inspector 均保留顶部节点 JSON 按钮，只切换当前节点的结构化字段与只读原始 JSON 视图，不切换整个文件的编辑器
 - 未知节点默认显示只读原始 JSON 视图
 - `bool` / `bool?` 参数在 Node Inspector 中以开关控件展示
 - 输入/输出槽、表达式参数、oneof 约束、必填项和自定义检查结果会进入表单校验
