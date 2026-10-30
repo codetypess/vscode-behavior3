@@ -833,6 +833,79 @@ export const inspectorSharedTests = defineSharedTests([
         },
     },
     {
+        name: "rejects out-of-range scalar and array inspector options and accepts corrections",
+        run() {
+            for (const type of ["string", "string[]"] as const) {
+                const arg: NodeArg = {
+                    name: "builtin",
+                    type,
+                    desc: "事件",
+                    options: [{ source: [{ name: "执行完成后", value: "afterRun" }] }],
+                };
+                const validate = (rawValue: unknown) =>
+                    validateInspectorArgValue({ arg, rawValue, usingVars: null, checkExpr: true });
+
+                assert.equal(
+                    typeof validate(type === "string" ? "afterRun1" : ["afterRun", "afterRun1"]),
+                    "string"
+                );
+                assert.equal(validate(type === "string" ? "afterRun" : ["afterRun"]), null);
+            }
+        },
+    },
+    {
+        name: "validates conditional inspector options with the current sibling arguments",
+        run() {
+            const arg: NodeArg = {
+                name: "event",
+                type: "string",
+                desc: "事件",
+                options: [
+                    { match: { mode: ["run"] }, source: [{ name: "完成", value: "afterRun" }] },
+                    { match: { mode: ["stop"] }, source: [{ name: "中断", value: "interrupted" }] },
+                ],
+            };
+            const validate = (mode: string, rawValue: unknown) =>
+                validateInspectorArgValue({
+                    arg,
+                    rawValue,
+                    args: { mode, event: "stale" },
+                    usingVars: null,
+                    checkExpr: true,
+                });
+
+            assert.equal(validate("run", "afterRun"), null);
+            assert.equal(typeof validate("stop", "afterRun"), "string");
+            assert.equal(validate("stop", "interrupted"), null);
+            assert.equal(typeof validate("unknown", "afterRun"), "string");
+        },
+    },
+    {
+        name: "keeps optional inspector options unset without validation errors",
+        run() {
+            for (const rawValue of [undefined, null, "__unset__"]) {
+                assert.equal(
+                    validateInspectorArgValue({
+                        arg: { name: "event", type: "string?", desc: "", options: [] },
+                        rawValue,
+                        usingVars: null,
+                        checkExpr: true,
+                    }),
+                    null
+                );
+            }
+            assert.equal(
+                validateInspectorArgValue({
+                    arg: { name: "events", type: "string[]?", desc: "", options: [] },
+                    rawValue: [],
+                    usingVars: null,
+                    checkExpr: true,
+                }),
+                null
+            );
+        },
+    },
+    {
         name: "accepts valid integer array inspector args",
         run() {
             assert.equal(

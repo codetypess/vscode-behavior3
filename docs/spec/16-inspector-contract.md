@@ -208,6 +208,8 @@ Inspector 暴露同一组 project/document quick actions，但承载位置随模
 - args / input / output 共用一份 host-side field visibility 状态；raw JSON 视图不参与该可见性裁剪
 - args / input / output 共用一套 host-side field diagnostics 通道；`checker` 与 `visible` 失败都按字段种类映射到对应表单错误
 - 带 `options` 的参数渲染为可搜索 `Select`，搜索按显示 label 匹配 option name/value 文本
+- `options` 参数使用共享参数值校验器检查当前选项范围；标量或数组元素不在当前 options bucket 内时，对应字段显示错误，已有非法值保留可见以供修正
+- 条件 options bucket 使用当前表单的完整 args 上下文匹配；依赖参数变化时，选项列表与字段校验一起刷新，不等待主文档往返
 - 可选且带 `options` 的标量参数在当前没有 committed/effective 值时，Select 显示为空选中态，不向用户暴露内部 unset 哨兵文案
 - `bool` / `bool?` 标量参数统一渲染为 `Switch`；项目内 bool 参数不通过 `options` 配置枚举值
 - 表达式型参数校验变量引用与表达式合法性

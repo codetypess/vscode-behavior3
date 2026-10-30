@@ -62,7 +62,8 @@ graph adapter 允许保留实现自有的 graph-local 视觉缓存，例如节�
 - `typeLabel`
 - `icon`
 - `nodeStyleKind`
-- `nodeStyleKind` 的 `Error` 包括 resolution error、共享 validation diagnostic（含固定 children 数量不匹配、required / oneof 等节点约束）和 custom checker diagnostic
+- `nodeStyleKind` 的 `Error` 包括 resolution error、共享 validation diagnostic（含固定 children 数量不匹配、required / oneof、参数类型和 options 范围等节点约束）和 custom checker diagnostic
+- options 范围校验与构建、Inspector 复用共享参数值校验器，按节点完整 args 匹配条件 bucket，逐项检查数组参数；修正为合法值后恢复正常节点风格
 - `accentColor`
 - `debug`
 - `disabled`

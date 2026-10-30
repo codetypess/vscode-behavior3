@@ -48,6 +48,7 @@
 - 输入/输出槽、表达式参数、oneof 约束、必填项和自定义检查结果会进入表单校验
 - 切换到新 nodeDef 时，未填写的 required arg 保持 unset，不会被静默写成空字符串或 false
 - 可选且带 `options` 的 arg 若当前未填写，Inspector 显示为空选中态，不暴露内部 unset 哨兵，也不会因此产生伪 `oneof` 冲突
+- 标量或数组 arg 的值超出当前 `options` 范围时，Inspector 字段显示错误；条件 options 使用当前完整 args，依赖参数变化后同步刷新校验
 - `embedded` 模式下，当 Node Inspector 的 `name`、`path` 等输入控件聚焦时，`Ctrl/Cmd+V` 等文本编辑快捷键作用于输入本身，不触发画布结构粘贴
 - 仅修改 `name` 字段时，不会顺带自动写入 `input`、`output` 或 `args`
 - 在不同节点之间切换时，Node Inspector 不会残留上一节点的参数或槽位表单值
@@ -113,7 +114,8 @@
 - 在 Behavior3 custom editor 中按一次 `Ctrl+B` / `Cmd+B` 最多启动一次 build，不应因为重复派发立即出现 already-running warning
 - 在 Behavior3 custom editor 中按一次 `Ctrl+Shift+B` / `Cmd+Shift+B` 最多启动一次 debug build，不应因为重复派发立即出现 already-running warning
 - 仅当另一次 build 真实仍在运行时，重复触发 build 才显示 already-running warning
-- 图重建时会按当前节点定义与工作区脚本执行节点参数检查，包含必填参数缺失与 `oneof` 约束冲突
+- 图重建时会按当前节点定义与工作区脚本执行节点参数检查，包含必填参数缺失、类型错误、超出 options 范围与 `oneof` 约束冲突
+- 例如 `Listen.builtin = "afterRun1"` 时节点标红，修正为合法选项 `"afterRun"` 后恢复正常风格
 - 校验失败的节点以错误风格显示，且相关字段在 Inspector 中反馈错误
 
 ### BB-13 新版本文件保护

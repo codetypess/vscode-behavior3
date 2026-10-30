@@ -115,10 +115,11 @@ export const parseArgSubmitValue = (arg: NodeArg, raw: unknown): unknown => {
 export const validateInspectorArgValue = (params: {
     arg: NodeArg;
     rawValue: unknown;
+    args?: Record<string, unknown>;
     usingVars: Record<string, VarDecl> | null;
     checkExpr: boolean;
 }): string | null => {
-    const { arg, rawValue, usingVars, checkExpr } = params;
+    const { arg, rawValue, args, usingVars, checkExpr } = params;
     const type = getNodeArgRawType(arg);
     const parsedValue = parseArgSubmitValue(arg, rawValue);
 
@@ -129,8 +130,7 @@ export const validateInspectorArgValue = (params: {
     const argDiagnostics = validateNodeArgValue({
         arg,
         value: parsedValue,
-        args: { [arg.name]: parsedValue },
-        validateOptions: false,
+        args: { ...args, [arg.name]: parsedValue },
     });
     if (argDiagnostics.length) {
         return formatValidationDiagnostic(argDiagnostics[0]);

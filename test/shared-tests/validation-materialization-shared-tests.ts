@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { buildResolvedGraphModel } from "../../webview/domain/graph-selectors";
+import { resolveDocumentGraph } from "../../webview/domain/resolve-graph";
 import { buildTreeInspectorVariableUsageCount } from "../../webview/features/inspector/inspector-variable-options";
 import { DOCUMENT_VERSION } from "../../webview/shared/b3type";
 import type { NodeDef } from "../../webview/shared/contracts";
 import { createNodeDefMap } from "../../webview/shared/node-utils";
 import { parseWorkdirRelativeJsonPath } from "../../webview/shared/protocol";
+import { parseNodeDefsContent } from "../../webview/shared/schema";
 import {
     collectTransitivePaths,
     loadSubtreeSourceCache,
@@ -19,6 +21,7 @@ import {
     validateNodeArgValue,
 } from "../../webview/shared/validation";
 import { defineSharedTests } from "../shared-test-types";
+import { createTestTree } from "../shared-test-fixtures";
 
 export const validationMaterializationSharedTests = defineSharedTests([
     {
@@ -543,6 +546,87 @@ export const validationMaterializationSharedTests = defineSharedTests([
             );
 
             assert.equal(graphModel.nodes[0]?.nodeStyleKind, "Error");
+        },
+    },
+    {
+        name: "marks the sample Listen node red for invalid options and clears the error after correction",
+        run() {
+            const nodeDefs = parseNodeDefsContent(
+                fs.readFileSync(path.join(process.cwd(), "sample/node-config.b3-setting"), "utf-8")
+            );
+            const tree = createTestTree();
+            tree.root.name = "Listen";
+
+            for (const [builtin, expectedStyle] of [
+                ["afterRun1", "Error"],
+                ["afterRun", "Decorator"],
+            ]) {
+                tree.root.args = { builtin };
+                const { graph } = resolveDocumentGraph({
+                    persistedTree: tree,
+                    nodeDefs,
+                    subtreeSources: {},
+                    subtreeEditable: true,
+                });
+                const model = buildResolvedGraphModel(graph, nodeDefs);
+
+                assert.equal(model.nodes[0]?.nodeStyleKind, expectedStyle);
+                if (expectedStyle === "Error") {
+                    assert.equal(model.nodes[0]?.accentColor, "#ff0000");
+                }
+                assert.deepEqual(tree.root.args, { builtin });
+            }
+        },
+    },
+    {
+        name: "collects conditional array option errors while allowing optional unset arguments",
+        run() {
+            const def: NodeDef = {
+                name: "ListenMany",
+                type: "Decorator",
+                desc: "",
+                args: [
+                    { name: "mode", type: "string", desc: "" },
+                    {
+                        name: "events",
+                        type: "string[]?",
+                        desc: "",
+                        options: [
+                            {
+                                match: { mode: ["run"] },
+                                source: [{ name: "完成", value: "afterRun" }],
+                            },
+                            {
+                                match: { mode: ["stop"] },
+                                source: [{ name: "中断", value: "interrupted" }],
+                            },
+                        ],
+                    },
+                ],
+            };
+            const cases: Array<{ args: Record<string, unknown>; invalid: boolean }> = [
+                { args: { mode: "run", events: ["afterRun"] }, invalid: false },
+                { args: { mode: "stop", events: ["afterRun"] }, invalid: true },
+                { args: { mode: "stop", events: ["interrupted"] }, invalid: false },
+                { args: { mode: "run", events: ["afterRun", "afterRun1"] }, invalid: true },
+                { args: { mode: "unknown", events: ["afterRun"] }, invalid: true },
+                { args: { mode: "stop" }, invalid: false },
+                { args: { mode: "stop", events: [] }, invalid: false },
+            ];
+            for (const { args, invalid } of cases) {
+                const diagnostics = collectResolvedNodeDiagnostics({
+                    node: { name: def.name, args },
+                    def,
+                    usingVars: null,
+                    usingGroups: null,
+                    checkExpr: true,
+                });
+                assert.equal(
+                    diagnostics.some((entry) => entry.code === "invalid-arg-option"),
+                    invalid,
+                    JSON.stringify(args)
+                );
+            }
         },
     },
     {

@@ -65,6 +65,11 @@ const NodeArgField: React.FC<{
     const argsValue = (Form.useWatch("args", form) as Record<string, unknown> | undefined) ?? {};
     const type = getNodeArgRawType(arg);
     const options = useMemo(() => getNodeArgOptions(arg, argsValue) ?? [], [arg, argsValue]);
+    const optionDependencies = hasArgOptions(arg)
+        ? nodeDef.args
+              ?.filter((entry) => entry.name !== arg.name)
+              .map((entry) => ["args", entry.name])
+        : undefined;
     const required = !isNodeArgOptional(arg);
     const argLabel = arg.desc || arg.name;
     const argLabelProps = {
@@ -79,6 +84,7 @@ const NodeArgField: React.FC<{
                     {...argLabelProps}
                     name={["args", arg.name]}
                     valuePropName={valuePropName}
+                    dependencies={optionDependencies}
                     rules={[{ validator: validateField }]}
                 >
                     {control}
@@ -94,6 +100,7 @@ const NodeArgField: React.FC<{
                             noStyle
                             name={["args", arg.name]}
                             valuePropName={valuePropName}
+                            dependencies={optionDependencies}
                             rules={[{ validator: validateField }]}
                         >
                             {control}
@@ -134,6 +141,7 @@ const NodeArgField: React.FC<{
         const validationError = validateInspectorArgValue({
             arg,
             rawValue: value,
+            args: form.getFieldValue("args"),
             usingVars,
             checkExpr,
         });

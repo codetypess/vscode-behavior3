@@ -383,13 +383,7 @@ export const collectResolvedNodeDiagnostics = (params: {
     for (const arg of def.args ?? []) {
         const rawValue = node.args?.[arg.name];
         const requiredMissing = isRequiredNodeArgValueMissing(arg, rawValue);
-        if (requiredMissing) {
-            diagnostics.push({
-                code: "required-arg",
-                argName: arg.name,
-                label: getArgLabel(arg),
-            });
-        }
+        diagnostics.push(...validateNodeArgValue({ arg, value: rawValue, args: node.args }));
         const oneofDiagnostic = validateNodeArgOneof({
             arg,
             argValue: rawValue,
