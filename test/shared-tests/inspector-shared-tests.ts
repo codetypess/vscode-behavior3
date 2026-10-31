@@ -300,20 +300,6 @@ export const inspectorSharedTests = defineSharedTests([
             );
 
             assert.equal(values.type, "Action");
-            assert.equal(values.supportDecorator, "false");
-            assert.equal(
-                createNodeInspectorFormValues(
-                    {
-                        name: "Wait",
-                        type: "Action",
-                        desc: "wait",
-                        supportDecorator: true,
-                    },
-                    selectedNode,
-                    "Unknown"
-                ).supportDecorator,
-                "true"
-            );
             assert.equal(values.id, "7 (node-uuid)");
             assert.match(values.rawNodeJson, /"uuid": "node-uuid"/);
             assert.match(values.rawNodeJson, /"id": "legacy-7"/);
@@ -517,7 +503,6 @@ export const inspectorSharedTests = defineSharedTests([
             const values = createNodeInspectorFormValues(null, selectedNode, "Unknown");
 
             assert.equal(values.type, "Unknown");
-            assert.equal(values.supportDecorator, "false");
             assert.deepEqual(values.args, {});
             assert.deepEqual(values.inputSlots, []);
             assert.deepEqual(values.outputSlots, []);

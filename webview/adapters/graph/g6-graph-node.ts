@@ -13,7 +13,7 @@ import i18n from "../../shared/i18n";
 import { isMacos } from "../../shared/keys";
 import type { GraphNodeVM } from "../../shared/contracts";
 import {
-    G6_GRAPH_DECORATOR_TAB_HEIGHT,
+    G6_GRAPH_CONDITION_TAB_HEIGHT,
     G6_GRAPH_NODE_CONTENT_X,
     G6_GRAPH_NODE_METADATA_BG_WIDTH,
     G6_GRAPH_NODE_MIN_HEIGHT,
@@ -511,19 +511,22 @@ class GraphNode extends Rect {
         this.contentY = layout.nextSectionTop;
     }
 
-    private drawDecoratorTab(container: Group) {
-        const label = this.node.attachedDecoratorName ? i18n.t("decorator.adornment") : "";
-        const abortType = label ? (this.node.attachedDecoratorAbortType ?? "") : "";
-        const abortReserve = abortType ? 112 : 0;
+    private drawConditionTab(container: Group) {
+        // Left: "condition: <root name>", right: the abort mode.
+        const label = this.node.attachedConditionName
+            ? `${i18n.t("condition.adornment")}: ${this.node.attachedConditionName}`
+            : "";
+        const abortType = label ? (this.node.attachedConditionAbort ?? "") : "";
+        const abortReserve = abortType ? 48 : 0;
         const adornment = this.upsert(
-            "decorator-adornment",
+            "condition-adornment",
             GRect,
             label
                 ? {
                       x: 0,
                       y: 0,
                       width: this.width,
-                      height: G6_GRAPH_DECORATOR_TAB_HEIGHT,
+                      height: G6_GRAPH_CONDITION_TAB_HEIGHT,
                       fill: this.accent,
                       fillOpacity: 0.22,
                       stroke: this.accent,
@@ -535,15 +538,15 @@ class GraphNode extends Rect {
             container
         );
         if (adornment) {
-            adornment.className = "decorator-adornment";
+            adornment.className = "condition-adornment";
         }
         const adornmentLabel = this.upsert(
-            "decorator-label",
+            "condition-label",
             GText,
             label
                 ? {
                       x: 8,
-                      y: G6_GRAPH_DECORATOR_TAB_HEIGHT / 2,
+                      y: G6_GRAPH_CONDITION_TAB_HEIGHT / 2,
                       text: cutWordTo(label, this.width - 16 - abortReserve, "12px"),
                       fontSize: 12,
                       textAlign: "left",
@@ -555,15 +558,15 @@ class GraphNode extends Rect {
             container
         );
         if (adornmentLabel) {
-            adornmentLabel.className = "decorator-label";
+            adornmentLabel.className = "condition-label";
         }
         const abortLabel = this.upsert(
-            "decorator-abort",
+            "condition-abort",
             GText,
             abortType
                 ? {
                       x: this.width - 8,
-                      y: G6_GRAPH_DECORATOR_TAB_HEIGHT / 2,
+                      y: G6_GRAPH_CONDITION_TAB_HEIGHT / 2,
                       text: abortType,
                       fontSize: 12,
                       textAlign: "right",
@@ -575,7 +578,7 @@ class GraphNode extends Rect {
             container
         );
         if (abortLabel) {
-            abortLabel.className = "decorator-label";
+            abortLabel.className = "condition-label";
         }
     }
 
@@ -688,7 +691,7 @@ class GraphNode extends Rect {
         this.width = data.width;
         this.contentWidth = data.width;
         this.height = data.height;
-        this.bodyTop = this.node.attachedDecoratorName ? G6_GRAPH_DECORATOR_TAB_HEIGHT : 0;
+        this.bodyTop = this.node.attachedConditionName ? G6_GRAPH_CONDITION_TAB_HEIGHT : 0;
         this.bodyHeight = Math.max(G6_GRAPH_NODE_MIN_HEIGHT, data.height - this.bodyTop);
         this.accent =
             this.node.accentColor ??
@@ -721,7 +724,7 @@ class GraphNode extends Rect {
         this.drawOutputText(container);
         this.drawSubtreeText(container);
         this.drawDragShapes(container);
-        this.drawDecoratorTab(container);
+        this.drawConditionTab(container);
         this.drawCollapseBadge(attributes, container);
         this.drawIdText(container);
     }

@@ -74,7 +74,7 @@ graph adapter 允许保留实现自有的 graph-local 视觉缓存，例如节�
 - `inputs`
 - `outputs`
 - `argsText`
-- `attachedDecoratorName`：有值时在节点卡片上方画出装饰器附属，没有值时不画。左侧文字固定为当前语言的「decorator」（英文 `decorator`，中文 `装饰器`），右侧显示 `abortType`，颜色都为白色，不使用入口节点名
+- `attachedConditionName`：有值时在节点卡片上方画出条件附属，没有值时不画。左侧为「条件: 根节点名」（英文 `condition: <name>`），右侧显示 `attachedConditionAbort`，颜色都为白色
 
 ### GraphEdgeVM
 
@@ -139,13 +139,13 @@ graph adapter 允许保留实现自有的 graph-local 视觉缓存，例如节�
 - canvas click
     - 选择 tree
 - node click
-    - 命中节点上方的装饰器附属时，选中该宿主节点的装饰器，Inspector 显示装饰器面板
+    - 命中节点上方的条件附属时，选中该宿主节点的条件，Inspector 显示条件面板
     - 命中节点本体时选择节点；若点击输入/输出热点，同时触发变量聚焦
 - node context menu
     - 先选择节点，再由外层决定菜单行为
 - node double click
-    - 命中节点上方的装饰器附属时进入当前编辑器的临时页面，编辑该节点的 `decorator` 枝干
-    - 装饰器双击的命中范围与装饰器单击相同，覆盖整条上方附属，不限于文字
+    - 命中节点上方的条件附属时进入当前编辑器的临时页面，编辑该节点第一项条件的条件树
+    - 条件附属双击的命中范围与单击相同，覆盖整条上方附属，不限于文字
     - 命中节点本体时按 `node.ref` 打开 subtree
     - 不依赖当前 host selection store 已经先收敛到这个节点
     - subtree 打开后的目标节点会再通过一次性 `relayFocusNode` relay 带入视图

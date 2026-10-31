@@ -99,16 +99,17 @@ export const editorStateSharedTests = defineSharedTests([
                     uuid: "child",
                     id: "2",
                     name: "Action",
-                    decorator: {
-                        enterPriority: 2,
-                        maintainPriority: 2,
-                        abortType: "Self",
-                        root: {
-                            uuid: "guard",
-                            id: "3",
-                            name: "Guard",
+                    conditions: [
+                        {
+                            abort: "self" as const,
+                            custom: { enterPriority: 2, maintainPriority: 2 },
+                            root: {
+                                uuid: "guard",
+                                id: "3",
+                                name: "Guard",
+                            },
                         },
-                    },
+                    ],
                 },
                 prefix: "",
                 activeChildCount: 0,
@@ -121,9 +122,9 @@ export const editorStateSharedTests = defineSharedTests([
                     documentPresent: true,
                     selectedNodeRef: pendingNodeRef,
                     selectedNode: decoratedNode,
-                    inspectorSurface: "decorator",
+                    inspectorSurface: "condition",
                 }),
-                "decorator"
+                "condition"
             );
             assert.equal(
                 getInspectorPaneMode({

@@ -1,5 +1,5 @@
 import type {
-    DecoratorEditSession,
+    ConditionEditSession,
     NodeDef,
     NodeInstanceRef,
     PersistedNodeModel,
@@ -8,18 +8,14 @@ import type {
     UpdateNodeInput,
     WorkdirRelativeJsonPath,
 } from "../shared/contracts";
-import { DEFAULT_ABORT_TYPE } from "../shared/b3type";
-import { findDecoratorBranchViolation } from "../shared/decorator-branch";
+import { createConditionData, findConditionBranchViolation } from "../shared/condition-branch";
 import {
     reduceDocumentMutation,
     type DocumentMutationReducerError,
     type ReducibleDocumentMutation,
 } from "../shared/document";
 import { clonePersistedNode, findPersistedNodeByStableId } from "../shared/tree";
-import {
-    materializePersistedTree,
-    type MaterializedTreeNode,
-} from "../shared/tree-materializer";
+import { materializePersistedTree, type MaterializedTreeNode } from "../shared/tree-materializer";
 
 const findMaterializedHost = (
     node: MaterializedTreeNode,
@@ -40,7 +36,7 @@ const findMaterializedHost = (
     return null;
 };
 
-export const readHostDecoratorBranch = (params: {
+export const readHostConditionBranch = (params: {
     tree: PersistedTreeModel;
     subtreeSources: Record<WorkdirRelativeJsonPath, SubtreeSourceCacheEntry>;
     nodeDefs: NodeDef[];
@@ -54,13 +50,14 @@ export const readHostDecoratorBranch = (params: {
         subtreeEditable: params.subtreeEditable,
     });
     const host = findMaterializedHost(root, params.hostRef);
-    if (!host?.data.decorator) {
+    const condition = host?.data.conditions?.[0];
+    if (!condition) {
         return null;
     }
-    return clonePersistedNode(host.data.decorator.root);
+    return clonePersistedNode(condition.root);
 };
 
-export const persistedTreeFromDecoratorBranch = (
+export const persistedTreeFromConditionBranch = (
     branch: PersistedNodeModel,
     template: PersistedTreeModel
 ): PersistedTreeModel => ({
@@ -90,26 +87,23 @@ const mutationStableIds = (mutation: ReducibleDocumentMutation): string[] | null
     }
 };
 
-export type DecoratorBranchProjection =
+export type ConditionBranchProjection =
     | { kind: "forward" }
     | { kind: "noop" }
     | { kind: "error"; error: DocumentMutationReducerError }
     | { kind: "update"; update: UpdateNodeInput };
 
-/** Apply a branch-local mutation, then describe the host `decorator` write. */
-export const projectDecoratorBranchMutation = (params: {
+/** Apply a branch-local mutation, then describe the host `condition` write. */
+export const projectConditionBranchMutation = (params: {
     tree: PersistedTreeModel;
     subtreeSources: Record<WorkdirRelativeJsonPath, SubtreeSourceCacheEntry>;
     nodeDefs: NodeDef[];
     subtreeEditable: boolean;
-    session: DecoratorEditSession;
+    session: ConditionEditSession;
     mutation: ReducibleDocumentMutation;
-}): DecoratorBranchProjection => {
-    if (
-        params.mutation.type === "attachDecorator" ||
-        params.mutation.type === "removeDecorator"
-    ) {
-        return { kind: "error", error: { code: "decorator-nested" } };
+}): ConditionBranchProjection => {
+    if (params.mutation.type === "attachCondition" || params.mutation.type === "removeCondition") {
+        return { kind: "error", error: { code: "condition-nested" } };
     }
 
     const stableIds = mutationStableIds(params.mutation);
@@ -117,7 +111,7 @@ export const projectDecoratorBranchMutation = (params: {
         return { kind: "forward" };
     }
 
-    const branch = readHostDecoratorBranch({
+    const branch = readHostConditionBranch({
         tree: params.tree,
         subtreeSources: params.subtreeSources,
         nodeDefs: params.nodeDefs,
@@ -133,7 +127,7 @@ export const projectDecoratorBranchMutation = (params: {
         return { kind: "forward" };
     }
 
-    const synthetic = persistedTreeFromDecoratorBranch(branch, params.tree);
+    const synthetic = persistedTreeFromConditionBranch(branch, params.tree);
     const reduced = reduceDocumentMutation(params.mutation, {
         tree: synthetic,
         nodeDefs: params.nodeDefs,
@@ -145,12 +139,12 @@ export const projectDecoratorBranchMutation = (params: {
         return { kind: "noop" };
     }
 
-    const violation = findDecoratorBranchViolation(reduced.tree.root, params.nodeDefs);
-    if (violation === "nested-decorator") {
-        return { kind: "error", error: { code: "decorator-nested" } };
+    const violation = findConditionBranchViolation(reduced.tree.root, params.nodeDefs);
+    if (violation === "nested-condition") {
+        return { kind: "error", error: { code: "condition-nested" } };
     }
     if (violation === "running-status") {
-        return { kind: "error", error: { code: "decorator-running-status" } };
+        return { kind: "error", error: { code: "condition-running-status" } };
     }
 
     const materialized = materializePersistedTree({
@@ -166,47 +160,49 @@ export const projectDecoratorBranchMutation = (params: {
 
     return {
         kind: "update",
-        update: buildHostDecoratorUpdate(host, params.session.hostRef, reduced.tree.root),
+        update: buildHostConditionUpdate(host, params.session.hostRef, reduced.tree.root),
     };
 };
 
-const buildHostDecoratorUpdate = (
+/** Write `root` back as the root of the host's first condition; other items are kept. */
+const buildHostConditionUpdate = (
     host: MaterializedTreeNode,
     hostRef: NodeInstanceRef,
-    decorator: PersistedNodeModel
-): UpdateNodeInput => ({
-    target: hostRef,
-    data: {
-        name: host.data.name,
-        desc: host.data.desc,
-        args: host.data.args,
-        input: host.data.input,
-        output: host.data.output,
-        debug: host.data.debug,
-        disabled: host.data.disabled,
-        path: host.data.path,
-        decorator: {
-            enterPriority: host.data.decorator?.enterPriority ?? 0,
-            maintainPriority: host.data.decorator?.maintainPriority ?? 0,
-            abortType: host.data.decorator?.abortType ?? DEFAULT_ABORT_TYPE,
-            root: clonePersistedNode(decorator),
+    root: PersistedNodeModel
+): UpdateNodeInput => {
+    const [first, ...rest] = host.data.conditions ?? [];
+    const nextFirst = first
+        ? { ...first, custom: first.custom ? { ...first.custom } : undefined }
+        : createConditionData(hostRef.displayId || host.data.id, root);
+    return {
+        target: hostRef,
+        data: {
+            name: host.data.name,
+            desc: host.data.desc,
+            args: host.data.args,
+            input: host.data.input,
+            output: host.data.output,
+            debug: host.data.debug,
+            disabled: host.data.disabled,
+            path: host.data.path,
+            conditions: [{ ...nextFirst, root: clonePersistedNode(root) }, ...rest],
         },
-    },
-    currentNodeSnapshot: {
-        data: clonePersistedNode(host.data),
-        subtreeNode: host.subtreeNode,
-        subtreeOriginal: host.subtreeOriginal
-            ? clonePersistedNode(host.subtreeOriginal)
-            : undefined,
-    },
-});
+        currentNodeSnapshot: {
+            data: clonePersistedNode(host.data),
+            subtreeNode: host.subtreeNode,
+            subtreeOriginal: host.subtreeOriginal
+                ? clonePersistedNode(host.subtreeOriginal)
+                : undefined,
+        },
+    };
+};
 
-export const buildDecoratorRestoreUpdate = (params: {
+export const buildConditionRestoreUpdate = (params: {
     tree: PersistedTreeModel;
     subtreeSources: Record<WorkdirRelativeJsonPath, SubtreeSourceCacheEntry>;
     nodeDefs: NodeDef[];
     subtreeEditable: boolean;
-    session: DecoratorEditSession;
+    session: ConditionEditSession;
 }): UpdateNodeInput | null => {
     const materialized = materializePersistedTree({
         persistedTree: params.tree,
@@ -218,9 +214,5 @@ export const buildDecoratorRestoreUpdate = (params: {
     if (!host) {
         return null;
     }
-    return buildHostDecoratorUpdate(
-        host,
-        params.session.hostRef,
-        params.session.entryDecorator
-    );
+    return buildHostConditionUpdate(host, params.session.hostRef, params.session.entryCondition);
 };

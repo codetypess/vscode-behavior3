@@ -91,8 +91,8 @@ export const normalizeHostSelectionState = (selection: HostSelectionState): Host
     if (selection.kind === "tree") {
         return { kind: "tree" };
     }
-    if (selection.kind === "decorator") {
-        return { kind: "decorator", ref: normalizeNodeInstanceRef(selection.ref) };
+    if (selection.kind === "condition") {
+        return { kind: "condition", ref: normalizeNodeInstanceRef(selection.ref) };
     }
     return { kind: "node", ref: normalizeNodeInstanceRef(selection.ref) };
 };

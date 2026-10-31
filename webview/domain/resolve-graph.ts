@@ -22,6 +22,17 @@ const flattenMaterializedTree = (
     const mainTreeDisplayIdsByStableId: Record<string, string> = {};
     let nextDisplayId = 1;
 
+    // Condition-tree nodes share the display id sequence but are not graph nodes.
+    const numberConditionTree = (node: MaterializedTreeNode) => {
+        const displayId = String(nextDisplayId);
+        nextDisplayId += 1;
+        if (!node.subtreeNode) {
+            mainTreeDisplayIdsByStableId[node.structuralStableId] = displayId;
+        }
+        node.conditions.forEach((condition) => numberConditionTree(condition.root));
+        node.children.forEach(numberConditionTree);
+    };
+
     const visit = (
         node: MaterializedTreeNode,
         parentKey: string | null,
@@ -30,6 +41,7 @@ const flattenMaterializedTree = (
         const displayId = String(nextDisplayId);
         nextDisplayId += 1;
         const instanceKey = displayId;
+        node.conditions.forEach((condition) => numberConditionTree(condition.root));
         const childKeys = node.children.map((child) => visit(child, instanceKey, depth + 1));
 
         if (!node.subtreeNode) {
@@ -63,8 +75,8 @@ const flattenMaterializedTree = (
             subtreeEditable: node.subtreeEditable,
             subtreeOriginal: node.subtreeOriginal,
             resolutionError: node.resolutionError,
-            attachedDecoratorName: node.data.decorator?.root.name,
-            attachedDecorator: node.data.decorator,
+            attachedConditionName: node.data.conditions?.[0]?.root.name,
+            conditions: node.data.conditions,
         };
         nodeOrder.push(instanceKey);
         return instanceKey;

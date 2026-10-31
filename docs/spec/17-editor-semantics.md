@@ -175,7 +175,7 @@
 - 排序 locals 与 import refs
 - Inspector 可按字段或局部列表独立构造 payload；无关字段错误不应阻断本次 intent
 - `custom` 的重复 key、对象/数组字面量或非法结构化输入不得静默写入主文档
-- 当前树用到装饰器时，`$decorator_type` 保持为 `local` 或 `global`。缺失或无法识别时写成 `local`。提交自定义数据时不能删掉这一项
+- 当前树用到条件时，`$condition_type` 保持为 `local` 或 `global`。缺失或无法识别时写成 `local`。提交自定义数据时不能删掉这一项
 - webview 只发送 intent，宿主仅在值确实变化时提交 mutation
 
 ### `updateNode(payload)`
@@ -215,29 +215,28 @@ host reducer 当前分三条路径：
     - `debug` / `disabled` 的提交结果必须保留显式 `false`，以支持把 subtree 源节点中的 `true` 关闭成主文档 override
     - 仅因 nodeDef 默认值补齐而出现的值，不得单独生成 main-document `overrides`
 - 写入或清理主文档 `overrides`
-- 子树节点的 `decorator` 可以写入 override，但不能靠省略字段把源节点上已有的装饰器清掉
+- 子树节点的 `conditions` 可以写入 override，但不能靠省略字段把源节点上已有的条件清掉
 
-### `attachDecorator(entryName)`
+### `attachCondition(entryName)`
 
-- 仅当节点定义 `supportDecorator === true` 且当前还没有 `decorator` 时可用
-- 入口节点成为 `decorator.root`，不进入宿主的 `children`。两个优先级都是整数，添加时都等于宿主节点 id 的整数值。`abortType` 添加时为 `None`
-- 入口节点定义的 `status` 含字面量 `running` 时拒绝。`|running` 只表示子节点返回 `running` 时向上传递，允许作为入口
-- 装饰器枝干内部不能再挂 `decorator`，也不能放入自身会返回 `running` 的节点。同样只拒绝字面量 `running`
+- 任意节点在当前还没有条件时可用（编辑器目前每个节点只编辑一项）
+- 选定的节点成为 `conditions[0].root`，不进入宿主的 `children`。`abort` 为 `none`，`custom` 带 `enterPriority` / `maintainPriority`，都等于宿主节点 id 的整数值
+- 根节点定义的 `status` 含字面量 `running` 时拒绝
+- 条件树内部不能再带 `conditions`；条件树不能返回 `running`：按 behavior3 2.0 的静态推导，`running` 节点自己会返回 running，`|running` 节点在任一启用的子节点会返回 running 时会返回 running。没有声明 `status` 的节点这里不拦（后续校验给 warning）
 - 子树内部节点的结果写入主文档 `overrides`
 
-### `removeDecorator()`
+### `removeCondition()`
 
-- 仅当节点定义 `supportDecorator === true` 且当前已有 `decorator` 时可用
-- 主树节点直接去掉自己的 `decorator`，`children` 保持不变
-- 子树节点上仅由主文档 override 挂上的装饰器可以去掉；去掉后若没有其他差异，删除对应 override 条目
-- 子树源文件里已经有的装饰器不能清掉。右键菜单不显示这项，reducer 也会拒绝
+- 当前已有条件时可用，去掉第一项；其他手写的项保留，数组为空时去掉字段
+- 子树节点上仅由主文档 override 挂上的条件可以去掉；去掉后若没有其他差异，删除对应 override 条目
+- 子树源文件里已经有的条件不能清掉。右键菜单不显示这项，reducer 也会拒绝
 
-### 装饰器临时页面
+### 条件临时页面
 
-- 装饰器面板的「打开编辑视图」按钮，或双击节点上方的装饰器附属，进入临时页面。页面复用当前画布和 Inspector，把该 `decorator` 枝干当作当前树根
-- 页面里的结构修改提交到父文档，写成对该节点 `decorator` 的变更
-- 关闭时若枝干相对进入页面时有变化，提示保存、撤销或取消关闭
-- 保存写父文档并离开；撤销把 `decorator` 恢复成进入页面时的枝干并离开；取消关闭留在页面
+- 条件面板的「打开编辑视图」按钮，或双击节点上方的条件附属，进入临时页面。页面复用当前画布和 Inspector，把第一项条件的条件树当作当前树根
+- 页面里的结构修改提交到父文档，写成对该节点 `conditions[0].root` 的变更，`abort`、`custom` 和其他项不变
+- 关闭时若条件树相对进入页面时有变化，提示保存、撤销或取消关闭
+- 保存写父文档并离开；撤销把条件树恢复成进入页面时的样子并离开；取消关闭留在页面
 - 双击节点本体仍打开 subtree
 
 #### C. 从 subtree link 脱链
@@ -285,7 +284,7 @@ host reducer 当前分三条路径：
 
 - 主编辑器或侧栏发起保存后，最终都进入 VS Code custom editor 保存生命周期
 - 宿主写盘前会重新解析当前主文档，并用 resolved graph 的主树 display id 回写 persisted `id`
-- 这次回写同时更新宿主节点装饰器的优先级。进入优先级写成新的节点 id。维持优先级若仍等于旧的进入优先级，也写成新 id；已经改小的值保持不变，大于新的进入优先级时降到该值
+- 这次回写包括条件树里的节点，并同时更新每项条件 `custom` 里的优先级。进入优先级写成新的节点 id。维持优先级若仍等于旧的进入优先级，也写成新 id；已经改小的值保持不变，大于新的进入优先级时降到该值
 - 该回写只作用于主树结构节点，不把 subtree 内部实例 id 反写到主文档
 - 同一次保存动作会显式写回当前可达 legacy subtree 的规范化内容
 - 保存成功后，宿主当前 history 游标快照同步替换为写盘后的规范化内容
@@ -336,6 +335,7 @@ host reducer 当前分三条路径：
 - 只是把 build 请求交给宿主
 - 结果通过 `buildResult` 回推
 - 宿主执行 build 时，进程当前工作目录必须切换到解析出的行为树项目目录，也就是命中的 `*.b3-workspace` 所在目录；如果该目录经过符号链接进入，宿主必须先把已有文件路径规范化到同一个 canonical filesystem path，再让 build script 观察 `process.cwd()` 与 build context `workdir` 保持一致，而不是一个是 lexical path、另一个是 real path
+- 构建产物带上节点 `conditions`：条件树里的 subtree 被展开、override 被应用，id 按节点、条件树、子节点的顺序重新编号后加前缀，条件 `custom` 里的优先级按最终 id（不含前缀）重算。build 校验和 batch `onProcessNode` 也会走到条件树里的节点；batch hook 对条件根返回空时去掉该条件项
 - `Ctrl+B` / `Cmd+B` 与 `Ctrl+Shift+B` / `Cmd+Shift+B` 由 VS Code contributed keybindings 直接触发 extension-host build command；webview 不应重复绑定同一组 build 快捷键
 - Inspector view title 中的 build action 同样触发 `behavior3.build` extension-host command，不新增 webview 内部 build 入口
 

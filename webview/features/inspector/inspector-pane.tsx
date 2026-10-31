@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useRuntime, useSelectionStore, useWorkspaceStore } from "../../app/runtime";
 import type { InspectorHostCommandId } from "../../shared/contracts";
 import { getInspectorPaneMode } from "./inspector-pane-mode";
-import { DecoratorInspectorForm } from "./decorator-inspector-form";
+import { ConditionInspectorForm } from "./condition-inspector-form";
 import { NodeInspectorForm } from "./node-inspector-form";
 import { useInspectorPaneState } from "./inspector-state";
 import { TreeInspectorForm } from "./tree-inspector-form";
@@ -161,7 +161,7 @@ export const InspectorPane: React.FC = () => {
                 />
             ) : null}
 
-            {paneMode === "decorator" ? <DecoratorInspectorForm /> : null}
+            {paneMode === "condition" ? <ConditionInspectorForm /> : null}
             {paneMode === "node" ? <NodeInspectorForm /> : null}
             {paneMode === "node-pending" ? (
                 <div className="b3-inspector-skeleton">

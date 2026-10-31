@@ -48,9 +48,9 @@
 - `requestFocusVariable`
     - payload: `{ names }`
     - 语义：sidebar 请求把变量聚焦作为一次性视觉 intent relay 给当前 active editor；不是共享状态同步
-- `openDecoratorEditor`
+- `openConditionEditor`
     - payload: `{ target: NodeInstanceRef }`
-    - 语义：sidebar 请求当前 active editor 打开该宿主节点的装饰器临时页面；不是共享状态同步
+    - 语义：sidebar 请求当前 active editor 打开该宿主节点的条件临时页面；不是共享状态同步
 
 ### 项目与设置
 
@@ -107,9 +107,9 @@
 - `relayFocusNode`
     - 语义：宿主向 editor 投递一次新鲜节点 reveal relay，用于把目标节点带入视图
     - 不属于 `init` / `documentSnapshotChanged` 的 snapshot 内容
-- `relayOpenDecoratorEditor`
+- `relayOpenConditionEditor`
     - payload: `{ target: NodeInstanceRef }`
-    - 语义：宿主向 editor 投递一次打开装饰器临时页面的请求
+    - 语义：宿主向 editor 投递一次打开条件临时页面的请求
     - 不属于 `init` / `documentSnapshotChanged` 的 snapshot 内容
 
 ### 环境与依赖变化
@@ -193,7 +193,7 @@
 
 - `{ kind: "tree" }`
 - `{ kind: "node", ref: NodeInstanceRef }`
-- `{ kind: "decorator", ref: NodeInstanceRef }`：`ref` 仍是宿主节点。单击节点上方的装饰器附属时使用，Inspector 显示装饰器面板
+- `{ kind: "condition", ref: NodeInstanceRef }`：`ref` 仍是宿主节点。单击节点上方的条件附属时使用，Inspector 显示条件面板
 
 说明：
 
@@ -232,8 +232,8 @@
 1. shared reducer 已直接支持的 mutation：
     - `updateTreeMeta`
     - `updateNode`
-    - `attachDecorator`
-    - `removeDecorator`
+    - `attachCondition`
+    - `removeCondition`
 2. 已迁入 host intent，并默认由宿主直接提交的结构命令：
     - `performDrop`
     - `pasteNode`
@@ -246,8 +246,8 @@
 
 补充：
 
-- `attachDecorator` 在宿主节点上写入一棵入口节点，子树内部节点的结果进入主文档 `overrides`
-- `removeDecorator` 去掉宿主节点上的装饰器。主树节点直接删除字段。子树节点只能去掉 override 挂上的装饰器，不能清掉子树源文件里已有的装饰器
+- `attachCondition` 在没有条件的宿主节点上写入一项条件，根节点为选定的节点；子树内部节点的结果进入主文档 `overrides`
+- `removeCondition` 去掉宿主节点上的第一项条件（其他手写的项保留）。子树节点只能去掉 override 挂上的条件，不能清掉子树源文件里已有的条件
 - `updateNode` intent 会携带 `currentNodeSnapshot`
 - 该快照来自当前发起 webview 的选中节点投影，包含 host reducer 需要的当前节点数据、subtree 标记和 `subtreeOriginal`
 - `updateNode` 在“解绑 subtree 引用为本地节点”时可以携带 `detachedSubtreeRoot`

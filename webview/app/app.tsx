@@ -72,8 +72,8 @@ const AppShell: React.FC = () => {
                     void runtime.controller.revealNode(hostEvent.target);
                     return;
 
-                case "openDecoratorEditor":
-                    void runtime.controller.openDecoratorEditor(hostEvent.target);
+                case "openConditionEditor":
+                    void runtime.controller.openConditionEditor(hostEvent.target);
                     return;
 
                 case "themeChanged":

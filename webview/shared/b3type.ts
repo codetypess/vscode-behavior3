@@ -1,24 +1,27 @@
 import type { NodeDef as Behavior3NodeDef } from "behavior3";
 
-/** Editor node definition. Adds editor-only fields on top of the behavior3 runtime definition. */
+/** Editor node definition. Adds behavior3 2.0 fields the published 1.x typings do not have yet. */
 export interface NodeDef<GroupType extends string = string> extends Behavior3NodeDef<GroupType> {
-    /** Whether nodes of this definition may carry an attached decorator branch. Absent means false. */
-    supportDecorator?: boolean;
+    /** Composite whose left-to-right order is priority, so children may use `lower`/`both` aborts. */
+    preemptive?: boolean;
 }
 export type NodeType = NodeDef["type"] | "Other" | "Error";
 export type NodeArg = Exclude<NodeDef["args"], undefined>[number];
 
-export const DOCUMENT_VERSION = "2.7.0";
+export const DOCUMENT_VERSION = "2.8.0";
 
-/** Extra data carried with an attached decorator branch. `root` is not a child of the host. */
-export const ABORT_TYPES = ["None", "Self", "Lower Priority", "Both"] as const;
-export type AbortType = (typeof ABORT_TYPES)[number];
-export const DEFAULT_ABORT_TYPE: AbortType = "None";
+/** When a node's conditions are re-checked after entering it (behavior3 2.0 `abort`). */
+export const ABORT_MODES = ["none", "self", "lower", "both"] as const;
+export type AbortMode = (typeof ABORT_MODES)[number];
+export const DEFAULT_ABORT_MODE: AbortMode = "none";
 
-export interface DecoratorAttachment<TNode> {
-    enterPriority: number;
-    maintainPriority: number;
-    abortType: AbortType;
+export type ConditionCustom = Record<string, string | number | boolean | object>;
+
+/** One entry of a node's `conditions`. `root` is a condition tree, not a child of the host. */
+export interface ConditionData<TNode> {
+    abort: AbortMode;
+    /** Editor-defined data; the runtime ignores it. */
+    custom?: ConditionCustom;
     root: TNode;
 }
 
@@ -33,8 +36,8 @@ export interface NodeData {
     debug?: boolean;
     disabled?: boolean;
     path?: string;
-    /** Attached decorator. Not a member of `children`. */
-    decorator?: DecoratorAttachment<NodeData>;
+    /** Condition trees checked before and while running this node. Not members of `children`. */
+    conditions?: ConditionData<NodeData>[];
 
     // Stable node identity, for overrides
     uuid: string;
@@ -90,7 +93,7 @@ export interface TreeData {
     overrides: {
         [key: string]: Pick<
             NodeData,
-            "desc" | "input" | "output" | "args" | "debug" | "disabled" | "decorator"
+            "desc" | "input" | "output" | "args" | "debug" | "disabled" | "conditions"
         >;
     };
 }

@@ -1,7 +1,8 @@
 import type { NodeData } from "./b3type";
 import { generateUuid } from "./stable-id";
 
-export const dfs = <T extends { children?: T[] }>(
+/** Visits a node, then its condition trees, then its children (behavior3 runtime order). */
+export const dfs = <T extends { children?: T[]; conditions?: { root: T }[] }>(
     node: T,
     visitor: (node: T, depth: number) => unknown,
     depth = 0
@@ -9,6 +10,11 @@ export const dfs = <T extends { children?: T[] }>(
     const traverse = (current: T, currentDepth: number) => {
         if (visitor(current, currentDepth) === false) {
             return false;
+        }
+        for (const condition of current.conditions ?? []) {
+            if (traverse(condition.root, currentDepth + 1) === false) {
+                return false;
+            }
         }
         if (current.children) {
             for (const child of current.children) {
@@ -71,13 +77,12 @@ export const createNode = (data: NodeData, includeChildren: boolean = true): Nod
         }
     }
 
-    if (data.decorator) {
-        node.decorator = {
-            enterPriority: data.decorator.enterPriority,
-            maintainPriority: data.decorator.maintainPriority,
-            abortType: data.decorator.abortType,
-            root: createNode(data.decorator.root),
-        };
+    if (data.conditions?.length) {
+        node.conditions = data.conditions.map((condition) => ({
+            abort: condition.abort,
+            custom: condition.custom ? { ...condition.custom } : undefined,
+            root: createNode(condition.root),
+        }));
     }
 
     return node;
@@ -92,14 +97,16 @@ export const subtreeNeedsMissingIds = (root: unknown): boolean => {
         uuid?: string;
         $id?: string;
         children?: unknown[];
-        decorator?: { root?: unknown };
+        conditions?: Array<{ root?: unknown } | null>;
     };
     if (!node.uuid || node.$id) {
         return true;
     }
 
-    if (node.decorator?.root && subtreeNeedsMissingIds(node.decorator.root)) {
-        return true;
+    for (const condition of node.conditions ?? []) {
+        if (condition?.root && subtreeNeedsMissingIds(condition.root)) {
+            return true;
+        }
     }
 
     if (node.children) {

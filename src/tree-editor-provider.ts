@@ -9,7 +9,7 @@ import {
     preparePersistedTreeForMainDocumentSave,
     type MainDocumentSubtreeWriteback,
 } from "../webview/domain/main-document-save";
-import { DecoratorBranchSaveError } from "../webview/shared/decorator-branch";
+import { ConditionBranchSaveError } from "../webview/shared/condition-branch";
 import { parsePersistedTreeContent } from "../webview/shared/tree";
 import type { HostSelectionState, NodeInstanceRef } from "../webview/shared/contracts";
 import type {
@@ -112,7 +112,7 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
                 : {
                       type: "selectNode",
                       target: normalized.ref,
-                      surface: normalized.kind === "decorator" ? "decorator" : "node",
+                      surface: normalized.kind === "condition" ? "condition" : "node",
                   };
 
         TreeEditorProvider.dispatchMessageToDocument(documentUri, message, async () => true);
@@ -197,7 +197,7 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
                 projectRootFsPath,
             };
         } catch (error) {
-            if (error instanceof DecoratorBranchSaveError) {
+            if (error instanceof ConditionBranchSaveError) {
                 throw error;
             }
             return {

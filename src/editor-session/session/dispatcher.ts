@@ -109,10 +109,10 @@ export function createSessionDispatcher({
                 }
                 return;
 
-            case "openDecoratorEditor":
+            case "openConditionEditor":
                 if (source !== "editor") {
                     await postMessage({
-                        type: "relayOpenDecoratorEditor",
+                        type: "relayOpenConditionEditor",
                         target: msg.target,
                     });
                 }

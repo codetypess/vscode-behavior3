@@ -1,5 +1,5 @@
 import { generateUuid } from "./stable-id";
-import { DEFAULT_ABORT_TYPE, DOCUMENT_VERSION } from "./b3type";
+import { DOCUMENT_VERSION } from "./b3type";
 import type {
     DocumentMutation,
     EditNode,
@@ -15,23 +15,22 @@ import { createNodeDefMap, findNodeDef, parseSlotDefinition } from "./node-utils
 import { parseWorkdirRelativeJsonPath } from "./protocol";
 import { translateRuntimeMessage, type SupportedLanguage } from "./runtime-i18n";
 import {
-    DECORATOR_TYPE_CUSTOM_KEY,
-    DEFAULT_DECORATOR_TYPE,
-    ensureDecoratorTypeCustom,
-    findDecoratorBranchViolation,
-    findEnclosingDecoratorBranch,
+    CONDITION_TYPE_CUSTOM_KEY,
+    createConditionData,
+    DEFAULT_CONDITION_TYPE,
+    ensureConditionTypeCustom,
+    findConditionBranchViolation,
+    findEnclosingConditionBranch,
     nodeDefReturnsRunning,
-    normalizeDecoratorPriorities,
-    readDecoratorType,
-    treeUsesAttachedDecorator,
-} from "./decorator-branch";
+    readConditionType,
+    treeUsesConditions,
+} from "./condition-branch";
 import {
     cloneJsonValue,
-    cloneDecoratorAttachment,
+    clonePersistedConditions,
     clonePersistedNode,
     clonePersistedTree,
     findPersistedNodeByStableId,
-    nodeDefSupportsDecorator,
 } from "./tree";
 
 export const compareDocumentVersion = (left: string, right: string): number => {
@@ -76,12 +75,11 @@ export type DocumentMutationReducerError =
     | { code: "move-into-descendant-denied" }
     | { code: "delete-root-node-denied" }
     | { code: "edit-subtree-denied" }
-    | { code: "decorator-not-supported" }
-    | { code: "decorator-already-attached" }
-    | { code: "decorator-not-attached" }
-    | { code: "decorator-clear-denied" }
-    | { code: "decorator-running-status" }
-    | { code: "decorator-nested" }
+    | { code: "condition-already-attached" }
+    | { code: "condition-not-attached" }
+    | { code: "condition-clear-denied" }
+    | { code: "condition-running-status" }
+    | { code: "condition-nested" }
     | { code: "missing-node-def" };
 
 export type DocumentMutationReducerResult =
@@ -98,8 +96,8 @@ export type ReducibleDocumentMutation = Extract<
     DocumentMutation,
     | { type: "updateTreeMeta" }
     | { type: "updateNode" }
-    | { type: "attachDecorator" }
-    | { type: "removeDecorator" }
+    | { type: "attachCondition" }
+    | { type: "removeCondition" }
     | { type: "performDrop" }
     | { type: "pasteNode" }
     | { type: "insertNode" }
@@ -182,19 +180,19 @@ const isDescendantStableId = (
     return found;
 };
 
-const decoratorViolationResult = (
-    violation: ReturnType<typeof findDecoratorBranchViolation>
+const conditionViolationResult = (
+    violation: ReturnType<typeof findConditionBranchViolation>
 ): DocumentMutationReducerResult | null => {
-    if (violation === "nested-decorator") {
-        return { status: "error", error: { code: "decorator-nested" } };
+    if (violation === "nested-condition") {
+        return { status: "error", error: { code: "condition-nested" } };
     }
     if (violation === "running-status") {
-        return { status: "error", error: { code: "decorator-running-status" } };
+        return { status: "error", error: { code: "condition-running-status" } };
     }
     return null;
 };
 
-const touchedDecoratorError = (
+const touchedConditionError = (
     tree: PersistedTreeModel,
     nodeDefs: NodeDef[],
     stableIds: Array<string | undefined>
@@ -203,12 +201,12 @@ const touchedDecoratorError = (
         if (!stableId) {
             continue;
         }
-        const branch = findEnclosingDecoratorBranch(tree.root, stableId);
+        const branch = findEnclosingConditionBranch(tree.root, stableId);
         if (!branch) {
             continue;
         }
-        const violation = decoratorViolationResult(
-            findDecoratorBranchViolation(branch, nodeDefs)
+        const violation = conditionViolationResult(
+            findConditionBranchViolation(branch, nodeDefs)
         );
         if (violation) {
             return violation;
@@ -219,8 +217,8 @@ const touchedDecoratorError = (
 
 const assignFreshStableIds = (node: PersistedNodeModel): void => {
     node.uuid = generateUuid();
-    if (node.decorator) {
-        assignFreshStableIds(node.decorator.root);
+    for (const condition of node.conditions ?? []) {
+        assignFreshStableIds(condition.root);
     }
     for (const child of node.children ?? []) {
         assignFreshStableIds(child);
@@ -291,8 +289,9 @@ const computeNodeOverride = (
         hasDiff = true;
     }
 
-    if (!isJsonEqual(original.decorator, edited.decorator) && edited.decorator) {
-        diff.decorator = cloneDecoratorAttachment(edited.decorator);
+    // An override can replace subtree conditions but never clear them (see reduceRemoveCondition).
+    if (!isJsonEqual(original.conditions ?? [], edited.conditions ?? []) && edited.conditions?.length) {
+        diff.conditions = clonePersistedConditions(edited.conditions);
         hasDiff = true;
     }
 
@@ -405,10 +404,10 @@ const reduceUpdateTreeMeta = (
     const nextCustom = payload.custom
         ? cloneJsonValue(payload.custom)
         : cloneJsonValue(tree.custom);
-    if (treeUsesAttachedDecorator(tree)) {
-        const nextType = readDecoratorType(nextCustom[DECORATOR_TYPE_CUSTOM_KEY]);
-        const previousType = readDecoratorType(tree.custom[DECORATOR_TYPE_CUSTOM_KEY]);
-        nextCustom[DECORATOR_TYPE_CUSTOM_KEY] = nextType ?? previousType ?? DEFAULT_DECORATOR_TYPE;
+    if (treeUsesConditions(tree)) {
+        const nextType = readConditionType(nextCustom[CONDITION_TYPE_CUSTOM_KEY]);
+        const previousType = readConditionType(tree.custom[CONDITION_TYPE_CUSTOM_KEY]);
+        nextCustom[CONDITION_TYPE_CUSTOM_KEY] = nextType ?? previousType ?? DEFAULT_CONDITION_TYPE;
     }
     const nextVars = cloneVars(payload.variables.locals).sort((a, b) =>
         a.name.localeCompare(b.name)
@@ -496,8 +495,10 @@ const reduceUpdateNode = (
     const nextInput = pruneNodeSlotsByDefinition(payload.data.input, nextNodeDef?.input);
     const nextOutput = pruneNodeSlotsByDefinition(payload.data.output, nextNodeDef?.output);
     const nextArgs = pruneNodeArgsByDefinition(payload.data.args, nextNodeDef);
-    const decoratorProvided = Object.prototype.hasOwnProperty.call(payload.data, "decorator");
-    const nextDecorator = decoratorProvided ? payload.data.decorator : selectedNode.data.decorator;
+    const conditionsProvided = Object.prototype.hasOwnProperty.call(payload.data, "conditions");
+    const nextConditions = conditionsProvided
+        ? clonePersistedConditions(payload.data.conditions)
+        : selectedNode.data.conditions;
 
     if (
         nextName === selectedNode.data.name &&
@@ -508,14 +509,14 @@ const reduceUpdateNode = (
         isJsonEqual(nextInput ?? [], selectedNode.data.input ?? []) &&
         isJsonEqual(nextOutput ?? [], selectedNode.data.output ?? []) &&
         isJsonEqual(nextArgs ?? {}, selectedNode.data.args ?? {}) &&
-        isJsonEqual(nextDecorator, selectedNode.data.decorator)
+        isJsonEqual(nextConditions ?? [], selectedNode.data.conditions ?? [])
     ) {
         return { status: "noop" };
     }
 
-    if (decoratorProvided && nextDecorator) {
-        const violation = decoratorViolationResult(
-            findDecoratorBranchViolation(nextDecorator.root, context.nodeDefs)
+    for (const condition of conditionsProvided ? (nextConditions ?? []) : []) {
+        const violation = conditionViolationResult(
+            findConditionBranchViolation(condition.root, context.nodeDefs)
         );
         if (violation) {
             return violation;
@@ -545,7 +546,7 @@ const reduceUpdateNode = (
             debug: nextDebug,
             disabled: nextDisabled,
             path: selectedNode.data.path,
-            decorator: nextDecorator,
+            conditions: nextConditions,
         };
 
         const diff = computeNodeOverride(original, editedNode, nextNodeDef);
@@ -556,7 +557,7 @@ const reduceUpdateNode = (
             delete tree.overrides[payload.target.sourceStableId];
         }
 
-        const subtreeViolation = touchedDecoratorError(tree, context.nodeDefs, [
+        const subtreeViolation = touchedConditionError(tree, context.nodeDefs, [
             payload.target.structuralStableId,
             payload.target.sourceStableId,
         ]);
@@ -599,7 +600,7 @@ const reduceUpdateNode = (
         detached.debug = nextDebug;
         detached.disabled = nextDisabled;
         detached.path = undefined;
-        detached.decorator = nextDecorator;
+        detached.conditions = nextConditions;
         overwritePersistedNode(node, detached);
     } else {
         node.name = nextName;
@@ -610,15 +611,15 @@ const reduceUpdateNode = (
         node.debug = nextDebug;
         node.disabled = nextDisabled;
         node.path = nextPath;
-        if (decoratorProvided) {
-            node.decorator = nextDecorator;
+        if (conditionsProvided) {
+            node.conditions = nextConditions;
         }
         if (nextPath && nextPath !== selectedNode.data.path) {
             node.children = undefined;
         }
     }
 
-    const inlineViolation = touchedDecoratorError(tree, context.nodeDefs, [
+    const inlineViolation = touchedConditionError(tree, context.nodeDefs, [
         payload.target.structuralStableId,
     ]);
     if (inlineViolation) {
@@ -713,7 +714,7 @@ const reducePerformDrop = (
         );
     }
 
-    const dropViolation = touchedDecoratorError(nextTree, nodeDefs, [
+    const dropViolation = touchedConditionError(nextTree, nodeDefs, [
         movedNode.uuid,
         mutation.payload.target.structuralStableId,
     ]);
@@ -751,7 +752,7 @@ const reducePasteNode = (
     targetNode.children ||= [];
     targetNode.children.push(nextNode);
 
-    const pasteViolation = touchedDecoratorError(nextTree, nodeDefs, [nextNode.uuid]);
+    const pasteViolation = touchedConditionError(nextTree, nodeDefs, [nextNode.uuid]);
     if (pasteViolation) {
         return pasteViolation;
     }
@@ -789,7 +790,7 @@ const reduceInsertNode = (
     targetNode.children ||= [];
     targetNode.children.push(nextNode);
 
-    const insertViolation = touchedDecoratorError(nextTree, nodeDefs, [nextNode.uuid]);
+    const insertViolation = touchedConditionError(nextTree, nodeDefs, [nextNode.uuid]);
     if (insertViolation) {
         return insertViolation;
     }
@@ -822,8 +823,8 @@ const reduceReplaceNode = (
     const replacement = clonePersistedNode(mutation.payload.snapshot);
     // Preserve the target identity so existing selections/edges still point at the replaced slot.
     replacement.uuid = targetNode.uuid;
-    if (replacement.decorator) {
-        assignFreshStableIds(replacement.decorator.root);
+    for (const condition of replacement.conditions ?? []) {
+        assignFreshStableIds(condition.root);
     }
     for (const child of replacement.children ?? []) {
         // Children are copied content and must not alias nodes from their source tree.
@@ -834,7 +835,7 @@ const reduceReplaceNode = (
     }
     overwritePersistedNode(targetNode, replacement);
 
-    const replaceViolation = touchedDecoratorError(nextTree, nodeDefs, [replacement.uuid]);
+    const replaceViolation = touchedConditionError(nextTree, nodeDefs, [replacement.uuid]);
     if (replaceViolation) {
         return replaceViolation;
     }
@@ -847,8 +848,8 @@ const reduceReplaceNode = (
     };
 };
 
-const reduceAttachDecorator = (
-    mutation: Extract<ReducibleDocumentMutation, { type: "attachDecorator" }>,
+const reduceAttachCondition = (
+    mutation: Extract<ReducibleDocumentMutation, { type: "attachCondition" }>,
     context: DocumentMutationReducerContext
 ): DocumentMutationReducerResult => {
     const entryName = mutation.payload.entryName.trim();
@@ -857,15 +858,15 @@ const reduceAttachDecorator = (
         return { status: "error", error: { code: "missing-node-def" } };
     }
     if (nodeDefReturnsRunning(entryDef)) {
-        return { status: "error", error: { code: "decorator-running-status" } };
+        return { status: "error", error: { code: "condition-running-status" } };
     }
     if (
-        findEnclosingDecoratorBranch(
+        findEnclosingConditionBranch(
             context.tree.root,
             mutation.payload.target.structuralStableId
         )
     ) {
-        return { status: "error", error: { code: "decorator-nested" } };
+        return { status: "error", error: { code: "condition-nested" } };
     }
 
     const tree = clonePersistedTree(context.tree);
@@ -880,21 +881,13 @@ const reduceAttachDecorator = (
     };
 
     if (inlineNode) {
-        const hostDef = getNodeDef(context.nodeDefs, inlineNode.name);
-        if (!nodeDefSupportsDecorator(hostDef)) {
-            return { status: "error", error: { code: "decorator-not-supported" } };
+        // The editor edits one condition per node for now; the file format allows more.
+        if (inlineNode.conditions?.length) {
+            return { status: "error", error: { code: "condition-already-attached" } };
         }
-        if (inlineNode.decorator) {
-            return { status: "error", error: { code: "decorator-already-attached" } };
-        }
-        inlineNode.decorator = {
-            ...normalizeDecoratorPriorities(
-                mutation.payload.target.displayId || inlineNode.id,
-                undefined
-            ),
-            abortType: DEFAULT_ABORT_TYPE,
-            root: entryNode,
-        };
+        inlineNode.conditions = [
+            createConditionData(mutation.payload.target.displayId || inlineNode.id, entryNode),
+        ];
         return {
             status: "changed",
             tree,
@@ -914,23 +907,15 @@ const reduceAttachDecorator = (
         return { status: "error", error: { code: "missing-subtree-original" } };
     }
     const hostDef = getNodeDef(context.nodeDefs, snapshot.data.name);
-    if (!nodeDefSupportsDecorator(hostDef)) {
-        return { status: "error", error: { code: "decorator-not-supported" } };
-    }
-    if (snapshot.data.decorator) {
-        return { status: "error", error: { code: "decorator-already-attached" } };
+    if (snapshot.data.conditions?.length) {
+        return { status: "error", error: { code: "condition-already-attached" } };
     }
 
     const editedNode: PersistedNodeModel = {
         ...clonePersistedNode(snapshot.data),
-        decorator: {
-            ...normalizeDecoratorPriorities(
-                mutation.payload.target.displayId || snapshot.data.id,
-                undefined
-            ),
-            abortType: DEFAULT_ABORT_TYPE,
-            root: entryNode,
-        },
+        conditions: [
+            createConditionData(mutation.payload.target.displayId || snapshot.data.id, entryNode),
+        ],
     };
     const diff = computeNodeOverride(original, editedNode, hostDef);
     if (diff) {
@@ -946,8 +931,8 @@ const reduceAttachDecorator = (
     };
 };
 
-const reduceRemoveDecorator = (
-    mutation: Extract<ReducibleDocumentMutation, { type: "removeDecorator" }>,
+const reduceRemoveCondition = (
+    mutation: Extract<ReducibleDocumentMutation, { type: "removeCondition" }>,
     context: DocumentMutationReducerContext
 ): DocumentMutationReducerResult => {
     const tree = clonePersistedTree(context.tree);
@@ -957,14 +942,11 @@ const reduceRemoveDecorator = (
     );
 
     if (inlineNode) {
-        const hostDef = getNodeDef(context.nodeDefs, inlineNode.name);
-        if (!nodeDefSupportsDecorator(hostDef)) {
-            return { status: "error", error: { code: "decorator-not-supported" } };
+        if (!inlineNode.conditions?.length) {
+            return { status: "error", error: { code: "condition-not-attached" } };
         }
-        if (!inlineNode.decorator) {
-            return { status: "error", error: { code: "decorator-not-attached" } };
-        }
-        delete inlineNode.decorator;
+        // Remove the condition the editor shows; any further hand-written items stay.
+        inlineNode.conditions = clonePersistedConditions(inlineNode.conditions.slice(1));
         return {
             status: "changed",
             tree,
@@ -984,18 +966,15 @@ const reduceRemoveDecorator = (
         return { status: "error", error: { code: "missing-subtree-original" } };
     }
     const hostDef = getNodeDef(context.nodeDefs, snapshot.data.name);
-    if (!nodeDefSupportsDecorator(hostDef)) {
-        return { status: "error", error: { code: "decorator-not-supported" } };
+    if (!snapshot.data.conditions?.length) {
+        return { status: "error", error: { code: "condition-not-attached" } };
     }
-    if (!snapshot.data.decorator) {
-        return { status: "error", error: { code: "decorator-not-attached" } };
-    }
-    if (original.decorator) {
-        return { status: "error", error: { code: "decorator-clear-denied" } };
+    if (original.conditions?.length) {
+        return { status: "error", error: { code: "condition-clear-denied" } };
     }
 
     const editedNode = clonePersistedNode(snapshot.data);
-    delete editedNode.decorator;
+    delete editedNode.conditions;
     const diff = computeNodeOverride(original, editedNode, hostDef);
     if (diff) {
         tree.overrides[mutation.payload.target.sourceStableId] = diff;
@@ -1043,8 +1022,8 @@ export const isReducibleDocumentMutation = (
 ): mutation is ReducibleDocumentMutation =>
     mutation.type === "updateTreeMeta" ||
     mutation.type === "updateNode" ||
-    mutation.type === "attachDecorator" ||
-    mutation.type === "removeDecorator" ||
+    mutation.type === "attachCondition" ||
+    mutation.type === "removeCondition" ||
     mutation.type === "performDrop" ||
     mutation.type === "pasteNode" ||
     mutation.type === "insertNode" ||
@@ -1058,7 +1037,7 @@ export const reduceDocumentMutation = (
 ): DocumentMutationReducerResult => {
     const reduced = reduceDocumentMutationUnchecked(mutation, context);
     if (reduced.status === "changed") {
-        ensureDecoratorTypeCustom(reduced.tree);
+        ensureConditionTypeCustom(reduced.tree);
     }
     return reduced;
 };
@@ -1074,11 +1053,11 @@ const reduceDocumentMutationUnchecked = (
         case "updateNode":
             return reduceUpdateNode(mutation, context);
 
-        case "attachDecorator":
-            return reduceAttachDecorator(mutation, context);
+        case "attachCondition":
+            return reduceAttachCondition(mutation, context);
 
-        case "removeDecorator":
-            return reduceRemoveDecorator(mutation, context);
+        case "removeCondition":
+            return reduceRemoveCondition(mutation, context);
 
         case "performDrop":
             return reducePerformDrop(mutation, context.tree, context.nodeDefs);
@@ -1143,23 +1122,21 @@ export const formatDocumentMutationReducerError = (
         case "edit-subtree-denied":
             return translateRuntimeMessage(language, "mutation.editSubtreeDenied");
 
-        case "decorator-not-supported":
-            return translateRuntimeMessage(language, "mutation.decoratorNotSupported");
 
-        case "decorator-already-attached":
-            return translateRuntimeMessage(language, "mutation.decoratorAlreadyAttached");
+        case "condition-already-attached":
+            return translateRuntimeMessage(language, "mutation.conditionAlreadyAttached");
 
-        case "decorator-not-attached":
-            return translateRuntimeMessage(language, "mutation.decoratorNotAttached");
+        case "condition-not-attached":
+            return translateRuntimeMessage(language, "mutation.conditionNotAttached");
 
-        case "decorator-clear-denied":
-            return translateRuntimeMessage(language, "mutation.decoratorClearDenied");
+        case "condition-clear-denied":
+            return translateRuntimeMessage(language, "mutation.conditionClearDenied");
 
-        case "decorator-running-status":
-            return translateRuntimeMessage(language, "mutation.decoratorRunningStatus");
+        case "condition-running-status":
+            return translateRuntimeMessage(language, "mutation.conditionRunningStatus");
 
-        case "decorator-nested":
-            return translateRuntimeMessage(language, "mutation.decoratorNested");
+        case "condition-nested":
+            return translateRuntimeMessage(language, "mutation.conditionNested");
 
         case "missing-node-def":
             return translateRuntimeMessage(language, "mutation.missingNodeDef");

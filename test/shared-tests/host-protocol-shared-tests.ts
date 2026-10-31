@@ -108,14 +108,14 @@ export const hostProtocolSharedTests = defineSharedTests([
                 const adapter = createVsCodeHostAdapter();
                 let relayedNames: string[] | null = null;
                 let relayedNode: NodeInstanceRef | null = null;
-                let openedDecorator: NodeInstanceRef | null = null;
+                let openedCondition: NodeInstanceRef | null = null;
                 const off = adapter.connect((message) => {
                     if (message.type === "focusVariable") {
                         relayedNames = message.names;
                     } else if (message.type === "focusNode") {
                         relayedNode = message.target;
-                    } else if (message.type === "openDecoratorEditor") {
-                        openedDecorator = message.target;
+                    } else if (message.type === "openConditionEditor") {
+                        openedCondition = message.target;
                     }
                 });
 
@@ -162,7 +162,7 @@ export const hostProtocolSharedTests = defineSharedTests([
                     subtreeStack: [],
                 });
 
-                const decoratorTarget: NodeInstanceRef = {
+                const conditionTarget: NodeInstanceRef = {
                     instanceKey: "host",
                     displayId: "1",
                     structuralStableId: "host",
@@ -170,18 +170,18 @@ export const hostProtocolSharedTests = defineSharedTests([
                     sourceTreePath: null,
                     subtreeStack: [],
                 };
-                adapter.requestOpenDecoratorEditor(decoratorTarget);
+                adapter.requestOpenConditionEditor(conditionTarget);
                 assert.deepEqual(posts.at(-1), {
-                    type: "openDecoratorEditor",
-                    target: decoratorTarget,
+                    type: "openConditionEditor",
+                    target: conditionTarget,
                 });
                 messageListener?.({
                     data: {
-                        type: "relayOpenDecoratorEditor",
-                        target: decoratorTarget,
+                        type: "relayOpenConditionEditor",
+                        target: conditionTarget,
                     },
                 } as MessageEvent);
-                assert.deepEqual(openedDecorator, decoratorTarget);
+                assert.deepEqual(openedCondition, conditionTarget);
 
                 const resultPromise = adapter.readFile(
                     parseWorkdirRelativeJsonPath("sub/a.json")!,

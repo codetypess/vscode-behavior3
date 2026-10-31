@@ -29,7 +29,7 @@ export const eventHasShapeClass = (
     hasShapeClassInChain(event.originalTarget, shapeClassName) ||
     hasShapeClassInChain(event.target, shapeClassName);
 
-export const DECORATOR_DOUBLE_CLICK_MS = 500;
+export const CONDITION_DOUBLE_CLICK_MS = 500;
 
 export type ShapeClickStamp = {
     key: string;
@@ -40,7 +40,7 @@ export type ShapeClickStamp = {
 export const isDoubleShapeClick = (
     previous: ShapeClickStamp | null,
     next: ShapeClickStamp,
-    intervalMs = DECORATOR_DOUBLE_CLICK_MS
+    intervalMs = CONDITION_DOUBLE_CLICK_MS
 ): boolean =>
     previous !== null &&
     previous.key === next.key &&

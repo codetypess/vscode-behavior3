@@ -41,7 +41,7 @@
 - 1 份进行中的 work-item spec：
     - [`visible-expression-field-errors.md`](visible-expression-field-errors.md)（Implementing）
 - 1 份已实现、基线已同步的 work-item spec：
-    - [`node-attached-decorator.md`](node-attached-decorator.md)（Implemented）
+    - [`node-conditions.md`](node-conditions.md)（Implemented）
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
 当前有 1 份仍在推进中的 work-item；需要新的 non-trivial 任务时，再新增对应 `docs/spec/<slug>.md`。
@@ -236,6 +236,6 @@ Scope: <short boundary>
 ## Work-Item Index
 
 - [`visible-expression-field-errors.md`](visible-expression-field-errors.md)：Status `Implementing`。字段可见性表达式与字段级错误。
-- [`node-attached-decorator.md`](node-attached-decorator.md)：Status `Implemented`。节点附属装饰器枝干。数据模型、节点上方显示、右键添加和临时编辑页已落地。
+- [`node-conditions.md`](node-conditions.md)：Status `Implemented`。behavior3 2.0 节点条件（`conditions`）的数据层，以及从原「节点附属装饰器」改过来的显示和编辑。
 
 新增 work-item 时，请继续按以上格式补充；完成后如果长期规则已同步进编号基线 spec，直接从目录中删除对应 work-item。

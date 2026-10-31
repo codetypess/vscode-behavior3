@@ -210,9 +210,9 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
                         });
                         return;
 
-                    case "relayOpenDecoratorEditor":
+                    case "relayOpenConditionEditor":
                         onMessage({
-                            type: "openDecoratorEditor",
+                            type: "openConditionEditor",
                             target: normalizeNodeInstanceRef(message.target),
                         });
                         return;
@@ -316,8 +316,8 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
             postMessage({ type: "requestFocusVariable", names });
         },
 
-        requestOpenDecoratorEditor(target) {
-            postMessage({ type: "openDecoratorEditor", target });
+        requestOpenConditionEditor(target) {
+            postMessage({ type: "openConditionEditor", target });
         },
 
         sendRequestSetting() {

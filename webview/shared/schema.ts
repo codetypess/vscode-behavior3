@@ -1,6 +1,8 @@
 import {
+    ABORT_MODES,
+    DEFAULT_ABORT_MODE,
     DOCUMENT_VERSION,
-    type DecoratorAttachment,
+    type ConditionData,
     type NodeData,
     type TreeData,
     type VarDecl,
@@ -9,11 +11,14 @@ import {
 import type { NodeDef } from "./b3type";
 import { generateDeterministicUuid, generateUuid } from "./stable-id";
 import {
-    ensureDecoratorTypeCustom,
-    normalizeDecoratorPriorities,
-    readAbortType,
-    readDecoratorInt,
-} from "./decorator-branch";
+    CONDITION_ENTER_PRIORITY_KEY,
+    CONDITION_MAINTAIN_PRIORITY_KEY,
+    ensureConditionTypeCustom,
+    isAbortMode,
+    normalizeConditionPriorities,
+    readConditionInt,
+    withConditionPriorities,
+} from "./condition-branch";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
 
 const NODE_DEF_TYPES = new Set<NodeDef["type"]>(["Action", "Decorator", "Condition", "Composite"]);
@@ -293,8 +298,6 @@ const normalizeNodeDef = (value: unknown, label: string): NodeDef => {
                   return entry as NonNullable<NodeDef["status"]>[number];
               });
 
-    const supportDecorator = record.supportDecorator === true ? true : undefined;
-
     return {
         name,
         type,
@@ -308,31 +311,51 @@ const normalizeNodeDef = (value: unknown, label: string): NodeDef => {
         group,
         status,
         children: childrenValue as NodeDef["children"],
-        supportDecorator,
+        preemptive: record.preemptive === true ? true : undefined,
     };
 };
 
-const normalizeDecoratorAttachment = (
+/**
+ * `hostId` is the display id of the node that owns the conditions; it drives the editor-owned
+ * priorities in `custom`. Override patches have no host id and keep the stored enter priority.
+ */
+const normalizeConditions = (
     value: unknown,
     label: string,
     hostId: string | undefined,
     stableIdSeed?: string
-): DecoratorAttachment<NodeData> => {
-    const record = expectPlainRecord(value, label);
-    const branch = isPlainRecord(record.root) ? record.root : record;
-    const branchLabel = isPlainRecord(record.root) ? `${label}.root` : label;
-    const priorityId =
-        hostId !== undefined
-            ? hostId
-            : readDecoratorInt(record.enterPriority) !== undefined
-              ? String(readDecoratorInt(record.enterPriority))
-              : "";
-    const priorities = normalizeDecoratorPriorities(priorityId, record.maintainPriority);
-    return {
-        ...priorities,
-        abortType: readAbortType(record.abortType),
-        root: normalizeNodeData(branch, branchLabel, stableIdSeed),
-    };
+): ConditionData<NodeData>[] | undefined => {
+    if (value === undefined) {
+        return undefined;
+    }
+    if (!Array.isArray(value)) {
+        throw new Error(`${label} must be an array`);
+    }
+
+    const conditions = value.map((entry, index): ConditionData<NodeData> => {
+        const itemLabel = `${label}[${index}]`;
+        const record = expectPlainRecord(entry, itemLabel);
+        const abort = record.abort ?? DEFAULT_ABORT_MODE;
+        if (!isAbortMode(abort)) {
+            throw new Error(`${itemLabel}.abort must be one of ${ABORT_MODES.join(", ")}`);
+        }
+        if (record.root === undefined) {
+            throw new Error(`${itemLabel}.root is required`);
+        }
+
+        const custom = normalizeCustomRecord(record.custom, `${itemLabel}.custom`);
+        const enterId =
+            hostId ?? String(readConditionInt(custom[CONDITION_ENTER_PRIORITY_KEY]) ?? "");
+        return {
+            abort,
+            custom: withConditionPriorities(
+                custom,
+                normalizeConditionPriorities(enterId, custom[CONDITION_MAINTAIN_PRIORITY_KEY])
+            ),
+            root: normalizeNodeData(record.root, `${itemLabel}.root`, stableIdSeed),
+        };
+    });
+    return conditions.length > 0 ? conditions : undefined;
 };
 
 const normalizeOverrideMap = (value: unknown, label: string): TreeData["overrides"] => {
@@ -363,26 +386,23 @@ const normalizeOverrideMap = (value: unknown, label: string): TreeData["override
             args: argsValue ? { ...argsValue } : undefined,
             debug: typeof patch.debug === "boolean" ? patch.debug : undefined,
             disabled: typeof patch.disabled === "boolean" ? patch.disabled : undefined,
-            decorator:
-                patch.decorator === undefined
-                    ? undefined
-                    : normalizeDecoratorAttachment(
-                          patch.decorator,
-                          `${label}.${key}.decorator`,
-                          undefined
-                      ),
+            conditions: normalizeConditions(
+                patch.conditions,
+                `${label}.${key}.conditions`,
+                undefined
+            ),
         };
     }
 
     return normalized;
 };
 
-const normalizeCustomRecord = (value: unknown): TreeData["custom"] => {
+const normalizeCustomRecord = (value: unknown, label: string): TreeData["custom"] => {
     if (value === undefined) {
         return {};
     }
 
-    const record = expectPlainRecord(value, "tree file custom");
+    const record = expectPlainRecord(value, label);
     const normalized: TreeData["custom"] = {};
     for (const [key, entry] of Object.entries(record)) {
         if (typeof entry === "string" || typeof entry === "number" || typeof entry === "boolean") {
@@ -393,7 +413,7 @@ const normalizeCustomRecord = (value: unknown): TreeData["custom"] => {
             normalized[key] = entry;
             continue;
         }
-        throw new Error(`tree file custom.${key} must be a string, number, boolean, or object`);
+        throw new Error(`${label}.${key} must be a string, number, boolean, or object`);
     }
     return normalized;
 };
@@ -458,15 +478,12 @@ const normalizeNodeData = (value: unknown, label: string, stableIdSeed?: string)
             typeof record.$status === "number" && Number.isFinite(record.$status)
                 ? record.$status
                 : undefined,
-        decorator:
-            record.decorator === undefined
-                ? undefined
-                : normalizeDecoratorAttachment(
-                      record.decorator,
-                      `${label}.decorator`,
-                      record.id === undefined ? "" : String(record.id),
-                      stableIdSeed
-                  ),
+        conditions: normalizeConditions(
+            record.conditions,
+            `${label}.conditions`,
+            record.id === undefined ? "" : String(record.id),
+            stableIdSeed
+        ),
     };
 };
 
@@ -567,11 +584,11 @@ export const normalizeTreeData = (value: unknown, opts?: { stableIdSeed?: string
                 variablesRecord ? "tree file variables.locals" : "tree file vars"
             ),
         },
-        custom: normalizeCustomRecord(record.custom),
+        custom: normalizeCustomRecord(record.custom, "tree file custom"),
         root: normalizeNodeData(record.root, "tree file root", opts?.stableIdSeed),
         overrides: normalizeOverrideMap(overridesValue, "tree file overrides"),
     };
-    ensureDecoratorTypeCustom(tree);
+    ensureConditionTypeCustom(tree);
     return tree;
 };
 

@@ -9,11 +9,7 @@ import type {
     NodeDef,
 } from "../shared/contracts";
 import { deriveGroupDefs } from "../shared/node-utils";
-import {
-    clonePersistedTree,
-    pruneUnsupportedNodeDecorators,
-    readPersistedTreeForEditor,
-} from "../shared/tree";
+import { parsePersistedTreeContent } from "../shared/tree";
 import { applyHostDocumentSession, clearDocumentReloadConflict } from "../stores/document-store";
 import { buildUsingGroups, isJsonEqual, type ControllerRuntime } from "./controller-runtime";
 
@@ -39,11 +35,7 @@ export const createDocumentCommands = (
     return {
         async initFromHost(payload: HostInitPayload) {
             // Init is the only full bootstrap path; subsequent messages patch this state incrementally.
-            const persistedTree = readPersistedTreeForEditor(
-                payload.content,
-                payload.filePath,
-                payload.nodeDefs
-            );
+            const persistedTree = parsePersistedTreeContent(payload.content, payload.filePath);
             deps.workspaceStore.setState((state) => ({
                 ...state,
                 filePath: payload.filePath,
@@ -82,9 +74,8 @@ export const createDocumentCommands = (
             // Content changes invalidate the current resolved graph; keep the host ref pending
             // and restore it against the rebuilt graph instead of projecting through stale nodes.
             runtime.stageHostSelectionState(snapshot.selection);
-            const workspace = deps.workspaceStore.getState();
-            const filePath = workspace.filePath || undefined;
-            const tree = readPersistedTreeForEditor(snapshot.content, filePath, workspace.nodeDefs);
+            const filePath = deps.workspaceStore.getState().filePath || undefined;
+            const tree = parsePersistedTreeContent(snapshot.content, filePath);
             await runtime.applyDocumentTree(tree, {
                 preserveSelection: true,
             });
@@ -96,14 +87,6 @@ export const createDocumentCommands = (
                 nodeDefs: defs,
                 groupDefs: deriveGroupDefs(defs),
             }));
-            const persistedTree = deps.documentStore.getState().persistedTree;
-            if (persistedTree) {
-                const nextTree = clonePersistedTree(persistedTree);
-                if (pruneUnsupportedNodeDecorators(nextTree, defs)) {
-                    await runtime.applyDocumentTree(nextTree, { preserveSelection: true });
-                    return;
-                }
-            }
             await runtime.rebuildGraph({ preserveSelection: true });
         },
 
@@ -177,10 +160,10 @@ export const createDocumentCommands = (
             if (!response.success) {
                 const error = response.error ?? "Save failed";
                 runtime.notifyError(
-                    error.includes("decorator-nested")
-                        ? i18n.t("mutation.decoratorNested")
-                        : error.includes("decorator-running-status")
-                          ? i18n.t("mutation.decoratorRunningStatus")
+                    error.includes("condition-nested")
+                        ? i18n.t("mutation.conditionNested")
+                        : error.includes("condition-running-status")
+                          ? i18n.t("mutation.conditionRunningStatus")
                           : error
                 );
                 return false;

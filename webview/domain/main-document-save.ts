@@ -1,4 +1,4 @@
-import { assertDecoratorBranchesSavable } from "../shared/decorator-branch";
+import { assertConditionBranchesSavable } from "../shared/condition-branch";
 import { resolveDocumentGraph } from "./resolve-graph";
 import type { NodeDef } from "../shared/b3type";
 import type {
@@ -10,7 +10,6 @@ import {
     clonePersistedTree,
     loadSubtreeSourceCache,
     pruneStaleSubtreeOverrides,
-    pruneUnsupportedNodeDecorators,
     serializePersistedTree,
 } from "../shared/tree";
 
@@ -31,8 +30,7 @@ export const preparePersistedTreeForMainDocumentSave = async (params: {
 }): Promise<MainDocumentSavePlan> => {
     const subtreeWritebacks: MainDocumentSubtreeWriteback[] = [];
     const nextTree = clonePersistedTree(params.tree);
-    pruneUnsupportedNodeDecorators(nextTree, params.nodeDefs);
-    assertDecoratorBranchesSavable(nextTree, params.nodeDefs);
+    assertConditionBranchesSavable(nextTree, params.nodeDefs);
     const subtreeSources = await loadSubtreeSourceCache({
         root: nextTree.root,
         readContent: params.readSubtreeContent,

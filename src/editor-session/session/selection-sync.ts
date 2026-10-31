@@ -66,7 +66,7 @@ export function createSessionSelectionSync(
         await enqueueMainDocumentOperation(async () => {
             const result = updateSharedSelection(
                 {
-                    kind: msg.surface === "decorator" ? "decorator" : "node",
+                    kind: msg.surface === "condition" ? "condition" : "node",
                     ref: normalizeNodeInstanceRef(msg.target),
                 },
                 { reassertIfEqual: true }

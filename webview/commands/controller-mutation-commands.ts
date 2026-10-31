@@ -1,9 +1,9 @@
 import { DOCUMENT_VERSION } from "../shared/b3type";
 import {
-    buildDecoratorRestoreUpdate,
-    projectDecoratorBranchMutation,
-    readHostDecoratorBranch,
-} from "../domain/decorator-edit";
+    buildConditionRestoreUpdate,
+    projectConditionBranchMutation,
+    readHostConditionBranch,
+} from "../domain/condition-edit";
 import i18n from "../shared/i18n";
 import type {
     DropIntent,
@@ -22,7 +22,7 @@ import {
 } from "../shared/document";
 import { isJsonEqual, stringifyJson } from "../shared/json";
 import { parseWorkdirRelativeJsonPath } from "../shared/protocol";
-import { clonePersistedNode, nodeDefSupportsDecorator } from "../shared/tree";
+import { clonePersistedNode } from "../shared/tree";
 import { type ControllerRuntime } from "./controller-runtime";
 
 type MutationCommandKeys =
@@ -37,11 +37,11 @@ type MutationCommandKeys =
     | "openSubtreePath"
     | "openSelectedSubtree"
     | "saveSelectedAsSubtree"
-    | "attachDecorator"
-    | "removeDecorator"
-    | "openDecoratorEditor"
-    | "decoratorEditIsDirty"
-    | "finishDecoratorEditor";
+    | "attachCondition"
+    | "removeCondition"
+    | "openConditionEditor"
+    | "conditionEditIsDirty"
+    | "finishConditionEditor";
 
 type DropPreflightDenialReason =
     | "missing-context"
@@ -119,11 +119,11 @@ const forwardDocumentMutation = async (
     runtime: ControllerRuntime,
     mutation: DocumentMutation
 ): Promise<DocumentMutationResponse> => {
-    const session = runtime.deps.graphUiStore.getState().decoratorEdit;
+    const session = runtime.deps.graphUiStore.getState().conditionEdit;
     const tree = runtime.deps.documentStore.getState().persistedTree;
     if (session && tree && isReducibleDocumentMutation(mutation)) {
         const workspace = runtime.deps.workspaceStore.getState();
-        const projected = projectDecoratorBranchMutation({
+        const projected = projectConditionBranchMutation({
             tree,
             subtreeSources: workspace.subtreeSources,
             nodeDefs: workspace.nodeDefs,
@@ -525,25 +525,24 @@ export const createMutationCommands = (
             });
         },
 
-        async attachDecorator(entryName) {
+        async attachCondition(entryName) {
             const selected = runtime.getSelectedResolvedNode();
             if (!selected) {
                 runtime.notifyError(i18n.t("node.noNodeSelected"));
                 return;
             }
-            if (runtime.deps.graphUiStore.getState().decoratorEdit) {
-                runtime.notifyError(i18n.t("mutation.decoratorNested"));
+            if (runtime.deps.graphUiStore.getState().conditionEdit) {
+                runtime.notifyError(i18n.t("mutation.conditionNested"));
                 return;
             }
-            const nodeDef = runtime.getNodeDef(selected.name);
-            if (!nodeDefSupportsDecorator(nodeDef) || selected.attachedDecoratorName) {
-                runtime.notifyError(i18n.t("mutation.decoratorNotSupported"));
+            if (selected.attachedConditionName) {
+                runtime.notifyError(i18n.t("mutation.conditionAlreadyAttached"));
                 return;
             }
 
             const selectedSnapshot = runtime.deps.selectionStore.getState().selectedNodeSnapshot;
             await forwardDocumentMutation(runtime, {
-                type: "attachDecorator",
+                type: "attachCondition",
                 payload: {
                     target: selected.ref,
                     entryName,
@@ -560,29 +559,28 @@ export const createMutationCommands = (
             });
         },
 
-        async removeDecorator() {
+        async removeCondition() {
             const selected = runtime.getSelectedResolvedNode();
             if (!selected) {
                 runtime.notifyError(i18n.t("node.noNodeSelected"));
                 return;
             }
-            if (runtime.deps.graphUiStore.getState().decoratorEdit) {
-                runtime.notifyError(i18n.t("mutation.decoratorNested"));
+            if (runtime.deps.graphUiStore.getState().conditionEdit) {
+                runtime.notifyError(i18n.t("mutation.conditionNested"));
                 return;
             }
-            const nodeDef = runtime.getNodeDef(selected.name);
-            if (!nodeDefSupportsDecorator(nodeDef) || !selected.attachedDecoratorName) {
-                runtime.notifyError(i18n.t("mutation.decoratorNotAttached"));
+            if (!selected.attachedConditionName) {
+                runtime.notifyError(i18n.t("mutation.conditionNotAttached"));
                 return;
             }
             const selectedSnapshot = runtime.deps.selectionStore.getState().selectedNodeSnapshot;
-            if (selected.subtreeNode && selectedSnapshot?.subtreeOriginal?.decorator) {
-                runtime.notifyError(i18n.t("mutation.decoratorClearDenied"));
+            if (selected.subtreeNode && selectedSnapshot?.subtreeOriginal?.conditions?.length) {
+                runtime.notifyError(i18n.t("mutation.conditionClearDenied"));
                 return;
             }
 
             await forwardDocumentMutation(runtime, {
-                type: "removeDecorator",
+                type: "removeCondition",
                 payload: {
                     target: selected.ref,
                     currentNodeSnapshot: selectedSnapshot
@@ -598,17 +596,17 @@ export const createMutationCommands = (
             });
         },
 
-        async openDecoratorEditor(target) {
-            if (runtime.deps.graphUiStore.getState().decoratorEdit) {
+        async openConditionEditor(target) {
+            if (runtime.deps.graphUiStore.getState().conditionEdit) {
                 return;
             }
             const resolved = runtime.getResolvedGraph()?.nodesByInstanceKey[target.instanceKey];
             const tree = runtime.deps.documentStore.getState().persistedTree;
             const workspace = runtime.deps.workspaceStore.getState();
-            if (!resolved?.attachedDecoratorName || !tree) {
+            if (!resolved?.attachedConditionName || !tree) {
                 return;
             }
-            const branch = readHostDecoratorBranch({
+            const branch = readHostConditionBranch({
                 tree,
                 subtreeSources: workspace.subtreeSources,
                 nodeDefs: workspace.nodeDefs,
@@ -621,11 +619,11 @@ export const createMutationCommands = (
 
             runtime.deps.graphUiStore.setState((state) => ({
                 ...state,
-                decoratorEdit: {
+                conditionEdit: {
                     hostRef: resolved.ref,
                     hostName: resolved.name,
                     hostSubtreeNode: resolved.subtreeNode,
-                    entryDecorator: branch,
+                    entryCondition: branch,
                 },
             }));
             await runtime.rebuildGraph({ preserveSelection: false });
@@ -639,25 +637,25 @@ export const createMutationCommands = (
             }
         },
 
-        decoratorEditIsDirty() {
-            const session = runtime.deps.graphUiStore.getState().decoratorEdit;
+        conditionEditIsDirty() {
+            const session = runtime.deps.graphUiStore.getState().conditionEdit;
             const tree = runtime.deps.documentStore.getState().persistedTree;
             const workspace = runtime.deps.workspaceStore.getState();
             if (!session || !tree) {
                 return false;
             }
-            const branch = readHostDecoratorBranch({
+            const branch = readHostConditionBranch({
                 tree,
                 subtreeSources: workspace.subtreeSources,
                 nodeDefs: workspace.nodeDefs,
                 subtreeEditable: workspace.settings.subtreeEditable,
                 hostRef: session.hostRef,
             });
-            return !isJsonEqual(branch, session.entryDecorator);
+            return !isJsonEqual(branch, session.entryCondition);
         },
 
-        async finishDecoratorEditor(action) {
-            const session = runtime.deps.graphUiStore.getState().decoratorEdit;
+        async finishConditionEditor(action) {
+            const session = runtime.deps.graphUiStore.getState().conditionEdit;
             if (!session) {
                 return true;
             }
@@ -665,7 +663,7 @@ export const createMutationCommands = (
             const leave = async () => {
                 runtime.deps.graphUiStore.setState((state) => ({
                     ...state,
-                    decoratorEdit: null,
+                    conditionEdit: null,
                 }));
                 await runtime.rebuildGraph({ preserveSelection: false });
                 const graph = runtime.getResolvedGraph();
@@ -698,10 +696,10 @@ export const createMutationCommands = (
                 if (!saved.success) {
                     const error = saved.error ?? "Save failed";
                     runtime.notifyError(
-                        error.includes("decorator-nested")
-                            ? i18n.t("mutation.decoratorNested")
-                            : error.includes("decorator-running-status")
-                              ? i18n.t("mutation.decoratorRunningStatus")
+                        error.includes("condition-nested")
+                            ? i18n.t("mutation.conditionNested")
+                            : error.includes("condition-running-status")
+                              ? i18n.t("mutation.conditionRunningStatus")
                               : error
                     );
                     return false;
@@ -713,15 +711,15 @@ export const createMutationCommands = (
             const tree = runtime.deps.documentStore.getState().persistedTree;
             const workspace = runtime.deps.workspaceStore.getState();
             if (tree) {
-                const current = readHostDecoratorBranch({
+                const current = readHostConditionBranch({
                     tree,
                     subtreeSources: workspace.subtreeSources,
                     nodeDefs: workspace.nodeDefs,
                     subtreeEditable: workspace.settings.subtreeEditable,
                     hostRef: session.hostRef,
                 });
-                if (!isJsonEqual(current, session.entryDecorator)) {
-                    const update = buildDecoratorRestoreUpdate({
+                if (!isJsonEqual(current, session.entryCondition)) {
+                    const update = buildConditionRestoreUpdate({
                         tree,
                         subtreeSources: workspace.subtreeSources,
                         nodeDefs: workspace.nodeDefs,

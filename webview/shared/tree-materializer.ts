@@ -1,4 +1,4 @@
-import type { NodeDef } from "./b3type";
+import type { AbortMode, ConditionCustom, NodeDef } from "./b3type";
 import type {
     InvalidSubtreeSource,
     PersistedNodeModel,
@@ -29,9 +29,18 @@ interface MaterializeContext {
     insideExternalSubtree: boolean;
 }
 
+export interface MaterializedCondition {
+    abort: AbortMode;
+    custom?: ConditionCustom;
+    root: MaterializedTreeNode;
+}
+
 export interface MaterializedTreeNode {
+    // `data.children` holds the resolved children; `data.conditions` keeps the persisted form.
     data: PersistedNodeModel;
     children: MaterializedTreeNode[];
+    /** Condition trees resolved like children, including subtree paths inside them. */
+    conditions: MaterializedCondition[];
     structuralStableId: string;
     sourceStableId: string;
     sourceTreePath: WorkdirRelativeJsonPath | null;
@@ -68,13 +77,12 @@ const applyPatchIfAny = (
     if (patch.disabled !== undefined) {
         node.disabled = patch.disabled;
     }
-    if (patch.decorator !== undefined) {
-        node.decorator = {
-            enterPriority: patch.decorator.enterPriority,
-            maintainPriority: patch.decorator.maintainPriority,
-            abortType: patch.decorator.abortType,
-            root: clonePersistedNode(patch.decorator.root),
-        };
+    if (patch.conditions !== undefined) {
+        node.conditions = patch.conditions.map((condition) => ({
+            abort: condition.abort,
+            custom: condition.custom ? { ...condition.custom } : undefined,
+            root: clonePersistedNode(condition.root),
+        }));
     }
 };
 
@@ -314,13 +322,23 @@ export const materializePersistedTree = (params: {
                         insideExternalSubtree: false,
                     };
 
+        const unresolved = Boolean(resolutionError || (normalizedPath && !subtreeTree));
         const nextChildren =
             materialized && subtreeTree
                 ? (subtreeTree.root.children ?? [])
-                : resolutionError || (normalizedPath && !subtreeTree)
+                : unresolved
                   ? []
                   : (sourceNode.children ?? []);
 
+        // Runtime order: the node, its condition trees, then its children.
+        // Condition trees belong to the same source file as the children.
+        const conditions: MaterializedCondition[] = unresolved
+            ? []
+            : (sourceNode.conditions ?? []).map((condition) => ({
+                  abort: condition.abort,
+                  custom: condition.custom ? { ...condition.custom } : undefined,
+                  root: resolveNode(condition.root, childContext),
+              }));
         const children = nextChildren.map((child) => resolveNode(child, childContext));
         sourceNode.children = children.map((child) => child.data);
         // Disabled children stay visible but are ignored when deriving parent status bits.
@@ -333,6 +351,7 @@ export const materializePersistedTree = (params: {
         return {
             data: sourceNode,
             children,
+            conditions,
             structuralStableId: structuredNode.uuid,
             sourceStableId: sourceNode.uuid,
             sourceTreePath: sourceTreePath ?? null,

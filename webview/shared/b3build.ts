@@ -33,6 +33,7 @@ import {
     writeTree,
 } from "./tree";
 import { parseWorkspaceModelContent } from "./schema";
+import { syncConditionPriorities } from "./condition-branch";
 
 /**
  * Shared build pipeline helpers.
@@ -135,7 +136,7 @@ interface BuildContext {
     buildScriptDebug?: boolean;
     files: Record<string, number>;
     parsedVarDecl: Record<string, ImportDecl>;
-    dfs<T extends { children?: T[] }>(
+    dfs<T extends { children?: T[]; conditions?: { root: T }[] }>(
         node: T,
         visitor: (node: T, depth: number) => unknown,
         depth?: number
@@ -958,13 +959,24 @@ const materializedNodeToExpandedTreeData = (node: MaterializedTreeNode): NodeDat
         disabled: data.disabled,
         path: data.path,
         $status: data.$status,
+        conditions: node.conditions.length
+            ? node.conditions.map((condition) => ({
+                  abort: condition.abort,
+                  custom: condition.custom ? { ...condition.custom } : undefined,
+                  root: materializedNodeToExpandedTreeData(condition.root),
+              }))
+            : undefined,
         children: node.children.map((child) => materializedNodeToExpandedTreeData(child)),
     };
 };
 
+// Same order as the behavior3 runtime: node, condition trees, children.
 const assignSequentialNodeIds = (node: NodeData, nextId = 1): number => {
     node.id = String(nextId);
     let currentId = nextId + 1;
+    for (const condition of node.conditions ?? []) {
+        currentId = assignSequentialNodeIds(condition.root, currentId);
+    }
     for (const child of node.children ?? []) {
         currentId = assignSequentialNodeIds(child, currentId);
     }
@@ -1006,6 +1018,17 @@ export const createFileDataWithContext = (
     }
     if (!conf?.args?.length) {
         nodeData.args = undefined;
+    }
+
+    if (data.conditions?.length) {
+        nodeData.conditions = data.conditions.map((condition) => ({
+            abort: condition.abort,
+            custom:
+                condition.custom && Object.keys(condition.custom).length > 0
+                    ? { ...condition.custom }
+                    : undefined,
+            root: createFileDataWithContext(condition.root, includeSubtree, context),
+        }));
     }
 
     // Subtree references normally keep only the reference path; build output can opt into expansion.
@@ -1066,6 +1089,8 @@ export const createBuildDataWithContext = async (
 
         assignSequentialNodeIds(treeModel.root);
         context.dfs(treeModel.root, (node) => {
+            // Priorities follow the final numeric id, before the prefix is added.
+            syncConditionPriorities(node);
             node.id = treeModel.prefix + node.id;
         });
         treeModel.name = b3path.basenameWithoutExt(treePath);
@@ -1096,7 +1121,17 @@ export const processBatchTree = (
         return null;
     }
     if (batch.onProcessNode) {
-        const processNode = (node: NodeData) => {
+        const processNode = (node: NodeData): NodeData | null | undefined => {
+            if (node.conditions) {
+                // A hook that drops a condition root drops that condition item.
+                node.conditions = node.conditions.flatMap((condition) => {
+                    const root = processNode(condition.root);
+                    return root ? [{ ...condition, root }] : [];
+                });
+                if (node.conditions.length === 0) {
+                    delete node.conditions;
+                }
+            }
             if (node.children) {
                 const children: NodeData[] = [];
                 node.children.forEach((child) => {

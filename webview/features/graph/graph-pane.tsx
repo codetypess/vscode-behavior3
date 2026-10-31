@@ -4,10 +4,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useGraphUiStore, useRuntime, useWorkspaceStore } from "../../app/runtime";
 import { canOpenSubtreeTarget } from "../../domain/subtree-navigation";
-import { nodeDefReturnsRunning } from "../../shared/decorator-branch";
+import { nodeDefReturnsRunning } from "../../shared/condition-branch";
 import { isEditableEventTarget } from "../../shared/editable-event-target";
 import { Hotkey, isMacos, useKeyPress } from "../../shared/keys";
-import { nodeDefSupportsDecorator } from "../../shared/tree";
 import { useGraphPaneState } from "./graph-pane-state";
 import { SearchBar } from "../search/search-bar";
 
@@ -34,27 +33,24 @@ export const GraphPane: React.FC = () => {
     const mountRef = useRef<HTMLDivElement | null>(null);
     const shellRef = useRef<HTMLDivElement | null>(null);
     const [searchFocusToken, setSearchFocusToken] = useState(0);
-    const [decoratorPickerOpen, setDecoratorPickerOpen] = useState(false);
-    const [decoratorEntryName, setDecoratorEntryName] = useState<string | undefined>();
-    const [decoratorCloseOpen, setDecoratorCloseOpen] = useState(false);
+    const [conditionPickerOpen, setConditionPickerOpen] = useState(false);
+    const [conditionEntryName, setConditionEntryName] = useState<string | undefined>();
+    const [conditionCloseOpen, setConditionCloseOpen] = useState(false);
     const { selectedNode, selectedNodeRef, searchOpen, rootStableId } = useGraphPaneState();
     const nodeDefs = useWorkspaceStore((state) => state.nodeDefs);
-    const decoratorEdit = useGraphUiStore((state) => state.decoratorEdit);
-    const selectedNodeDef = nodeDefs.find((entry) => entry.name === selectedNode?.data.name);
-    const canAddDecorator = Boolean(
+    const conditionEdit = useGraphUiStore((state) => state.conditionEdit);
+    const canAddCondition = Boolean(
         selectedNode &&
-        !decoratorEdit &&
-        nodeDefSupportsDecorator(selectedNodeDef) &&
-        !selectedNode.hasAttachedDecorator
+        !conditionEdit &&
+        !selectedNode.hasAttachedCondition
     );
-    const canRemoveDecorator = Boolean(
+    const canRemoveCondition = Boolean(
         selectedNode &&
-        !decoratorEdit &&
-        nodeDefSupportsDecorator(selectedNodeDef) &&
-        selectedNode.hasAttachedDecorator &&
-        !(selectedNode.subtreeNode && selectedNode.subtreeOriginal?.decorator)
+        !conditionEdit &&
+        selectedNode.hasAttachedCondition &&
+        !(selectedNode.subtreeNode && selectedNode.subtreeOriginal?.conditions?.length)
     );
-    const decoratorEntryOptions = nodeDefs
+    const conditionEntryOptions = nodeDefs
         .filter((entry) => !nodeDefReturnsRunning(entry))
         .map((entry) => ({ value: entry.name, label: entry.name }));
 
@@ -123,16 +119,16 @@ export const GraphPane: React.FC = () => {
                 !selectedNode || structureLocked
             ),
             createItem(
-                "addDecorator",
-                t("addDecorator"),
+                "addCondition",
+                t("addCondition"),
                 renderCodicon("symbol-misc"),
                 undefined,
-                !canAddDecorator
+                !canAddCondition
             ),
-            canRemoveDecorator
+            canRemoveCondition
                 ? createItem(
-                      "removeDecorator",
-                      t("removeDecorator"),
+                      "removeCondition",
+                      t("removeCondition"),
                       renderCodicon("close")
                   )
                 : null,
@@ -155,9 +151,9 @@ export const GraphPane: React.FC = () => {
             ),
         ].filter(Boolean);
     }, [
-        canAddDecorator,
+        canAddCondition,
         canOpenSubtree,
-        canRemoveDecorator,
+        canRemoveCondition,
         isRootSelected,
         selectedNode,
         structureLocked,
@@ -178,12 +174,12 @@ export const GraphPane: React.FC = () => {
             case "insert":
                 await runtime.controller.insertNode();
                 break;
-            case "addDecorator":
-                setDecoratorEntryName(decoratorEntryOptions[0]?.value);
-                setDecoratorPickerOpen(true);
+            case "addCondition":
+                setConditionEntryName(conditionEntryOptions[0]?.value);
+                setConditionPickerOpen(true);
                 break;
-            case "removeDecorator":
-                await runtime.controller.removeDecorator();
+            case "removeCondition":
+                await runtime.controller.removeCondition();
                 break;
             case "delete":
                 await runtime.controller.deleteNode();
@@ -277,8 +273,8 @@ export const GraphPane: React.FC = () => {
                     surface: opts?.surface,
                 }),
             onNodeDoubleClicked: (node, source) => {
-                if (source === "decorator") {
-                    void runtime.controller.openDecoratorEditor(node);
+                if (source === "condition") {
+                    void runtime.controller.openConditionEditor(node);
                     return;
                 }
                 void runtime.controller.openSelectedSubtree(node);
@@ -297,26 +293,26 @@ export const GraphPane: React.FC = () => {
         return () => adapter.unmount();
     }, [adapter, message, runtime.controller]);
 
-    const requestCloseDecoratorEditor = () => {
-        if (runtime.controller.decoratorEditIsDirty()) {
-            setDecoratorCloseOpen(true);
+    const requestCloseConditionEditor = () => {
+        if (runtime.controller.conditionEditIsDirty()) {
+            setConditionCloseOpen(true);
             return;
         }
-        void runtime.controller.finishDecoratorEditor("discard");
+        void runtime.controller.finishConditionEditor("discard");
     };
 
     return (
         <div ref={shellRef} className="b3-graph-shell" tabIndex={-1}>
-            {decoratorEdit ? (
+            {conditionEdit ? (
                 <Flex
                     align="center"
                     justify="space-between"
                     gap={12}
                     style={{ padding: "6px 12px" }}
                 >
-                    <span>{t("decorator.editing", { name: decoratorEdit.hostName })}</span>
-                    <Button size="small" onClick={requestCloseDecoratorEditor}>
-                        {t("decorator.close")}
+                    <span>{t("condition.editing", { name: conditionEdit.hostName })}</span>
+                    <Button size="small" onClick={requestCloseConditionEditor}>
+                        {t("condition.close")}
                     </Button>
                 </Flex>
             ) : null}
@@ -333,62 +329,62 @@ export const GraphPane: React.FC = () => {
                 <div ref={mountRef} className="b3-graph" tabIndex={-1} />
             </Dropdown>
             <Modal
-                title={t("decorator.pickEntry")}
-                open={decoratorPickerOpen}
-                okText={t("addDecorator")}
+                title={t("condition.pickEntry")}
+                open={conditionPickerOpen}
+                okText={t("addCondition")}
                 cancelText={t("cancel")}
-                okButtonProps={{ disabled: !decoratorEntryName }}
-                onCancel={() => setDecoratorPickerOpen(false)}
+                okButtonProps={{ disabled: !conditionEntryName }}
+                onCancel={() => setConditionPickerOpen(false)}
                 onOk={() => {
-                    if (!decoratorEntryName) {
+                    if (!conditionEntryName) {
                         return;
                     }
-                    setDecoratorPickerOpen(false);
-                    void runtime.controller.attachDecorator(decoratorEntryName);
+                    setConditionPickerOpen(false);
+                    void runtime.controller.attachCondition(conditionEntryName);
                 }}
             >
                 <Select
                     showSearch
                     style={{ width: "100%" }}
-                    value={decoratorEntryName}
-                    options={decoratorEntryOptions}
-                    onChange={(value) => setDecoratorEntryName(value)}
+                    value={conditionEntryName}
+                    options={conditionEntryOptions}
+                    onChange={(value) => setConditionEntryName(value)}
                 />
             </Modal>
             <Modal
-                title={t("decorator.unsavedTitle")}
-                open={decoratorCloseOpen}
-                onCancel={() => setDecoratorCloseOpen(false)}
+                title={t("condition.unsavedTitle")}
+                open={conditionCloseOpen}
+                onCancel={() => setConditionCloseOpen(false)}
                 footer={[
-                    <Button key="cancel" onClick={() => setDecoratorCloseOpen(false)}>
-                        {t("decorator.cancelClose")}
+                    <Button key="cancel" onClick={() => setConditionCloseOpen(false)}>
+                        {t("condition.cancelClose")}
                     </Button>,
                     <Button
                         key="discard"
                         onClick={() => {
-                            setDecoratorCloseOpen(false);
-                            void runtime.controller.finishDecoratorEditor("discard");
+                            setConditionCloseOpen(false);
+                            void runtime.controller.finishConditionEditor("discard");
                         }}
                     >
-                        {t("decorator.discard")}
+                        {t("condition.discard")}
                     </Button>,
                     <Button
                         key="save"
                         type="primary"
                         onClick={() => {
                             void (async () => {
-                                const saved = await runtime.controller.finishDecoratorEditor("save");
+                                const saved = await runtime.controller.finishConditionEditor("save");
                                 if (saved) {
-                                    setDecoratorCloseOpen(false);
+                                    setConditionCloseOpen(false);
                                 }
                             })();
                         }}
                     >
-                        {t("decorator.save")}
+                        {t("condition.save")}
                     </Button>,
                 ]}
             >
-                {t("decorator.unsavedBody")}
+                {t("condition.unsavedBody")}
             </Modal>
         </div>
     );

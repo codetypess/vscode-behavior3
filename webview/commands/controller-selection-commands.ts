@@ -38,7 +38,7 @@ export const createSelectionCommands = (
 
         async selectNode(
             nodeKey: string,
-            opts?: { force?: boolean; clearVariableFocus?: boolean; surface?: "node" | "decorator" }
+            opts?: { force?: boolean; clearVariableFocus?: boolean; surface?: "node" | "condition" }
         ) {
             const resolvedGraph = runtime.getResolvedGraph();
             if (!resolvedGraph) {

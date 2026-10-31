@@ -21,7 +21,7 @@ import type {
     ResolvedGraphModel,
 } from "../../shared/contracts";
 import type { GraphAdapter, GraphRenderOptions } from "../../shared/graph-contracts";
-import { G6_GRAPH_DECORATOR_TAB_HEIGHT } from "./g6-graph-node-constants";
+import { G6_GRAPH_CONDITION_TAB_HEIGHT } from "./g6-graph-node-constants";
 import {
     G6_GRAPH_NODE_H_GAP,
     G6_GRAPH_NODE_MIN_HEIGHT,
@@ -150,7 +150,7 @@ export class G6GraphAdapter implements GraphAdapter {
     private resizeRestoreFrame: number | null = null;
     private model: ResolvedGraphModel | null = null;
     private selection: GraphSelectionState = { selectedNodeKey: null };
-    private lastDecoratorClick: ShapeClickStamp | null = null;
+    private lastConditionClick: ShapeClickStamp | null = null;
     private highlights: GraphHighlightState = { activeVariableNames: [], variableHits: {} };
     private search: GraphSearchState = {
         query: "",
@@ -706,23 +706,23 @@ export class G6GraphAdapter implements GraphAdapter {
         }
 
         const surface =
-            eventHasShapeClass(event, "decorator-adornment") ||
-            eventHasShapeClass(event, "decorator-label")
-                ? "decorator"
+            eventHasShapeClass(event, "condition-adornment") ||
+            eventHasShapeClass(event, "condition-label")
+                ? "condition"
                 : "node";
-        const decoratorClick = surface === "decorator" ? { key: nodeKey, time: Date.now() } : null;
-        const openDecoratorEditor =
-            decoratorClick !== null && isDoubleShapeClick(this.lastDecoratorClick, decoratorClick);
-        this.lastDecoratorClick = openDecoratorEditor ? null : decoratorClick;
+        const conditionClick = surface === "condition" ? { key: nodeKey, time: Date.now() } : null;
+        const openConditionEditor =
+            conditionClick !== null && isDoubleShapeClick(this.lastConditionClick, conditionClick);
+        this.lastConditionClick = openConditionEditor ? null : conditionClick;
         this.handlers?.onNodeSelected(node.ref, {
             via: "click",
             clearVariableFocus: !keepVariableFocus,
             surface,
         });
-        if (openDecoratorEditor) {
+        if (openConditionEditor) {
             // G6 only emits dblclick when both clicks hit the same display object.
             // Selection refresh replaces the tab rect, so repeat the click hit test here.
-            this.handlers?.onNodeDoubleClicked(node.ref, "decorator");
+            this.handlers?.onNodeDoubleClicked(node.ref, "condition");
         }
     };
 
@@ -735,9 +735,9 @@ export class G6GraphAdapter implements GraphAdapter {
         const node = this.getNodeVM(nodeKey);
         if (node) {
             const source =
-                eventHasShapeClass(event, "decorator-adornment") ||
-                eventHasShapeClass(event, "decorator-label")
-                    ? "decorator"
+                eventHasShapeClass(event, "condition-adornment") ||
+                eventHasShapeClass(event, "condition-label")
+                    ? "condition"
                     : "body";
             this.handlers?.onNodeDoubleClicked(node.ref, source);
         }
@@ -810,7 +810,7 @@ export class G6GraphAdapter implements GraphAdapter {
 
         const x = canvas[0] - position[0];
         const y = canvas[1] - position[1];
-        const tabHeight = data.vm.attachedDecoratorName ? G6_GRAPH_DECORATOR_TAB_HEIGHT : 0;
+        const tabHeight = data.vm.attachedConditionName ? G6_GRAPH_CONDITION_TAB_HEIGHT : 0;
         const bodyHeight = Math.max(1, data.height - tabHeight);
         const yInBody = y - tabHeight;
         // Left half of the node card drops around the target; right half nests as a child.

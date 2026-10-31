@@ -111,6 +111,137 @@ export const buildCliSharedTests = defineSharedTests([
         },
     },
     {
+        name: "exports node conditions with expanded subtrees and runtime id order",
+        async run() {
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-conditions-"));
+            const treeFile = path.join(root, "main.json");
+            const outputDir = path.join(root, "dist");
+
+            try {
+                fs.writeFileSync(
+                    path.join(root, "workspace.b3-workspace"),
+                    JSON.stringify({ settings: {} }),
+                    "utf-8"
+                );
+                fs.writeFileSync(
+                    path.join(root, "node-config.b3-setting"),
+                    JSON.stringify([
+                        {
+                            name: "Selector",
+                            type: "Composite",
+                            desc: "",
+                            children: -1,
+                            preemptive: true,
+                        },
+                        { name: "Sequence", type: "Composite", desc: "", children: -1 },
+                        { name: "Check", type: "Condition", desc: "" },
+                        { name: "Log", type: "Action", desc: "" },
+                    ]),
+                    "utf-8"
+                );
+                fs.mkdirSync(path.join(root, "cond"));
+                fs.writeFileSync(
+                    path.join(root, "cond", "guard.json"),
+                    JSON.stringify({
+                        version: "2.8.0",
+                        name: "guard",
+                        root: {
+                            uuid: "guard-root",
+                            id: "1",
+                            name: "Sequence",
+                            children: [{ uuid: "guard-check", id: "2", name: "Check" }],
+                        },
+                    }),
+                    "utf-8"
+                );
+                fs.writeFileSync(
+                    treeFile,
+                    JSON.stringify({
+                        version: "2.8.0",
+                        name: "main",
+                        prefix: "M",
+                        overrides: { "guard-check": { desc: "from main" } },
+                        root: {
+                            uuid: "root",
+                            id: "1",
+                            name: "Selector",
+                            children: [
+                                { uuid: "patrol", id: "2", name: "Log" },
+                                {
+                                    uuid: "attack",
+                                    // Stale id: the export renumbers and moves the priorities.
+                                    id: "9",
+                                    name: "Sequence",
+                                    conditions: [
+                                        {
+                                            abort: "lower",
+                                            custom: { maintainPriority: 9, note: "keep" },
+                                            root: {
+                                                uuid: "guard-ref",
+                                                id: "10",
+                                                name: "Guard",
+                                                path: "cond/guard.json",
+                                            },
+                                        },
+                                    ],
+                                    children: [{ uuid: "leaf", id: "11", name: "Log" }],
+                                },
+                            ],
+                        },
+                    }),
+                    "utf-8"
+                );
+
+                const result = await buildBehaviorProject({ projectPath: treeFile, outputDir });
+                assert.equal(result.hasError, false);
+
+                const output = JSON.parse(
+                    fs.readFileSync(path.join(outputDir, "main.json"), "utf-8")
+                ) as {
+                    root: {
+                        id: string;
+                        children: Array<{
+                            id: string;
+                            name: string;
+                            uuid?: string;
+                            conditions?: Array<{
+                                abort: string;
+                                custom?: Record<string, unknown>;
+                                root: {
+                                    id: string;
+                                    name: string;
+                                    children: Array<{ id: string; name: string; desc?: string }>;
+                                };
+                            }>;
+                            children: Array<{ id: string }>;
+                        }>;
+                    };
+                };
+                const attack = output.root.children[1];
+                assert.equal(output.root.id, "M1");
+                assert.equal(output.root.children[0].id, "M2");
+                assert.equal(attack.id, "M3");
+                assert.equal(attack.uuid, undefined);
+                assert.equal(attack.conditions?.length, 1);
+                const condition = attack.conditions![0];
+                assert.equal(condition.abort, "lower");
+                assert.deepEqual(condition.custom, {
+                    maintainPriority: 3,
+                    note: "keep",
+                    enterPriority: 3,
+                });
+                assert.equal(condition.root.id, "M4");
+                assert.equal(condition.root.name, "Sequence");
+                assert.equal(condition.root.children[0].id, "M5");
+                assert.equal(condition.root.children[0].name, "Check");
+                assert.equal(condition.root.children[0].desc, "from main");
+                assert.equal(attack.children[0].id, "M6");
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+    },
+    {
         name: "loads decorated TypeScript build scripts with local TypeScript imports",
         async run() {
             const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-build-ts-import-"));

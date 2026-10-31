@@ -3,12 +3,12 @@
  * and adapters. UI and VS Code transport code should normalize data before it
  * crosses into these shapes.
  */
-import type { AbortType, DecoratorAttachment, NodeDef, VarDecl, ImportDecl } from "./b3type";
+import type { AbortMode, ConditionData, NodeDef, VarDecl, ImportDecl } from "./b3type";
 import type { NodeFieldKind } from "./b3build-model";
 
-export type { DecoratorAttachment, NodeDef, VarDecl, ImportDecl };
+export type { AbortMode, ConditionData, NodeDef, VarDecl, ImportDecl };
 
-export type PersistedDecoratorAttachment = DecoratorAttachment<PersistedNodeModel>;
+export type PersistedConditionData = ConditionData<PersistedNodeModel>;
 
 declare const workdirRelativeJsonPathBrand: unique symbol;
 
@@ -30,12 +30,12 @@ export interface PersistedNodeModel {
     disabled?: boolean;
     path?: WorkdirRelativeJsonPath;
     $status?: number;
-    decorator?: PersistedDecoratorAttachment;
+    conditions?: PersistedConditionData[];
 }
 
 export type PersistedNodeOverride = Pick<
     PersistedNodeModel,
-    "desc" | "input" | "output" | "args" | "debug" | "disabled" | "decorator"
+    "desc" | "input" | "output" | "args" | "debug" | "disabled" | "conditions"
 >;
 
 export interface PersistedTreeModel {
@@ -106,7 +106,7 @@ export interface NodeInstanceRef {
 export type HostSelectionState =
     | { kind: "tree" }
     | { kind: "node"; ref: NodeInstanceRef }
-    | { kind: "decorator"; ref: NodeInstanceRef };
+    | { kind: "condition"; ref: NodeInstanceRef };
 
 /** Committed document fanout; local graph UI state such as variable focus is excluded. */
 export interface HostDocumentSnapshot {
@@ -127,7 +127,7 @@ export interface EditNode {
     subtreeEditable: boolean;
     subtreeOriginal?: PersistedNodeModel;
     resolutionError?: "missing-subtree" | "invalid-subtree" | "cyclic-subtree";
-    hasAttachedDecorator?: boolean;
+    hasAttachedCondition?: boolean;
 }
 
 export interface DocumentState {
@@ -160,7 +160,7 @@ export interface SelectionState {
     selectedNodeRef: NodeInstanceRef | null;
     selectedNodeSnapshot: EditNode | null;
     /** Which inspector the current node selection should show. */
-    inspectorSurface: "node" | "decorator" | null;
+    inspectorSurface: "node" | "condition" | null;
 }
 
 export interface GraphUiSearchState {
@@ -173,12 +173,12 @@ export interface GraphUiSearchState {
     index: number;
 }
 
-/** Same-editor view of one host node's decorator branch. Not a second document. */
-export interface DecoratorEditSession {
+/** Same-editor view of one host node's condition branch. Not a second document. */
+export interface ConditionEditSession {
     hostRef: NodeInstanceRef;
     hostName: string;
     hostSubtreeNode: boolean;
-    entryDecorator: PersistedNodeModel;
+    entryCondition: PersistedNodeModel;
 }
 
 export interface GraphUiState {
@@ -186,7 +186,7 @@ export interface GraphUiState {
     activeVariableNames: string[];
     selectionVisualHint: GraphSelectionState | null;
     search: GraphUiSearchState;
-    decoratorEdit: DecoratorEditSession | null;
+    conditionEdit: ConditionEditSession | null;
 }
 
 export interface UpdateTreeMetaInput {
@@ -212,7 +212,7 @@ export interface UpdateNodeInput {
         debug?: boolean;
         disabled?: boolean;
         path?: string;
-        decorator?: PersistedDecoratorAttachment;
+        conditions?: PersistedConditionData[];
     };
     currentNodeSnapshot?: {
         data: PersistedNodeModel;
@@ -303,13 +303,13 @@ export interface ResolveNodeFieldVisibilityResponse {
     error?: string;
 }
 
-export interface AttachDecoratorInput {
+export interface AttachConditionInput {
     target: NodeInstanceRef;
     entryName: string;
     currentNodeSnapshot?: UpdateNodeInput["currentNodeSnapshot"];
 }
 
-export interface RemoveDecoratorInput {
+export interface RemoveConditionInput {
     target: NodeInstanceRef;
     currentNodeSnapshot?: UpdateNodeInput["currentNodeSnapshot"];
 }
@@ -317,8 +317,8 @@ export interface RemoveDecoratorInput {
 export type DocumentMutation =
     | { type: "updateTreeMeta"; payload: UpdateTreeMetaInput }
     | { type: "updateNode"; payload: UpdateNodeInput }
-    | { type: "attachDecorator"; payload: AttachDecoratorInput }
-    | { type: "removeDecorator"; payload: RemoveDecoratorInput }
+    | { type: "attachCondition"; payload: AttachConditionInput }
+    | { type: "removeCondition"; payload: RemoveConditionInput }
     | { type: "performDrop"; payload: DropIntent }
     | { type: "pasteNode"; payload: ClipboardNodeMutationInput }
     | { type: "insertNode"; payload: TargetNodeMutationInput }
@@ -343,8 +343,8 @@ export type HostEvent =
     | { type: "focusVariable"; names: string[] }
     /** Normalized editor-local node reveal event from a raw `relayFocusNode` message. */
     | { type: "focusNode"; target: NodeInstanceRef }
-    /** Normalized editor-local request to open a decorator editing page. */
-    | { type: "openDecoratorEditor"; target: NodeInstanceRef }
+    /** Normalized editor-local request to open a condition editing page. */
+    | { type: "openConditionEditor"; target: NodeInstanceRef }
     | { type: "themeChanged"; theme: Settings["theme"] }
     | { type: "subtreeFileChanged" }
     | { type: "inspectorContextCleared" }
@@ -373,8 +373,9 @@ export interface ResolvedNodeModel {
     subtreeEditable: boolean;
     subtreeOriginal?: PersistedNodeModel;
     resolutionError?: "missing-subtree" | "invalid-subtree" | "cyclic-subtree";
-    attachedDecoratorName?: string;
-    attachedDecorator?: PersistedDecoratorAttachment;
+    attachedConditionName?: string;
+    /** Persisted `conditions` of the node (overrides applied, subtree paths not expanded). */
+    conditions?: PersistedConditionData[];
 }
 
 export interface ResolvedDocumentGraph {
@@ -421,8 +422,8 @@ export interface GraphNodeVM {
     inputs: Array<{ label: string; variable?: string }>;
     outputs: Array<{ label: string; variable?: string }>;
     argsText?: string;
-    attachedDecoratorName?: string;
-    attachedDecoratorAbortType?: AbortType;
+    attachedConditionName?: string;
+    attachedConditionAbort?: AbortMode;
 }
 
 export interface ResolvedGraphModel {
@@ -468,10 +469,10 @@ export interface GraphEventHandlers {
             force?: boolean;
             via?: "click" | "contextMenu" | "restore";
             clearVariableFocus?: boolean;
-            surface?: "node" | "decorator";
+            surface?: "node" | "condition";
         }
     ): void;
-    onNodeDoubleClicked(node: NodeInstanceRef, source?: "body" | "decorator"): void;
+    onNodeDoubleClicked(node: NodeInstanceRef, source?: "body" | "condition"): void;
     onVariableHotspotClicked(node: NodeInstanceRef, payload: VariableHotspotClick): void;
     onDropCommitted(intent: DropIntent): Promise<void>;
 }
@@ -483,11 +484,11 @@ export interface HostAdapter {
     redo(): void;
     mutateDocument(mutation: DocumentMutation): Promise<DocumentMutationResponse>;
     selectTree(): void;
-    selectNode(target: NodeInstanceRef, surface?: "node" | "decorator"): void;
+    selectNode(target: NodeInstanceRef, surface?: "node" | "condition"): void;
     /** Send a raw `requestFocusVariable` message; callers must not treat it as persisted state. */
     requestFocusVariable(names: string[]): void;
-    /** Ask the host to open this node's decorator editor in the active editor. */
-    requestOpenDecoratorEditor(target: NodeInstanceRef): void;
+    /** Ask the host to open this node's condition editor in the active editor. */
+    requestOpenConditionEditor(target: NodeInstanceRef): void;
     sendRequestSetting(): void;
     sendBuild(opts?: { buildScriptDebug?: boolean }): void;
     executeInspectorHostCommand(command: InspectorHostCommandId): void;
@@ -522,7 +523,7 @@ export interface EditorCommand {
     selectTree(): Promise<void>;
     selectNode(
         nodeKey: string,
-        opts?: { force?: boolean; clearVariableFocus?: boolean; surface?: "node" | "decorator" }
+        opts?: { force?: boolean; clearVariableFocus?: boolean; surface?: "node" | "condition" }
     ): Promise<void>;
     revealNode(target: NodeInstanceRef): Promise<void>;
     focusVariable(names: string[]): Promise<void>;
@@ -542,11 +543,11 @@ export interface EditorCommand {
     redo(): Promise<void>;
     refreshGraph(opts?: { preserveSelection?: boolean }): Promise<void>;
     saveDocument(): Promise<boolean>;
-    attachDecorator(entryName: string): Promise<void>;
-    removeDecorator(): Promise<void>;
-    openDecoratorEditor(target: NodeInstanceRef): Promise<void>;
-    decoratorEditIsDirty(): boolean;
-    finishDecoratorEditor(action: "save" | "discard"): Promise<boolean>;
+    attachCondition(entryName: string): Promise<void>;
+    removeCondition(): Promise<void>;
+    openConditionEditor(target: NodeInstanceRef): Promise<void>;
+    conditionEditIsDirty(): boolean;
+    finishConditionEditor(action: "save" | "discard"): Promise<boolean>;
     revertDocument(): Promise<void>;
     buildDocument(opts?: { buildScriptDebug?: boolean }): Promise<void>;
     openSubtreePath(path: string, opts?: { openSelection?: NodeInstanceRef }): Promise<void>;

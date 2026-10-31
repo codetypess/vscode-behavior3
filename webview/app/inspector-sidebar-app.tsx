@@ -75,8 +75,8 @@ const buildCurrentHostSelection = (runtime: EditorRuntime): HostSelectionState =
     if (!selectedNodeRef) {
         return { kind: "tree" };
     }
-    return inspectorSurface === "decorator"
-        ? { kind: "decorator", ref: selectedNodeRef }
+    return inspectorSurface === "condition"
+        ? { kind: "condition", ref: selectedNodeRef }
         : { kind: "node", ref: selectedNodeRef };
 };
 
@@ -186,7 +186,7 @@ const SidebarHostBridge: React.FC = () => {
                 case "buildResult":
                 case "focusVariable":
                 case "focusNode":
-                case "openDecoratorEditor":
+                case "openConditionEditor":
                     return;
             }
         };

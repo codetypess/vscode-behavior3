@@ -337,6 +337,12 @@ const checkNodeDataWithState = (
         data.args = args;
     }
 
+    for (const condition of data.conditions ?? []) {
+        if (!checkNodeDataWithState(condition.root, printer, state)) {
+            hasError = true;
+        }
+    }
+
     if (data.children) {
         for (const child of data.children) {
             if (!checkNodeDataWithState(child, printer, state)) {
@@ -364,7 +370,7 @@ interface RefreshVarDeclContext {
     usingVars: Record<string, VarDecl> | null;
     parsedVarDecl: Record<string, ImportDecl>;
     parsingStack: string[];
-    dfs<T extends { children?: T[] }>(
+    dfs<T extends { children?: T[]; conditions?: { root: T }[] }>(
         node: T,
         visitor: (node: T, depth: number) => unknown,
         depth?: number

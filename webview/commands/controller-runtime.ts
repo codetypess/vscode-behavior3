@@ -17,7 +17,7 @@ import type {
     NodeFieldVisibilityTarget,
     NodeDef,
     NodeInstanceRef,
-    PersistedDecoratorAttachment,
+    PersistedConditionData,
     PersistedNodeModel,
     PersistedTreeModel,
     ResolvedDocumentGraph,
@@ -27,12 +27,11 @@ import type {
 } from "../shared/contracts";
 import type { GraphAdapter } from "../shared/graph-contracts";
 import { parseWorkdirRelativeJsonPath } from "../shared/protocol";
-import { DEFAULT_ABORT_TYPE } from "../shared/b3type";
-import { readAbortType } from "../shared/decorator-branch";
+import { readAbortMode } from "../shared/condition-branch";
 import { createNodeDefMap, findNodeDef, parseSlotDefinition } from "../shared/node-utils";
 import {
-    cloneDecoratorAttachment,
     cloneJsonValue,
+    clonePersistedConditions,
     clonePersistedNode,
     findPersistedNodeByStableId,
     loadSubtreeSourceCache,
@@ -46,10 +45,10 @@ import {
     computeVariableHighlights,
 } from "../domain/graph-selectors";
 import {
-    persistedTreeFromDecoratorBranch,
-    projectDecoratorBranchMutation,
-    readHostDecoratorBranch,
-} from "../domain/decorator-edit";
+    persistedTreeFromConditionBranch,
+    projectConditionBranchMutation,
+    readHostConditionBranch,
+} from "../domain/condition-edit";
 import { resolveDocumentGraph } from "../domain/resolve-graph";
 import { createInitialGraphUiState, patchGraphUiSearchState } from "../stores/graph-ui-store";
 import { isJsonEqual } from "../shared/json";
@@ -211,9 +210,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
                 debug: node.debug,
                 disabled: node.disabled,
                 path: node.path,
-                decorator: node.attachedDecorator
-                    ? cloneDecoratorAttachment(node.attachedDecorator)
-                    : undefined,
+                conditions: clonePersistedConditions(node.conditions),
             },
             effectiveArgs: node.args
                 ? (cloneJsonValue(node.args) as Record<string, unknown>)
@@ -228,7 +225,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             subtreeEditable: node.subtreeEditable,
             subtreeOriginal: node.subtreeOriginal,
             resolutionError: node.resolutionError,
-            hasAttachedDecorator: Boolean(node.attachedDecoratorName),
+            hasAttachedCondition: Boolean(node.attachedConditionName),
         };
     };
 
@@ -252,7 +249,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
 
     const buildPendingNodeSelectionPatch = (
         ref: NodeInstanceRef,
-        inspectorSurface: "node" | "decorator" = "node"
+        inspectorSurface: "node" | "condition" = "node"
     ): SelectionPatch => ({
         selectedTree: null,
         selectedNodeKey: null,
@@ -408,7 +405,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         updateSelectionState(() =>
             buildPendingNodeSelectionPatch(
                 selection.ref,
-                selection.kind === "decorator" ? "decorator" : "node"
+                selection.kind === "condition" ? "condition" : "node"
             )
         );
         deps.workspaceStore.setState((state) => ({
@@ -426,7 +423,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
 
         updateSelectionState(() => ({
             ...projectSelectionRef(selection.ref),
-            inspectorSurface: selection.kind === "decorator" ? "decorator" : "node",
+            inspectorSurface: selection.kind === "condition" ? "condition" : "node",
         }));
         void requestSelectedNodeFieldVisibility();
     };
@@ -452,33 +449,28 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
      * Subtree links own their contents via `path`, so pasted roots must drop
      * inline `children` when a subtree reference is present.
      */
-    const readClipboardPriority = (value: unknown) =>
-        typeof value === "number" && Number.isFinite(value) ? value : 0;
-
-    const normalizeClipboardDecorator = (
-        value: unknown
-    ): PersistedDecoratorAttachment | undefined => {
-        if (!value || typeof value !== "object" || Array.isArray(value)) {
+    const normalizeClipboardConditions = (value: unknown): PersistedConditionData[] | undefined => {
+        if (!Array.isArray(value)) {
             return undefined;
         }
-        const record = value as Record<string, unknown>;
-        if (record.root && typeof record.root === "object" && !Array.isArray(record.root)) {
-            return {
-                enterPriority: readClipboardPriority(record.enterPriority),
-                maintainPriority: readClipboardPriority(record.maintainPriority),
-                abortType: readAbortType(record.abortType),
-                root: normalizeClipboardNode(record.root),
-            };
-        }
-        if (typeof record.name === "string") {
-            return {
-                enterPriority: 0,
-                maintainPriority: 0,
-                abortType: DEFAULT_ABORT_TYPE,
-                root: normalizeClipboardNode(record),
-            };
-        }
-        return undefined;
+        const conditions = value
+            .filter(
+                (entry): entry is Record<string, unknown> =>
+                    Boolean(entry) &&
+                    typeof entry === "object" &&
+                    !Array.isArray(entry) &&
+                    Boolean(entry.root) &&
+                    typeof entry.root === "object"
+            )
+            .map((entry) => ({
+                abort: readAbortMode(entry.abort),
+                custom:
+                    entry.custom && typeof entry.custom === "object" && !Array.isArray(entry.custom)
+                        ? (cloneJsonValue(entry.custom) as PersistedConditionData["custom"])
+                        : undefined,
+                root: normalizeClipboardNode(entry.root),
+            }));
+        return conditions.length > 0 ? conditions : undefined;
     };
 
     const normalizeClipboardNode = (value: unknown): PersistedNodeModel => {
@@ -522,7 +514,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
                 typeof candidate.path === "string" && candidate.path.trim()
                     ? (parseWorkdirRelativeJsonPath(candidate.path) ?? undefined)
                     : undefined,
-            decorator: normalizeClipboardDecorator(candidate.decorator),
+            conditions: normalizeClipboardConditions(candidate.conditions),
         };
 
         if (normalized.path) {
@@ -594,6 +586,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
                 debug: resolvedNode.debug,
                 disabled: resolvedNode.disabled,
                 path: isRoot && opts?.clearPathOnRoot ? undefined : resolvedNode.path,
+                conditions: clonePersistedConditions(resolvedNode.conditions),
                 children: undefined,
             };
 
@@ -856,20 +849,20 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             return;
         }
 
-        const decoratorEdit = deps.graphUiStore.getState().decoratorEdit;
+        const conditionEdit = deps.graphUiStore.getState().conditionEdit;
         let graphTree = tree;
-        if (decoratorEdit) {
-            const branch = readHostDecoratorBranch({
+        if (conditionEdit) {
+            const branch = readHostConditionBranch({
                 tree,
                 subtreeSources: workspace.subtreeSources,
                 nodeDefs: workspace.nodeDefs,
                 subtreeEditable: workspace.settings.subtreeEditable,
-                hostRef: decoratorEdit.hostRef,
+                hostRef: conditionEdit.hostRef,
             });
             if (!branch) {
-                updateGraphUiState(() => ({ decoratorEdit: null }));
+                updateGraphUiState(() => ({ conditionEdit: null }));
             } else {
-                graphTree = persistedTreeFromDecoratorBranch(branch, tree);
+                graphTree = persistedTreeFromConditionBranch(branch, tree);
             }
         }
 
