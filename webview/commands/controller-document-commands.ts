@@ -66,7 +66,10 @@ export const createDocumentCommands = (
                 runtime.resetGraphUiState();
             }
             if (matchesCurrent) {
-                runtime.applyHostSelectionState(snapshot.selection);
+                if (runtime.applyHostSelectionState(snapshot.selection)) {
+                    await runtime.rebuildGraph({ preserveSelection: true });
+                    return;
+                }
                 await runtime.applyVisualState();
                 return;
             }

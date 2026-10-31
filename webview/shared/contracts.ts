@@ -103,10 +103,14 @@ export interface NodeInstanceRef {
 }
 
 /** Host snapshot authority is limited to shared tree/node selection. */
+/**
+ * `conditionHost` is set while the editor shows a condition page: the selection then belongs to
+ * the condition tree of that host node, and every webview resolves it against that tree.
+ */
 export type HostSelectionState =
-    | { kind: "tree" }
-    | { kind: "node"; ref: NodeInstanceRef }
-    | { kind: "condition"; ref: NodeInstanceRef };
+    | { kind: "tree"; conditionHost?: NodeInstanceRef }
+    | { kind: "node"; ref: NodeInstanceRef; conditionHost?: NodeInstanceRef }
+    | { kind: "condition"; ref: NodeInstanceRef; conditionHost?: NodeInstanceRef };
 
 /** Committed document fanout; local graph UI state such as variable focus is excluded. */
 export interface HostDocumentSnapshot {
@@ -176,9 +180,12 @@ export interface GraphUiSearchState {
 /** Same-editor view of one host node's condition branch. Not a second document. */
 export interface ConditionEditSession {
     hostRef: NodeInstanceRef;
+    /** "editor" pages are opened and closed locally; "selection" pages mirror the host selection. */
+    source: "editor" | "selection";
     hostName: string;
     hostSubtreeNode: boolean;
-    entryCondition: PersistedNodeModel;
+    /** Condition tree when the page opened; `null` until the next graph rebuild reads it. */
+    entryCondition: PersistedNodeModel | null;
 }
 
 export interface GraphUiState {
@@ -483,8 +490,12 @@ export interface HostAdapter {
     undo(): void;
     redo(): void;
     mutateDocument(mutation: DocumentMutation): Promise<DocumentMutationResponse>;
-    selectTree(): void;
-    selectNode(target: NodeInstanceRef, surface?: "node" | "condition"): void;
+    selectTree(conditionHost?: NodeInstanceRef): void;
+    selectNode(
+        target: NodeInstanceRef,
+        surface?: "node" | "condition",
+        conditionHost?: NodeInstanceRef
+    ): void;
     /** Send a raw `requestFocusVariable` message; callers must not treat it as persisted state. */
     requestFocusVariable(names: string[]): void;
     /** Ask the host to open this node's condition editor in the active editor. */

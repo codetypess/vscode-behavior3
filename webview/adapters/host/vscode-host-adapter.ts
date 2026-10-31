@@ -304,12 +304,12 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
             });
         },
 
-        selectTree() {
-            postMessage({ type: "selectTree" });
+        selectTree(conditionHost) {
+            postMessage({ type: "selectTree", conditionHost });
         },
 
-        selectNode(target, surface) {
-            postMessage({ type: "selectNode", target, surface });
+        selectNode(target, surface, conditionHost) {
+            postMessage({ type: "selectNode", target, surface, conditionHost });
         },
 
         requestFocusVariable(names) {

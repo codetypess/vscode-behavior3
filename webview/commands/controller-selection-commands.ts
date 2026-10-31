@@ -21,7 +21,7 @@ export const createSelectionCommands = (
         async selectTree() {
             const shouldClearVariableFocus = runtime.clearActiveVariableFocus();
             const needsVisualHint = runtime.getCurrentGraphSelectionKey() !== null;
-            deps.hostAdapter.selectTree();
+            deps.hostAdapter.selectTree(runtime.getConditionEditHostRef());
 
             if (!shouldClearVariableFocus && !needsVisualHint) {
                 return;
@@ -52,7 +52,7 @@ export const createSelectionCommands = (
             const shouldClearVariableFocus =
                 Boolean(opts?.clearVariableFocus) && runtime.clearActiveVariableFocus();
             const needsVisualHint = runtime.getCurrentGraphSelectionKey() !== node.ref.instanceKey;
-            deps.hostAdapter.selectNode(node.ref, opts?.surface);
+            deps.hostAdapter.selectNode(node.ref, opts?.surface, runtime.getConditionEditHostRef());
 
             if (needsVisualHint) {
                 await runtime.showSelectionVisualHint(node.ref.instanceKey);

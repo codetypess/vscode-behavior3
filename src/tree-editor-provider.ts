@@ -108,11 +108,12 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
 
         const message: EditorToHostMessage =
             normalized.kind === "tree"
-                ? { type: "selectTree" }
+                ? { type: "selectTree", conditionHost: normalized.conditionHost }
                 : {
                       type: "selectNode",
                       target: normalized.ref,
                       surface: normalized.kind === "condition" ? "condition" : "node",
+                      conditionHost: normalized.conditionHost,
                   };
 
         TreeEditorProvider.dispatchMessageToDocument(documentUri, message, async () => true);

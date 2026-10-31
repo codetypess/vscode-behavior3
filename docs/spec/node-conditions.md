@@ -101,6 +101,10 @@ interface NodeDef {
 - 节点定义的 `preemptive: true` 读入后保留。
 - `npm run check`、`npm run test:shared`、`npm run build` 通过。
 
+### 4.6 侧栏和条件页面
+
+条件页面原来只存在于编辑器 webview 的 `graphUiStore`。打开页面时编辑器选中条件树根节点，侧栏用主树去解析这个 ref，找不到，一直显示 node-pending 骨架；侧栏里的编辑也不会经过条件页面的投影。现在共享选择带上 `conditionHost`，侧栏据此打开同一个页面并重建 graph（见 `13-host-protocol.md`）。
+
 ## 8. Known Limitations
 
 - 主文档 `overrides` 里新写的条件如果在条件树里引用了 subtree，这个 subtree 不会被预加载（`loadSubtreeSourceCache` 只从主树和 subtree 源收集路径），物化时显示为 missing。

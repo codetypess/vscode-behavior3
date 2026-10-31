@@ -47,7 +47,7 @@ import {
 import {
     persistedTreeFromConditionBranch,
     projectConditionBranchMutation,
-    readHostConditionBranch,
+    readHostCondition,
 } from "../domain/condition-edit";
 import { resolveDocumentGraph } from "../domain/resolve-graph";
 import { createInitialGraphUiState, patchGraphUiSearchState } from "../stores/graph-ui-store";
@@ -98,7 +98,9 @@ export interface ControllerRuntime {
     setNextGraphRenderAnchor(nodeKey: string | null): void;
     resetGraphUiState(): void;
     stageHostSelectionState(selection: HostSelectionState): void;
-    applyHostSelectionState(selection: HostSelectionState): void;
+    /** Returns true when the graph must be rebuilt before the selection can be projected. */
+    applyHostSelectionState(selection: HostSelectionState): boolean;
+    getConditionEditHostRef(): NodeInstanceRef | undefined;
     revealNode(target: NodeInstanceRef): Promise<void>;
     getSelectedResolvedNode(): ResolvedNodeModel | null;
     isSubtreeStructureLocked(node: ResolvedNodeModel | null): boolean;
@@ -395,7 +397,46 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         return true;
     };
 
+    const getConditionEditHostRef = () => deps.graphUiStore.getState().conditionEdit?.hostRef;
+
+    const isSameNodeInstanceRef = (left: NodeInstanceRef, right: NodeInstanceRef) =>
+        left.structuralStableId === right.structuralStableId &&
+        left.sourceStableId === right.sourceStableId &&
+        hasSameSelectionContext(left, right);
+
+    /**
+     * Mirror the condition page named by a host selection. Pages this editor opened itself are
+     * closed only through its own close flow. Returns true when the shown tree changes.
+     */
+    const syncConditionEditFromSelection = (selection: HostSelectionState): boolean => {
+        const current = deps.graphUiStore.getState().conditionEdit;
+        const nextHost = selection.conditionHost;
+        if (current?.source === "editor") {
+            return false;
+        }
+        if (current && nextHost && isSameNodeInstanceRef(current.hostRef, nextHost)) {
+            return false;
+        }
+        if (!current && !nextHost) {
+            return false;
+        }
+        updateGraphUiState(() => ({
+            conditionEdit: nextHost
+                ? {
+                      hostRef: nextHost,
+                      source: "selection",
+                      hostName: "",
+                      hostSubtreeNode: false,
+                      entryCondition: null,
+                  }
+                : null,
+        }));
+        return true;
+    };
+
     const stageHostSelectionState = (selection: HostSelectionState) => {
+        // Callers rebuild the graph after staging, which also applies a mirrored condition page.
+        syncConditionEditFromSelection(selection);
         clearSelectionVisualHint();
         if (selection.kind === "tree") {
             applyTreeSelectionProjection();
@@ -414,11 +455,16 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         }));
     };
 
-    const applyHostSelectionState = (selection: HostSelectionState) => {
+    const applyHostSelectionState = (selection: HostSelectionState): boolean => {
+        if (syncConditionEditFromSelection(selection)) {
+            // The ref belongs to another tree now; project it after the caller rebuilds the graph.
+            stageHostSelectionState(selection);
+            return true;
+        }
         clearSelectionVisualHint();
         if (selection.kind === "tree") {
             applyTreeSelectionProjection();
-            return;
+            return false;
         }
 
         updateSelectionState(() => ({
@@ -426,6 +472,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             inspectorSurface: selection.kind === "condition" ? "condition" : "node",
         }));
         void requestSelectedNodeFieldVisibility();
+        return false;
     };
 
     const revealNode = async (target: NodeInstanceRef) => {
@@ -852,17 +899,28 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         const conditionEdit = deps.graphUiStore.getState().conditionEdit;
         let graphTree = tree;
         if (conditionEdit) {
-            const branch = readHostConditionBranch({
+            const hostCondition = readHostCondition({
                 tree,
                 subtreeSources: workspace.subtreeSources,
                 nodeDefs: workspace.nodeDefs,
                 subtreeEditable: workspace.settings.subtreeEditable,
                 hostRef: conditionEdit.hostRef,
             });
-            if (!branch) {
+            if (!hostCondition) {
                 updateGraphUiState(() => ({ conditionEdit: null }));
             } else {
-                graphTree = persistedTreeFromConditionBranch(branch, tree);
+                if (!conditionEdit.entryCondition) {
+                    // A page mirrored from a selection learns its host on the first rebuild.
+                    updateGraphUiState(() => ({
+                        conditionEdit: {
+                            ...conditionEdit,
+                            hostName: hostCondition.hostName,
+                            hostSubtreeNode: hostCondition.hostSubtreeNode,
+                            entryCondition: hostCondition.branch,
+                        },
+                    }));
+                }
+                graphTree = persistedTreeFromConditionBranch(hostCondition.branch, tree);
             }
         }
 
@@ -980,6 +1038,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         resetGraphUiState,
         stageHostSelectionState,
         applyHostSelectionState,
+        getConditionEditHostRef,
         revealNode,
         getSelectedResolvedNode,
         isSubtreeStructureLocked,

@@ -13,7 +13,9 @@ export interface SessionSelectionSync {
         selection: HostSelectionState,
         opts?: { reassertIfEqual?: boolean }
     ): SharedSelectionApplyResult;
-    handleSelectTreeMessage(): Promise<void>;
+    handleSelectTreeMessage(
+        msg: Extract<EditorToHostMessage, { type: "selectTree" }>
+    ): Promise<void>;
     handleSelectNodeMessage(
         msg: Extract<EditorToHostMessage, { type: "selectNode" }>
     ): Promise<void>;
@@ -41,10 +43,12 @@ export function createSessionSelectionSync(
         return applied.result;
     };
 
-    const handleSelectTreeMessage = async (): Promise<void> => {
+    const handleSelectTreeMessage = async (
+        msg: Extract<EditorToHostMessage, { type: "selectTree" }>
+    ): Promise<void> => {
         await enqueueMainDocumentOperation(async () => {
             const result = updateSharedSelection(
-                { kind: "tree" },
+                { kind: "tree", conditionHost: msg.conditionHost },
                 { reassertIfEqual: true }
             );
             if (result === "noop") {
@@ -68,6 +72,7 @@ export function createSessionSelectionSync(
                 {
                     kind: msg.surface === "condition" ? "condition" : "node",
                     ref: normalizeNodeInstanceRef(msg.target),
+                    conditionHost: msg.conditionHost,
                 },
                 { reassertIfEqual: true }
             );

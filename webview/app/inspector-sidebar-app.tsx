@@ -72,12 +72,14 @@ const applySidebarVars = (runtime: EditorRuntime, payload: HostVarsPayload) => {
 
 const buildCurrentHostSelection = (runtime: EditorRuntime): HostSelectionState => {
     const { selectedNodeRef, inspectorSurface } = runtime.selectionStore.getState();
+    const hostRef = runtime.graphUiStore.getState().conditionEdit?.hostRef;
+    const conditionHost = hostRef ? { conditionHost: hostRef } : {};
     if (!selectedNodeRef) {
-        return { kind: "tree" };
+        return { kind: "tree", ...conditionHost };
     }
     return inspectorSurface === "condition"
-        ? { kind: "condition", ref: selectedNodeRef }
-        : { kind: "node", ref: selectedNodeRef };
+        ? { kind: "condition", ref: selectedNodeRef, ...conditionHost }
+        : { kind: "node", ref: selectedNodeRef, ...conditionHost };
 };
 
 const queueSidebarSelectionBlur = (runtime: EditorRuntime) => {

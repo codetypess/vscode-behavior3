@@ -30,7 +30,9 @@ export interface CreateSessionDispatcherParams {
     postMessage: HostMessageSink;
     handleReadyMessage(reply?: HostMessageSink): Promise<void>;
     handleHistoryNavigationMessage(direction: "undo" | "redo"): Promise<void>;
-    handleSelectTreeMessage(): Promise<void>;
+    handleSelectTreeMessage(
+        msg: Extract<EditorToHostMessage, { type: "selectTree" }>
+    ): Promise<void>;
     handleSelectNodeMessage(
         msg: Extract<EditorToHostMessage, { type: "selectNode" }>
     ): Promise<void>;
@@ -92,7 +94,7 @@ export function createSessionDispatcher({
                 return;
 
             case "selectTree":
-                await handleSelectTreeMessage();
+                await handleSelectTreeMessage(msg);
                 return;
 
             case "selectNode":

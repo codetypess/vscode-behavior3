@@ -621,6 +621,7 @@ export const createMutationCommands = (
                 ...state,
                 conditionEdit: {
                     hostRef: resolved.ref,
+                    source: "editor",
                     hostName: resolved.name,
                     hostSubtreeNode: resolved.subtreeNode,
                     entryCondition: branch,
@@ -632,7 +633,8 @@ export const createMutationCommands = (
                 ? runtime.getResolvedGraph()?.nodesByInstanceKey[rootKey]
                 : undefined;
             if (root) {
-                runtime.deps.hostAdapter.selectNode(root.ref);
+                // `conditionHost` lets the sidebar open the same page and resolve this ref.
+                runtime.deps.hostAdapter.selectNode(root.ref, undefined, resolved.ref);
                 await runtime.showSelectionVisualHint(root.ref.instanceKey);
             }
         },
@@ -641,7 +643,7 @@ export const createMutationCommands = (
             const session = runtime.deps.graphUiStore.getState().conditionEdit;
             const tree = runtime.deps.documentStore.getState().persistedTree;
             const workspace = runtime.deps.workspaceStore.getState();
-            if (!session || !tree) {
+            if (!session?.entryCondition || !tree) {
                 return false;
             }
             const branch = readHostConditionBranch({
@@ -674,9 +676,12 @@ export const createMutationCommands = (
                               node.ref.sourceStableId === session.hostRef.sourceStableId
                       )
                     : undefined;
+                // Either selection drops `conditionHost`, which closes mirrored pages too.
                 if (host) {
                     runtime.deps.hostAdapter.selectNode(host.ref);
                     await runtime.showSelectionVisualHint(host.ref.instanceKey);
+                } else {
+                    runtime.deps.hostAdapter.selectTree();
                 }
             };
 
@@ -710,7 +715,7 @@ export const createMutationCommands = (
 
             const tree = runtime.deps.documentStore.getState().persistedTree;
             const workspace = runtime.deps.workspaceStore.getState();
-            if (tree) {
+            if (tree && session.entryCondition) {
                 const current = readHostConditionBranch({
                     tree,
                     subtreeSources: workspace.subtreeSources,

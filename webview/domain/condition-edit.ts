@@ -42,7 +42,16 @@ export const readHostConditionBranch = (params: {
     nodeDefs: NodeDef[];
     subtreeEditable: boolean;
     hostRef: NodeInstanceRef;
-}): PersistedNodeModel | null => {
+}): PersistedNodeModel | null => readHostCondition(params)?.branch ?? null;
+
+/** The host node of a condition page and the condition tree the page edits. */
+export const readHostCondition = (params: {
+    tree: PersistedTreeModel;
+    subtreeSources: Record<WorkdirRelativeJsonPath, SubtreeSourceCacheEntry>;
+    nodeDefs: NodeDef[];
+    subtreeEditable: boolean;
+    hostRef: NodeInstanceRef;
+}): { hostName: string; hostSubtreeNode: boolean; branch: PersistedNodeModel } | null => {
     const root = materializePersistedTree({
         persistedTree: params.tree,
         subtreeSources: params.subtreeSources,
@@ -51,10 +60,14 @@ export const readHostConditionBranch = (params: {
     });
     const host = findMaterializedHost(root, params.hostRef);
     const condition = host?.data.conditions?.[0];
-    if (!condition) {
+    if (!host || !condition) {
         return null;
     }
-    return clonePersistedNode(condition.root);
+    return {
+        hostName: host.data.name,
+        hostSubtreeNode: host.subtreeNode,
+        branch: clonePersistedNode(condition.root),
+    };
 };
 
 export const persistedTreeFromConditionBranch = (
@@ -212,6 +225,9 @@ export const buildConditionRestoreUpdate = (params: {
     });
     const host = findMaterializedHost(materialized, params.session.hostRef);
     if (!host) {
+        return null;
+    }
+    if (!params.session.entryCondition) {
         return null;
     }
     return buildHostConditionUpdate(host, params.session.hostRef, params.session.entryCondition);

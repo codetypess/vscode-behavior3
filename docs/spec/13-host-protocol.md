@@ -194,6 +194,7 @@
 - `{ kind: "tree" }`
 - `{ kind: "node", ref: NodeInstanceRef }`
 - `{ kind: "condition", ref: NodeInstanceRef }`：`ref` 仍是宿主节点。单击节点上方的条件附属时使用，Inspector 显示条件面板
+- 三种选择都可以带 `conditionHost?: NodeInstanceRef`：编辑器正在显示某个宿主节点的条件临时页面时，选择属于那棵条件树。`selectTree` / `selectNode` 消息带同名字段，宿主原样保存和广播。收到带 `conditionHost` 的选择时，其他 webview（例如侧栏 Inspector）打开同一个条件页面（`conditionEdit.source = "selection"`），重建 graph 后再解析 `ref`；收到不带它的选择时关闭这个镜像页面。编辑器自己打开的页面（`source = "editor"`）只通过自己的关闭流程关闭
 
 说明：
 

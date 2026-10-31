@@ -22,8 +22,13 @@ export type EditorToHostMessage =
     | { type: "ready" }
     | { type: "undo" }
     | { type: "redo" }
-    | { type: "selectTree" }
-    | { type: "selectNode"; target: NodeInstanceRef; surface?: "node" | "condition" }
+    | { type: "selectTree"; conditionHost?: NodeInstanceRef }
+    | {
+          type: "selectNode";
+          target: NodeInstanceRef;
+          surface?: "node" | "condition";
+          conditionHost?: NodeInstanceRef;
+      }
     /** Ask the host to relay a one-shot variable highlight intent to the active editor. */
     | { type: "requestFocusVariable"; names: string[] }
     /** Ask the host to relay opening a condition editor page into the active editor. */
