@@ -8,12 +8,14 @@ import b3path from "../../../webview/shared/b3path";
 import {
     createBuildScriptRuntime,
     createBuildScriptRuntimeWithCheckModules,
+    createCustomFieldResolverRuntimeWithCheckModules,
     createNodeFieldVisibleRuntimeWithCheckModules,
     loadRuntimeModule,
     resolveCheckScriptPaths,
     type BuildEnv,
     type BuildScriptRuntime,
     type CheckScriptModule,
+    type CustomFieldResolver,
     type NodeFieldVisible,
 } from "../../../webview/shared/b3build";
 import { findB3WorkspacePath } from "../../setting-resolver";
@@ -22,6 +24,7 @@ import { createBuildScriptLogger } from "../runtime/logging";
 export interface SessionNodeCheckRuntimeResult {
     buildScriptRuntime: BuildScriptRuntime;
     nodeFieldVisibleHandlers: Map<string, NodeFieldVisible>;
+    customFieldResolvers: Map<string, CustomFieldResolver>;
     treePath: string;
     allowNewFunction: boolean;
 }
@@ -66,6 +69,7 @@ export async function createSessionNodeCheckRuntime({
                 createSessionBuildScriptEnv(workspaceFolderUri.fsPath, nodeDefs, false, language)
             ),
             nodeFieldVisibleHandlers: new Map(),
+            customFieldResolvers: new Map(),
             treePath: workspaceFolderUri.fsPath,
             allowNewFunction: false,
         };
@@ -113,12 +117,18 @@ export async function createSessionNodeCheckRuntime({
         checkScriptModules,
         env
     );
+    const customFieldRuntime = createCustomFieldResolverRuntimeWithCheckModules(
+        buildScriptModule,
+        checkScriptModules,
+        env
+    );
     return {
         buildScriptRuntime: {
             ...buildScriptRuntime,
             hasError: buildScriptRuntime.hasError || hasRuntimeLoadError,
         },
         nodeFieldVisibleHandlers: visibleRuntime.nodeFieldVisibles,
+        customFieldResolvers: customFieldRuntime.customFieldResolvers,
         treePath: workdir,
         allowNewFunction,
     };

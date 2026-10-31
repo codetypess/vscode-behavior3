@@ -129,7 +129,40 @@ Behavior3 会从当前激活的行为树或脚本上下文出发，向上查找 
 - `checkScripts`：加载匹配到的自定义 `@behavior3.check(...)` 与 `@behavior3.visible(...)` 模块
 - `nodeColors`：覆盖图中 `Composite`、`Decorator`、`Condition`、`Action`、`Other`、`Error` 节点颜色
 
-`buildScript` 和 `checkScripts` 都是相对 `*.b3-workspace` 文件所在目录解析的。修改 `allowNewFunction` 与 `nodeColors` 后，无需重开编辑器即可刷新生效。
+`buildScript` 和 `checkScripts` 都是相对 `*.b3-workspace` 文件所在目录解析的。修改 `allowNewFunction`、`nodeColors` 与 `customFields` 后，无需重开编辑器即可刷新生效。
+
+### 自定义数据字段
+
+`settings.customFields` 声明树的自定义数据（`tree`）和条件项的自定义数据（`condition`）里的字段：
+
+```json
+"customFields": {
+    "tree": [
+        {
+            "key": "$condition_type",
+            "type": "string",
+            "options": [
+                { "name": "local", "value": "local" },
+                { "name": "global", "value": "global" }
+            ],
+            "default": "local",
+            "required": true,
+            "when": "hasConditions"
+        }
+    ],
+    "condition": [{ "key": "enterPriority", "type": "int", "default": 0, "editable": false }]
+}
+```
+
+- `type`：`string`、`int`、`float` 或 `bool`；不写时按 `default` 推断
+- `options`：`{ name, value }` 列表，Inspector 里显示为下拉框
+- `default`：新建条件时写入；必填字段缺失时也用它补上。条件字段可以写 `"$nodeId"`（类型为 `int` 或 `float`），取宿主节点的 id；写入后固定，节点之后重新编号不会跟着变
+- `required`：任意修改后补上默认值，不能删除
+- `editable`：`false` 时 Inspector 里的值只读
+- `when`（只用于树字段）：`hasConditions` 表示只在树用到条件时生效；删掉最后一个条件后，这个字段不会被自动删除
+- `script`（只用于条件字段）：`@behavior3.customField` 钩子的注册名。新建条件、每次保存和每次构建时（都在节点重新编号之后）由钩子计算值。钩子没注册时用 `default`；`required` 不再要求写 `default`
+
+没有声明的键仍是普通自定义数据。声明不合法时整个 `customFields` 被忽略，并在输出面板报错。
 
 完整示例可参考 [sample/workspace.b3-workspace](sample/workspace.b3-workspace)。
 
@@ -196,7 +229,21 @@ Batch 脚本使用 `@behavior3.batch` 声明，由 **Run Script as Batch Process
 
 - `@behavior3.check("name")`：注册字段校验器，同时用于 Inspector 校验与项目构建
 - `@behavior3.visible("name")`：注册字段可见性钩子，用于 Inspector 展示与隐藏字段清理
-- `checkScripts` 匹配到的模块可以同时注册 checker 和 visible
+- `@behavior3.customField("name")`：注册计算条件自定义数据的钩子，对应字段声明里的 `"script": "name"`（见「自定义数据字段」）
+- `checkScripts` 匹配到的模块可以同时注册 checker、visible 和 customField
+
+```ts
+@behavior3.customField("conditionPriority")
+export class ConditionPriority {
+    resolve(ctx: CustomFieldResolveContext) {
+        // ctx.reason: "create" | "save"；ctx.node.id 是重新编号后的 id，
+        // ctx.previousNodeId 是之前的 id；ctx.previous 是这一轮之前的 custom
+        return ctx.key === "enterPriority" ? Number(ctx.node.id) : undefined;
+    }
+}
+```
+
+`resolve` 返回新值，返回 `undefined` 保持原值。字段按声明顺序计算，`ctx.custom` 里已经有前面字段的结果。保存时，脚本报错或返回值不符合字段声明会记录到输出面板并保持原值，不影响保存；写在主树 `overrides` 里的条件会被跳过。构建时（编辑器命令和 CLI），`ctx.reason` 为 `"build"`，id 带 `tree.prefix`，subtree 展开后每个实例各算一次，结果只写进产物；钩子缺失或出错会让构建失败。钩子同步执行，请保持轻量。示例见 [sample/scripts/checkers/condition_priority.ts](sample/scripts/checkers/condition_priority.ts)。
 
 依赖 `new Function` 的内联可见性表达式只有在 `*.b3-workspace` 中开启 `allowNewFunction` 后才会执行。
 

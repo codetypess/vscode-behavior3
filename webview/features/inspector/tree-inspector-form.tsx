@@ -1,14 +1,10 @@
 import { FormOutlined, MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
 import { AutoComplete, Button, Flex, Form, Input, Select, Switch } from "antd";
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useRuntime, useWebviewKind } from "../../app/runtime";
-import {
-    CONDITION_TYPE_CUSTOM_KEY,
-    CONDITION_TYPE_VALUES,
-    readConditionType,
-    treeUsesConditions,
-} from "../../shared/condition-branch";
+import { useRuntime, useWebviewKind, useWorkspaceStore } from "../../app/runtime";
+import { treeUsesConditions } from "../../shared/condition-branch";
+import { activeTreeCustomFields } from "../../shared/custom-fields";
 import { isValidVariableName } from "../../shared/validation";
 import {
     SectionDivider,
@@ -301,14 +297,22 @@ export const TreeInspectorForm: React.FC = () => {
         subtreeRows,
         importDeclByPath,
     } = useTreeInspectorViewState(form);
+    const treeCustomFieldDefs = useWorkspaceStore((state) => state.settings.customFields.tree);
+    const usesConditions = document ? treeUsesConditions(document) : false;
+    const customFields = useMemo(
+        () => activeTreeCustomFields(treeCustomFieldDefs, usesConditions),
+        [treeCustomFieldDefs, usesConditions]
+    );
 
     useEffect(() => {
         if (!document) {
             return;
         }
 
-        form.setFieldsValue(createTreeInspectorFormValues(document, variableUsageCount));
-    }, [document, form, variableUsageCount]);
+        form.setFieldsValue(
+            createTreeInspectorFormValues(document, variableUsageCount, customFields)
+        );
+    }, [document, form, variableUsageCount, customFields]);
 
     if (!document) {
         return null;
@@ -369,7 +373,7 @@ export const TreeInspectorForm: React.FC = () => {
                     .filter((entry: string | undefined): entry is string => Boolean(entry));
                 break;
             case "customRows":
-                payload.custom = buildTreeCustomRecord(values.customRows ?? []);
+                payload.custom = buildTreeCustomRecord(values.customRows ?? [], customFields);
                 break;
             default:
                 return;
@@ -426,25 +430,7 @@ export const TreeInspectorForm: React.FC = () => {
                     name="customRows"
                     title={t("tree.custom")}
                     readOnly={readOnly}
-                    reservedKeys={[
-                        {
-                            key: CONDITION_TYPE_CUSTOM_KEY,
-                            // Required while the tree uses conditions.
-                            removable: !treeUsesConditions(document),
-                            renderValue: ({ value, disabled, commit }) => (
-                                <Select
-                                    disabled={disabled}
-                                    style={{ width: "100%" }}
-                                    value={readConditionType(value)}
-                                    options={CONDITION_TYPE_VALUES.map((entry) => ({
-                                        value: entry,
-                                        label: entry,
-                                    }))}
-                                    onChange={commit}
-                                />
-                            ),
-                        },
-                    ]}
+                    fields={customFields}
                     queueCommit={() => queueCommitTreeFields(["customRows"])}
                 />
             </Form>

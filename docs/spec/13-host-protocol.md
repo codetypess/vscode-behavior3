@@ -149,6 +149,7 @@
 - `allFiles`
 - `settings`
     - 包含当前 editor/webview 运行所需的稳定设置快照；除既有字段外，也包含 workspace-gated capability，例如 `.b3-workspace.settings.allowNewFunction`
+    - `customFields` 总是存在（没有声明时两组都为空），这样删掉声明后 `settingLoaded` 能清空 webview 里的旧值。条件文件的 session 下发前把 `tree` 组换成 `condition` 组，webview 和 reducer 不需要知道当前是不是条件文件
 - `documentSession`
     - 当前宿主 document session 元数据
 - `selection`

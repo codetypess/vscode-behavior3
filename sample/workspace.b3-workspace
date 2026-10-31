@@ -3,6 +3,39 @@
     "checkExpr": true,
     "allowNewFunction": true,
     "buildScript": "scripts/build.ts",
-    "checkScripts": ["scripts/checkers/**/*.ts"]
+    "checkScripts": ["scripts/checkers/**/*.ts"],
+    "customFields": {
+      "tree": [
+        {
+          "key": "$condition_type",
+          "desc": "条件作用域",
+          "type": "string",
+          "options": [
+            { "name": "local", "value": "local" },
+            { "name": "global", "value": "global" }
+          ],
+          "default": "local",
+          "required": true,
+          "when": "hasConditions"
+        }
+      ],
+      "condition": [
+        {
+          "key": "enterPriority",
+          "desc": "进入优先级，等于宿主节点 id",
+          "type": "int",
+          "script": "conditionPriority",
+          "required": true,
+          "editable": false
+        },
+        {
+          "key": "maintainPriority",
+          "desc": "维持优先级，0 到进入优先级之间",
+          "type": "int",
+          "script": "conditionPriority",
+          "required": true
+        }
+      ]
+    }
   }
 }

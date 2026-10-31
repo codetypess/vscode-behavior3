@@ -144,7 +144,10 @@ Inspector 暴露同一组 project/document quick actions，但承载位置随模
 
 - 由 `document.custom` 驱动
 - 使用可增删的 `key:value` 行编辑
-- 当前树用到条件时，自动包含 `$condition_type`。这一行的键不可改、不可删，值是 `local` / `global` 下拉框，缺省 `local`
+- 树 Inspector 用 `settings.customFields.tree` 里当前生效的字段（`when: hasConditions` 的字段只在树用到条件时生效），条件 Inspector 和条件文件的树 Inspector 用 `settings.customFields.condition`
+- 声明过的字段：键名锁定；值按 `options` 用下拉框、`bool` 用开关、`int` / `float` 用数字输入，其余用文本框；`editable: false` 时禁用；`required` 时不能删除；`desc` 显示在键名提示里；`script` 字段在提示里注明由哪个脚本在保存时计算，不显示占位行
+- 文件里缺失的必填字段显示为一行淡色的占位行，值是默认值，下次提交时写入；打开文件不会因此变成未保存
+- 声明字段的值按声明的类型解析，类型不符或不在选项里时这一行报错、不提交
 - 每行左侧显示一个根据当前输入推断出的类型徽章
 - `key` 必填且不能重复
 - `value` 仅支持 `string`、`number`、`boolean`

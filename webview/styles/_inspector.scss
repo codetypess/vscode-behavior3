@@ -358,6 +358,21 @@
     color: var(--ant-color-error);
 }
 
+.b3-var-row.is-pending .b3-var-row-compact {
+    opacity: 0.6;
+}
+
+.b3-custom-switch {
+    display: flex;
+    align-items: center;
+    flex: 1 1 auto;
+    min-height: 32px;
+    padding: 0 11px;
+    border: 1px solid var(--ant-color-border);
+    border-left: 0;
+    border-radius: 0 6px 6px 0;
+}
+
 .b3-inline-remove {
     margin-top: calc((var(--b3-inspector-control-height) - 1em) / 2);
     color: var(--ant-color-text-tertiary);

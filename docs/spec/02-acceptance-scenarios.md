@@ -153,7 +153,8 @@
 - 单击附属打开条件面板，而不是节点面板。`abort` 为 `none`、`self`、`lower`、`both`，默认 `none`。条件项的 `custom` 是普通自定义数据，用和树自定义数据相同的键值编辑器，可以增删改；在条件文件里它就是树的自定义数据
 - 条件树里的节点和普通节点共用一个 id 序列（节点、它的条件树、它的子节点）；条件树里通过 `path` 引用的子树会被展开并导出
 - 双击附属或面板中的「打开编辑视图」在新标签页打开 `<宿主文件>/<uuid>/condition.json`；保存它后宿主文件变成未保存且条件树已更新；宿主文件改动后条件标签页跟着刷新。双击节点本体仍打开 subtree
-- 树上出现条件后，自定义数据包含 `$condition_type`，值为 `local` 或 `global`，默认 `local`。树上仍有条件时，这一项不能删除
+- `.b3-workspace` 的 `settings.customFields` 声明了 `when: hasConditions` 的必填树字段（例如 sample 里的 `$condition_type`）时：树上出现条件后自定义数据包含这一项，值为默认值，用下拉框选择；树上仍有条件时不能删除；删掉最后一个条件后这一项保留，可以手动删除
+- 新建条件时，条件的自定义数据带上 `customFields.condition` 里所有带默认值的字段；没有声明时不带 `custom`。默认值写成 `"$nodeId"` 的字段取宿主节点 id（sample 里的 `enterPriority` / `maintainPriority`）
 
 ## 最低回归样例
 

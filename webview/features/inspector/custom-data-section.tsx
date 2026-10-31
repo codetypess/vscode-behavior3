@@ -1,15 +1,21 @@
 import { MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
-import { Button, Flex, Form, Input, Space, Tooltip } from "antd";
+import { Button, Flex, Form, Input, InputNumber, Select, Space, Switch, Tooltip } from "antd";
 import type { FormInstance } from "antd/es/form";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { SectionDivider } from "./inspector-shared";
+import type { CustomFieldDef, CustomFieldValue } from "../../shared/b3type";
 import {
     buildTreeCustomRecord,
     getTreeCustomValueKind,
     type TreeCustomRowValue,
     type TreeCustomValueKind,
 } from "./inspector-form-values";
+import {
+    CustomFieldValueError,
+    formatCustomRowValue,
+    parseCustomFieldInput,
+} from "./tree-custom-metadata";
 
 const getCustomValueBadgeIcon = (kind: TreeCustomValueKind) => {
     switch (kind) {
@@ -24,31 +30,108 @@ const getCustomValueBadgeIcon = (kind: TreeCustomValueKind) => {
     }
 };
 
-/** A key owned by the editor: its name is fixed and its value may use a dedicated control. */
-export interface CustomDataReservedKey {
-    key: string;
-    /** Default false. */
-    removable?: boolean;
-    renderValue?: (props: {
-        value: string;
-        disabled: boolean;
-        commit: (nextValue: string) => void;
-    }) => React.ReactNode;
-}
+const getCustomFieldValueKind = (def: CustomFieldDef, rawValue: string | undefined) => {
+    try {
+        parseCustomFieldInput(def, rawValue);
+    } catch {
+        return "invalid";
+    }
+    switch (def.type) {
+        case "bool":
+            return "boolean";
+        case "int":
+        case "float":
+            return "number";
+        default:
+            return "string";
+    }
+};
+
+const CustomFieldValueInput: React.FC<{
+    def: CustomFieldDef;
+    value: string;
+    disabled: boolean;
+    onChange: (nextValue: string) => void;
+    commit: (nextValue: string) => void;
+}> = ({ def, value, disabled, onChange, commit }) => {
+    const { t } = useTranslation();
+    if (def.options) {
+        let selected: CustomFieldValue | undefined;
+        try {
+            selected = parseCustomFieldInput(def, value);
+        } catch {
+            selected = undefined;
+        }
+        return (
+            <Select
+                disabled={disabled}
+                style={{ width: "100%" }}
+                value={selected}
+                placeholder={value}
+                options={def.options.map((option) => ({
+                    value: option.value,
+                    label:
+                        option.name === String(option.value)
+                            ? option.name
+                            : `${option.name} (${String(option.value)})`,
+                }))}
+                onChange={(next: CustomFieldValue) => commit(formatCustomRowValue(next))}
+            />
+        );
+    }
+    if (def.type === "bool") {
+        return (
+            <div className="b3-custom-switch">
+                <Switch
+                    disabled={disabled}
+                    checked={value.trim() === "true"}
+                    onChange={(checked) => commit(String(checked))}
+                />
+            </div>
+        );
+    }
+    if (def.type === "int" || def.type === "float") {
+        const parsed = Number(value);
+        return (
+            <InputNumber
+                disabled={disabled}
+                style={{ width: "100%" }}
+                precision={def.type === "int" ? 0 : undefined}
+                value={value.trim() && Number.isFinite(parsed) ? parsed : null}
+                placeholder={t("tree.custom.value")}
+                onChange={(next) => onChange(next === null ? "" : String(next))}
+                onBlur={() => commit(value)}
+            />
+        );
+    }
+    return (
+        <Input
+            disabled={disabled}
+            value={value}
+            placeholder={t("tree.custom.value")}
+            onChange={(event) => onChange(event.target.value)}
+            onBlur={() => commit(value)}
+        />
+    );
+};
 
 const CustomDataRow: React.FC<{
     value?: TreeCustomRowValue;
     disabled?: boolean;
-    reservedKeys: CustomDataReservedKey[];
+    fields: CustomFieldDef[];
     onChange?: (next: TreeCustomRowValue) => void;
     onRemove?: () => void;
     onSubmit?: () => void;
-}> = ({ value, disabled = false, reservedKeys, onChange, onRemove, onSubmit }) => {
+}> = ({ value, disabled = false, fields, onChange, onRemove, onSubmit }) => {
     const { t } = useTranslation();
     const [localValue, setLocalValue] = React.useState<TreeCustomRowValue>(
         value ?? { key: "", value: "" }
     );
-    const valueKind = getTreeCustomValueKind(localValue.value);
+    // Lock the row once a declared key is committed, so typing a longer key is not cut off.
+    const def = fields.find((entry) => entry.key === value?.key?.trim());
+    const valueKind = def
+        ? getCustomFieldValueKind(def, localValue.value)
+        : getTreeCustomValueKind(localValue.value);
 
     const valueKindLabel = (() => {
         switch (valueKind) {
@@ -71,10 +154,34 @@ const CustomDataRow: React.FC<{
         onChange?.(localValue);
         onSubmit?.();
     };
-    const reserved = reservedKeys.find((entry) => entry.key === localValue.key?.trim());
+    const commitValue = (nextValue: string) => {
+        const updated = { ...localValue, value: nextValue };
+        setLocalValue(updated);
+        onChange?.(updated);
+        onSubmit?.();
+    };
+
+    const keyInput = (
+        <Input
+            disabled={disabled || Boolean(def)}
+            value={localValue.key}
+            placeholder={t("tree.custom.key")}
+            onChange={(event) =>
+                setLocalValue((current) => ({
+                    ...current,
+                    key: event.target.value,
+                }))
+            }
+            onBlur={commit}
+        />
+    );
 
     return (
-        <Flex gap={4} align="start" className="b3-var-row">
+        <Flex
+            gap={4}
+            align="start"
+            className={value?.pending ? "b3-var-row is-pending" : "b3-var-row"}
+        >
             <Space.Compact block className="b3-var-row-compact">
                 <Tooltip title={valueKindLabel}>
                     <div className={`b3-custom-type-badge is-${valueKind}`}>
@@ -84,29 +191,31 @@ const CustomDataRow: React.FC<{
                         />
                     </div>
                 </Tooltip>
-                <Input
-                    disabled={disabled || Boolean(reserved)}
-                    value={localValue.key}
-                    placeholder={t("tree.custom.key")}
-                    onChange={(event) =>
-                        setLocalValue((current) => ({
-                            ...current,
-                            key: event.target.value,
-                        }))
-                    }
-                    onBlur={commit}
-                />
-                {reserved?.renderValue ? (
-                    reserved.renderValue({
-                        value: localValue.value ?? "",
-                        disabled,
-                        commit: (nextValue) => {
-                            const updated = { ...localValue, value: nextValue };
-                            setLocalValue(updated);
-                            onChange?.(updated);
-                            onSubmit?.();
-                        },
-                    })
+                {def?.desc || def?.script || value?.pending ? (
+                    <Tooltip
+                        title={[
+                            def?.desc,
+                            def?.script ? t("tree.custom.script", { name: def.script }) : undefined,
+                            value?.pending ? t("tree.custom.pending") : undefined,
+                        ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                    >
+                        {keyInput}
+                    </Tooltip>
+                ) : (
+                    keyInput
+                )}
+                {def ? (
+                    <CustomFieldValueInput
+                        def={def}
+                        value={localValue.value ?? ""}
+                        disabled={disabled || !def.editable}
+                        onChange={(nextValue) =>
+                            setLocalValue((current) => ({ ...current, value: nextValue }))
+                        }
+                        commit={commitValue}
+                    />
                 ) : (
                     <Input
                         disabled={disabled}
@@ -122,7 +231,7 @@ const CustomDataRow: React.FC<{
                     />
                 )}
             </Space.Compact>
-            {disabled || (reserved && !reserved.removable) ? (
+            {disabled || def?.required ? (
                 <div className="b3-row-spacer" />
             ) : (
                 <MinusCircleOutlined className="b3-inline-remove" onClick={onRemove} />
@@ -138,9 +247,10 @@ export const CustomDataSection: React.FC<{
     name: string;
     title: string;
     readOnly: boolean;
-    reservedKeys?: CustomDataReservedKey[];
+    /** Declared fields that apply to this record. */
+    fields?: CustomFieldDef[];
     queueCommit: () => void;
-}> = ({ form, name, title, readOnly, reservedKeys = [], queueCommit }) => {
+}> = ({ form, name, title, readOnly, fields: customFields = [], queueCommit }) => {
     const { t } = useTranslation();
 
     return (
@@ -177,13 +287,25 @@ export const CustomDataSection: React.FC<{
                                             }
 
                                             try {
-                                                buildTreeCustomRecord([
-                                                    {
-                                                        key,
-                                                        value: value?.value ?? "",
-                                                    },
-                                                ]);
-                                            } catch {
+                                                buildTreeCustomRecord(
+                                                    [{ key, value: value?.value ?? "" }],
+                                                    customFields
+                                                );
+                                            } catch (error) {
+                                                if (error instanceof CustomFieldValueError) {
+                                                    throw new Error(
+                                                        error.reason === "option"
+                                                            ? t("validation.customFieldOption", {
+                                                                  key,
+                                                              })
+                                                            : t("validation.customFieldType", {
+                                                                  key,
+                                                                  type: customFields.find(
+                                                                      (entry) => entry.key === key
+                                                                  )?.type,
+                                                              })
+                                                    );
+                                                }
                                                 throw new Error(t("validation.customValueInvalid"));
                                             }
                                         },
@@ -192,7 +314,7 @@ export const CustomDataSection: React.FC<{
                             >
                                 <CustomDataRow
                                     disabled={readOnly}
-                                    reservedKeys={reservedKeys}
+                                    fields={customFields}
                                     onSubmit={queueCommit}
                                     onRemove={() => {
                                         remove(field.name);

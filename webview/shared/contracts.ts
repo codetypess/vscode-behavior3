@@ -3,7 +3,14 @@
  * and adapters. UI and VS Code transport code should normalize data before it
  * crosses into these shapes.
  */
-import type { AbortMode, ConditionData, NodeDef, VarDecl, ImportDecl } from "./b3type";
+import type {
+    AbortMode,
+    ConditionData,
+    CustomFieldDefs,
+    NodeDef,
+    VarDecl,
+    ImportDecl,
+} from "./b3type";
 import type { NodeFieldKind } from "./b3build-model";
 
 export type { AbortMode, ConditionData, NodeDef, VarDecl, ImportDecl };
@@ -62,6 +69,7 @@ export interface Settings {
     theme: "dark" | "light";
     inspectorMode: "sidebar" | "embedded";
     nodeColors?: Record<string, string>;
+    customFields: CustomFieldDefs;
 }
 
 export interface HostDocumentSessionState {

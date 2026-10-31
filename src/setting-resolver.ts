@@ -1,6 +1,7 @@
 import * as path from "path";
 import * as vscode from "vscode";
 import { logger } from "../webview/shared/logger";
+import type { CustomFieldDefs } from "../webview/shared/b3type";
 import type { NodeDef } from "../webview/shared/message-protocol";
 import { parseNodeDefsContent, parseWorkspaceModelContent } from "../webview/shared/schema";
 import {
@@ -11,6 +12,7 @@ import {
 export interface WorkspaceFileSettings {
     allowNewFunction?: boolean;
     nodeColors?: Record<string, string>;
+    customFields?: CustomFieldDefs;
 }
 
 /**
@@ -174,6 +176,7 @@ export async function resolveWorkspaceFileSettings(
         return {
             allowNewFunction: data.settings.allowNewFunction,
             nodeColors: nodeColors && Object.keys(nodeColors).length > 0 ? nodeColors : undefined,
+            customFields: data.settings.customFields,
         };
     } catch {
         return undefined;
@@ -210,7 +213,7 @@ export function watchSettingFile(
 
 /**
  * Watch any `*.b3-workspace` under the workspace folder so workspace-backed settings such as
- * `settings.nodeColors` and `settings.allowNewFunction` can be refreshed without reopening the editor.
+ * `settings.nodeColors`, `settings.allowNewFunction` and `settings.customFields` can be refreshed without reopening the editor.
  */
 export function watchWorkspaceFile(
     workspaceFolder: vscode.Uri,

@@ -10,7 +10,9 @@ import {
 } from "./b3type";
 import type { NodeDef } from "./b3type";
 import { generateDeterministicUuid, generateUuid } from "./stable-id";
-import { ensureConditionTypeCustom, isAbortMode } from "./condition-branch";
+import { isAbortMode } from "./condition-branch";
+import { normalizeCustomFieldDefs } from "./custom-fields";
+import { logger } from "./logger";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
 
 const NODE_DEF_TYPES = new Set<NodeDef["type"]>(["Action", "Decorator", "Condition", "Composite"]);
@@ -489,6 +491,19 @@ export const normalizeWorkspaceModel = (value: unknown): WorkspaceModel => {
         throw new Error("workspace settings.nodeColors must be an object");
     }
 
+    let customFields: WorkspaceModel["settings"]["customFields"];
+    if (settingsRecord.customFields !== undefined) {
+        // A bad field declaration should not take the other workspace settings down with it.
+        try {
+            customFields = normalizeCustomFieldDefs(
+                settingsRecord.customFields,
+                "workspace settings.customFields"
+            );
+        } catch (error) {
+            logger.error("[behavior3] ignored invalid workspace settings.customFields:", error);
+        }
+    }
+
     return {
         settings: {
             allowNewFunction:
@@ -522,6 +537,7 @@ export const normalizeWorkspaceModel = (value: unknown): WorkspaceModel => {
                       })
                   )
                 : undefined,
+            customFields,
         },
     };
 };
@@ -540,7 +556,7 @@ export const normalizeTreeData = (value: unknown, opts?: { stableIdSeed?: string
             ? undefined
             : expectPlainRecord(variablesValue, "tree file variables");
 
-    const tree: TreeData = {
+    return {
         version: normalizeTreeVersion(record.version),
         name: asRequiredString(record.name, "tree file name"),
         prefix: asOptionalString(record.prefix) ?? "",
@@ -561,8 +577,6 @@ export const normalizeTreeData = (value: unknown, opts?: { stableIdSeed?: string
         root: normalizeNodeData(record.root, "tree file root", opts?.stableIdSeed),
         overrides: normalizeOverrideMap(overridesValue, "tree file overrides"),
     };
-    ensureConditionTypeCustom(tree);
-    return tree;
 };
 
 export const parseTreeContent = (content: string, opts?: { stableIdSeed?: string }): TreeData => {

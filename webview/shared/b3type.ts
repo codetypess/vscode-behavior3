@@ -117,7 +117,35 @@ export interface WorkspaceModel {
         checkScripts?: string[];
         /** Override default node-type colors. Keys: "Composite" | "Decorator" | "Condition" | "Action" | "Other" | "Error" */
         nodeColors?: Record<string, string>;
+        customFields?: CustomFieldDefs;
     };
+}
+
+export type CustomFieldValue = string | number | boolean;
+export type CustomFieldType = "string" | "int" | "float" | "bool";
+
+/** A project-declared key in a tree's or a condition item's `custom`. */
+export interface CustomFieldDef {
+    key: string;
+    desc?: string;
+    type: CustomFieldType;
+    options?: { name: string; value: CustomFieldValue }[];
+    default?: CustomFieldValue;
+    /** Condition fields only: `default: "$nodeId"` uses the host node id when the value is written. */
+    defaultFrom?: "nodeId";
+    /** Condition fields only: a `@behavior3.customField` name that computes the value. */
+    script?: string;
+    /** Written with `default` while the field applies, and cannot be removed. */
+    required: boolean;
+    editable: boolean;
+    /** Tree fields only: `hasConditions` applies the field while the tree uses a condition. */
+    when: "always" | "hasConditions";
+}
+
+/** `settings.customFields` in `.b3-workspace`. */
+export interface CustomFieldDefs {
+    tree: CustomFieldDef[];
+    condition: CustomFieldDef[];
 }
 
 export const getNodeType = (def: NodeDef): NodeType => {

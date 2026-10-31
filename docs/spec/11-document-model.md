@@ -27,7 +27,7 @@
 - `group`
 - `variables.imports`
 - `variables.locals`
-- `custom`。树用到条件时必须包含 `$condition_type`，值只能是 `local` 或 `global`，缺省为 `local`
+- `custom`。解析时原样读入，不补任何字段。`.b3-workspace` 的 `settings.customFields` 声明的必填字段由编辑修改补上（见 `17-editor-semantics.md`），构建和 CLI 不补
 - `root`
 - `overrides`
 

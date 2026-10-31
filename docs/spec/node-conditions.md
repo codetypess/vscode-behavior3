@@ -18,7 +18,7 @@ behavior3-ts 2.0 参考 UE Observer Aborts 加了条件打断：节点上可以�
 - `NodeDef` 保留 `preemptive?: boolean`（只保留 `true`）。
 - id / uuid 分配、subtree 展开、override、保存时的 id 回写和导出都包括条件树里的节点；条件树里可以通过 `path` 引用 subtree。
 - 复制、粘贴、另存为 subtree、脱链、撤销等编辑操作不丢 `conditions`。
-- 条件项可以带普通的自定义数据 `custom`（原装饰器的 `enterPriority` / `maintainPriority` 需要时就写在这里，编辑器不做特殊处理）。`$decorator_type` 改名为 `$condition_type`。
+- 条件项可以带普通的自定义数据 `custom`（原装饰器的 `enterPriority` / `maintainPriority` 需要时就写在这里）。`$decorator_type` 改名为 `$condition_type`。这些字段后来改成在 `.b3-workspace` 里声明，见 `workspace-custom-fields.md`。
 - 条件项 `custom` 的编辑复用 Tree Inspector 的自定义数据编辑器。
 - `DOCUMENT_VERSION` 升到 `2.8.0`。
 
@@ -54,7 +54,7 @@ interface NodeDef {
 
 - `custom` 是普通自定义数据：没有保留键，不跟节点 id 联动，原样读写和导出。空对象读入后去掉。
 - `overrides` 的字段集合包括 `conditions`，只能写上或替换整个数组，不能清掉 subtree 源文件里已有的条件。
-- 树用到条件时 `custom.$condition_type` 为 `local` 或 `global`，缺省 `local`。
+- `custom.$condition_type` 改由 `.b3-workspace` 的 `settings.customFields` 声明，编辑器不再写死（见 `workspace-custom-fields.md`）。
 - 任何节点都可以带条件，没有 `supportDecorator` 一类的开关。
 
 ### 4.2 遍历顺序
@@ -91,7 +91,7 @@ interface NodeDef {
 
 ## 5. Implementation Notes
 
-- `webview/shared/condition-branch.ts`：常量、`$condition_type`、条件树约束。
+- `webview/shared/condition-branch.ts`：常量、条件树约束。
 - `webview/shared/schema.ts`：`normalizeConditions`、`preemptive`。
 - `webview/shared/tree.ts` / `tree-model.ts`：遍历、保存、克隆。
 - `webview/shared/tree-materializer.ts`、`webview/domain/resolve-graph.ts`：物化和编号。

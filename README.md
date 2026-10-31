@@ -129,7 +129,40 @@ Use a `*.b3-workspace` file to control validation, script loading, and editor pr
 - `checkScripts`: load custom `@behavior3.check(...)` and `@behavior3.visible(...)` modules from glob matches
 - `nodeColors`: override graph colors for `Composite`, `Decorator`, `Condition`, `Action`, `Other`, and `Error`
 
-`buildScript` and `checkScripts` are resolved relative to the `*.b3-workspace` file. Changes to `allowNewFunction` and `nodeColors` are refreshed without reopening the editor.
+`buildScript` and `checkScripts` are resolved relative to the `*.b3-workspace` file. Changes to `allowNewFunction`, `nodeColors`, and `customFields` are refreshed without reopening the editor.
+
+### Custom data fields
+
+`settings.customFields` declares keys in a tree's custom data (`tree`) and in a condition item's custom data (`condition`):
+
+```json
+"customFields": {
+    "tree": [
+        {
+            "key": "$condition_type",
+            "type": "string",
+            "options": [
+                { "name": "local", "value": "local" },
+                { "name": "global", "value": "global" }
+            ],
+            "default": "local",
+            "required": true,
+            "when": "hasConditions"
+        }
+    ],
+    "condition": [{ "key": "enterPriority", "type": "int", "default": 0, "editable": false }]
+}
+```
+
+- `type`: `string`, `int`, `float`, or `bool`; inferred from `default` when omitted
+- `options`: `{ name, value }` entries; the inspector shows a dropdown
+- `default`: written when a new condition is created, and for missing required fields. Condition fields can use `"$nodeId"` (with `int` or `float`) to take the host node id; the value is fixed when written and does not follow later renumbering
+- `required`: the field is filled with `default` after any edit and cannot be removed
+- `editable`: `false` makes the value read-only in the inspector
+- `when` (tree fields only): `hasConditions` applies the field only while the tree uses a condition; it is not removed when the last condition goes away
+- `script` (condition fields only): the name of a `@behavior3.customField` hook that computes the value when a condition is created, on every save, and on every build, each time after node ids are renumbered. `default` becomes the fallback when the hook is missing; `required` needs no `default`
+
+Keys that are not declared stay plain custom data. An invalid declaration is ignored with an error in the output panel.
 
 See [sample/workspace.b3-workspace](sample/workspace.b3-workspace) for a complete sample.
 
@@ -196,7 +229,21 @@ By default, batch processing only writes back tree changes made by the batch scr
 
 - `@behavior3.check("name")` registers a custom field validator used by both Inspector validation and project builds
 - `@behavior3.visible("name")` registers a field-visibility hook used by the Inspector and hidden-field cleanup
-- `checkScripts` modules can register both checker hooks and visibility hooks
+- `@behavior3.customField("name")` registers a hook that computes condition custom fields declared with `"script": "name"` (see [Custom data fields](#custom-data-fields))
+- `checkScripts` modules can register checker, visibility, and custom field hooks
+
+```ts
+@behavior3.customField("conditionPriority")
+export class ConditionPriority {
+    resolve(ctx: CustomFieldResolveContext) {
+        // ctx.reason: "create" | "save"; ctx.node.id is the id after renumbering,
+        // ctx.previousNodeId the id before; ctx.previous is the custom before this pass.
+        return ctx.key === "enterPriority" ? Number(ctx.node.id) : undefined;
+    }
+}
+```
+
+`resolve` returns the new value, or `undefined` to keep the current one. Fields are resolved in declaration order, so `ctx.custom` already holds earlier results. On save, errors and values that do not match the field are logged and leave the value unchanged; saving still succeeds, and conditions stored in main-tree `overrides` are skipped. On build (editor command and CLI), `ctx.reason` is `"build"`, ids carry `tree.prefix`, subtrees are expanded so each instance is resolved separately, and results go only into the output; a missing or failing hook fails the build. The hook runs synchronously, so keep it fast. See [sample/scripts/checkers/condition_priority.ts](sample/scripts/checkers/condition_priority.ts).
 
 Inline visibility expressions that rely on `new Function` only run when `allowNewFunction` is enabled in `*.b3-workspace`.
 

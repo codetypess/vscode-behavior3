@@ -34,7 +34,12 @@ import { InspectorSidebarCoordinator } from "./inspector-sidebar-coordinator";
 import { configureBehaviorWebview } from "./webview-html";
 import { isDocumentVersionNewer } from "../webview/shared/document";
 import { normalizeHostSelectionState } from "../webview/shared/protocol";
-import { getBehaviorProjectRootFsPath, resolveNodeDefs } from "./setting-resolver";
+import { runCustomFieldScripts } from "./editor-session/session/custom-field-scripts";
+import {
+    getBehaviorProjectRootFsPath,
+    resolveNodeDefs,
+    resolveWorkspaceFileSettings,
+} from "./setting-resolver";
 
 function getNewerFileWriteError(content: string): string | null {
     const fileVersion = getTreeFileVersion(content);
@@ -218,12 +223,16 @@ export class TreeEditorProvider
         const hostContent = await readFileContentFromDisk(location.hostUri);
         this.assertCanWriteTreeContent(hostContent);
         const workspaceFolderUri = vscode.workspace.getWorkspaceFolder(location.hostUri)?.uri;
-        const nodeDefs = workspaceFolderUri
-            ? await resolveNodeDefs(workspaceFolderUri, location.hostUri)
-            : [];
+        const [nodeDefs, workspaceSettings] = workspaceFolderUri
+            ? await Promise.all([
+                  resolveNodeDefs(workspaceFolderUri, location.hostUri),
+                  resolveWorkspaceFileSettings(workspaceFolderUri, location.hostUri),
+              ])
+            : [[], undefined];
         const reduced = reduceDocumentMutation(mutation, {
             tree: parsePersistedTreeContent(hostContent, location.hostUri.fsPath),
             nodeDefs,
+            customFields: workspaceSettings?.customFields,
         });
         if (reduced.status === "error") {
             const language = getEditorLanguage(
@@ -345,6 +354,28 @@ export class TreeEditorProvider
                         return null;
                     }
                 },
+                afterApplyDisplayIds: workspaceFolderUri
+                    ? async (savedTree, previousNodeId) => {
+                          const workspaceSettings = await resolveWorkspaceFileSettings(
+                              workspaceFolderUri,
+                              document.uri
+                          );
+                          await runCustomFieldScripts({
+                              tree: savedTree,
+                              reason: "save",
+                              previousNodeId,
+                              customFields: workspaceSettings?.customFields,
+                              documentUri: document.uri,
+                              workspaceFolderUri,
+                              nodeDefs,
+                              language: getEditorLanguage(
+                                  vscode.workspace
+                                      .getConfiguration("behavior3")
+                                      .get<string>("language", "auto")
+                              ),
+                          });
+                      }
+                    : undefined,
             });
             return {
                 ...savePlan,

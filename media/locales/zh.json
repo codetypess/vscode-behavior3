@@ -105,6 +105,8 @@
   "tree.custom.type.number": "数字值",
   "tree.custom.type.boolean": "布尔值",
   "tree.custom.type.invalid": "非法的自定义值",
+  "tree.custom.pending": "未写入文件，下次修改时写入默认值",
+  "tree.custom.script": "保存时由脚本 {{name}} 计算",
   "regnode.input": "输入：",
   "regnode.output": "输出：",
   "regnode.args": "参数：",
@@ -230,5 +232,7 @@
   "validation.variableDescriptionRequired": "变量说明必填",
   "validation.customKeyRequired": "自定义 key 必填",
   "validation.customKeyDuplicate": "自定义 key “{{key}}” 重复了",
-  "validation.customValueInvalid": "自定义值必须是字符串、数字或布尔值"
+  "validation.customValueInvalid": "自定义值必须是字符串、数字或布尔值",
+  "validation.customFieldType": "“{{key}}”的值必须是 {{type}}",
+  "validation.customFieldOption": "“{{key}}”的值必须是选项之一"
 }

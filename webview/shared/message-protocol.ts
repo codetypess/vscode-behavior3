@@ -2,7 +2,7 @@
  * Shared message protocol types between Extension Host and Webview.
  */
 
-import type { NodeDef } from "./b3type";
+import type { CustomFieldDefs, NodeDef } from "./b3type";
 import type {
     DocumentMutation,
     HostDocumentSnapshot,
@@ -76,6 +76,7 @@ export type HostToEditorMessage =
           inspectorMode: "sidebar" | "embedded";
           allFiles: string[];
           nodeColors?: Record<string, string>;
+          customFields: CustomFieldDefs;
           documentSession: HostDocumentSessionState;
           selection: HostSelectionState;
       }
@@ -100,6 +101,7 @@ export type HostToEditorMessage =
               language?: "zh" | "en";
               inspectorMode?: "sidebar" | "embedded";
               nodeColors?: Record<string, string>;
+              customFields?: CustomFieldDefs;
           };
       }
     | { type: "buildResult"; success: boolean; message: string }

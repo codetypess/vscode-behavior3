@@ -1,6 +1,7 @@
 import { resolveDocumentFsPath } from "../../condition-files";
 import { normalizeTreeContentForWrite } from "../document/document-sync";
 import type { FileVersionGuard } from "./file-version-guard";
+import { runCustomFieldScripts } from "./custom-field-scripts";
 import {
     mutationMayAffectSubtreeOverrideReachability,
     normalizeReachableSubtreeOverrides,
@@ -17,6 +18,7 @@ import {
     isReducibleDocumentMutation,
     reduceDocumentMutation,
 } from "../../../webview/shared/document";
+import type { PersistedTreeModel } from "../../../webview/shared/contracts";
 import type {
     EditorToHostMessage,
     HostToEditorMessage,
@@ -73,6 +75,8 @@ interface DocumentMutationRuntimeDeps
         Pick<FileVersionGuard, "updateFileVersionState" | "blockEditingForNewerFile">,
         Pick<SessionSelectionSync, "updateSharedSelection"> {
     fileRequests: SessionDocumentMutationFileRequests;
+    /** Fill script custom fields that new or changed conditions lack. */
+    resolveCreatedCustomFields: (tree: PersistedTreeModel) => Promise<void>;
 }
 
 const pruneReachableSubtreeOverrides = (
@@ -312,6 +316,7 @@ async function handleMutateDocumentMessage(
             reduced = reduceDocumentMutation(msg.mutation, {
                 tree: currentTree,
                 nodeDefs: deps.state.nodeDefs,
+                customFields: deps.state.currentSettings.customFields,
             });
         } catch (error) {
             await reply({
@@ -351,6 +356,8 @@ async function handleMutateDocumentMessage(
         ) {
             await pruneReachableSubtreeOverrides(deps, reduced.tree);
         }
+
+        await deps.resolveCreatedCustomFields(reduced.tree);
 
         const changed = applyContentFromWebview(deps, serializePersistedTree(reduced.tree));
         if (changed) {
@@ -395,6 +402,17 @@ export function createSessionDocumentMutations(
         blockEditingForNewerFile: fileVersionGuard.blockEditingForNewerFile,
         updateSharedSelection: selectionSync.updateSharedSelection,
         fileRequests,
+        resolveCreatedCustomFields: async (tree) => {
+            await runCustomFieldScripts({
+                tree,
+                reason: "create",
+                customFields: context.state.currentSettings.customFields,
+                documentUri: context.locationUri,
+                workspaceFolderUri: context.workspaceFolderUri,
+                nodeDefs: context.state.nodeDefs,
+                language: context.state.currentSettings.language,
+            });
+        },
     };
 
     return {

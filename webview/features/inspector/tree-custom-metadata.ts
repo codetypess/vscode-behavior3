@@ -1,8 +1,13 @@
 import JSON5 from "json5";
+import type { CustomFieldDef } from "../../shared/b3type";
+import { isCustomFieldValue, resolveCustomFieldDefault } from "../../shared/custom-fields";
+import { stringifySearchValueAsJson5 } from "../../shared/json";
 
 export type TreeCustomRowValue = {
     key?: string;
     value?: string;
+    /** A required declared field missing from the file; shown with its default until a commit writes it. */
+    pending?: boolean;
 };
 
 export type TreeCustomValue = string | number | boolean;
@@ -79,8 +84,69 @@ export const getTreeCustomValueKind = (
     }
 };
 
+export class CustomFieldValueError extends Error {
+    constructor(readonly reason: "type" | "option") {
+        super(`invalid custom field value: ${reason}`);
+    }
+}
+
+/** Parse a row value by the declared field's type instead of guessing from the text. */
+export const parseCustomFieldInput = (
+    def: CustomFieldDef,
+    rawValue: string | undefined
+): TreeCustomValue => {
+    const raw = rawValue ?? "";
+    const trimmed = raw.trim();
+    let value: TreeCustomValue;
+    switch (def.type) {
+        case "string":
+            value = raw;
+            break;
+        case "bool":
+            if (trimmed !== "true" && trimmed !== "false") {
+                throw new CustomFieldValueError("type");
+            }
+            value = trimmed === "true";
+            break;
+        default:
+            if (!TREE_CUSTOM_NUMBER_PATTERN.test(trimmed)) {
+                throw new CustomFieldValueError("type");
+            }
+            value = Number(trimmed);
+    }
+    if (!isCustomFieldValue({ ...def, options: undefined }, value)) {
+        throw new CustomFieldValueError("type");
+    }
+    if (!isCustomFieldValue(def, value)) {
+        throw new CustomFieldValueError("option");
+    }
+    return value;
+};
+
+export const formatCustomRowValue = (value: unknown): string => stringifySearchValueAsJson5(value);
+
+/** Rows for a `custom` record, plus placeholder rows for missing required fields. */
+export const createCustomRows = (
+    custom: Record<string, unknown> | undefined,
+    fields: CustomFieldDef[] = [],
+    hostNodeId?: string
+): TreeCustomRowValue[] => {
+    const rows: TreeCustomRowValue[] = Object.entries(custom ?? {}).map(([key, value]) => ({
+        key,
+        value: formatCustomRowValue(value),
+    }));
+    for (const def of fields) {
+        const defaultValue = resolveCustomFieldDefault(def, hostNodeId);
+        if (def.required && defaultValue !== undefined && !(def.key in (custom ?? {}))) {
+            rows.push({ key: def.key, value: formatCustomRowValue(defaultValue), pending: true });
+        }
+    }
+    return rows;
+};
+
 export const buildTreeCustomRecord = (
-    rows: TreeCustomRowValue[] | undefined
+    rows: TreeCustomRowValue[] | undefined,
+    fields: CustomFieldDef[] = []
 ): Record<string, TreeCustomValue> => {
     const custom: Record<string, TreeCustomValue> = {};
 
@@ -89,7 +155,8 @@ export const buildTreeCustomRecord = (
         if (!key) {
             continue;
         }
-        custom[key] = parseTreeCustomValue(row.value);
+        const def = fields.find((entry) => entry.key === key);
+        custom[key] = def ? parseCustomFieldInput(def, row.value) : parseTreeCustomValue(row.value);
     }
 
     return custom;

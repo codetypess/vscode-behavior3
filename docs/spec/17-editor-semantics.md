@@ -175,7 +175,10 @@
 - 排序 locals 与 import refs
 - Inspector 可按字段或局部列表独立构造 payload；无关字段错误不应阻断本次 intent
 - `custom` 的重复 key、对象/数组字面量或非法结构化输入不得静默写入主文档
-- 当前树用到条件时，`$condition_type` 保持为 `local` 或 `global`。缺失或无法识别时写成 `local`。提交自定义数据时不能删掉这一项
+- 每次修改成功后，补上 `settings.customFields` 里当前生效且缺失的必填字段：树的 `custom` 用 `tree` 组，每个条件项（包括 overrides 里的）的 `custom` 用 `condition` 组。已有的值即使不符合声明也不改写
+- 提交自定义数据（树级提交、条件 Inspector、条件文件写回）时，被删掉的必填字段恢复为原值或默认值，只读字段保留原值
+- `when: hasConditions` 的字段在去掉最后一个条件后保留，不自动删除
+- 宿主处理文档修改时，reducer 返回 `changed` 后，主树内联条件里缺少的 `script` 字段由 `@behavior3.customField` 钩子补上（`reason: "create"`）；钩子没注册时用字段的 `default`
 - webview 只发送 intent，宿主仅在值确实变化时提交 mutation
 
 ### `updateNode(payload)`
@@ -220,7 +223,7 @@ host reducer 当前分三条路径：
 ### `attachCondition(entryName)`
 
 - 任意节点在当前还没有条件时可用（编辑器目前每个节点只编辑一项）
-- 选定的节点成为 `conditions[0].root`，不进入宿主的 `children`。`abort` 为 `none`，没有 `custom`
+- 选定的节点成为 `conditions[0].root`，不进入宿主的 `children`。`abort` 为 `none`；`custom` 是 `settings.customFields.condition` 里所有带默认值的字段（`"$nodeId"` 默认值取目标节点的 id），没有时不写
 - 根节点定义的 `status` 含字面量 `running` 时拒绝
 - 条件树内部不能再带 `conditions`；条件树不能返回 `running`：按 behavior3 2.0 的静态推导，`running` 节点自己会返回 running，`|running` 节点在任一启用的子节点会返回 running 时会返回 running。没有声明 `status` 的节点这里不拦（后续校验给 warning）
 - 子树内部节点的结果写入主文档 `overrides`
@@ -283,6 +286,7 @@ host reducer 当前分三条路径：
 
 - 主编辑器或侧栏发起保存后，最终都进入 VS Code custom editor 保存生命周期
 - 宿主写盘前会重新解析当前主文档，并用 resolved graph 的主树 display id 回写 persisted `id`
+- id 回写之后，`settings.customFields.condition` 里声明了 `script` 的字段由对应的 `@behavior3.customField` 钩子重新计算（`reason: "save"`，带回写前后的节点 id），只处理主树内联节点上的条件。钩子缺失、报错或返回值不符合声明时记录到输出面板，字段保持原值，保存照常进行
 - 这次回写包括条件树里的节点
 - 该回写只作用于主树结构节点，不把 subtree 内部实例 id 反写到主文档
 - 同一次保存动作会显式写回当前可达 legacy subtree 的规范化内容
@@ -334,6 +338,7 @@ host reducer 当前分三条路径：
 - 只是把 build 请求交给宿主
 - 结果通过 `buildResult` 回推
 - 宿主执行 build 时，进程当前工作目录必须切换到解析出的行为树项目目录，也就是命中的 `*.b3-workspace` 所在目录；如果该目录经过符号链接进入，宿主必须先把已有文件路径规范化到同一个 canonical filesystem path，再让 build script 观察 `process.cwd()` 与 build context `workdir` 保持一致，而不是一个是 lexical path、另一个是 real path
+- 构建在重新编号、加前缀之后，用 `@behavior3.customField` 钩子重新计算条件里的 `script` 字段（`reason: "build"`，每个展开实例各算一次，只写进产物）；钩子缺失或出错时构建失败
 - 构建产物带上节点 `conditions`：条件树里的 subtree 被展开、override 被应用，id 按节点、条件树、子节点的顺序重新编号后加前缀，条件 `custom` 原样导出。build 校验和 batch `onProcessNode` 也会走到条件树里的节点；batch hook 对条件根返回空时去掉该条件项
 - `Ctrl+B` / `Cmd+B` 与 `Ctrl+Shift+B` / `Cmd+Shift+B` 由 VS Code contributed keybindings 直接触发 extension-host build command；webview 不应重复绑定同一组 build 快捷键
 - Inspector view title 中的 build action 同样触发 `behavior3.build` extension-host command，不新增 webview 内部 build 入口

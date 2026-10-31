@@ -80,6 +80,7 @@ export function buildInitMessage(params: {
         inspectorMode: params.settings.inspectorMode,
         allFiles: params.allFiles,
         nodeColors: params.settings.nodeColors,
+        customFields: params.settings.customFields,
         documentSession: params.documentSession,
         selection: params.selection,
     };

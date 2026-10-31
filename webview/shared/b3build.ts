@@ -4,6 +4,7 @@ import type {
     BatchScript,
     BuildEnv,
     BuildScript,
+    CustomFieldResolver,
     NodeFieldCheckContext,
     NodeFieldChecker,
     NodeFieldCheckResult,
@@ -33,6 +34,12 @@ import {
     writeTree,
 } from "./tree";
 import { parseWorkspaceModelContent } from "./schema";
+import {
+    collectNodeIds,
+    hasScriptCustomFields,
+    resolveScriptCustomFields,
+    type ResolveScriptCustomFieldsParams,
+} from "./custom-field-scripts";
 
 /**
  * Shared build pipeline helpers.
@@ -79,6 +86,8 @@ export type {
     BatchHookClass,
     BatchScript,
     BuildEnv,
+    CustomFieldResolveContext,
+    CustomFieldResolver,
     BuildLogger,
     BuildScript,
     FsLike,
@@ -103,6 +112,7 @@ type BuildHookCtor = new (env: BuildEnv) => BuildScript;
 type BatchHookCtor = new (env: BuildEnv) => BatchScript;
 type NodeFieldCheckerCtor = new (env: BuildEnv) => NodeFieldChecker;
 type NodeFieldVisibleCtor = new (env: BuildEnv) => NodeFieldVisible;
+type CustomFieldResolverCtor = new (env: BuildEnv) => CustomFieldResolver;
 
 type OptionalRequire = {
     cache?: Record<string, unknown>;
@@ -175,6 +185,8 @@ const CHECK_HOOK_MARKER = "__behavior3CheckHook";
 const CHECK_HOOK_NAME = "__behavior3CheckName";
 const VISIBLE_HOOK_MARKER = "__behavior3VisibleHook";
 const VISIBLE_HOOK_NAME = "__behavior3VisibleName";
+const CUSTOM_FIELD_HOOK_MARKER = "__behavior3CustomFieldHook";
+const CUSTOM_FIELD_HOOK_NAME = "__behavior3CustomFieldName";
 
 type MarkedBuildHookCtor = BuildHookCtor & {
     [BUILD_HOOK_MARKER]?: true;
@@ -192,6 +204,11 @@ type MarkedCheckCtor = NodeFieldCheckerCtor & {
 type MarkedVisibleCtor = NodeFieldVisibleCtor & {
     [VISIBLE_HOOK_MARKER]?: true;
     [VISIBLE_HOOK_NAME]?: string;
+};
+
+type MarkedCustomFieldCtor = CustomFieldResolverCtor & {
+    [CUSTOM_FIELD_HOOK_MARKER]?: true;
+    [CUSTOM_FIELD_HOOK_NAME]?: string;
 };
 
 const markBuildHook = <T extends new (...args: unknown[]) => unknown>(ctor: T) => {
@@ -240,6 +257,32 @@ const markVisibleCtor = <T extends new (...args: unknown[]) => unknown>(
         configurable: false,
     });
     return ctor;
+};
+
+const markCustomFieldCtor = <T extends new (...args: unknown[]) => unknown>(
+    ctor: T,
+    explicitName?: string
+) => {
+    const name = explicitName?.trim() || ctor.name;
+    Object.defineProperty(ctor, CUSTOM_FIELD_HOOK_MARKER, {
+        value: true,
+        configurable: false,
+    });
+    Object.defineProperty(ctor, CUSTOM_FIELD_HOOK_NAME, {
+        value: name,
+        configurable: false,
+    });
+    return ctor;
+};
+
+const markCustomFieldHook = <T extends new (...args: unknown[]) => unknown>(
+    nameOrCtor?: string | T,
+    _context?: ClassDecoratorContext<T>
+) => {
+    if (typeof nameOrCtor === "function") {
+        return markCustomFieldCtor(nameOrCtor);
+    }
+    return (ctor: T) => markCustomFieldCtor(ctor, nameOrCtor);
 };
 
 const markCheckHook = <T extends new (...args: unknown[]) => unknown>(
@@ -317,6 +360,10 @@ const findDecoratedCheckCtors = (moduleRecord: Record<string, unknown>): MarkedC
 
 const findDecoratedVisibleCtors = (moduleRecord: Record<string, unknown>): MarkedVisibleCtor[] =>
     Array.from(new Set(Object.values(moduleRecord))).filter(isDecoratedVisibleCtor);
+
+const isDecoratedCustomFieldCtor = (value: unknown): value is MarkedCustomFieldCtor =>
+    typeof value === "function" &&
+    (value as MarkedCustomFieldCtor)[CUSTOM_FIELD_HOOK_MARKER] === true;
 
 const createBuildHooks = (
     moduleExports: unknown,
@@ -828,6 +875,51 @@ const createNodeFieldVisibles = (
     return { visibles, hasError, hasVisibles: decorated.length > 0 };
 };
 
+/** `@behavior3.customField` resolvers from the build script and every check script module. */
+export const createCustomFieldResolverRuntimeWithCheckModules = (
+    buildScriptModule: unknown,
+    checkScriptModules: CheckScriptModule[],
+    env: BuildEnv
+): { customFieldResolvers: Map<string, CustomFieldResolver>; hasError: boolean } => {
+    const customFieldResolvers = new Map<string, CustomFieldResolver>();
+    let hasError = false;
+    const modules = [buildScriptModule, ...checkScriptModules.map((entry) => entry.moduleExports)];
+    for (const moduleExports of modules) {
+        if (!moduleExports || typeof moduleExports !== "object") {
+            continue;
+        }
+        const decorated = Array.from(
+            new Set(Object.values(moduleExports as Record<string, unknown>))
+        ).filter(isDecoratedCustomFieldCtor);
+        for (const ctor of decorated) {
+            const name = ctor[CUSTOM_FIELD_HOOK_NAME]?.trim() || ctor.name;
+            if (!name) {
+                logger.error("customField class must have a non-empty @behavior3.customField name");
+                hasError = true;
+                continue;
+            }
+            if (customFieldResolvers.has(name)) {
+                logger.error(`duplicate @behavior3.customField registration: ${name}`);
+                hasError = true;
+                continue;
+            }
+            try {
+                const instance = new ctor(env);
+                if (typeof instance.resolve !== "function") {
+                    logger.error(`customField '${name}' must provide a resolve(ctx) method`);
+                    hasError = true;
+                    continue;
+                }
+                customFieldResolvers.set(name, instance);
+            } catch (error) {
+                logger.error(`failed to instantiate customField '${name}'`, error);
+                hasError = true;
+            }
+        }
+    }
+    return { customFieldResolvers, hasError };
+};
+
 export const createNodeFieldVisibleRuntimeWithCheckModules = (
     buildScriptModule: unknown,
     checkScriptModules: CheckScriptModule[],
@@ -1042,7 +1134,12 @@ export const createFileDataWithContext = (
 
 export const createBuildDataWithContext = async (
     treePath: string,
-    context: Pick<BuildContext, "workdir" | "nodeDefs" | "dfs" | "isSubtreeRoot">
+    context: Pick<BuildContext, "workdir" | "nodeDefs" | "dfs" | "isSubtreeRoot">,
+    /** Recompute `@behavior3.customField` fields after build renumbering. */
+    customFieldScripts?: Omit<
+        ResolveScriptCustomFieldsParams,
+        "tree" | "reason" | "previousNodeId" | "treePath"
+    >
 ): Promise<TreeData | null> => {
     try {
         /**
@@ -1086,10 +1183,21 @@ export const createBuildDataWithContext = async (
             root: materializedNodeToExpandedTreeData(materializedRoot),
         };
 
+        // Expanded subtree instances share a uuid, so source ids are keyed by node object.
+        const sourceNodeIds = customFieldScripts ? collectNodeIds(treeModel.root) : undefined;
         assignSequentialNodeIds(treeModel.root);
         context.dfs(treeModel.root, (node) => {
             node.id = treeModel.prefix + node.id;
         });
+        if (customFieldScripts) {
+            resolveScriptCustomFields({
+                ...customFieldScripts,
+                tree: treeModel,
+                reason: "build",
+                previousNodeId: (node) => sourceNodeIds?.get(node),
+                treePath,
+            });
+        }
         treeModel.name = b3path.basenameWithoutExt(treePath);
         treeModel.root = createFileDataWithContext(treeModel.root, true, context);
         context.dfs(treeModel.root, (node) => clearInternalKeys(node));
@@ -1827,6 +1935,7 @@ const applyBehavior3DecoratorGlobal = () => {
         batch: markBatchHook,
         check: markCheckHook,
         visible: markVisibleHook,
+        customField: markCustomFieldHook,
     };
 };
 
@@ -2153,6 +2262,17 @@ export const buildProjectWithContext = async (
     if (buildSetting && (!buildScriptModule || buildRuntime.hasError)) {
         hasError = true;
     }
+    const conditionFieldDefs = settings.customFields?.condition ?? [];
+    const customFieldRuntime = hasScriptCustomFields(conditionFieldDefs)
+        ? createCustomFieldResolverRuntimeWithCheckModules(
+              buildScriptModule,
+              checkScriptModules,
+              scriptEnv
+          )
+        : undefined;
+    if (customFieldRuntime?.hasError) {
+        hasError = true;
+    }
 
     const allErrors: string[] = [];
     for (const candidatePath of b3path.lsdir(b3path.dirname(project), true)) {
@@ -2161,8 +2281,18 @@ export const buildProjectWithContext = async (
         }
 
         const buildPath = buildDir + "/" + candidatePath.substring(context.workdir.length + 1);
-        let tree = await createBuildDataWithContext(candidatePath, context);
         const errors: string[] = [];
+        // A broken or missing customField hook would export stale values, so it fails the build.
+        let tree = await createBuildDataWithContext(
+            candidatePath,
+            context,
+            customFieldRuntime && {
+                defs: conditionFieldDefs,
+                resolvers: customFieldRuntime.customFieldResolvers,
+                env: scriptEnv,
+                report: (_level, message) => errors.push(message),
+            }
+        );
         if (buildRuntime.buildScript) {
             tree = processBatchTree(tree, candidatePath, buildRuntime.buildScript, errors);
         }

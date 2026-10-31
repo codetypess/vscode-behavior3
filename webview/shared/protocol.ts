@@ -118,6 +118,7 @@ export const normalizeHostInitMessage = (
         theme: message.theme,
         inspectorMode: message.inspectorMode,
         nodeColors: message.nodeColors,
+        customFields: message.customFields ?? { tree: [], condition: [] },
     };
 
     return {

@@ -11,15 +11,92 @@ import b3path from "../../webview/shared/b3path";
 import {
     collectNodeFieldCheckDiagnostics,
     createBuildScriptRuntimeWithCheckModules,
+    createCustomFieldResolverRuntimeWithCheckModules,
     createNodeFieldVisibleRuntimeWithCheckModules,
     loadRuntimeModule,
     resolveNodeFieldVisibility,
     resolveCheckScriptPaths,
 } from "../../webview/shared/b3build";
+import type { CustomFieldDef } from "../../webview/shared/b3type";
+import type { PersistedNodeModel, PersistedTreeModel } from "../../webview/shared/contracts";
+import { resolveScriptCustomFields } from "../../webview/shared/custom-field-scripts";
+import { preparePersistedTreeForMainDocumentSave } from "../../webview/domain/main-document-save";
+import { parsePersistedTreeContent } from "../../webview/shared/tree";
 import { createTestTree } from "../shared-test-fixtures";
 import { defineSharedTests } from "../shared-test-types";
 
 const canonicalPath = (filePath: string) => fs.realpathSync.native(filePath);
+
+const SAMPLE_PRIORITY_SCRIPT = path.join(
+    process.cwd(),
+    "sample/scripts/checkers/condition_priority.ts"
+);
+
+const PRIORITY_FIELDS: CustomFieldDef[] = [
+    {
+        key: "enterPriority",
+        type: "int",
+        script: "conditionPriority",
+        required: true,
+        editable: false,
+        when: "always",
+    },
+    {
+        key: "maintainPriority",
+        type: "int",
+        script: "conditionPriority",
+        required: true,
+        editable: true,
+        when: "always",
+    },
+];
+
+const createSilentEnv = (messages: string[] = []) => {
+    const record = (...args: unknown[]) => messages.push(args.map(String).join(" "));
+    return {
+        fs,
+        path: b3path,
+        workdir: "/work",
+        nodeDefs: new Map(),
+        logger: { log: record, debug: record, info: record, warn: record, error: record },
+    };
+};
+
+const priorityTree = (
+    nodes: Array<{ uuid: string; id: string; custom?: Record<string, number> }>
+): PersistedTreeModel =>
+    parsePersistedTreeContent(
+        JSON.stringify({
+            version: "2.8.0",
+            name: "main",
+            prefix: "",
+            group: [],
+            variables: { imports: [], locals: [] },
+            custom: {},
+            overrides: {},
+            root: {
+                uuid: "root",
+                id: "1",
+                name: "Sequence",
+                children: nodes.map((node) => ({
+                    uuid: node.uuid,
+                    id: node.id,
+                    name: "Attack",
+                    conditions: [
+                        {
+                            abort: "none",
+                            ...(node.custom ? { custom: node.custom } : {}),
+                            root: { uuid: `${node.uuid}-guard`, id: "", name: "Guard" },
+                        },
+                    ],
+                })),
+            },
+        }),
+        "/work/main.json"
+    );
+
+const findChild = (tree: PersistedTreeModel, uuid: string): PersistedNodeModel =>
+    tree.root.children!.find((child) => child.uuid === uuid)!;
 
 export const buildCliSharedTests = defineSharedTests([
     {
@@ -1506,6 +1583,291 @@ export const buildCliSharedTests = defineSharedTests([
             } finally {
                 fs.rmSync(root, { recursive: true, force: true });
             }
+        },
+    },
+    {
+        name: "resolves condition custom fields with the sample customField hook",
+        async run() {
+            const moduleExports = await loadRuntimeModule(SAMPLE_PRIORITY_SCRIPT, {
+                debug: false,
+            });
+            assert.ok(moduleExports, "expected the sample customField module to load");
+            const env = createSilentEnv();
+            const runtime = createCustomFieldResolverRuntimeWithCheckModules(
+                null,
+                [{ path: SAMPLE_PRIORITY_SCRIPT, moduleExports }],
+                env
+            );
+            assert.equal(runtime.hasError, false);
+            const resolvers = runtime.customFieldResolvers;
+            assert.equal(resolvers.has("conditionPriority"), true);
+
+            const resolve = (
+                tree: PersistedTreeModel,
+                reason: "create" | "save",
+                previousNodeIds?: Map<string, string>
+            ) =>
+                resolveScriptCustomFields({
+                    tree,
+                    defs: PRIORITY_FIELDS,
+                    reason,
+                    resolvers,
+                    previousNodeId: previousNodeIds && ((node) => previousNodeIds.get(node.uuid!)),
+                    treePath: "/work/main.json",
+                    env,
+                    report: () => {},
+                });
+
+            const created = priorityTree([{ uuid: "a", id: "5" }]);
+            assert.equal(resolve(created, "create"), true);
+            assert.deepEqual(findChild(created, "a").conditions?.[0].custom, {
+                enterPriority: 5,
+                maintainPriority: 5,
+            });
+            // create only fills missing fields.
+            assert.equal(resolve(created, "create"), false);
+
+            // Renumbered from 5 to 8: an untouched maintain follows, a lowered one stays,
+            // and one above the new enter is clamped.
+            const saved = priorityTree([
+                { uuid: "a", id: "8", custom: { enterPriority: 5, maintainPriority: 5 } },
+                { uuid: "b", id: "8", custom: { enterPriority: 5, maintainPriority: 3 } },
+                { uuid: "c", id: "2", custom: { enterPriority: 5, maintainPriority: 3 } },
+            ]);
+            assert.equal(
+                resolve(
+                    saved,
+                    "save",
+                    new Map([
+                        ["a", "5"],
+                        ["b", "5"],
+                        ["c", "5"],
+                    ])
+                ),
+                true
+            );
+            assert.deepEqual(findChild(saved, "a").conditions?.[0].custom, {
+                enterPriority: 8,
+                maintainPriority: 8,
+            });
+            assert.deepEqual(findChild(saved, "b").conditions?.[0].custom, {
+                enterPriority: 8,
+                maintainPriority: 3,
+            });
+            assert.deepEqual(findChild(saved, "c").conditions?.[0].custom, {
+                enterPriority: 2,
+                maintainPriority: 2,
+            });
+        },
+    },
+    {
+        name: "recomputes customField hooks after build renumbering",
+        async run() {
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-custom-field-build-"));
+            const treeFile = path.join(root, "main.json");
+            const outputDir = path.join(root, "dist");
+            const writeJson = (file: string, value: unknown) => {
+                fs.mkdirSync(path.dirname(file), { recursive: true });
+                fs.writeFileSync(file, JSON.stringify(value), "utf-8");
+            };
+            const writeWorkspace = (checkScripts: string[]) =>
+                writeJson(path.join(root, "workspace.b3-workspace"), {
+                    settings: {
+                        checkScripts,
+                        customFields: {
+                            condition: [
+                                {
+                                    key: "enterPriority",
+                                    type: "int",
+                                    script: "conditionPriority",
+                                    required: true,
+                                },
+                                {
+                                    key: "maintainPriority",
+                                    type: "int",
+                                    script: "conditionPriority",
+                                    required: true,
+                                },
+                            ],
+                        },
+                    },
+                });
+            const condition = (custom: Record<string, number>, uuid: string) => ({
+                abort: "none",
+                custom,
+                root: { uuid, id: "", name: "Check" },
+            });
+
+            try {
+                fs.mkdirSync(path.join(root, "scripts"), { recursive: true });
+                fs.copyFileSync(
+                    SAMPLE_PRIORITY_SCRIPT,
+                    path.join(root, "scripts", "condition_priority.ts")
+                );
+                writeWorkspace(["scripts/*.ts"]);
+                writeJson(path.join(root, "node-config.b3-setting"), [
+                    { name: "Selector", type: "Composite", desc: "", children: -1 },
+                    { name: "Sequence", type: "Composite", desc: "", children: -1 },
+                    { name: "Check", type: "Condition", desc: "", status: ["success", "failure"] },
+                    { name: "Log", type: "Action", desc: "" },
+                ]);
+                // One subtree used twice: each expanded instance gets its own priorities.
+                writeJson(path.join(root, "sub", "unit.json"), {
+                    version: "2.8.0",
+                    name: "unit",
+                    root: {
+                        uuid: "unit-root",
+                        id: "1",
+                        name: "Sequence",
+                        conditions: [
+                            condition({ enterPriority: 1, maintainPriority: 1 }, "unit-check"),
+                        ],
+                        children: [{ uuid: "unit-log", id: "3", name: "Log" }],
+                    },
+                });
+                writeJson(treeFile, {
+                    version: "2.8.0",
+                    name: "main",
+                    prefix: "hero_",
+                    root: {
+                        uuid: "root",
+                        id: "1",
+                        name: "Selector",
+                        children: [
+                            { uuid: "patrol", id: "2", name: "Log" },
+                            {
+                                uuid: "attack",
+                                // Stale id with a lowered maintain priority.
+                                id: "9",
+                                name: "Sequence",
+                                conditions: [
+                                    condition({ enterPriority: 9, maintainPriority: 2 }, "guard"),
+                                ],
+                                children: [{ uuid: "leaf", id: "11", name: "Log" }],
+                            },
+                            { uuid: "ref-a", id: "12", name: "Sequence", path: "sub/unit.json" },
+                            { uuid: "ref-b", id: "13", name: "Sequence", path: "sub/unit.json" },
+                        ],
+                    },
+                });
+
+                const result = await buildBehaviorProject({ projectPath: treeFile, outputDir });
+                assert.equal(result.hasError, false);
+                type OutputNode = {
+                    id: string;
+                    conditions?: Array<{ custom?: Record<string, unknown> }>;
+                    children?: OutputNode[];
+                };
+                const output = JSON.parse(
+                    fs.readFileSync(path.join(outputDir, "main.json"), "utf-8")
+                ) as { root: OutputNode };
+                const [, attack, refA, refB] = output.root.children!;
+                assert.equal(attack.id, "hero_3");
+                assert.deepEqual(attack.conditions?.[0].custom, {
+                    enterPriority: 3,
+                    maintainPriority: 2,
+                });
+                const priorityOf = (node: OutputNode) => Number(node.id.slice("hero_".length));
+                assert.notEqual(refA.id, refB.id);
+                for (const ref of [refA, refB]) {
+                    assert.deepEqual(ref.conditions?.[0].custom, {
+                        enterPriority: priorityOf(ref),
+                        maintainPriority: priorityOf(ref),
+                    });
+                }
+                // The source files are not rewritten by the build.
+                const source = JSON.parse(fs.readFileSync(treeFile, "utf-8")) as {
+                    root: { children: OutputNode[] };
+                };
+                assert.deepEqual(source.root.children[1].conditions?.[0].custom, {
+                    enterPriority: 9,
+                    maintainPriority: 2,
+                });
+
+                // A declared script with no registered hook fails the build.
+                writeWorkspace([]);
+                const missing = await buildBehaviorProject({ projectPath: treeFile, outputDir });
+                assert.equal(missing.hasError, true);
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+    },
+    {
+        name: "keeps custom field values when a customField hook fails",
+        run() {
+            const reports: string[] = [];
+            const contexts: Array<{ key: string; custom: unknown; previousNodeId: string }> = [];
+            const resolvers = new Map([
+                [
+                    "broken",
+                    {
+                        resolve(ctx: { key: string; custom: unknown; previousNodeId: string }) {
+                            contexts.push({
+                                key: ctx.key,
+                                custom: ctx.custom,
+                                previousNodeId: ctx.previousNodeId,
+                            });
+                            if (ctx.key === "enterPriority") {
+                                return "not a number";
+                            }
+                            throw new Error("boom");
+                        },
+                    },
+                ],
+            ]);
+            const tree = priorityTree([
+                { uuid: "a", id: "4", custom: { enterPriority: 1, maintainPriority: 1 } },
+            ]);
+            const changed = resolveScriptCustomFields({
+                tree,
+                defs: [
+                    ...PRIORITY_FIELDS.map((def) => ({ ...def, script: "broken" })),
+                    { ...PRIORITY_FIELDS[0], key: "other", script: "missing", default: 9 },
+                ],
+                reason: "save",
+                resolvers: resolvers as never,
+                previousNodeId: () => "3",
+                treePath: "/work/main.json",
+                env: createSilentEnv(),
+                report: (level, message) => reports.push(`${level}: ${message}`),
+            });
+            assert.equal(changed, true);
+            // Bad results keep values; a missing hook falls back to the default.
+            assert.deepEqual(findChild(tree, "a").conditions?.[0].custom, {
+                enterPriority: 1,
+                maintainPriority: 1,
+                other: 9,
+            });
+            assert.equal(contexts[0].previousNodeId, "3");
+            assert.equal(
+                reports.filter((entry) => entry.startsWith("error:")).length,
+                2,
+                reports.join("\n")
+            );
+            assert.ok(reports.some((entry) => entry.includes("'missing' is not registered")));
+        },
+    },
+    {
+        name: "runs the save hook after node ids are written",
+        async run() {
+            const tree = priorityTree([
+                { uuid: "a", id: "9", custom: { enterPriority: 9, maintainPriority: 9 } },
+            ]);
+            let seen: { previous?: string; current?: string } = {};
+            const plan = await preparePersistedTreeForMainDocumentSave({
+                tree,
+                nodeDefs: [],
+                readSubtreeContent: async () => null,
+                afterApplyDisplayIds: async (savedTree, previousNodeId) => {
+                    const node = findChild(savedTree, "a");
+                    seen = { previous: previousNodeId(node), current: node.id };
+                    node.conditions![0].custom = { enterPriority: Number(node.id) };
+                },
+            });
+            assert.deepEqual(seen, { previous: "9", current: "2" });
+            const saved = JSON.parse(plan.content) as { root: { children: PersistedNodeModel[] } };
+            assert.deepEqual(saved.root.children[0].conditions?.[0].custom, { enterPriority: 2 });
         },
     },
     {

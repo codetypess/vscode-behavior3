@@ -1,16 +1,16 @@
-import { stringifySearchValueAsJson5 } from "../../shared/json";
 import { parseSlotDefinition, type NodeSlotDef } from "../../shared/node-utils";
 import type { EditNode, UpdateNodeInput, UpdateTreeMetaInput } from "../../shared/contracts";
-import type { NodeArg, NodeDef } from "../../shared/b3type";
+import type { CustomFieldDef, NodeArg, NodeDef } from "../../shared/b3type";
 import { formatArgInitialValue, parseArgSubmitValue } from "./inspector-arg-values";
 import { isSameInspectorNodeIdentity } from "./inspector-node-snapshot-cache";
 import { compareJsonValue } from "./inspector-validation";
 import { type VariableRowValue } from "./inspector-variable-options";
 import { formatChildrenLabel } from "./inspector-validation";
-import { type TreeCustomRowValue } from "./tree-custom-metadata";
+import { createCustomRows, type TreeCustomRowValue } from "./tree-custom-metadata";
 
 export {
     buildTreeCustomRecord,
+    createCustomRows,
     getTreeCustomValueKind,
     parseTreeCustomValue,
     type TreeCustomRowValue,
@@ -392,7 +392,8 @@ export const createNodeInspectorFormValues = (
 
 export const createTreeInspectorFormValues = (
     document: TreeInspectorDocument,
-    variableUsageCount: Record<string, number>
+    variableUsageCount: Record<string, number>,
+    customFields: CustomFieldDef[] = []
 ) => {
     return {
         name: document.name,
@@ -405,10 +406,7 @@ export const createTreeInspectorFormValues = (
             count: variableUsageCount[variable.name] ?? 0,
         })),
         importRefs: document.variables.imports.map((path) => ({ path })),
-        customRows: Object.entries(document.custom).map(([key, value]) => ({
-            key,
-            value: stringifySearchValueAsJson5(value),
-        })),
+        customRows: createCustomRows(document.custom, customFields),
     };
 };
 

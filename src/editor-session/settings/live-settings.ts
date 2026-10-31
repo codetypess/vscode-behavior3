@@ -1,4 +1,6 @@
 import * as vscode from "vscode";
+import type { CustomFieldDefs } from "../../../webview/shared/b3type";
+import { scopeCustomFieldDefsForConditionFile } from "../../../webview/shared/custom-fields";
 import { resolveWorkspaceFileSettings } from "../../setting-resolver";
 import { getEditorLanguage, type EditorLanguage } from "./editor-settings";
 
@@ -9,11 +11,14 @@ export interface EditorLiveSettings {
     language: EditorLanguage;
     inspectorMode: "sidebar" | "embedded";
     nodeColors?: Record<string, string>;
+    /** Always present so a removed declaration clears the webview copy. */
+    customFields: CustomFieldDefs;
 }
 
 export function createLiveSettingsResolver(
     workspaceFolderUri: vscode.Uri,
-    documentUri: vscode.Uri
+    documentUri: vscode.Uri,
+    opts?: { conditionFile?: boolean }
 ): () => Promise<EditorLiveSettings> {
     return async () => {
         const config = vscode.workspace.getConfiguration("behavior3");
@@ -21,6 +26,7 @@ export function createLiveSettingsResolver(
             workspaceFolderUri,
             documentUri
         );
+        const customFields = workspaceSettings?.customFields ?? { tree: [], condition: [] };
         return {
             allowNewFunction: workspaceSettings?.allowNewFunction ?? false,
             checkExpr: config.get<boolean>("checkExpr", true),
@@ -28,6 +34,9 @@ export function createLiveSettingsResolver(
             language: getEditorLanguage(config.get<string>("language", "auto")),
             inspectorMode: config.get<"sidebar" | "embedded">("inspectorMode", "sidebar"),
             nodeColors: workspaceSettings?.nodeColors,
+            customFields: opts?.conditionFile
+                ? scopeCustomFieldDefsForConditionFile(customFields)
+                : customFields,
         };
     };
 }

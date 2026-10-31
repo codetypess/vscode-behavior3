@@ -14,7 +14,7 @@ import {
     parseConditionFileLocation,
     readConditionFileWriteBack,
 } from "../../webview/shared/condition-file";
-import { DOCUMENT_VERSION } from "../../webview/shared/b3type";
+import { DOCUMENT_VERSION, type CustomFieldDefs } from "../../webview/shared/b3type";
 import { ConditionBranchSaveError } from "../../webview/shared/condition-branch";
 import type {
     NodeDef,
@@ -36,6 +36,95 @@ import {
 } from "../../webview/shared/tree";
 import { createTestTree } from "../shared-test-fixtures";
 import { defineSharedTests } from "../shared-test-types";
+
+const SAMPLE_CUSTOM_FIELDS_INPUT = {
+    tree: [
+        {
+            key: "$condition_type",
+            desc: "scope",
+            type: "string",
+            options: [
+                { name: "local", value: "local" },
+                { name: "global", value: "global" },
+            ],
+            default: "local",
+            required: true,
+            when: "hasConditions",
+        },
+    ],
+    condition: [
+        { key: "enterPriority", type: "int", default: 0 },
+        { key: "maintainPriority", type: "int", default: 0, required: true, editable: false },
+    ],
+};
+
+const SAMPLE_CUSTOM_FIELDS: CustomFieldDefs = {
+    tree: [
+        {
+            key: "$condition_type",
+            desc: "scope",
+            type: "string",
+            options: [
+                { name: "local", value: "local" },
+                { name: "global", value: "global" },
+            ],
+            default: "local",
+            required: true,
+            editable: true,
+            when: "hasConditions",
+        },
+    ],
+    condition: [
+        {
+            key: "enterPriority",
+            desc: undefined,
+            type: "int",
+            options: undefined,
+            default: 0,
+            required: false,
+            editable: true,
+            when: "always",
+        },
+        {
+            key: "maintainPriority",
+            desc: undefined,
+            type: "int",
+            options: undefined,
+            default: 0,
+            required: true,
+            editable: false,
+            when: "always",
+        },
+    ],
+};
+
+const parseMainTree = (tree: Record<string, unknown>) =>
+    parsePersistedTreeContent(
+        JSON.stringify({
+            version: "2.7.0",
+            name: "main",
+            prefix: "",
+            group: [],
+            variables: { imports: [], locals: [] },
+            overrides: {},
+            ...tree,
+        }),
+        "/tmp/main.json"
+    );
+
+const treeWithCondition = (custom: Record<string, unknown>) =>
+    parseMainTree({
+        custom,
+        root: {
+            uuid: "root",
+            id: "1",
+            name: "Attack",
+            conditions: [{ root: { uuid: "guard", id: "9", name: "Guard" } }],
+        },
+    });
+
+const treeWithoutCondition = () =>
+    parseMainTree({ custom: {}, root: { uuid: "root", id: "1", name: "Attack" } });
 
 const attachedCondition = (
     root: PersistedNodeModel,
@@ -1581,103 +1670,365 @@ export const documentDomainSharedTests = defineSharedTests([
         },
     },
     {
-        name: "defaults $condition_type while the tree uses a condition",
+        name: "parses workspace custom field declarations",
         run() {
-            const withCondition = (
-                custom: Record<string, unknown>,
-                overrides: Record<string, unknown> = {}
-            ) =>
-                parsePersistedTreeContent(
-                    JSON.stringify({
-                        version: "2.7.0",
-                        name: "main",
-                        prefix: "",
-                        group: [],
-                        variables: { imports: [], locals: [] },
-                        custom,
-                        overrides,
-                        root: {
-                            uuid: "root",
-                            id: "1",
-                            name: "Attack",
-                            conditions: [{ root: { uuid: "guard", id: "9", name: "Guard" } }],
-                        },
-                    }),
-                    "/tmp/main.json"
+            const parse = (customFields: unknown) =>
+                parseWorkspaceModelContent(JSON.stringify({ settings: { customFields } })).settings
+                    .customFields;
+
+            assert.deepEqual(parse(SAMPLE_CUSTOM_FIELDS_INPUT), SAMPLE_CUSTOM_FIELDS);
+            assert.equal(
+                parse({ condition: [{ key: "n", default: 1.5 }] })?.condition[0].type,
+                "float"
+            );
+            assert.equal(
+                parse({ condition: [{ key: "s", type: "int", script: "calc", required: true }] })
+                    ?.condition[0].script,
+                "calc"
+            );
+            assert.deepEqual(
+                parse({ condition: [{ key: "p", default: "$nodeId", required: true }] })
+                    ?.condition[0],
+                {
+                    key: "p",
+                    desc: undefined,
+                    type: "int",
+                    options: undefined,
+                    default: undefined,
+                    defaultFrom: "nodeId",
+                    required: true,
+                    editable: true,
+                    when: "always",
+                }
+            );
+
+            const invalid: unknown[] = [
+                { tree: [{ key: "a" }, { key: "a" }] },
+                { tree: [{ key: "a", type: "int", default: "1" }] },
+                { tree: [{ key: "a", options: [{ name: "x", value: "x" }], default: "y" }] },
+                { tree: [{ key: "a", required: true }] },
+                { condition: [{ key: "a", when: "hasConditions" }] },
+                { tree: [{ key: "a", type: "object" }] },
+                { tree: [{ key: "a", default: "$nodeId" }] },
+                { condition: [{ key: "a", type: "string", default: "$nodeId" }] },
+                { tree: [{ key: "a", type: "int", script: "calc" }] },
+                { condition: [{ key: "a", type: "int", script: "not-a-name" }] },
+                { condition: [{ key: "a", default: "$nodeId", script: "calc" }] },
+            ];
+            for (const entry of invalid) {
+                // Invalid declarations are dropped without failing the other settings.
+                const workspace = parseWorkspaceModelContent(
+                    JSON.stringify({ settings: { checkExpr: true, customFields: entry } })
                 );
-
-            assert.equal(withCondition({}).custom.$condition_type, "local");
-            assert.equal(
-                withCondition({ $condition_type: "global" }).custom.$condition_type,
-                "global"
-            );
-            assert.equal(
-                withCondition({ $condition_type: "shared" }).custom.$condition_type,
-                "local"
-            );
-
-            const plain = parsePersistedTreeContent(
-                JSON.stringify({
-                    version: "2.7.0",
-                    name: "main",
-                    prefix: "",
-                    group: [],
-                    variables: { imports: [], locals: [] },
-                    custom: {},
-                    overrides: {},
-                    root: { uuid: "root", id: "1", name: "Attack" },
-                }),
-                "/tmp/main.json"
-            );
-            assert.equal(plain.custom.$condition_type, undefined);
-
-            const fromOverride = parsePersistedTreeContent(
-                JSON.stringify({
-                    version: "2.7.0",
-                    name: "main",
-                    prefix: "",
-                    group: [],
-                    variables: { imports: [], locals: [] },
-                    custom: {},
-                    overrides: {
-                        child: {
-                            conditions: [
-                                {
-                                    custom: { enterPriority: 2, maintainPriority: 0 },
-                                    root: { uuid: "guard", id: "9", name: "Guard" },
-                                },
-                            ],
+                assert.equal(workspace.settings.customFields, undefined, JSON.stringify(entry));
+                assert.equal(workspace.settings.checkExpr, true);
+            }
+        },
+    },
+    {
+        name: "does not add custom fields while parsing a tree",
+        run() {
+            const tree = treeWithCondition({});
+            assert.deepEqual(tree.custom, {});
+            assert.equal(tree.root.conditions?.[0].custom, undefined);
+        },
+    },
+    {
+        name: "fills required custom fields after a change",
+        run() {
+            const updateDesc = (tree: PersistedTreeModel, customFields?: CustomFieldDefs) =>
+                reduceDocumentMutation(
+                    {
+                        type: "updateTreeMeta",
+                        payload: {
+                            desc: "changed",
+                            prefix: "",
+                            export: true,
+                            group: [],
+                            variables: { imports: [], locals: [] },
                         },
                     },
-                    root: { uuid: "root", id: "1", name: "Attack" },
-                }),
-                "/tmp/main.json"
-            );
-            assert.equal(fromOverride.custom.$condition_type, "local");
-            assert.deepEqual(fromOverride.overrides.child.conditions?.[0].custom, {
-                enterPriority: 2,
+                    { tree, nodeDefs: [], customFields }
+                );
+
+            const withCondition = updateDesc(treeWithCondition({}), SAMPLE_CUSTOM_FIELDS);
+            assert.equal(withCondition.status, "changed");
+            if (withCondition.status !== "changed") {
+                return;
+            }
+            assert.deepEqual(withCondition.tree.custom, { $condition_type: "local" });
+            assert.deepEqual(withCondition.tree.root.conditions?.[0].custom, {
                 maintainPriority: 0,
             });
 
-            const kept = reduceDocumentMutation(
+            const kept = updateDesc(
+                treeWithCondition({ $condition_type: "shared" }),
+                SAMPLE_CUSTOM_FIELDS
+            );
+            assert.equal(kept.status, "changed");
+            if (kept.status === "changed") {
+                // Values that do not match the declaration are never rewritten.
+                assert.equal(kept.tree.custom.$condition_type, "shared");
+            }
+
+            const plain = updateDesc(treeWithoutCondition(), SAMPLE_CUSTOM_FIELDS);
+            assert.equal(plain.status, "changed");
+            if (plain.status === "changed") {
+                assert.deepEqual(plain.tree.custom, {});
+            }
+
+            const undeclared = updateDesc(treeWithCondition({}), undefined);
+            assert.equal(undeclared.status, "changed");
+            if (undeclared.status === "changed") {
+                assert.deepEqual(undeclared.tree.custom, {});
+                assert.equal(undeclared.tree.root.conditions?.[0].custom, undefined);
+            }
+        },
+    },
+    {
+        name: "fills required condition custom fields in overrides",
+        run() {
+            const tree = treeWithoutCondition();
+            tree.overrides = {
+                child: {
+                    conditions: [
+                        {
+                            abort: "none",
+                            custom: { enterPriority: 2 },
+                            root: { uuid: "guard", id: "9", name: "Guard" },
+                        },
+                    ],
+                },
+            };
+            const result = reduceDocumentMutation(
+                {
+                    type: "updateTreeMeta",
+                    payload: {
+                        desc: "changed",
+                        prefix: "",
+                        export: true,
+                        group: [],
+                        variables: { imports: [], locals: [] },
+                    },
+                },
+                { tree, nodeDefs: [], customFields: SAMPLE_CUSTOM_FIELDS }
+            );
+            assert.equal(result.status, "changed");
+            if (result.status !== "changed") {
+                return;
+            }
+            assert.equal(result.tree.custom.$condition_type, "local");
+            assert.deepEqual(result.tree.overrides.child.conditions?.[0].custom, {
+                enterPriority: 2,
+                maintainPriority: 0,
+            });
+        },
+    },
+    {
+        name: "restores required and read-only custom fields on commit",
+        run() {
+            const commitCustom = (custom: Record<string, string | number | boolean>) =>
+                reduceDocumentMutation(
+                    {
+                        type: "updateTreeMeta",
+                        payload: {
+                            prefix: "",
+                            export: true,
+                            group: [],
+                            custom,
+                            variables: { imports: [], locals: [] },
+                        },
+                    },
+                    {
+                        tree: treeWithCondition({ $condition_type: "global", locked: "a" }),
+                        nodeDefs: [],
+                        customFields: {
+                            tree: [
+                                ...SAMPLE_CUSTOM_FIELDS.tree,
+                                {
+                                    key: "locked",
+                                    type: "string",
+                                    required: false,
+                                    editable: false,
+                                    when: "always",
+                                },
+                            ],
+                            condition: [],
+                        },
+                    }
+                );
+
+            const removed = commitCustom({ label: "keep" });
+            assert.equal(removed.status, "changed");
+            if (removed.status === "changed") {
+                assert.deepEqual(removed.tree.custom, {
+                    label: "keep",
+                    $condition_type: "global",
+                    locked: "a",
+                });
+            }
+
+            const edited = commitCustom({ $condition_type: "local", locked: "b" });
+            assert.equal(edited.status, "changed");
+            if (edited.status === "changed") {
+                assert.deepEqual(edited.tree.custom, { $condition_type: "local", locked: "a" });
+            }
+        },
+    },
+    {
+        name: "uses the host node id for $nodeId condition defaults",
+        run() {
+            const customFields: CustomFieldDefs = {
+                tree: [],
+                condition: [
+                    {
+                        key: "enterPriority",
+                        type: "int",
+                        defaultFrom: "nodeId",
+                        required: true,
+                        editable: false,
+                        when: "always",
+                    },
+                    {
+                        key: "maintainPriority",
+                        type: "int",
+                        defaultFrom: "nodeId",
+                        required: true,
+                        editable: true,
+                        when: "always",
+                    },
+                ],
+            };
+            const nodeDefs: NodeDef[] = [
+                { name: "Attack", type: "Action", desc: "" },
+                { name: "Guard", type: "Condition", desc: "", status: ["success", "failure"] },
+            ];
+            const target = {
+                instanceKey: "1",
+                displayId: "7",
+                structuralStableId: "root",
+                sourceStableId: "root",
+                sourceTreePath: null,
+                subtreeStack: [],
+            };
+            const tree = treeWithoutCondition();
+            tree.root.id = "7";
+
+            const attached = reduceDocumentMutation(
+                { type: "attachCondition", payload: { target, entryName: "Guard" } },
+                { tree, nodeDefs, customFields }
+            );
+            assert.equal(attached.status, "changed");
+            if (attached.status !== "changed") {
+                return;
+            }
+            assert.deepEqual(attached.tree.root.conditions?.[0].custom, {
+                enterPriority: 7,
+                maintainPriority: 7,
+            });
+
+            const condition = attached.tree.root.conditions![0];
+            const commitConditionCustom = (custom: Record<string, number>) =>
+                reduceDocumentMutation(
+                    {
+                        type: "updateNode",
+                        payload: {
+                            target,
+                            data: {
+                                ...attached.tree.root,
+                                conditions: [{ ...condition, custom }],
+                            },
+                            currentNodeSnapshot: { data: attached.tree.root, subtreeNode: false },
+                        },
+                    },
+                    { tree: attached.tree, nodeDefs, customFields }
+                );
+
+            // The read-only field keeps its value; the editable one changes.
+            const edited = commitConditionCustom({ enterPriority: 1, maintainPriority: 5 });
+            assert.equal(edited.status, "changed");
+            if (edited.status === "changed") {
+                assert.deepEqual(edited.tree.root.conditions?.[0].custom, {
+                    enterPriority: 7,
+                    maintainPriority: 5,
+                });
+            }
+
+            // Removed required fields come back, so nothing changes.
+            assert.equal(commitConditionCustom({}).status, "noop");
+
+            const missing = treeWithCondition({});
+            missing.root.id = "3";
+            const filled = reduceDocumentMutation(
+                {
+                    type: "updateTreeMeta",
+                    payload: {
+                        desc: "changed",
+                        prefix: "",
+                        export: true,
+                        group: [],
+                        variables: { imports: [], locals: [] },
+                    },
+                },
+                { tree: missing, nodeDefs, customFields }
+            );
+            assert.equal(filled.status, "changed");
+            if (filled.status === "changed") {
+                assert.deepEqual(filled.tree.root.conditions?.[0].custom, {
+                    enterPriority: 3,
+                    maintainPriority: 3,
+                });
+            }
+        },
+    },
+    {
+        name: "keeps a hasConditions field after the last condition is removed",
+        run() {
+            const result = reduceDocumentMutation(
+                {
+                    type: "removeCondition",
+                    payload: {
+                        target: {
+                            instanceKey: "1",
+                            displayId: "1",
+                            structuralStableId: "root",
+                            sourceStableId: "root",
+                            sourceTreePath: null,
+                            subtreeStack: [],
+                        },
+                    },
+                },
+                {
+                    tree: treeWithCondition({ $condition_type: "global" }),
+                    nodeDefs: [],
+                    customFields: SAMPLE_CUSTOM_FIELDS,
+                }
+            );
+            assert.equal(result.status, "changed");
+            if (result.status !== "changed") {
+                return;
+            }
+            assert.equal(result.tree.root.conditions, undefined);
+            assert.equal(result.tree.custom.$condition_type, "global");
+
+            // Without conditions the field is ordinary custom data and can be removed.
+            const cleared = reduceDocumentMutation(
                 {
                     type: "updateTreeMeta",
                     payload: {
                         prefix: "",
                         export: true,
                         group: [],
-                        custom: { label: "keep" },
+                        custom: {},
                         variables: { imports: [], locals: [] },
                     },
                 },
-                { tree: withCondition({ $condition_type: "global" }), nodeDefs: [] }
+                { tree: result.tree, nodeDefs: [], customFields: SAMPLE_CUSTOM_FIELDS }
             );
-            assert.equal(kept.status, "changed");
-            if (kept.status !== "changed") {
-                return;
+            assert.equal(cleared.status, "changed");
+            if (cleared.status === "changed") {
+                assert.deepEqual(cleared.tree.custom, {});
             }
-            assert.equal(kept.tree.custom.label, "keep");
-            assert.equal(kept.tree.custom.$condition_type, "global");
         },
     },
     {
@@ -2031,6 +2382,7 @@ export const documentDomainSharedTests = defineSharedTests([
                             status: ["success", "failure"],
                         },
                     ],
+                    customFields: SAMPLE_CUSTOM_FIELDS,
                 }
             );
 
@@ -2038,7 +2390,10 @@ export const documentDomainSharedTests = defineSharedTests([
             if (result.status !== "changed") {
                 return;
             }
-            assert.equal(result.tree.root.conditions?.[0]?.custom, undefined);
+            assert.deepEqual(result.tree.root.conditions?.[0]?.custom, {
+                enterPriority: 0,
+                maintainPriority: 0,
+            });
             assert.equal(result.tree.root.conditions?.[0]?.abort, "none");
             assert.equal(result.tree.root.conditions?.[0]?.root.name, "Guard");
             assert.equal(result.tree.root.children?.length ?? 0, 0);

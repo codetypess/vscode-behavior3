@@ -72,7 +72,7 @@ Extension-host 持有文件监听、项目索引、设置解析、构建执行�
 - 节点选中、拖放、复制粘贴、替换、插入、删除
 - 读写 behavior3 2.0 节点 `conditions`（条件树，参考 UE Observer Aborts）。在任意节点上添加、删除条件，并在独立标签页里以条件文件（`<宿主文件>/<uuid>/condition.json`）编辑条件树。条件树里的节点参与 id 编号、subtree 展开和导出
 - 节点上方显示条件附属：左侧为「条件: 根节点名」，右侧为 `abort`。单击附属打开条件面板
-- 树上用到条件时，自定义数据包含 `$condition_type`，值为 `local` 或 `global`
+- 树和条件项的自定义数据可以在 `.b3-workspace` 的 `settings.customFields` 里声明字段（类型、枚举、默认值、必填、只读；条件字段的默认值可以取宿主节点 id）；编辑器本身不写死任何自定义数据键
 - 搜索、跳转、变量高亮
 - 保存、回滚、构建、打开 subtree、另存为 subtree
 

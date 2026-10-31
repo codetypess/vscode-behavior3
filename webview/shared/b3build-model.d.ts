@@ -226,6 +226,39 @@ export interface NodeFieldVisible {
     visible(value: unknown, ctx: NodeFieldVisibleContext): NodeFieldVisibleResult;
 }
 
+/** Why a `@behavior3.customField` resolver is asked for a value. */
+export type CustomFieldResolveReason = "create" | "save" | "build";
+
+export type CustomFieldResolveContext = {
+    /**
+     * `create`: a condition is new or lacks the field; `save`: after node ids are written on save;
+     * `build`: after build renumbering (subtrees expanded, `tree.prefix` added to ids).
+     */
+    reason: CustomFieldResolveReason;
+    key: string;
+    /** Current value; earlier script fields of this pass are already applied. */
+    value: unknown;
+    /** The condition item's `custom`, updated field by field in declaration order. */
+    custom: Readonly<Record<string, unknown>>;
+    /** The condition item's `custom` before this pass. */
+    previous: Readonly<Record<string, unknown>>;
+    /** Host node; `id` is the id after renumbering. */
+    node: Readonly<NodeData>;
+    /** Host node id before renumbering (the id in the source file for `build`); `node.id` for `create`. */
+    previousNodeId: string;
+    conditionIndex: number;
+    tree: Readonly<TreeData>;
+    treePath: string;
+    env: BuildEnv;
+};
+
+/** `undefined` keeps the current value. */
+export type CustomFieldResolveResult = string | number | boolean | undefined;
+
+export interface CustomFieldResolver {
+    resolve(ctx: CustomFieldResolveContext): CustomFieldResolveResult;
+}
+
 export type BuildScript = {
     onProcessTree?: (tree: TreeData, path: string, errors: string[]) => TreeData | null;
     onProcessNode?: (node: NodeData, errors: string[]) => NodeData | null;
@@ -243,6 +276,10 @@ export type NodeFieldCheckerClass<T extends NodeFieldChecker = NodeFieldChecker>
     ...args: any[]
 ) => T;
 export type NodeFieldVisibleClass<T extends NodeFieldVisible = NodeFieldVisible> = new (
+    ...args: any[]
+) => T;
+
+export type CustomFieldResolverClass<T extends CustomFieldResolver = CustomFieldResolver> = new (
     ...args: any[]
 ) => T;
 
@@ -268,11 +305,18 @@ export type VisibleDecorator = {
     (name?: string): <T extends NodeFieldVisibleClass>(target: T) => T | void;
 };
 
+export type CustomFieldDecorator = {
+    <T extends CustomFieldResolverClass>(target: T): T | void;
+    <T extends CustomFieldResolverClass>(target: T, context: ClassDecoratorContext<T>): T | void;
+    (name?: string): <T extends CustomFieldResolverClass>(target: T) => T | void;
+};
+
 export type BuildRuntime = {
     build: BuildDecorator;
     batch: BatchDecorator;
     check: CheckDecorator;
     visible: VisibleDecorator;
+    customField: CustomFieldDecorator;
 };
 
 export declare class BuildHook implements BuildScript {

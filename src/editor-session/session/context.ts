@@ -16,7 +16,7 @@ import { normalizeHostSelectionState } from "../../../webview/shared/protocol";
 import { TreeEditorDocument } from "../document/document-sync";
 import { createSerialOperationQueue, type SerialOperationQueue } from "../runtime/operation-queue";
 import { getWorkdir } from "../files/paths";
-import { resolveBackingFileUri } from "../../condition-files";
+import { isConditionFileUri, resolveBackingFileUri } from "../../condition-files";
 import { ProjectIndex, type VarDeclResult } from "../project/project-index";
 import {
     createLiveSettingsResolver,
@@ -100,7 +100,9 @@ export async function createTreeEditorSessionContext(
         getBehaviorProjectRootFsPath(locationUri, workspaceFolderUri)
     );
     const projectIndex = new ProjectIndex(projectRootUri);
-    const resolveLiveSettings = createLiveSettingsResolver(workspaceFolderUri, locationUri);
+    const resolveLiveSettings = createLiveSettingsResolver(workspaceFolderUri, locationUri, {
+        conditionFile: isConditionFileUri(params.document.uri),
+    });
     const [nodeDefs, settingDir, currentSettings] = await Promise.all([
         resolveNodeDefs(workspaceFolderUri, locationUri),
         getResolvedB3SettingDir(workspaceFolderUri, locationUri),

@@ -15,6 +15,7 @@ import {
     isSameLogicalInspectorNode,
     shouldLockPendingInspectorForm,
     buildTreeCustomRecord,
+    createCustomRows,
     getTreeCustomValueKind,
 } from "../../webview/features/inspector/inspector-form-values";
 import {
@@ -23,7 +24,7 @@ import {
     filterStructuredArgsByVisibility,
 } from "../../webview/features/inspector/inspector-arg-visibility";
 import type { EditNode } from "../../webview/shared/contracts";
-import type { NodeArg } from "../../webview/shared/b3type";
+import type { CustomFieldDef, NodeArg } from "../../webview/shared/b3type";
 import { normalizeNodeDefCollection, parseNodeDefsContent } from "../../webview/shared/schema";
 import { defineSharedTests } from "../shared-test-types";
 
@@ -976,6 +977,58 @@ export const inspectorSharedTests = defineSharedTests([
                     enabled: true,
                     quoted: "true",
                 }
+            );
+        },
+    },
+    {
+        name: "parses declared custom fields by their type",
+        run() {
+            const field = (def: Partial<CustomFieldDef> & Pick<CustomFieldDef, "key">) =>
+                ({
+                    type: "string",
+                    required: false,
+                    editable: true,
+                    when: "always",
+                    ...def,
+                }) as CustomFieldDef;
+            const fields = [
+                field({ key: "code" }),
+                field({ key: "count", type: "int" }),
+                field({ key: "on", type: "bool" }),
+                field({
+                    key: "mode",
+                    options: [
+                        { name: "Local", value: "local" },
+                        { name: "Global", value: "global" },
+                    ],
+                }),
+            ];
+            assert.deepEqual(
+                buildTreeCustomRecord(
+                    [
+                        { key: "code", value: "123" },
+                        { key: "count", value: "4" },
+                        { key: "on", value: "true" },
+                        { key: "mode", value: "global" },
+                    ],
+                    fields
+                ),
+                { code: "123", count: 4, on: true, mode: "global" }
+            );
+            assert.throws(() => buildTreeCustomRecord([{ key: "count", value: "1.5" }], fields));
+            assert.throws(() => buildTreeCustomRecord([{ key: "on", value: "yes" }], fields));
+            assert.throws(() => buildTreeCustomRecord([{ key: "mode", value: "shared" }], fields));
+
+            assert.deepEqual(
+                createCustomRows({ code: "x" }, [
+                    field({ key: "code", required: true, default: "y" }),
+                    field({ key: "level", type: "int", required: true, default: 1 }),
+                    field({ key: "note", default: "n" }),
+                ]),
+                [
+                    { key: "code", value: "x" },
+                    { key: "level", value: "1", pending: true },
+                ]
             );
         },
     },

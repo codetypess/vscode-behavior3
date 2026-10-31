@@ -2,26 +2,20 @@ import { FormOutlined } from "@ant-design/icons";
 import { Button, Form, Input, Select } from "antd";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useRuntime } from "../../app/runtime";
-import { ABORT_MODES, type AbortMode, type ConditionCustom } from "../../shared/b3type";
+import { useRuntime, useWorkspaceStore } from "../../app/runtime";
+import { ABORT_MODES, type AbortMode } from "../../shared/b3type";
 import type { PersistedConditionData } from "../../shared/contracts";
-import { stringifySearchValueAsJson5 } from "../../shared/json";
 import { clonePersistedConditions } from "../../shared/tree";
 import { CustomDataSection } from "./custom-data-section";
 import { queueInspectorTask, trackPendingInspectorEdit } from "./inspector-commit-queue";
 import {
     buildCommittedNodeData,
     buildTreeCustomRecord,
+    createCustomRows,
     type TreeCustomRowValue,
 } from "./inspector-form-values";
 import { createInspectorLabelProps } from "./inspector-shared";
 import { useNodeInspectorState } from "./inspector-state";
-
-const toCustomRows = (custom: ConditionCustom | undefined): TreeCustomRowValue[] =>
-    Object.entries(custom ?? {}).map(([key, value]) => ({
-        key,
-        value: stringifySearchValueAsJson5(value),
-    }));
 
 /** Inspector for the first entry of the selected node's `conditions`. */
 export const ConditionInspectorForm: React.FC = () => {
@@ -32,6 +26,8 @@ export const ConditionInspectorForm: React.FC = () => {
     const conditions = selectedNode?.data.conditions;
     const condition = conditions?.[0];
     const readOnly = selectedNode?.disabled ?? false;
+    const customFields = useWorkspaceStore((state) => state.settings.customFields.condition);
+    const hostNodeId = selectedNode?.ref.displayId;
 
     useEffect(() => {
         if (!condition) {
@@ -40,9 +36,9 @@ export const ConditionInspectorForm: React.FC = () => {
         form.setFieldsValue({
             entryName: condition.root.name,
             abort: condition.abort,
-            customRows: toCustomRows(condition.custom),
+            customRows: createCustomRows(condition.custom, customFields, hostNodeId),
         });
-    }, [condition, form]);
+    }, [condition, customFields, form, hostNodeId]);
 
     const commitCondition = (next: Pick<PersistedConditionData, "abort" | "custom">) => {
         if (!selectedNode || !conditions?.length || !condition || readOnly) {
@@ -78,7 +74,7 @@ export const ConditionInspectorForm: React.FC = () => {
             return;
         }
         const rows = (form.getFieldValue("customRows") as TreeCustomRowValue[] | undefined) ?? [];
-        const custom = buildTreeCustomRecord(rows);
+        const custom = buildTreeCustomRecord(rows, customFields);
         commitCondition({
             abort: condition.abort,
             custom: Object.keys(custom).length > 0 ? custom : undefined,
@@ -115,6 +111,7 @@ export const ConditionInspectorForm: React.FC = () => {
                     name="customRows"
                     title={t("condition.custom")}
                     readOnly={readOnly}
+                    fields={customFields}
                     queueCommit={() => queueInspectorTask(() => void commitCustomRows())}
                 />
                 <Button

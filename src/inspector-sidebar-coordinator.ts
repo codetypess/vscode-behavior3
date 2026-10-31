@@ -54,6 +54,7 @@ const buildEmbeddedModeSettingsMessage = (
         language: snapshot?.initMessage.language,
         inspectorMode: "embedded",
         nodeColors: snapshot?.initMessage.nodeColors,
+        customFields: snapshot?.initMessage.customFields,
     },
 });
 

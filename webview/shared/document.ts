@@ -1,5 +1,5 @@
 import { generateUuid } from "./stable-id";
-import { DOCUMENT_VERSION } from "./b3type";
+import { DOCUMENT_VERSION, type CustomFieldDefs } from "./b3type";
 import type {
     DocumentMutation,
     EditNode,
@@ -15,16 +15,18 @@ import { createNodeDefMap, findNodeDef, parseSlotDefinition } from "./node-utils
 import { parseWorkdirRelativeJsonPath } from "./protocol";
 import { translateRuntimeMessage, type SupportedLanguage } from "./runtime-i18n";
 import {
-    CONDITION_TYPE_CUSTOM_KEY,
     createConditionData,
-    DEFAULT_CONDITION_TYPE,
-    ensureConditionTypeCustom,
     findConditionBranchViolation,
     findEnclosingConditionBranch,
     nodeDefReturnsRunning,
-    readConditionType,
     treeUsesConditions,
 } from "./condition-branch";
+import {
+    activeTreeCustomFields,
+    createConditionCustom,
+    ensureRequiredCustomFields,
+    mergeCustomCommit,
+} from "./custom-fields";
 import {
     cloneJsonValue,
     clonePersistedConditions,
@@ -110,6 +112,8 @@ interface DocumentMutationReducerContext {
     tree: PersistedTreeModel;
     nodeDefs: NodeDef[];
     selectedNode?: EditNode | null;
+    /** `.b3-workspace` custom fields, already scoped for condition files by the host. */
+    customFields?: CustomFieldDefs;
 }
 
 const cloneVars = <T extends { name: string }>(entries: T[]): T[] =>
@@ -395,7 +399,8 @@ const resolveUpdateNodeSnapshot = (
 
 const reduceUpdateTreeMeta = (
     mutation: Extract<ReducibleDocumentMutation, { type: "updateTreeMeta" }>,
-    tree: PersistedTreeModel
+    tree: PersistedTreeModel,
+    customFields: CustomFieldDefs | undefined
 ): DocumentMutationReducerResult => {
     const { payload } = mutation;
     const nextDesc = payload.desc?.trim() || undefined;
@@ -403,13 +408,12 @@ const reduceUpdateTreeMeta = (
     const nextExport = payload.export !== false;
     const nextGroup = [...payload.group];
     const nextCustom = payload.custom
-        ? cloneJsonValue(payload.custom)
+        ? (mergeCustomCommit(
+              tree.custom,
+              cloneJsonValue(payload.custom),
+              activeTreeCustomFields(customFields?.tree, treeUsesConditions(tree))
+          ) ?? {})
         : cloneJsonValue(tree.custom);
-    if (treeUsesConditions(tree)) {
-        const nextType = readConditionType(nextCustom[CONDITION_TYPE_CUSTOM_KEY]);
-        const previousType = readConditionType(tree.custom[CONDITION_TYPE_CUSTOM_KEY]);
-        nextCustom[CONDITION_TYPE_CUSTOM_KEY] = nextType ?? previousType ?? DEFAULT_CONDITION_TYPE;
-    }
     const nextVars = cloneVars(payload.variables.locals).sort((a, b) =>
         a.name.localeCompare(b.name)
     );
@@ -458,6 +462,30 @@ const reduceUpdateTreeMeta = (
     };
 };
 
+/** Condition items are matched by index; the editor only edits the first one. */
+const mergeConditionCustomCommits = (
+    previous: PersistedNodeModel["conditions"],
+    next: PersistedNodeModel["conditions"],
+    customFields: CustomFieldDefs | undefined,
+    hostNodeId: string
+): PersistedNodeModel["conditions"] => {
+    if (!next || !previous || !customFields?.condition.length) {
+        return next;
+    }
+    return next.map((condition, index) => {
+        if (!previous[index]) {
+            return condition;
+        }
+        const custom = mergeCustomCommit(
+            previous[index].custom,
+            condition.custom,
+            customFields.condition,
+            hostNodeId
+        );
+        return custom ? { ...condition, custom } : condition;
+    });
+};
+
 const reduceUpdateNode = (
     mutation: Extract<ReducibleDocumentMutation, { type: "updateNode" }>,
     context: DocumentMutationReducerContext
@@ -498,7 +526,12 @@ const reduceUpdateNode = (
     const nextArgs = pruneNodeArgsByDefinition(payload.data.args, nextNodeDef);
     const conditionsProvided = Object.prototype.hasOwnProperty.call(payload.data, "conditions");
     const nextConditions = conditionsProvided
-        ? clonePersistedConditions(payload.data.conditions)
+        ? mergeConditionCustomCommits(
+              selectedNode.data.conditions,
+              clonePersistedConditions(payload.data.conditions),
+              context.customFields,
+              payload.target.displayId
+          )
         : selectedNode.data.conditions;
 
     if (
@@ -870,6 +903,10 @@ const reduceAttachCondition = (
         return { status: "error", error: { code: "condition-nested" } };
     }
 
+    const conditionCustom = createConditionCustom(
+        context.customFields?.condition,
+        mutation.payload.target.displayId
+    );
     const tree = clonePersistedTree(context.tree);
     const inlineNode = findPersistedNodeByStableId(
         tree.root,
@@ -887,7 +924,7 @@ const reduceAttachCondition = (
             return { status: "error", error: { code: "condition-already-attached" } };
         }
         inlineNode.conditions = [
-            createConditionData(entryNode),
+            createConditionData(entryNode, conditionCustom),
         ];
         return {
             status: "changed",
@@ -915,7 +952,7 @@ const reduceAttachCondition = (
     const editedNode: PersistedNodeModel = {
         ...clonePersistedNode(snapshot.data),
         conditions: [
-            createConditionData(entryNode),
+            createConditionData(entryNode, conditionCustom),
         ],
     };
     const diff = computeNodeOverride(original, editedNode, hostDef);
@@ -1039,7 +1076,7 @@ export const reduceDocumentMutation = (
 ): DocumentMutationReducerResult => {
     const reduced = reduceDocumentMutationUnchecked(mutation, context);
     if (reduced.status === "changed") {
-        ensureConditionTypeCustom(reduced.tree);
+        ensureRequiredCustomFields(reduced.tree, context.customFields);
     }
     return reduced;
 };
@@ -1049,12 +1086,18 @@ const reduceSetConditionRoot = (
     mutation: Extract<ReducibleDocumentMutation, { type: "setConditionRoot" }>,
     context: DocumentMutationReducerContext
 ): DocumentMutationReducerResult => {
-    const { hostStableId, root, custom, overrides } = mutation.payload;
+    const { hostStableId, root, overrides } = mutation.payload;
     const host = findPersistedNodeByStableId(context.tree.root, hostStableId);
     const condition = host?.conditions?.[0];
     if (!host || !condition) {
         return { status: "error", error: { code: "missing-target-node" } };
     }
+    const custom = mergeCustomCommit(
+        condition.custom,
+        mutation.payload.custom,
+        context.customFields?.condition ?? [],
+        host.id
+    );
     if (
         isJsonEqual(condition.root, root) &&
         isJsonEqual(condition.custom ?? {}, custom ?? {}) &&
@@ -1087,7 +1130,7 @@ const reduceDocumentMutationUnchecked = (
 ): DocumentMutationReducerResult => {
     switch (mutation.type) {
         case "updateTreeMeta":
-            return reduceUpdateTreeMeta(mutation, context.tree);
+            return reduceUpdateTreeMeta(mutation, context.tree, context.customFields);
 
         case "updateNode":
             return reduceUpdateNode(mutation, context);

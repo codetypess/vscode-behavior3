@@ -1,10 +1,8 @@
 import { assertConditionBranchesSavable } from "../shared/condition-branch";
 import { resolveDocumentGraph } from "./resolve-graph";
+import { collectNodeIds } from "../shared/custom-field-scripts";
 import type { NodeDef } from "../shared/b3type";
-import type {
-    PersistedTreeModel,
-    WorkdirRelativeJsonPath,
-} from "../shared/contracts";
+import type { PersistedTreeModel, WorkdirRelativeJsonPath } from "../shared/contracts";
 import {
     applyMainTreeDisplayIds,
     clonePersistedTree,
@@ -27,6 +25,11 @@ export const preparePersistedTreeForMainDocumentSave = async (params: {
     tree: PersistedTreeModel;
     nodeDefs: NodeDef[];
     readSubtreeContent: (path: WorkdirRelativeJsonPath) => Promise<string | null>;
+    /** Runs on the tree after ids are written; gets each node's id from before. */
+    afterApplyDisplayIds?: (
+        tree: PersistedTreeModel,
+        previousNodeId: (node: { id: string }) => string | undefined
+    ) => Promise<void>;
 }): Promise<MainDocumentSavePlan> => {
     const subtreeWritebacks: MainDocumentSubtreeWriteback[] = [];
     const nextTree = clonePersistedTree(params.tree);
@@ -56,8 +59,10 @@ export const preparePersistedTreeForMainDocumentSave = async (params: {
         tree: nextTree,
         subtreeSources,
     });
+    const previousNodeIds = collectNodeIds(nextTree.root);
     // Display ids are assigned after subtree resolution so saved main-tree ids match the canvas.
     applyMainTreeDisplayIds(nextTree.root, resolved.mainTreeDisplayIdsByStableId);
+    await params.afterApplyDisplayIds?.(nextTree, (node) => previousNodeIds.get(node));
     return {
         content: serializePersistedTree(nextTree),
         subtreeWritebacks,

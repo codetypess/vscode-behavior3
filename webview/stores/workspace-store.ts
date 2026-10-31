@@ -43,6 +43,7 @@ export const createInitialWorkspaceState = (): WorkspaceState => ({
         language: "zh",
         theme: detectInitialThemeMode(),
         inspectorMode: "sidebar",
+        customFields: { tree: [], condition: [] },
     },
     themeVersion: 0,
     usingVars: null,

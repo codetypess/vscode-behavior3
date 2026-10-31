@@ -4,12 +4,6 @@ import { findNodeDef, createNodeDefMap } from "./node-utils";
 
 export type ConditionBranchViolation = "nested-condition" | "running-status";
 
-/** Tree custom key written while the tree uses a condition. */
-export const CONDITION_TYPE_CUSTOM_KEY = "$condition_type";
-export const CONDITION_TYPE_VALUES = ["local", "global"] as const;
-export type ConditionType = (typeof CONDITION_TYPE_VALUES)[number];
-export const DEFAULT_CONDITION_TYPE: ConditionType = "local";
-
 type ConditionPresenceNode = {
     conditions?: unknown[];
     children?: ConditionPresenceNode[];
@@ -38,28 +32,6 @@ export const treeUsesConditions = (tree: {
     return Object.values(tree.overrides ?? {}).some((entry) => Boolean(entry?.conditions?.length));
 };
 
-export const readConditionType = (value: unknown): ConditionType | undefined =>
-    value === "local" || value === "global" ? value : undefined;
-
-/** Keep `$condition_type` at `local` or `global` while the tree uses a condition. */
-export const ensureConditionTypeCustom = (tree: {
-    root: ConditionPresenceNode;
-    custom: Record<string, string | number | boolean | object>;
-    overrides?: Record<string, { conditions?: unknown[] } | undefined>;
-}): boolean => {
-    if (!treeUsesConditions(tree)) {
-        return false;
-    }
-    if (readConditionType(tree.custom[CONDITION_TYPE_CUSTOM_KEY])) {
-        return false;
-    }
-    tree.custom = {
-        ...tree.custom,
-        [CONDITION_TYPE_CUSTOM_KEY]: DEFAULT_CONDITION_TYPE,
-    };
-    return true;
-};
-
 export const isAbortMode = (value: unknown): value is AbortMode =>
     typeof value === "string" && (ABORT_MODES as readonly string[]).includes(value);
 
@@ -67,10 +39,11 @@ export const isAbortMode = (value: unknown): value is AbortMode =>
 export const readAbortMode = (value: unknown): AbortMode =>
     isAbortMode(value) ? value : DEFAULT_ABORT_MODE;
 
-export const createConditionData = <TNode>(root: TNode): ConditionData<TNode> => ({
-    abort: DEFAULT_ABORT_MODE,
-    root,
-});
+export const createConditionData = <TNode>(
+    root: TNode,
+    custom?: ConditionData<TNode>["custom"]
+): ConditionData<TNode> =>
+    custom ? { abort: DEFAULT_ABORT_MODE, custom, root } : { abort: DEFAULT_ABORT_MODE, root };
 
 export class ConditionBranchSaveError extends Error {
     readonly violation: ConditionBranchViolation;
