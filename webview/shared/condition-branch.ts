@@ -1,10 +1,4 @@
-import {
-    ABORT_MODES,
-    DEFAULT_ABORT_MODE,
-    type AbortMode,
-    type ConditionCustom,
-    type ConditionData,
-} from "./b3type";
+import { ABORT_MODES, DEFAULT_ABORT_MODE, type AbortMode, type ConditionData } from "./b3type";
 import type { NodeDef, PersistedNodeModel, PersistedTreeModel } from "./contracts";
 import { findNodeDef, createNodeDefMap } from "./node-utils";
 
@@ -15,14 +9,6 @@ export const CONDITION_TYPE_CUSTOM_KEY = "$condition_type";
 export const CONDITION_TYPE_VALUES = ["local", "global"] as const;
 export type ConditionType = (typeof CONDITION_TYPE_VALUES)[number];
 export const DEFAULT_CONDITION_TYPE: ConditionType = "local";
-
-/** Condition item custom keys owned by the editor. */
-export const CONDITION_ENTER_PRIORITY_KEY = "enterPriority";
-export const CONDITION_MAINTAIN_PRIORITY_KEY = "maintainPriority";
-export const CONDITION_RESERVED_CUSTOM_KEYS = [
-    CONDITION_ENTER_PRIORITY_KEY,
-    CONDITION_MAINTAIN_PRIORITY_KEY,
-] as const;
 
 type ConditionPresenceNode = {
     conditions?: unknown[];
@@ -81,101 +67,8 @@ export const isAbortMode = (value: unknown): value is AbortMode =>
 export const readAbortMode = (value: unknown): AbortMode =>
     isAbortMode(value) ? value : DEFAULT_ABORT_MODE;
 
-/** Integer value of a node display id. Non-integer ids count as 0. */
-export const nodeIdToPriority = (id: string | undefined): number => {
-    if (!id || !/^-?\d+$/.test(id)) {
-        return 0;
-    }
-    const value = Number(id);
-    return Number.isSafeInteger(value) ? value : 0;
-};
-
-export const readConditionInt = (value: unknown): number | undefined => {
-    if (typeof value !== "number" || !Number.isFinite(value)) {
-        return undefined;
-    }
-    return Math.trunc(value);
-};
-
-export interface ConditionPriorities {
-    enterPriority: number;
-    maintainPriority: number;
-}
-
-/**
- * Move priorities onto a new node id.
- * A maintain priority that still matches the previous enter priority follows the new id.
- * A lower maintain priority stays, clamped to 0 through the new enter priority.
- */
-export const refreshConditionPriorities = (
-    previousEnter: number,
-    previousMaintain: number,
-    nextNodeId: string | undefined
-): ConditionPriorities => {
-    const enterPriority = nodeIdToPriority(nextNodeId);
-    const upper = Math.max(0, enterPriority);
-    const tracking = Math.trunc(previousMaintain) === Math.trunc(previousEnter);
-    const maintain = tracking ? enterPriority : Math.trunc(previousMaintain);
-    return {
-        enterPriority,
-        maintainPriority: Math.min(upper, Math.max(0, maintain)),
-    };
-};
-
-/** Enter priority follows the node id. Maintain priority stays within 0 and that value. */
-export const normalizeConditionPriorities = (
-    nodeId: string | undefined,
-    maintainPriority: unknown
-): ConditionPriorities => {
-    const enterPriority = nodeIdToPriority(nodeId);
-    const maintain = readConditionInt(maintainPriority) ?? enterPriority;
-    const upper = Math.max(0, enterPriority);
-    return {
-        enterPriority,
-        maintainPriority: Math.min(upper, Math.max(0, maintain)),
-    };
-};
-
-export const readConditionPriorities = (
-    condition: Pick<ConditionData<unknown>, "custom">
-): ConditionPriorities => {
-    const enterPriority = readConditionInt(condition.custom?.[CONDITION_ENTER_PRIORITY_KEY]) ?? 0;
-    return {
-        enterPriority,
-        maintainPriority:
-            readConditionInt(condition.custom?.[CONDITION_MAINTAIN_PRIORITY_KEY]) ?? enterPriority,
-    };
-};
-
-export const withConditionPriorities = (
-    custom: ConditionCustom | undefined,
-    priorities: ConditionPriorities
-): ConditionCustom => ({
-    ...(custom ?? {}),
-    [CONDITION_ENTER_PRIORITY_KEY]: priorities.enterPriority,
-    [CONDITION_MAINTAIN_PRIORITY_KEY]: priorities.maintainPriority,
-});
-
-/** Re-derive the priorities of every condition item from the host node's (new) id. */
-export const syncConditionPriorities = (
-    node: { id: string; conditions?: ConditionData<unknown>[] },
-    nodeId: string = node.id
-): void => {
-    for (const condition of node.conditions ?? []) {
-        const previous = readConditionPriorities(condition);
-        condition.custom = withConditionPriorities(
-            condition.custom,
-            refreshConditionPriorities(previous.enterPriority, previous.maintainPriority, nodeId)
-        );
-    }
-};
-
-export const createConditionData = <TNode>(
-    hostId: string | undefined,
-    root: TNode
-): ConditionData<TNode> => ({
+export const createConditionData = <TNode>(root: TNode): ConditionData<TNode> => ({
     abort: DEFAULT_ABORT_MODE,
-    custom: withConditionPriorities(undefined, normalizeConditionPriorities(hostId, undefined)),
     root,
 });
 

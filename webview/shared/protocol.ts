@@ -88,21 +88,13 @@ export const normalizeNodeInstanceRef = (ref: NodeInstanceRef): NodeInstanceRef 
 });
 
 export const normalizeHostSelectionState = (selection: HostSelectionState): HostSelectionState => {
-    // Omit the key when absent so equal selections stay JSON-equal.
-    const conditionHost = selection.conditionHost
-        ? { conditionHost: normalizeNodeInstanceRef(selection.conditionHost) }
-        : {};
     if (selection.kind === "tree") {
-        return { kind: "tree", ...conditionHost };
+        return { kind: "tree" };
     }
     if (selection.kind === "condition") {
-        return {
-            kind: "condition",
-            ref: normalizeNodeInstanceRef(selection.ref),
-            ...conditionHost,
-        };
+        return { kind: "condition", ref: normalizeNodeInstanceRef(selection.ref) };
     }
-    return { kind: "node", ref: normalizeNodeInstanceRef(selection.ref), ...conditionHost };
+    return { kind: "node", ref: normalizeNodeInstanceRef(selection.ref) };
 };
 
 export const normalizeHostDocumentSnapshot = (

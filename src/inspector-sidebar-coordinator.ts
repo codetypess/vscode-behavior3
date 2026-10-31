@@ -446,7 +446,7 @@ export class InspectorSidebarCoordinator {
             case "selectTree":
             case "selectNode":
             case "requestFocusVariable":
-            case "openConditionEditor":
+            case "openConditionFile":
             case "requestSetting":
             case "build":
             case "webviewLog":

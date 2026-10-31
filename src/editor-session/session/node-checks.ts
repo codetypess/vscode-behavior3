@@ -26,12 +26,12 @@ export interface SessionNodeChecks {
 const toNodeData = (node: unknown): NodeData => node as NodeData;
 
 export function createSessionNodeChecks(context: TreeEditorSessionContext): SessionNodeChecks {
-    const { document, workspaceFolderUri, state, postMessage } = context;
+    const { locationUri, workspaceFolderUri, state, postMessage } = context;
 
     const createNodeCheckRuntime = async () => {
         // Custom checkers run in the extension host so they can use fs/path and workspace scripts.
         return createSessionNodeCheckRuntime({
-            documentUri: document.uri,
+            documentUri: locationUri,
             workspaceFolderUri,
             nodeDefs: state.nodeDefs,
             language: state.currentSettings.language,

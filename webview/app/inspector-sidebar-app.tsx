@@ -72,14 +72,12 @@ const applySidebarVars = (runtime: EditorRuntime, payload: HostVarsPayload) => {
 
 const buildCurrentHostSelection = (runtime: EditorRuntime): HostSelectionState => {
     const { selectedNodeRef, inspectorSurface } = runtime.selectionStore.getState();
-    const hostRef = runtime.graphUiStore.getState().conditionEdit?.hostRef;
-    const conditionHost = hostRef ? { conditionHost: hostRef } : {};
     if (!selectedNodeRef) {
-        return { kind: "tree", ...conditionHost };
+        return { kind: "tree" };
     }
     return inspectorSurface === "condition"
-        ? { kind: "condition", ref: selectedNodeRef, ...conditionHost }
-        : { kind: "node", ref: selectedNodeRef, ...conditionHost };
+        ? { kind: "condition", ref: selectedNodeRef }
+        : { kind: "node", ref: selectedNodeRef };
 };
 
 const queueSidebarSelectionBlur = (runtime: EditorRuntime) => {
@@ -188,7 +186,6 @@ const SidebarHostBridge: React.FC = () => {
                 case "buildResult":
                 case "focusVariable":
                 case "focusNode":
-                case "openConditionEditor":
                     return;
             }
         };

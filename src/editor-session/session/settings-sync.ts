@@ -14,7 +14,7 @@ export function createSessionSettingsSync(
     inspectorSync: SessionInspectorSync
 ): SessionSettingsSync {
     const {
-        document,
+        locationUri,
         workspaceFolderUri,
         state,
         resolveLiveSettings,
@@ -28,8 +28,8 @@ export function createSessionSettingsSync(
     }: { refreshDefs?: boolean } = {}): Promise<void> => {
         if (refreshDefs) {
             const [freshDefs, freshSettingDir] = await Promise.all([
-                resolveNodeDefs(workspaceFolderUri, document.uri),
-                getResolvedB3SettingDir(workspaceFolderUri, document.uri),
+                resolveNodeDefs(workspaceFolderUri, locationUri),
+                getResolvedB3SettingDir(workspaceFolderUri, locationUri),
             ]);
             state.nodeDefs = freshDefs;
             state.settingDir = freshSettingDir;

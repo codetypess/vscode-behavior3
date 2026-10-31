@@ -16,6 +16,9 @@ interface SessionDispatcherFileRequestHandlers {
         msg: Extract<EditorToHostMessage, { type: "saveSubtreeAs" }>,
         reply: HostMessageSink
     ): Promise<void>;
+    handleOpenConditionFileMessage(
+        msg: Extract<EditorToHostMessage, { type: "openConditionFile" }>
+    ): Promise<void>;
 }
 
 export interface SessionDispatcher {
@@ -30,9 +33,7 @@ export interface CreateSessionDispatcherParams {
     postMessage: HostMessageSink;
     handleReadyMessage(reply?: HostMessageSink): Promise<void>;
     handleHistoryNavigationMessage(direction: "undo" | "redo"): Promise<void>;
-    handleSelectTreeMessage(
-        msg: Extract<EditorToHostMessage, { type: "selectTree" }>
-    ): Promise<void>;
+    handleSelectTreeMessage(): Promise<void>;
     handleSelectNodeMessage(
         msg: Extract<EditorToHostMessage, { type: "selectNode" }>
     ): Promise<void>;
@@ -94,7 +95,7 @@ export function createSessionDispatcher({
                 return;
 
             case "selectTree":
-                await handleSelectTreeMessage(msg);
+                await handleSelectTreeMessage();
                 return;
 
             case "selectNode":
@@ -111,13 +112,8 @@ export function createSessionDispatcher({
                 }
                 return;
 
-            case "openConditionEditor":
-                if (source !== "editor") {
-                    await postMessage({
-                        type: "relayOpenConditionEditor",
-                        target: msg.target,
-                    });
-                }
+            case "openConditionFile":
+                await fileRequestHandlers.handleOpenConditionFileMessage(msg);
                 return;
 
             case "mutateDocument":

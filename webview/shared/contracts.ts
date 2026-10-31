@@ -103,14 +103,10 @@ export interface NodeInstanceRef {
 }
 
 /** Host snapshot authority is limited to shared tree/node selection. */
-/**
- * `conditionHost` is set while the editor shows a condition page: the selection then belongs to
- * the condition tree of that host node, and every webview resolves it against that tree.
- */
 export type HostSelectionState =
-    | { kind: "tree"; conditionHost?: NodeInstanceRef }
-    | { kind: "node"; ref: NodeInstanceRef; conditionHost?: NodeInstanceRef }
-    | { kind: "condition"; ref: NodeInstanceRef; conditionHost?: NodeInstanceRef };
+    | { kind: "tree" }
+    | { kind: "node"; ref: NodeInstanceRef }
+    | { kind: "condition"; ref: NodeInstanceRef };
 
 /** Committed document fanout; local graph UI state such as variable focus is excluded. */
 export interface HostDocumentSnapshot {
@@ -177,23 +173,11 @@ export interface GraphUiSearchState {
     index: number;
 }
 
-/** Same-editor view of one host node's condition branch. Not a second document. */
-export interface ConditionEditSession {
-    hostRef: NodeInstanceRef;
-    /** "editor" pages are opened and closed locally; "selection" pages mirror the host selection. */
-    source: "editor" | "selection";
-    hostName: string;
-    hostSubtreeNode: boolean;
-    /** Condition tree when the page opened; `null` until the next graph rebuild reads it. */
-    entryCondition: PersistedNodeModel | null;
-}
-
 export interface GraphUiState {
     /** Editor-local visual focus, optionally set by a fresh variable-focus relay. */
     activeVariableNames: string[];
     selectionVisualHint: GraphSelectionState | null;
     search: GraphUiSearchState;
-    conditionEdit: ConditionEditSession | null;
 }
 
 export interface UpdateTreeMetaInput {
@@ -321,11 +305,20 @@ export interface RemoveConditionInput {
     currentNodeSnapshot?: UpdateNodeInput["currentNodeSnapshot"];
 }
 
+/** Host-only write-back from a condition file into the first condition of its host node. */
+export interface SetConditionRootInput {
+    hostStableId: string;
+    root: PersistedNodeModel;
+    custom?: ConditionData<PersistedNodeModel>["custom"];
+    overrides: PersistedTreeModel["overrides"];
+}
+
 export type DocumentMutation =
     | { type: "updateTreeMeta"; payload: UpdateTreeMetaInput }
     | { type: "updateNode"; payload: UpdateNodeInput }
     | { type: "attachCondition"; payload: AttachConditionInput }
     | { type: "removeCondition"; payload: RemoveConditionInput }
+    | { type: "setConditionRoot"; payload: SetConditionRootInput }
     | { type: "performDrop"; payload: DropIntent }
     | { type: "pasteNode"; payload: ClipboardNodeMutationInput }
     | { type: "insertNode"; payload: TargetNodeMutationInput }
@@ -350,8 +343,6 @@ export type HostEvent =
     | { type: "focusVariable"; names: string[] }
     /** Normalized editor-local node reveal event from a raw `relayFocusNode` message. */
     | { type: "focusNode"; target: NodeInstanceRef }
-    /** Normalized editor-local request to open a condition editing page. */
-    | { type: "openConditionEditor"; target: NodeInstanceRef }
     | { type: "themeChanged"; theme: Settings["theme"] }
     | { type: "subtreeFileChanged" }
     | { type: "inspectorContextCleared" }
@@ -490,16 +481,12 @@ export interface HostAdapter {
     undo(): void;
     redo(): void;
     mutateDocument(mutation: DocumentMutation): Promise<DocumentMutationResponse>;
-    selectTree(conditionHost?: NodeInstanceRef): void;
-    selectNode(
-        target: NodeInstanceRef,
-        surface?: "node" | "condition",
-        conditionHost?: NodeInstanceRef
-    ): void;
+    selectTree(): void;
+    selectNode(target: NodeInstanceRef, surface?: "node" | "condition"): void;
     /** Send a raw `requestFocusVariable` message; callers must not treat it as persisted state. */
     requestFocusVariable(names: string[]): void;
-    /** Ask the host to open this node's condition editor in the active editor. */
-    requestOpenConditionEditor(target: NodeInstanceRef): void;
+    /** Ask the host to open this node's condition file in its own tab. */
+    requestOpenConditionFile(target: NodeInstanceRef): void;
     sendRequestSetting(): void;
     sendBuild(opts?: { buildScriptDebug?: boolean }): void;
     executeInspectorHostCommand(command: InspectorHostCommandId): void;
@@ -556,9 +543,7 @@ export interface EditorCommand {
     saveDocument(): Promise<boolean>;
     attachCondition(entryName: string): Promise<void>;
     removeCondition(): Promise<void>;
-    openConditionEditor(target: NodeInstanceRef): Promise<void>;
-    conditionEditIsDirty(): boolean;
-    finishConditionEditor(action: "save" | "discard"): Promise<boolean>;
+    openConditionFile(target: NodeInstanceRef): Promise<void>;
     revertDocument(): Promise<void>;
     buildDocument(opts?: { buildScriptDebug?: boolean }): Promise<void>;
     openSubtreePath(path: string, opts?: { openSelection?: NodeInstanceRef }): Promise<void>;

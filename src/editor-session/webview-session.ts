@@ -62,6 +62,8 @@ export async function resolveTreeEditorSession(
 
     const fileRequestHandlers = createSessionFileRequestHandlers({
         projectRootUri,
+        locationUri: context.locationUri,
+        getLanguage: () => context.state.currentSettings.language,
         viewType,
         stageDocumentSelection,
         writeDocumentContentToDisk,
@@ -94,6 +96,7 @@ export async function resolveTreeEditorSession(
     const activeWebviewEntry: ActiveTreeEditorWebview = {
         workspaceFsPath: workspaceFolderUri.fsPath,
         documentUri: document.uri.toString(),
+        reloadFromBackingFile: handleMainDocumentFileChange,
         postMessage,
         dispatchMessage: async (message, reply = postMessage) => {
             await dispatchEditorMessage(message, reply, "external");

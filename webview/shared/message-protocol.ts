@@ -22,17 +22,12 @@ export type EditorToHostMessage =
     | { type: "ready" }
     | { type: "undo" }
     | { type: "redo" }
-    | { type: "selectTree"; conditionHost?: NodeInstanceRef }
-    | {
-          type: "selectNode";
-          target: NodeInstanceRef;
-          surface?: "node" | "condition";
-          conditionHost?: NodeInstanceRef;
-      }
+    | { type: "selectTree" }
+    | { type: "selectNode"; target: NodeInstanceRef; surface?: "node" | "condition" }
     /** Ask the host to relay a one-shot variable highlight intent to the active editor. */
     | { type: "requestFocusVariable"; names: string[] }
-    /** Ask the host to relay opening a condition editor page into the active editor. */
-    | { type: "openConditionEditor"; target: NodeInstanceRef }
+    /** Ask the host to open the condition file of this node in its own tab. */
+    | { type: "openConditionFile"; target: NodeInstanceRef }
     | { type: "mutateDocument"; requestId: string; mutation: DocumentMutation }
     | { type: "saveDocument"; requestId: string }
     | { type: "revertDocument"; requestId: string }
@@ -89,8 +84,6 @@ export type HostToEditorMessage =
     | { type: "relayFocusVariable"; names: string[] }
     /** One-shot node reveal relay into the active editor; selection authority still comes from snapshots. */
     | { type: "relayFocusNode"; target: NodeInstanceRef }
-    /** One-shot request for the active editor to open a condition editing page. */
-    | { type: "relayOpenConditionEditor"; target: NodeInstanceRef }
     /** A referenced subtree file was saved or edited; parent canvas should reload subtree data. */
     | { type: "subtreeFileChanged" }
     /** No active Behavior3 editor is currently driving the sidebar inspector. */

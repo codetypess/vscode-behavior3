@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import { canOpenSubtreeTarget } from "../../domain/subtree-navigation";
 import { findNodeDef, parseSlotDefinition } from "../../shared/node-utils";
-import { isExprType, type NodeDef } from "../../shared/b3type";
+import { getNodeType, isExprType, type NodeDef } from "../../shared/b3type";
 import { useRuntime } from "../../app/runtime";
 import {
     OverrideBar,
@@ -118,6 +118,12 @@ const NodeMetaFields: React.FC<{
             <Form.Item {...createInspectorLabelProps(t("node.type"))} name="type">
                 <Input disabled />
             </Form.Item>
+            {/* Read-only: `preemptive` comes from the runtime node class via the .b3-setting. */}
+            {nodeDef && getNodeType(nodeDef) === "Composite" ? (
+                <Form.Item {...createInspectorLabelProps(t("node.preemptive"))} name="preemptive">
+                    <Input disabled />
+                </Form.Item>
+            ) : null}
 
             {nodeDef?.group?.length ? (
                 <Form.Item
@@ -396,9 +402,10 @@ export const NodeInspectorForm: React.FC = () => {
         form.setFieldValue("args", {});
         form.setFieldValue("inputSlots", []);
         form.setFieldValue("outputSlots", []);
-        form.resetFields(["type", "children", "group"]);
+        form.resetFields(["type", "preemptive", "children", "group"]);
         form.setFieldsValue({
             type: previewValues.type,
+            preemptive: previewValues.preemptive,
             children: previewValues.children,
             group: previewValues.group,
             args: previewValues.args,

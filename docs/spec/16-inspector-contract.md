@@ -78,7 +78,8 @@ Inspector 暴露同一组 project/document quick actions，但承载位置随模
 ### Node Selected
 
 - 显示 Node Inspector
-- 当前选中是宿主节点上的条件时，显示条件面板，而不是 Node Inspector。面板显示第一项条件：根节点名（只读）、`abort` 下拉框（`none`、`self`、`lower`、`both`，默认 `none`）、自定义数据。自定义数据复用 Tree Inspector 的键值编辑器（同一个组件）；`enterPriority` 和 `maintainPriority` 是保留键，键名不可改、不可删。`enterPriority` 只读且等于该节点 id 的整数；`maintainPriority` 只能是 0 到进入优先级之间的整数。节点 id 变化时，仍等于旧进入优先级的维持优先级显示并保存为新 id，已经改小的值保持不变。面板有「打开编辑视图」按钮，进入该条件树的临时页面
+- 组合节点（节点定义 `type` 为 Composite）在「节点类型」下面显示只读的「支持抢占」：值来自 `.b3-setting` 里节点定义的 `preemptive`（运行时节点类导出），为 `true` 时显示 `true`，否则 `false`。改节点名切换到另一条定义时跟着更新。其他类型的节点不显示这一项
+- 当前选中是宿主节点上的条件时，显示条件面板，而不是 Node Inspector。面板显示第一项条件：根节点名（只读）、`abort` 下拉框（`none`、`self`、`lower`、`both`，默认 `none`）、自定义数据。自定义数据就是条件项的 `custom`，复用 Tree Inspector 的键值编辑器（同一个组件），没有保留键，可以自由增删改。在条件文件标签页里，Tree Inspector 的自定义数据显示和编辑的也是这项 `custom`。面板有「打开编辑视图」按钮，在新标签页打开该条件的条件文件
 - `sidebar` 模式下，即使当前共享选中仍然是同一逻辑节点，重复的显式节点选中手势也应重新激活 Inspector Sidebar，而不是要求用户先切到别的节点
 - 若 host 已确认当前为 node selection，但新文档 graph 仍在重建、`selectedNodeSnapshot` 尚未恢复，Inspector 仍停留在 node 通道，并显示 pending/loading 态，而不是闪回 Tree Inspector
 - 若当前文档此前已经成功渲染过同一逻辑节点，两种模式下的 Inspector 都应先复用该文档缓存的 node snapshot，待真实 snapshot 恢复后再覆盖，从而避免重复 loading 动画

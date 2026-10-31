@@ -48,9 +48,9 @@
 - `requestFocusVariable`
     - payload: `{ names }`
     - 语义：sidebar 请求把变量聚焦作为一次性视觉 intent relay 给当前 active editor；不是共享状态同步
-- `openConditionEditor`
+- `openConditionFile`
     - payload: `{ target: NodeInstanceRef }`
-    - 语义：sidebar 请求当前 active editor 打开该宿主节点的条件临时页面；不是共享状态同步
+    - 语义：editor 或 sidebar 请求宿主在新标签页打开该节点第一项条件的条件文件（`behavior3-condition:/<宿主文件名>/<uuid>/condition.json?host=<宿主文件完整路径>`）。`target.sourceTreePath` 非空时宿主文件是那份 subtree 文件、uuid 用 `sourceStableId`；否则是当前文件、uuid 用 `structuralStableId`。条件不在该文件里时提示，不打开
 
 ### 项目与设置
 
@@ -106,10 +106,6 @@
     - 不属于 `init` / `documentSnapshotChanged` 的 snapshot 内容
 - `relayFocusNode`
     - 语义：宿主向 editor 投递一次新鲜节点 reveal relay，用于把目标节点带入视图
-    - 不属于 `init` / `documentSnapshotChanged` 的 snapshot 内容
-- `relayOpenConditionEditor`
-    - payload: `{ target: NodeInstanceRef }`
-    - 语义：宿主向 editor 投递一次打开条件临时页面的请求
     - 不属于 `init` / `documentSnapshotChanged` 的 snapshot 内容
 
 ### 环境与依赖变化
@@ -194,7 +190,6 @@
 - `{ kind: "tree" }`
 - `{ kind: "node", ref: NodeInstanceRef }`
 - `{ kind: "condition", ref: NodeInstanceRef }`：`ref` 仍是宿主节点。单击节点上方的条件附属时使用，Inspector 显示条件面板
-- 三种选择都可以带 `conditionHost?: NodeInstanceRef`：编辑器正在显示某个宿主节点的条件临时页面时，选择属于那棵条件树。`selectTree` / `selectNode` 消息带同名字段，宿主原样保存和广播。收到带 `conditionHost` 的选择时，其他 webview（例如侧栏 Inspector）打开同一个条件页面（`conditionEdit.source = "selection"`），重建 graph 后再解析 `ref`；收到不带它的选择时关闭这个镜像页面。编辑器自己打开的页面（`source = "editor"`）只通过自己的关闭流程关闭
 
 说明：
 

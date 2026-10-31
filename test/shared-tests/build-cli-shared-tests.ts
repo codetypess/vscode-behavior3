@@ -169,7 +169,7 @@ export const buildCliSharedTests = defineSharedTests([
                                 { uuid: "patrol", id: "2", name: "Log" },
                                 {
                                     uuid: "attack",
-                                    // Stale id: the export renumbers and moves the priorities.
+                                    // Stale id: the export renumbers it.
                                     id: "9",
                                     name: "Sequence",
                                     conditions: [
@@ -225,11 +225,7 @@ export const buildCliSharedTests = defineSharedTests([
                 assert.equal(attack.conditions?.length, 1);
                 const condition = attack.conditions![0];
                 assert.equal(condition.abort, "lower");
-                assert.deepEqual(condition.custom, {
-                    maintainPriority: 3,
-                    note: "keep",
-                    enterPriority: 3,
-                });
+                assert.deepEqual(condition.custom, { maintainPriority: 9, note: "keep" });
                 assert.equal(condition.root.id, "M4");
                 assert.equal(condition.root.name, "Sequence");
                 assert.equal(condition.root.children[0].id, "M5");

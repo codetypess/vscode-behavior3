@@ -2,40 +2,12 @@ import assert from "node:assert/strict";
 import b3path from "../../webview/shared/b3path";
 import {
     normalizeHostDocumentSnapshot,
-    normalizeHostSelectionState,
     parseWorkdirRelativeJsonPath,
 } from "../../webview/shared/protocol";
 import type { NodeInstanceRef } from "../../webview/shared/contracts";
 import { defineSharedTests } from "../shared-test-types";
 
 export const hostProtocolSharedTests = defineSharedTests([
-    {
-        name: "keeps the condition page host on normalized selections",
-        run() {
-            const ref = (id: string): NodeInstanceRef => ({
-                instanceKey: id,
-                displayId: id,
-                structuralStableId: id,
-                sourceStableId: id,
-                sourceTreePath: null,
-                subtreeStack: [],
-            });
-            assert.deepEqual(
-                normalizeHostSelectionState({
-                    kind: "node",
-                    ref: ref("guard"),
-                    conditionHost: ref("host"),
-                }),
-                { kind: "node", ref: ref("guard"), conditionHost: ref("host") }
-            );
-            assert.deepEqual(
-                normalizeHostSelectionState({ kind: "tree", conditionHost: ref("host") }),
-                { kind: "tree", conditionHost: ref("host") }
-            );
-            const plain = normalizeHostSelectionState({ kind: "node", ref: ref("host") });
-            assert.equal("conditionHost" in plain, false);
-        },
-    },
     {
         name: "parses only strict workdir-relative json paths",
         run() {
@@ -136,14 +108,11 @@ export const hostProtocolSharedTests = defineSharedTests([
                 const adapter = createVsCodeHostAdapter();
                 let relayedNames: string[] | null = null;
                 let relayedNode: NodeInstanceRef | null = null;
-                let openedCondition: NodeInstanceRef | null = null;
                 const off = adapter.connect((message) => {
                     if (message.type === "focusVariable") {
                         relayedNames = message.names;
                     } else if (message.type === "focusNode") {
                         relayedNode = message.target;
-                    } else if (message.type === "openConditionEditor") {
-                        openedCondition = message.target;
                     }
                 });
 
@@ -198,18 +167,11 @@ export const hostProtocolSharedTests = defineSharedTests([
                     sourceTreePath: null,
                     subtreeStack: [],
                 };
-                adapter.requestOpenConditionEditor(conditionTarget);
+                adapter.requestOpenConditionFile(conditionTarget);
                 assert.deepEqual(posts.at(-1), {
-                    type: "openConditionEditor",
+                    type: "openConditionFile",
                     target: conditionTarget,
                 });
-                messageListener?.({
-                    data: {
-                        type: "relayOpenConditionEditor",
-                        target: conditionTarget,
-                    },
-                } as MessageEvent);
-                assert.deepEqual(openedCondition, conditionTarget);
 
                 const resultPromise = adapter.readFile(
                     parseWorkdirRelativeJsonPath("sub/a.json")!,

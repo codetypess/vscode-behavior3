@@ -210,13 +210,6 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
                         });
                         return;
 
-                    case "relayOpenConditionEditor":
-                        onMessage({
-                            type: "openConditionEditor",
-                            target: normalizeNodeInstanceRef(message.target),
-                        });
-                        return;
-
                     case "varDeclLoaded":
                         onMessage({
                             type: "varDeclLoaded",
@@ -304,20 +297,20 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
             });
         },
 
-        selectTree(conditionHost) {
-            postMessage({ type: "selectTree", conditionHost });
+        selectTree() {
+            postMessage({ type: "selectTree" });
         },
 
-        selectNode(target, surface, conditionHost) {
-            postMessage({ type: "selectNode", target, surface, conditionHost });
+        selectNode(target, surface) {
+            postMessage({ type: "selectNode", target, surface });
         },
 
         requestFocusVariable(names) {
             postMessage({ type: "requestFocusVariable", names });
         },
 
-        requestOpenConditionEditor(target) {
-            postMessage({ type: "openConditionEditor", target });
+        requestOpenConditionFile(target) {
+            postMessage({ type: "openConditionFile", target });
         },
 
         sendRequestSetting() {

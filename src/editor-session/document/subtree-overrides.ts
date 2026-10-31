@@ -94,6 +94,17 @@ export function mutationMayAffectSubtreeOverrideReachability(
             return branchContainsSubtreeLink(currentNode);
         }
 
+        case "setConditionRoot": {
+            const currentRoot = findPersistedNodeByStableId(
+                currentTree.root,
+                mutation.payload.hostStableId
+            )?.conditions?.[0]?.root;
+            return (
+                branchContainsSubtreeLink(currentRoot) ||
+                branchContainsSubtreeLink(mutation.payload.root)
+            );
+        }
+
         default:
             return false;
     }

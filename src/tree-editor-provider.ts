@@ -10,12 +10,22 @@ import {
     type MainDocumentSubtreeWriteback,
 } from "../webview/domain/main-document-save";
 import { ConditionBranchSaveError } from "../webview/shared/condition-branch";
-import { parsePersistedTreeContent } from "../webview/shared/tree";
+import {
+    buildConditionFileTree,
+    readConditionFileWriteBack,
+} from "../webview/shared/condition-file";
+import {
+    formatDocumentMutationReducerError,
+    reduceDocumentMutation,
+} from "../webview/shared/document";
+import { parsePersistedTreeContent, serializePersistedTree } from "../webview/shared/tree";
+import {
+    isConditionFileUri,
+    parseConditionFileUri,
+    type ConditionFileAccess,
+} from "./condition-files";
 import type { HostSelectionState, NodeInstanceRef } from "../webview/shared/contracts";
-import type {
-    EditorToHostMessage,
-    HostToEditorMessage,
-} from "../webview/shared/message-protocol";
+import type { EditorToHostMessage, HostToEditorMessage } from "../webview/shared/message-protocol";
 import type { ActiveTreeEditorWebview } from "./editor-session/webview-session";
 import { resolveTreeEditorSession } from "./editor-session/webview-session";
 import { getNewerVersionMessage, getTreeFileVersion } from "./editor-session/document/file-version";
@@ -41,9 +51,15 @@ function getNewerFileWriteError(content: string): string | null {
  * Keep lifecycle/save/revert ownership here; per-webview message orchestration
  * belongs in `editor-session/webview-session.ts`.
  */
-export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEditorDocument> {
+export class TreeEditorProvider
+    implements vscode.CustomEditorProvider<TreeEditorDocument>, ConditionFileAccess
+{
     public static readonly viewType = "behavior3.treeEditor";
     private static readonly activeWebviews = new Set<ActiveTreeEditorWebview>();
+    // Open documents by URI, so condition files can read their host's unsaved content.
+    private readonly openDocuments = new Map<string, TreeEditorDocument>();
+    // Condition files being saved; their own write-back must not bounce back as an outside change.
+    private readonly savingConditionFiles = new Set<string>();
     private readonly documentSelections = new Map<string, HostSelectionState>();
     private readonly documentRevealTargets = new Map<string, NodeInstanceRef>();
     private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<
@@ -108,12 +124,11 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
 
         const message: EditorToHostMessage =
             normalized.kind === "tree"
-                ? { type: "selectTree", conditionHost: normalized.conditionHost }
+                ? { type: "selectTree" }
                 : {
                       type: "selectNode",
                       target: normalized.ref,
                       surface: normalized.kind === "condition" ? "condition" : "node",
-                      conditionHost: normalized.conditionHost,
                   };
 
         TreeEditorProvider.dispatchMessageToDocument(documentUri, message, async () => true);
@@ -130,6 +145,146 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         if (delivered) {
             this.documentRevealTargets.delete(documentUri);
         }
+    }
+
+    /** Host content as the editor sees it: the open document (unsaved edits included) or disk. */
+    private async readHostContent(hostUri: vscode.Uri): Promise<string> {
+        return (
+            this.openDocuments.get(hostUri.toString())?.content ??
+            (await readFileContentFromDisk(hostUri))
+        );
+    }
+
+    async readConditionFile(uri: vscode.Uri): Promise<string> {
+        const location = parseConditionFileUri(uri);
+        if (!location) {
+            throw vscode.FileSystemError.FileNotFound(uri);
+        }
+        let hostContent: string;
+        try {
+            hostContent = await this.readHostContent(location.hostUri);
+        } catch {
+            throw vscode.FileSystemError.FileNotFound(uri);
+        }
+        const hostTree = parsePersistedTreeContent(hostContent, location.hostUri.fsPath);
+        const conditionTree = buildConditionFileTree(hostTree, location.hostStableId);
+        if (!conditionTree) {
+            throw vscode.FileSystemError.FileNotFound(uri);
+        }
+        return serializePersistedTree(conditionTree);
+    }
+
+    /**
+     * Write a condition file back into its host. An open host takes it as an ordinary mutation
+     * (undo history, dirty state); a closed host is updated on disk.
+     */
+    async writeConditionFile(uri: vscode.Uri, content: string): Promise<void> {
+        const location = parseConditionFileUri(uri);
+        if (!location) {
+            throw vscode.FileSystemError.FileNotFound(uri);
+        }
+        const conditionTree = parsePersistedTreeContent(content, uri.path);
+        const mutation = {
+            type: "setConditionRoot" as const,
+            payload: {
+                hostStableId: location.hostStableId,
+                ...readConditionFileWriteBack(conditionTree),
+            },
+        };
+
+        const hostKey = location.hostUri.toString();
+        const result = await new Promise<{ success: boolean; error?: string } | null>((resolve) => {
+            const delivered = TreeEditorProvider.dispatchMessageToDocument(
+                hostKey,
+                { type: "mutateDocument", requestId: `condition-file:${uri.path}`, mutation },
+                async (message) => {
+                    if (message.type === "mutateDocumentResult") {
+                        resolve({ success: message.success, error: message.error });
+                    }
+                    return true;
+                }
+            );
+            if (!delivered) {
+                resolve(null);
+            }
+        });
+        if (result) {
+            if (!result.success) {
+                throw new Error(result.error ?? "Failed to update the host file");
+            }
+            return;
+        }
+
+        const hostContent = await readFileContentFromDisk(location.hostUri);
+        this.assertCanWriteTreeContent(hostContent);
+        const workspaceFolderUri = vscode.workspace.getWorkspaceFolder(location.hostUri)?.uri;
+        const nodeDefs = workspaceFolderUri
+            ? await resolveNodeDefs(workspaceFolderUri, location.hostUri)
+            : [];
+        const reduced = reduceDocumentMutation(mutation, {
+            tree: parsePersistedTreeContent(hostContent, location.hostUri.fsPath),
+            nodeDefs,
+        });
+        if (reduced.status === "error") {
+            const language = getEditorLanguage(
+                vscode.workspace.getConfiguration("behavior3").get<string>("language", "auto")
+            );
+            throw new Error(formatDocumentMutationReducerError(reduced.error, language));
+        }
+        if (reduced.status === "changed") {
+            await this.writeDocumentContentToDisk(
+                location.hostUri,
+                serializePersistedTree(reduced.tree)
+            );
+        }
+    }
+
+    /** Re-read open condition files of a host whose content just changed. */
+    private refreshConditionFiles(hostUri: vscode.Uri): void {
+        const hostKey = hostUri.toString();
+        for (const entry of TreeEditorProvider.activeWebviews) {
+            if (this.savingConditionFiles.has(entry.documentUri)) {
+                continue;
+            }
+            const location = parseConditionFileUri(vscode.Uri.parse(entry.documentUri));
+            if (location?.hostUri.toString() === hostKey) {
+                void entry.reloadFromBackingFile();
+            }
+        }
+    }
+
+    private async saveConditionDocument(document: TreeEditorDocument): Promise<void> {
+        const key = document.uri.toString();
+        this.savingConditionFiles.add(key);
+        try {
+            await this.writeConditionFile(document.uri, document.content);
+            // The host now holds the tree; show it back the way the host stores it.
+            const content = await this.readConditionFile(document.uri);
+            document.markSaved(content);
+            document.sessionState.markSaved(content);
+            document.rememberOwnWrite(content);
+            this.notifyDocumentReloaded(document, content);
+        } finally {
+            this.savingConditionFiles.delete(key);
+        }
+    }
+
+    private notifyDocumentReloaded(document: TreeEditorDocument, content: string): void {
+        const selection = this.documentSelections.get(document.uri.toString()) ?? { kind: "tree" };
+        TreeEditorProvider.postMessageToDocument(document.uri.toString(), {
+            type: "documentSnapshotChanged",
+            snapshot: {
+                content,
+                documentSession: document.sessionState.getSnapshot(),
+                selection,
+                syncKind: "reload",
+            },
+        });
+        this.inspectorCoordinator.notifyDocumentSaved(
+            document.uri.toString(),
+            content,
+            document.sessionState.getSnapshot()
+        );
     }
 
     private assertCanWriteTreeContent(content: string): void {
@@ -183,9 +338,7 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
                 tree,
                 nodeDefs,
                 readSubtreeContent: async (relativePath) => {
-                    const subtreeUri = vscode.Uri.file(
-                        path.join(projectRootFsPath, relativePath)
-                    );
+                    const subtreeUri = vscode.Uri.file(path.join(projectRootFsPath, relativePath));
                     try {
                         return await readFileContentFromDisk(subtreeUri);
                     } catch {
@@ -255,10 +408,7 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
             savePlan.projectRootFsPath,
             savePlan.subtreeWritebacks
         );
-        await this.writeSubtreeWritebacks(
-            savePlan.projectRootFsPath,
-            savePlan.subtreeWritebacks
-        );
+        await this.writeSubtreeWritebacks(savePlan.projectRootFsPath, savePlan.subtreeWritebacks);
         const normalizedContent = await this.writeDocumentContentToDisk(
             document.uri,
             savePlan.content
@@ -268,23 +418,9 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         document.rememberOwnWrite(normalizedContent);
 
         if (opts?.notifyReload !== false) {
-            const selection =
-                this.documentSelections.get(document.uri.toString()) ?? { kind: "tree" };
-            TreeEditorProvider.postMessageToDocument(document.uri.toString(), {
-                type: "documentSnapshotChanged",
-                snapshot: {
-                    content: normalizedContent,
-                    documentSession: document.sessionState.getSnapshot(),
-                    selection,
-                    syncKind: "reload",
-                },
-            });
-            this.inspectorCoordinator.notifyDocumentSaved(
-                document.uri.toString(),
-                normalizedContent,
-                document.sessionState.getSnapshot()
-            );
+            this.notifyDocumentReloaded(document, normalizedContent);
         }
+        this.refreshConditionFiles(document.uri);
 
         return normalizedContent;
     }
@@ -308,7 +444,15 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
             content = await readFileContentFromDisk(uri);
         }
 
-        return new TreeEditorDocument(uri, content, { dirty });
+        const document = new TreeEditorDocument(uri, content, { dirty });
+        const key = uri.toString();
+        this.openDocuments.set(key, document);
+        document.onDidDispose(() => {
+            if (this.openDocuments.get(key) === document) {
+                this.openDocuments.delete(key);
+            }
+        });
+        return document;
     }
 
     async saveCustomDocument(
@@ -318,6 +462,10 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         const error = getNewerFileWriteError(document.content);
         if (error) {
             this.showBlockedSaveMessage(document, error);
+            return;
+        }
+        if (isConditionFileUri(document.uri)) {
+            await this.saveConditionDocument(document);
             return;
         }
         await this.persistMainDocumentToDisk(document);
@@ -343,10 +491,7 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
             savePlan.projectRootFsPath,
             savePlan.subtreeWritebacks
         );
-        await this.writeSubtreeWritebacks(
-            savePlan.projectRootFsPath,
-            savePlan.subtreeWritebacks
-        );
+        await this.writeSubtreeWritebacks(savePlan.projectRootFsPath, savePlan.subtreeWritebacks);
         await this.writeDocumentContentToDisk(destination, savePlan.content);
     }
 
@@ -358,22 +503,8 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         document.clearOwnWrites();
         document.updateContent(content, { markSaved: true, markDirty: false });
         document.sessionState.replaceFromDisk(content);
-        const selection =
-            this.documentSelections.get(document.uri.toString()) ?? { kind: "tree" };
-        TreeEditorProvider.postMessageToDocument(document.uri.toString(), {
-            type: "documentSnapshotChanged",
-            snapshot: {
-                content,
-                documentSession: document.sessionState.getSnapshot(),
-                selection,
-                syncKind: "reload",
-            },
-        });
-        this.inspectorCoordinator.notifyDocumentSaved(
-            document.uri.toString(),
-            content,
-            document.sessionState.getSnapshot()
-        );
+        this.notifyDocumentReloaded(document, content);
+        this.refreshConditionFiles(document.uri);
     }
 
     async backupCustomDocument(
@@ -381,7 +512,10 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
         context: vscode.CustomDocumentBackupContext,
         _cancellation: vscode.CancellationToken
     ): Promise<vscode.CustomDocumentBackup> {
-        await vscode.workspace.fs.writeFile(context.destination, Buffer.from(document.content, "utf-8"));
+        await vscode.workspace.fs.writeFile(
+            context.destination,
+            Buffer.from(document.content, "utf-8")
+        );
 
         return {
             id: context.destination.fsPath,
@@ -409,8 +543,7 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
 
         const initialSelection =
             this.documentSelections.get(document.uri.toString()) ?? ({ kind: "tree" } as const);
-        const initialRevealTarget =
-            this.documentRevealTargets.get(document.uri.toString()) ?? null;
+        const initialRevealTarget = this.documentRevealTargets.get(document.uri.toString()) ?? null;
         this.documentRevealTargets.delete(document.uri.toString());
         await resolveTreeEditorSession({
             document,
@@ -430,6 +563,10 @@ export class TreeEditorProvider implements vscode.CustomEditorProvider<TreeEdito
                 this.revertCustomDocument(currentDocument, cancellation),
             onDidChangeDocument: (currentDocument) => {
                 this._onDidChangeCustomDocument.fire({ document: currentDocument });
+                this.refreshConditionFiles(currentDocument.uri);
+            },
+            onDidReloadDocument: (currentDocument) => {
+                this.refreshConditionFiles(currentDocument.uri);
             },
             addActiveWebview: (entry) => {
                 TreeEditorProvider.activeWebviews.add(entry);

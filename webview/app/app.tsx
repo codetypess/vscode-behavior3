@@ -72,10 +72,6 @@ const AppShell: React.FC = () => {
                     void runtime.controller.revealNode(hostEvent.target);
                     return;
 
-                case "openConditionEditor":
-                    void runtime.controller.openConditionEditor(hostEvent.target);
-                    return;
-
                 case "themeChanged":
                     applyThemeChange(hostEvent.theme);
                     void runtime.controller.refreshGraph({ preserveSelection: true });

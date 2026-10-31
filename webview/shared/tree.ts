@@ -11,7 +11,6 @@ import type {
     SubtreeSourceCacheEntry,
     WorkdirRelativeJsonPath,
 } from "./contracts";
-import { syncConditionPriorities } from "./condition-branch";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
 
 export const cloneJsonValue = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -244,7 +243,6 @@ export const applyMainTreeDisplayIds = (
         if (nextId) {
             node.id = nextId;
         }
-        syncConditionPriorities(node);
     });
 };
 

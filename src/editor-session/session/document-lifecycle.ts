@@ -30,6 +30,7 @@ export function createSessionDocumentLifecycle(
         document,
         revertDocument,
         onDidChangeDocument,
+        onDidReloadDocument,
         state,
         documentSession,
         postMessage,
@@ -195,6 +196,7 @@ export function createSessionDocumentLifecycle(
                 await fanoutDocumentSnapshot({
                     syncKind: "reload",
                 });
+                onDidReloadDocument(document);
                 return;
             }
 

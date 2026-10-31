@@ -7,7 +7,13 @@ import {
     preparePersistedTreeForMainDocumentSave,
     serializePersistedTreeForMainDocumentSave,
 } from "../../webview/domain/main-document-save";
-import { projectConditionBranchMutation } from "../../webview/domain/condition-edit";
+import {
+    buildConditionFileLocation,
+    buildConditionFilePath,
+    buildConditionFileTree,
+    parseConditionFileLocation,
+    readConditionFileWriteBack,
+} from "../../webview/shared/condition-file";
 import { DOCUMENT_VERSION } from "../../webview/shared/b3type";
 import { ConditionBranchSaveError } from "../../webview/shared/condition-branch";
 import type {
@@ -203,36 +209,6 @@ export const documentDomainSharedTests = defineSharedTests([
                 "sub-child": { desc: "keep" },
                 stale: { desc: "keep-too" },
             });
-        },
-    },
-    {
-        name: "moves a tracking maintain priority when the node id changes",
-        run() {
-            const root: PersistedNodeModel = {
-                uuid: "root",
-                id: "1",
-                name: "Attack",
-                conditions: conditionList({ uuid: "guard", id: "", name: "Guard" }, 1, 1),
-                children: [{ uuid: "child", id: "2", name: "Wait" }],
-            };
-            applyMainTreeDisplayIds(root, { root: "3", child: "4" });
-            assert.equal(root.id, "3");
-            assert.equal(root.conditions?.[0]?.custom?.enterPriority, 3);
-            assert.equal(root.conditions?.[0]?.custom?.maintainPriority, 3);
-
-            const lowered: PersistedNodeModel = {
-                uuid: "root",
-                id: "5",
-                name: "Attack",
-                conditions: conditionList({ uuid: "guard", id: "", name: "Guard" }, 5, 2),
-            };
-            applyMainTreeDisplayIds(lowered, { root: "8" });
-            assert.equal(lowered.conditions?.[0]?.custom?.enterPriority, 8);
-            assert.equal(lowered.conditions?.[0]?.custom?.maintainPriority, 2);
-
-            applyMainTreeDisplayIds(lowered, { root: "1" });
-            assert.equal(lowered.conditions?.[0]?.custom?.enterPriority, 1);
-            assert.equal(lowered.conditions?.[0]?.custom?.maintainPriority, 1);
         },
     },
     {
@@ -1548,9 +1524,10 @@ export const documentDomainSharedTests = defineSharedTests([
             const tree = parsePersistedTreeContent(content, "/tmp/main.json");
             const [first, second] = tree.root.conditions ?? [];
             assert.equal(first?.abort, "both");
+            // Condition custom data is kept as written; the editor does not manage any key.
             assert.deepEqual(first?.custom, {
-                enterPriority: 1,
-                maintainPriority: 1,
+                enterPriority: 4,
+                maintainPriority: 7,
                 note: "keep",
             });
             assert.equal(first?.root.name, "Guard");
@@ -1846,8 +1823,8 @@ export const documentDomainSharedTests = defineSharedTests([
             assert.equal(attack?.conditions?.[0].root.id, "3");
             assert.equal(attack?.conditions?.[0].root.children, undefined);
             assert.deepEqual(attack?.conditions?.[0].custom, {
-                enterPriority: 2,
-                maintainPriority: 2,
+                enterPriority: 7,
+                maintainPriority: 7,
             });
             assert.equal(attack?.children?.[0].id, "5");
             // Overrides on subtree nodes inside a condition tree are reachable, so they are kept.
@@ -2061,8 +2038,7 @@ export const documentDomainSharedTests = defineSharedTests([
             if (result.status !== "changed") {
                 return;
             }
-            assert.equal(result.tree.root.conditions?.[0]?.custom?.enterPriority, 1);
-            assert.equal(result.tree.root.conditions?.[0]?.custom?.maintainPriority, 1);
+            assert.equal(result.tree.root.conditions?.[0]?.custom, undefined);
             assert.equal(result.tree.root.conditions?.[0]?.abort, "none");
             assert.equal(result.tree.root.conditions?.[0]?.root.name, "Guard");
             assert.equal(result.tree.root.children?.length ?? 0, 0);
@@ -2406,47 +2382,87 @@ export const documentDomainSharedTests = defineSharedTests([
         },
     },
     {
-        name: "writes condition-page edits back onto the host branch",
+        name: "builds short condition file locations that keep the host path in the query",
+        run() {
+            const location = buildConditionFileLocation("/w/workdir/hero.json", "a/b c");
+            assert.deepEqual(location, {
+                path: "/hero.json/a%2Fb%20c/condition.json",
+                query: "host=%2Fw%2Fworkdir%2Fhero.json",
+            });
+            assert.deepEqual(parseConditionFileLocation(location), {
+                hostFilePath: "/w/workdir/hero.json",
+                hostStableId: "a/b c",
+            });
+            assert.equal(
+                buildConditionFilePath("/w/workdir/hero.json", "abc"),
+                "/w/workdir/hero.json/abc/condition.json"
+            );
+            assert.equal(parseConditionFileLocation({ ...location, query: "" }), null);
+            assert.equal(
+                parseConditionFileLocation({ ...location, query: "host=%2Fw%2Fother.json" }),
+                null
+            );
+            assert.equal(
+                parseConditionFileLocation({
+                    path: "/hero.json/condition.json",
+                    query: location.query,
+                }),
+                null
+            );
+        },
+    },
+    {
+        name: "edits a condition file and writes it back into the host node",
         run() {
             const tree = createTestTree();
-            tree.root.name = "Attack";
-            tree.root.conditions = conditionList(
+            tree.prefix = "H";
+            tree.group = ["Client"];
+            tree.variables.locals = [{ name: "hp", desc: "" }];
+            tree.overrides = { "sub-node": { desc: "keep" } };
+            tree.root.conditions = [
                 {
-                    uuid: "guard",
-                    id: "",
-                    name: "Guard",
+                    abort: "both",
+                    custom: { enterPriority: 1, maintainPriority: 1, note: "keep" },
+                    root: { uuid: "guard", id: "2", name: "Sequence" },
                 },
-                3,
-                9
-            );
-            const nodeDefs: NodeDef[] = [
-                { name: "Attack", type: "Action", desc: "" },
-                { name: "Guard", type: "Condition", desc: "", status: ["success", "failure"] },
+                { abort: "none", root: { uuid: "second", id: "3", name: "Check" } },
             ];
-            const projected = projectConditionBranchMutation({
-                tree,
-                subtreeSources: {},
-                nodeDefs,
-                subtreeEditable: true,
-                session: {
-                    hostRef: {
-                        instanceKey: "1",
-                        displayId: "1",
-                        structuralStableId: "root",
-                        sourceStableId: "root",
-                        sourceTreePath: null,
-                        subtreeStack: [],
-                    },
-                    hostName: "Attack",
-                    hostSubtreeNode: false,
-                    entryCondition: tree.root.conditions![0].root,
-                },
-                mutation: {
+            const nodeDefs: NodeDef[] = [
+                { name: "Sequence", type: "Composite", desc: "" },
+                { name: "Check", type: "Condition", desc: "", status: ["success", "failure"] },
+                { name: "Wait", type: "Action", desc: "", status: ["running"] },
+            ];
+
+            assert.equal(buildConditionFileTree(tree, "missing"), null);
+            const conditionTree = buildConditionFileTree(tree, "root");
+            assert.ok(conditionTree);
+            assert.equal(conditionTree.name, "condition");
+            assert.equal(conditionTree.prefix, "H");
+            assert.deepEqual(conditionTree.group, ["Client"]);
+            assert.deepEqual(conditionTree.variables.locals, [{ name: "hp", desc: "" }]);
+            // The file's custom data is the condition's custom data.
+            assert.deepEqual(conditionTree.custom, {
+                enterPriority: 1,
+                maintainPriority: 1,
+                note: "keep",
+            });
+            assert.deepEqual(conditionTree.overrides, tree.overrides);
+            assert.equal(conditionTree.root.uuid, "guard");
+            assert.equal(conditionTree.root.conditions, undefined);
+            // The file round-trips like any tree file.
+            const reread = parsePersistedTreeContent(
+                serializePersistedTree(conditionTree),
+                "/w/hero.json/root/condition.json"
+            );
+            assert.equal(JSON.stringify(reread.root), JSON.stringify(conditionTree.root));
+
+            const edited = reduceDocumentMutation(
+                {
                     type: "insertNode",
                     payload: {
                         target: {
-                            instanceKey: "guard",
-                            displayId: "",
+                            instanceKey: "1",
+                            displayId: "1",
                             structuralStableId: "guard",
                             sourceStableId: "guard",
                             sourceTreePath: null,
@@ -2454,19 +2470,85 @@ export const documentDomainSharedTests = defineSharedTests([
                         },
                     },
                 },
-            });
-
-            assert.equal(projected.kind, "update");
-            if (projected.kind !== "update") {
+                { tree: conditionTree, nodeDefs }
+            );
+            assert.equal(edited.status, "changed");
+            if (edited.status !== "changed") {
                 return;
             }
-            assert.equal(projected.update.target.structuralStableId, "root");
-            assert.equal(projected.update.data.conditions?.[0]?.custom?.enterPriority, 3);
-            assert.equal(projected.update.data.conditions?.[0]?.custom?.maintainPriority, 9);
-            assert.equal(projected.update.data.conditions?.[0]?.abort, "self");
-            assert.equal(projected.update.data.conditions?.[0]?.root.name, "Guard");
-            assert.equal(projected.update.data.conditions?.[0]?.root.children?.length, 1);
-            assert.equal(tree.root.children?.length ?? 0, 0);
+            edited.tree.overrides = {};
+            // Custom data is edited like any other: change, add and delete keys.
+            edited.tree.custom = { maintainPriority: 1, extra: true };
+
+            const written = reduceDocumentMutation(
+                {
+                    type: "setConditionRoot",
+                    payload: { hostStableId: "root", ...readConditionFileWriteBack(edited.tree) },
+                },
+                { tree, nodeDefs }
+            );
+            assert.equal(written.status, "changed");
+            if (written.status !== "changed") {
+                return;
+            }
+            const [first, second] = written.tree.root.conditions ?? [];
+            assert.equal(first?.abort, "both");
+            assert.deepEqual(first?.custom, { maintainPriority: 1, extra: true });
+            assert.equal(first?.root.uuid, "guard");
+            assert.equal(first?.root.children?.length, 1);
+            assert.equal(second?.root.uuid, "second");
+            assert.deepEqual(written.tree.overrides, {});
+            assert.equal(tree.root.conditions?.[0].root.children, undefined);
+
+            const unchanged = reduceDocumentMutation(
+                {
+                    type: "setConditionRoot",
+                    payload: { hostStableId: "root", ...readConditionFileWriteBack(conditionTree) },
+                },
+                { tree, nodeDefs }
+            );
+            assert.equal(unchanged.status, "noop");
+
+            const running = reduceDocumentMutation(
+                {
+                    type: "setConditionRoot",
+                    payload: {
+                        hostStableId: "root",
+                        overrides: tree.overrides,
+                        root: {
+                            uuid: "guard",
+                            id: "2",
+                            name: "Sequence",
+                            children: [{ uuid: "wait", id: "", name: "Wait" }],
+                        },
+                    },
+                },
+                {
+                    tree,
+                    nodeDefs: [
+                        {
+                            name: "Sequence",
+                            type: "Composite",
+                            desc: "",
+                            status: ["|success", "|failure", "|running"],
+                        },
+                        ...nodeDefs.slice(1),
+                    ],
+                }
+            );
+            assert.equal(running.status, "error");
+            if (running.status === "error") {
+                assert.equal(running.error.code, "condition-running-status");
+            }
+
+            const missing = reduceDocumentMutation(
+                {
+                    type: "setConditionRoot",
+                    payload: { hostStableId: "nope", root: conditionTree.root, overrides: {} },
+                },
+                { tree, nodeDefs }
+            );
+            assert.equal(missing.status, "error");
         },
     },
     {

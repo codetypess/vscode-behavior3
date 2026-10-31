@@ -7,10 +7,11 @@ import type {
 import type { HostSelectionState } from "../../../webview/shared/contracts";
 import { normalizeNodeInstanceRef } from "../../../webview/shared/protocol";
 import {
-    readWorkspaceFileContent,
-    resolvePathInWorkdir,
-    uriToWorkdirRelative,
-} from "./paths";
+    translateRuntimeMessage,
+    type SupportedLanguage,
+} from "../../../webview/shared/runtime-i18n";
+import { buildConditionFileUri } from "../../condition-files";
+import { readWorkspaceFileContent, resolvePathInWorkdir, uriToWorkdirRelative } from "./paths";
 
 type HostMessageSink = (message: HostToEditorMessage) => Thenable<boolean>;
 
@@ -21,6 +22,9 @@ export interface SaveSubtreeContentAsResult {
 
 interface CreateSessionFileRequestHandlersParams {
     projectRootUri: vscode.Uri;
+    /** Real file of the current document (the host file for condition files). */
+    locationUri: vscode.Uri;
+    getLanguage(): SupportedLanguage;
     viewType: string;
     stageDocumentSelection(documentUri: string, selection: HostSelectionState): void;
     writeDocumentContentToDisk(targetUri: vscode.Uri, content: string): Promise<string>;
@@ -30,6 +34,8 @@ interface CreateSessionFileRequestHandlersParams {
 
 export function createSessionFileRequestHandlers({
     projectRootUri,
+    locationUri,
+    getLanguage,
     viewType,
     stageDocumentSelection,
     writeDocumentContentToDisk,
@@ -224,10 +230,46 @@ export function createSessionFileRequestHandlers({
         });
     };
 
+    /**
+     * Open the first condition of a node as `<host file>/<uuid>/condition.json`. Nodes inside a
+     * subtree open the condition stored in that subtree file.
+     */
+    const handleOpenConditionFileMessage = async (
+        msg: Extract<EditorToHostMessage, { type: "openConditionFile" }>
+    ): Promise<void> => {
+        const target = normalizeNodeInstanceRef(msg.target);
+        const hostUri = target.sourceTreePath
+            ? resolvePathInWorkdir(target.sourceTreePath, projectRootUri)
+            : locationUri;
+        if (!hostUri) {
+            return;
+        }
+        const hostStableId = target.sourceTreePath
+            ? target.sourceStableId
+            : target.structuralStableId;
+        const conditionUri = buildConditionFileUri(hostUri, hostStableId);
+        try {
+            await vscode.workspace.fs.stat(conditionUri);
+        } catch {
+            // Conditions added only by main-tree overrides are not in the subtree file.
+            void vscode.window.showWarningMessage(
+                translateRuntimeMessage(getLanguage(), "condition.fileUnavailable")
+            );
+            return;
+        }
+        await vscode.commands.executeCommand(
+            "vscode.openWith",
+            conditionUri,
+            viewType,
+            vscode.ViewColumn.Active
+        );
+    };
+
     return {
         handleReadFileMessage,
         handleSaveSubtreeMessage,
         handleSaveSubtreeAsMessage,
+        handleOpenConditionFileMessage,
         saveSubtreeContentAs,
     };
 }

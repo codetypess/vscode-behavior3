@@ -33,7 +33,6 @@ import {
     writeTree,
 } from "./tree";
 import { parseWorkspaceModelContent } from "./schema";
-import { syncConditionPriorities } from "./condition-branch";
 
 /**
  * Shared build pipeline helpers.
@@ -1089,8 +1088,6 @@ export const createBuildDataWithContext = async (
 
         assignSequentialNodeIds(treeModel.root);
         context.dfs(treeModel.root, (node) => {
-            // Priorities follow the final numeric id, before the prefix is added.
-            syncConditionPriorities(node);
             node.id = treeModel.prefix + node.id;
         });
         treeModel.name = b3path.basenameWithoutExt(treePath);

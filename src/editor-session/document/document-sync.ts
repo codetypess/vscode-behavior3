@@ -150,7 +150,12 @@ export class TreeEditorDocument implements vscode.CustomDocument {
         this._ownFileWrites = [];
     }
 
+    private readonly disposeEmitter = new vscode.EventEmitter<void>();
+    readonly onDidDispose = this.disposeEmitter.event;
+
     dispose(): void {
         this.clearOwnWrites();
+        this.disposeEmitter.fire();
+        this.disposeEmitter.dispose();
     }
 }

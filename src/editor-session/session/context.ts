@@ -16,6 +16,7 @@ import { normalizeHostSelectionState } from "../../../webview/shared/protocol";
 import { TreeEditorDocument } from "../document/document-sync";
 import { createSerialOperationQueue, type SerialOperationQueue } from "../runtime/operation-queue";
 import { getWorkdir } from "../files/paths";
+import { resolveBackingFileUri } from "../../condition-files";
 import { ProjectIndex, type VarDeclResult } from "../project/project-index";
 import {
     createLiveSettingsResolver,
@@ -29,6 +30,8 @@ export type MessageSource = "editor" | "external";
 export interface ActiveTreeEditorWebview {
     workspaceFsPath: string;
     documentUri: string;
+    /** Re-read the document from its backing file, as for an outside change. */
+    reloadFromBackingFile: () => Promise<void>;
     postMessage: (message: HostToEditorMessage) => Thenable<boolean>;
     dispatchMessage: (
         message: EditorToHostMessage,
@@ -64,6 +67,8 @@ export interface ResolveTreeEditorSessionParams {
         cancellation: vscode.CancellationToken
     ): Promise<void>;
     onDidChangeDocument(document: TreeEditorDocument): void;
+    /** The document content was replaced from disk (outside change). */
+    onDidReloadDocument(document: TreeEditorDocument): void;
     addActiveWebview(entry: ActiveTreeEditorWebview): void;
     removeActiveWebview(entry: ActiveTreeEditorWebview): void;
     stageDocumentSelection(documentUri: string, selection: HostSelectionState): void;
@@ -72,6 +77,8 @@ export interface ResolveTreeEditorSessionParams {
 }
 
 export interface TreeEditorSessionContext extends ResolveTreeEditorSessionParams {
+    /** Real file used to locate the workspace and settings; the host file for condition files. */
+    locationUri: vscode.Uri;
     workspaceFolderUri: vscode.Uri;
     projectRootUri: vscode.Uri;
     projectIndex: ProjectIndex;
@@ -87,18 +94,16 @@ export interface TreeEditorSessionContext extends ResolveTreeEditorSessionParams
 export async function createTreeEditorSessionContext(
     params: ResolveTreeEditorSessionParams
 ): Promise<TreeEditorSessionContext> {
-    const workspaceFolderUri = getWorkdir(params.document.uri);
+    const locationUri = resolveBackingFileUri(params.document.uri);
+    const workspaceFolderUri = getWorkdir(locationUri);
     const projectRootUri = vscode.Uri.file(
-        getBehaviorProjectRootFsPath(params.document.uri, workspaceFolderUri)
+        getBehaviorProjectRootFsPath(locationUri, workspaceFolderUri)
     );
     const projectIndex = new ProjectIndex(projectRootUri);
-    const resolveLiveSettings = createLiveSettingsResolver(
-        workspaceFolderUri,
-        params.document.uri
-    );
+    const resolveLiveSettings = createLiveSettingsResolver(workspaceFolderUri, locationUri);
     const [nodeDefs, settingDir, currentSettings] = await Promise.all([
-        resolveNodeDefs(workspaceFolderUri, params.document.uri),
-        getResolvedB3SettingDir(workspaceFolderUri, params.document.uri),
+        resolveNodeDefs(workspaceFolderUri, locationUri),
+        getResolvedB3SettingDir(workspaceFolderUri, locationUri),
         resolveLiveSettings(),
     ]);
 
@@ -136,6 +141,7 @@ export async function createTreeEditorSessionContext(
 
     return {
         ...params,
+        locationUri,
         workspaceFolderUri,
         projectRootUri,
         projectIndex,

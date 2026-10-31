@@ -78,7 +78,7 @@ export const editorControllerSharedTests = defineSharedTests([
                 selectTree() {},
                 selectNode() {},
                 requestFocusVariable() {},
-                requestOpenConditionEditor() {},
+                requestOpenConditionFile() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -169,7 +169,7 @@ export const editorControllerSharedTests = defineSharedTests([
                 selectTree() {},
                 selectNode() {},
                 requestFocusVariable() {},
-                requestOpenConditionEditor() {},
+                requestOpenConditionFile() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -343,7 +343,7 @@ export const editorControllerSharedTests = defineSharedTests([
                 selectTree() {},
                 selectNode() {},
                 requestFocusVariable() {},
-                requestOpenConditionEditor() {},
+                requestOpenConditionFile() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -484,7 +484,7 @@ export const editorControllerSharedTests = defineSharedTests([
                 selectTree() {},
                 selectNode() {},
                 requestFocusVariable() {},
-                requestOpenConditionEditor() {},
+                requestOpenConditionFile() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -644,7 +644,7 @@ export const editorControllerSharedTests = defineSharedTests([
                     selectedNodeTargets.push(target);
                 },
                 requestFocusVariable() {},
-                requestOpenConditionEditor() {},
+                requestOpenConditionFile() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -802,7 +802,7 @@ export const editorControllerSharedTests = defineSharedTests([
                 requestFocusVariable(names) {
                     requestedVariableNames = [...names];
                 },
-                requestOpenConditionEditor() {},
+                requestOpenConditionFile() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -923,7 +923,7 @@ export const editorControllerSharedTests = defineSharedTests([
                     selectedNodeTargets.push(target);
                 },
                 requestFocusVariable() {},
-                requestOpenConditionEditor() {},
+                requestOpenConditionFile() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -1085,7 +1085,7 @@ export const editorControllerSharedTests = defineSharedTests([
                     selectedNodeTargets.push(target);
                 },
                 requestFocusVariable() {},
-                requestOpenConditionEditor() {},
+                requestOpenConditionFile() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -1220,7 +1220,7 @@ export const editorControllerSharedTests = defineSharedTests([
                     selectedNodeTargets.push(target);
                 },
                 requestFocusVariable() {},
-                requestOpenConditionEditor() {},
+                requestOpenConditionFile() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -1379,7 +1379,7 @@ export const editorControllerSharedTests = defineSharedTests([
                     selectedNodeTarget = target;
                 },
                 requestFocusVariable() {},
-                requestOpenConditionEditor() {},
+                requestOpenConditionFile() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -1627,7 +1627,7 @@ export const editorControllerSharedTests = defineSharedTests([
                     selectedNodeTarget = target;
                 },
                 requestFocusVariable() {},
-                requestOpenConditionEditor() {},
+                requestOpenConditionFile() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -1783,172 +1783,6 @@ export const editorControllerSharedTests = defineSharedTests([
         },
     },
     {
-        name: "mirrors the condition page from host selection so the sidebar resolves its nodes",
-        async run() {
-            const createController = (selectNodeCalls: unknown[][]) => {
-                const documentStore = createDocumentStore();
-                const selectionStore = createSelectionStore();
-                const graphUiStore = createGraphUiStore();
-                const appHooks = createAppHooksStore();
-                appHooks.bind({
-                    message: { success() {}, error() {} } as any,
-                    notification: {} as any,
-                    modal: {} as any,
-                });
-                const hostAdapter: HostAdapter = {
-                    connect: () => () => {},
-                    sendReady() {},
-                    undo() {},
-                    redo() {},
-                    async mutateDocument() {
-                        return { success: true };
-                    },
-                    selectTree() {},
-                    selectNode(...args: unknown[]) {
-                        selectNodeCalls.push(args);
-                    },
-                    requestFocusVariable() {},
-                    requestOpenConditionEditor() {},
-                    sendRequestSetting() {},
-                    sendBuild() {},
-                    executeInspectorHostCommand() {},
-                    async validateNodeChecks() {
-                        return { diagnostics: [] };
-                    },
-                    async saveDocument() {
-                        return { success: true };
-                    },
-                    async revertDocument() {
-                        return { success: true };
-                    },
-                    async readFile() {
-                        return { content: "{}" };
-                    },
-                    async saveSubtree() {
-                        return { success: true };
-                    },
-                    async saveSubtreeAs() {
-                        return { savedPath: null };
-                    },
-                    log() {},
-                };
-                const graphAdapter: GraphAdapter = {
-                    async mount() {},
-                    unmount() {},
-                    async render() {},
-                    async applySelection() {},
-                    async applyHighlights() {},
-                    async applySearch() {},
-                    async focusNode() {},
-                    async restoreViewport() {},
-                    getViewport: () => ({ zoom: 1, x: 0, y: 0 }),
-                };
-                const controller = createEditorController({
-                    documentStore,
-                    workspaceStore: createWorkspaceStore(),
-                    selectionStore,
-                    graphUiStore,
-                    hostAdapter,
-                    graphAdapter,
-                    appHooks,
-                });
-                return { controller, selectionStore, graphUiStore };
-            };
-
-            const tree = createTestTree();
-            tree.root.children = [
-                {
-                    uuid: "host",
-                    id: "2",
-                    name: "ActionA",
-                    conditions: [
-                        {
-                            abort: "self",
-                            root: {
-                                uuid: "guard",
-                                id: "3",
-                                name: "Sequence",
-                                children: [{ uuid: "check", id: "4", name: "Check" }],
-                            },
-                        },
-                    ],
-                },
-            ];
-            const content = serializePersistedTree(tree);
-            const documentSession = {
-                dirty: false,
-                historyIndex: 0,
-                historyLength: 1,
-                lastSavedSnapshot: content,
-                alertReload: false,
-                pendingExternalContent: null,
-            };
-            const init = {
-                filePath: "/tmp/main.json",
-                workdir: "/tmp",
-                content,
-                nodeDefs: [
-                    { name: "Sequence", type: "Composite" as const, desc: "" },
-                    { name: "ActionA", type: "Action" as const, desc: "" },
-                    { name: "Check", type: "Condition" as const, desc: "" },
-                ],
-                allFiles: [],
-                settings: createHostInitSettings(),
-                documentSession,
-                selection: { kind: "tree" as const },
-            };
-
-            // Editor: opening the page selects the condition root and names the host.
-            const editorCalls: unknown[][] = [];
-            const editor = createController(editorCalls);
-            await editor.controller.initFromHost(init);
-            const hostRef: NodeInstanceRef = {
-                instanceKey: "2",
-                displayId: "2",
-                structuralStableId: "host",
-                sourceStableId: "host",
-                sourceTreePath: null,
-                subtreeStack: [],
-            };
-            await editor.controller.openConditionEditor(hostRef);
-            const [rootRef, surface, conditionHost] = editorCalls.at(-1) ?? [];
-            assert.equal((rootRef as NodeInstanceRef).structuralStableId, "guard");
-            assert.equal(surface, undefined);
-            assert.equal((conditionHost as NodeInstanceRef).structuralStableId, "host");
-
-            // Sidebar: the same selection opens a mirrored page and resolves at once.
-            const sidebar = createController([]);
-            await sidebar.controller.initFromHost(init);
-            await sidebar.controller.applyDocumentSnapshot({
-                content,
-                documentSession,
-                selection: {
-                    kind: "node",
-                    ref: rootRef as NodeInstanceRef,
-                    conditionHost: conditionHost as NodeInstanceRef,
-                },
-                syncKind: "update",
-            });
-            const session = sidebar.graphUiStore.getState().conditionEdit;
-            assert.equal(session?.source, "selection");
-            assert.equal(session?.hostName, "ActionA");
-            assert.equal(session?.entryCondition?.uuid, "guard");
-            const selected = sidebar.selectionStore.getState();
-            assert.equal(selected.selectedNodeSnapshot?.data.name, "Sequence");
-            assert.equal(selected.selectedNodeSnapshot?.data.uuid, "guard");
-
-            // Leaving the page selects the host without `conditionHost`.
-            await sidebar.controller.applyDocumentSnapshot({
-                content,
-                documentSession,
-                selection: { kind: "node", ref: hostRef },
-                syncKind: "update",
-            });
-            assert.equal(sidebar.graphUiStore.getState().conditionEdit, null);
-            assert.equal(sidebar.selectionStore.getState().selectedNodeSnapshot?.data.uuid, "host");
-        },
-    },
-    {
         name: "anchors structural mutation rebuilds on local target context nodes",
         async run() {
             const createDocumentSession = (content: string) => ({
@@ -2041,7 +1875,7 @@ export const editorControllerSharedTests = defineSharedTests([
                         selectedNodeTargets.push(target);
                     },
                     requestFocusVariable() {},
-                    requestOpenConditionEditor() {},
+                    requestOpenConditionFile() {},
                     sendRequestSetting() {},
                     sendBuild() {},
                     executeInspectorHostCommand() {},
@@ -2260,7 +2094,7 @@ export const editorControllerSharedTests = defineSharedTests([
                     selectedNodeTarget = target;
                 },
                 requestFocusVariable() {},
-                requestOpenConditionEditor() {},
+                requestOpenConditionFile() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -2418,7 +2252,7 @@ export const editorControllerSharedTests = defineSharedTests([
                     selectedNodeTarget = target;
                 },
                 requestFocusVariable() {},
-                requestOpenConditionEditor() {},
+                requestOpenConditionFile() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -2587,7 +2421,7 @@ export const editorControllerSharedTests = defineSharedTests([
                     selectedNodeTarget = target;
                 },
                 requestFocusVariable() {},
-                requestOpenConditionEditor() {},
+                requestOpenConditionFile() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -2809,7 +2643,7 @@ export const editorControllerSharedTests = defineSharedTests([
                     selectedNodeTarget = target;
                 },
                 requestFocusVariable() {},
-                requestOpenConditionEditor() {},
+                requestOpenConditionFile() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -2962,7 +2796,7 @@ export const editorControllerSharedTests = defineSharedTests([
                 selectTree() {},
                 selectNode() {},
                 requestFocusVariable() {},
-                requestOpenConditionEditor() {},
+                requestOpenConditionFile() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -3152,7 +2986,7 @@ export const editorControllerSharedTests = defineSharedTests([
                 selectTree() {},
                 selectNode() {},
                 requestFocusVariable() {},
-                requestOpenConditionEditor() {},
+                requestOpenConditionFile() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},
@@ -3345,7 +3179,7 @@ export const editorControllerSharedTests = defineSharedTests([
                 selectTree() {},
                 selectNode() {},
                 requestFocusVariable() {},
-                requestOpenConditionEditor() {},
+                requestOpenConditionFile() {},
                 sendRequestSetting() {},
                 sendBuild() {},
                 executeInspectorHostCommand() {},

@@ -1,3 +1,4 @@
+import { resolveDocumentFsPath } from "../../condition-files";
 import type { HostSelectionState } from "../../../webview/shared/contracts";
 import type { DocumentSessionSnapshot } from "../document/document-session-state";
 import type { VarDeclResult } from "../project/project-index";
@@ -65,7 +66,7 @@ export function createSessionInspectorSync(
     }) =>
         buildHostInitMessage({
             content: opts?.content ?? document.content,
-            filePath: document.uri.fsPath,
+            filePath: resolveDocumentFsPath(document.uri),
             workdir: projectRootUri.fsPath,
             nodeDefs: mapDefsForWebview(),
             settings: state.currentSettings,

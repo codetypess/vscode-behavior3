@@ -20,6 +20,8 @@ import {
     validateScriptScaffoldBaseName,
 } from "./script-scaffold";
 import { findB3SettingPath } from "./setting-resolver";
+import { ConditionFileSystemProvider } from "./condition-files";
+import { CONDITION_FILE_SCHEME } from "../webview/shared/condition-file";
 import { TreeEditorProvider } from "./tree-editor-provider";
 
 const getVSCodeTheme = (): "dark" | "light" => {
@@ -62,6 +64,14 @@ export function activate(context: vscode.ExtensionContext) {
     );
     inspectorCoordinator.setMessageDispatcher((documentUri, message, reply) =>
         TreeEditorProvider.dispatchMessageToDocument(documentUri, message, reply)
+    );
+    context.subscriptions.push(
+        // Condition files (`<host file>/<uuid>/condition.json`) read from and write to their host.
+        vscode.workspace.registerFileSystemProvider(
+            CONDITION_FILE_SCHEME,
+            new ConditionFileSystemProvider(editorProvider),
+            { isCaseSensitive: true }
+        )
     );
     context.subscriptions.push(
         vscode.window.registerCustomEditorProvider(TreeEditorProvider.viewType, editorProvider, {

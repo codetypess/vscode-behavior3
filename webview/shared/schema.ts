@@ -10,15 +10,7 @@ import {
 } from "./b3type";
 import type { NodeDef } from "./b3type";
 import { generateDeterministicUuid, generateUuid } from "./stable-id";
-import {
-    CONDITION_ENTER_PRIORITY_KEY,
-    CONDITION_MAINTAIN_PRIORITY_KEY,
-    ensureConditionTypeCustom,
-    isAbortMode,
-    normalizeConditionPriorities,
-    readConditionInt,
-    withConditionPriorities,
-} from "./condition-branch";
+import { ensureConditionTypeCustom, isAbortMode } from "./condition-branch";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
 
 const NODE_DEF_TYPES = new Set<NodeDef["type"]>(["Action", "Decorator", "Condition", "Composite"]);
@@ -315,14 +307,9 @@ const normalizeNodeDef = (value: unknown, label: string): NodeDef => {
     };
 };
 
-/**
- * `hostId` is the display id of the node that owns the conditions; it drives the editor-owned
- * priorities in `custom`. Override patches have no host id and keep the stored enter priority.
- */
 const normalizeConditions = (
     value: unknown,
     label: string,
-    hostId: string | undefined,
     stableIdSeed?: string
 ): ConditionData<NodeData>[] | undefined => {
     if (value === undefined) {
@@ -344,14 +331,9 @@ const normalizeConditions = (
         }
 
         const custom = normalizeCustomRecord(record.custom, `${itemLabel}.custom`);
-        const enterId =
-            hostId ?? String(readConditionInt(custom[CONDITION_ENTER_PRIORITY_KEY]) ?? "");
         return {
             abort,
-            custom: withConditionPriorities(
-                custom,
-                normalizeConditionPriorities(enterId, custom[CONDITION_MAINTAIN_PRIORITY_KEY])
-            ),
+            custom: Object.keys(custom).length > 0 ? custom : undefined,
             root: normalizeNodeData(record.root, `${itemLabel}.root`, stableIdSeed),
         };
     });
@@ -386,11 +368,7 @@ const normalizeOverrideMap = (value: unknown, label: string): TreeData["override
             args: argsValue ? { ...argsValue } : undefined,
             debug: typeof patch.debug === "boolean" ? patch.debug : undefined,
             disabled: typeof patch.disabled === "boolean" ? patch.disabled : undefined,
-            conditions: normalizeConditions(
-                patch.conditions,
-                `${label}.${key}.conditions`,
-                undefined
-            ),
+            conditions: normalizeConditions(patch.conditions, `${label}.${key}.conditions`),
         };
     }
 
@@ -478,12 +456,7 @@ const normalizeNodeData = (value: unknown, label: string, stableIdSeed?: string)
             typeof record.$status === "number" && Number.isFinite(record.$status)
                 ? record.$status
                 : undefined,
-        conditions: normalizeConditions(
-            record.conditions,
-            `${label}.conditions`,
-            record.id === undefined ? "" : String(record.id),
-            stableIdSeed
-        ),
+        conditions: normalizeConditions(record.conditions, `${label}.conditions`, stableIdSeed),
     };
 };
 

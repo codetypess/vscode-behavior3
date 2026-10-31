@@ -1,3 +1,4 @@
+import { resolveDocumentFsPath } from "../../condition-files";
 import { normalizeTreeContentForWrite } from "../document/document-sync";
 import type { FileVersionGuard } from "./file-version-guard";
 import {
@@ -90,7 +91,10 @@ const pruneReachableSubtreeOverrides = (
  * file-version state for subsequent watcher/save logic.
  */
 function applyContentFromWebview(deps: DocumentMutationRuntimeDeps, content: string): boolean {
-    const normalizedContent = normalizeTreeContentForWrite(content, deps.document.uri.fsPath);
+    const normalizedContent = normalizeTreeContentForWrite(
+        content,
+        resolveDocumentFsPath(deps.document.uri)
+    );
     if (deps.document.content === normalizedContent) {
         return false;
     }
@@ -118,7 +122,10 @@ async function handleSaveSelectedAsSubtreeMutation(
     }
 
     // This mutation crosses the file-system boundary, so it stays host-side instead of reducer-only.
-    const currentTree = parsePersistedTreeContent(deps.document.content, deps.document.uri.fsPath);
+    const currentTree = parsePersistedTreeContent(
+        deps.document.content,
+        resolveDocumentFsPath(deps.document.uri)
+    );
     if (currentTree.root.uuid === msg.mutation.payload.target.structuralStableId) {
         return {
             kind: "handled",
@@ -300,7 +307,7 @@ async function handleMutateDocumentMessage(
         try {
             currentTree = parsePersistedTreeContent(
                 deps.document.content,
-                deps.document.uri.fsPath
+                resolveDocumentFsPath(deps.document.uri)
             );
             reduced = reduceDocumentMutation(msg.mutation, {
                 tree: currentTree,

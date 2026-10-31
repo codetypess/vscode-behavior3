@@ -220,7 +220,7 @@ host reducer 当前分三条路径：
 ### `attachCondition(entryName)`
 
 - 任意节点在当前还没有条件时可用（编辑器目前每个节点只编辑一项）
-- 选定的节点成为 `conditions[0].root`，不进入宿主的 `children`。`abort` 为 `none`，`custom` 带 `enterPriority` / `maintainPriority`，都等于宿主节点 id 的整数值
+- 选定的节点成为 `conditions[0].root`，不进入宿主的 `children`。`abort` 为 `none`，没有 `custom`
 - 根节点定义的 `status` 含字面量 `running` 时拒绝
 - 条件树内部不能再带 `conditions`；条件树不能返回 `running`：按 behavior3 2.0 的静态推导，`running` 节点自己会返回 running，`|running` 节点在任一启用的子节点会返回 running 时会返回 running。没有声明 `status` 的节点这里不拦（后续校验给 warning）
 - 子树内部节点的结果写入主文档 `overrides`
@@ -231,12 +231,11 @@ host reducer 当前分三条路径：
 - 子树节点上仅由主文档 override 挂上的条件可以去掉；去掉后若没有其他差异，删除对应 override 条目
 - 子树源文件里已经有的条件不能清掉。右键菜单不显示这项，reducer 也会拒绝
 
-### 条件临时页面
+### 条件文件
 
-- 条件面板的「打开编辑视图」按钮，或双击节点上方的条件附属，进入临时页面。页面复用当前画布和 Inspector，把第一项条件的条件树当作当前树根
-- 页面里的结构修改提交到父文档，写成对该节点 `conditions[0].root` 的变更，`abort`、`custom` 和其他项不变
-- 关闭时若条件树相对进入页面时有变化，提示保存、撤销或取消关闭
-- 保存写父文档并离开；撤销把条件树恢复成进入页面时的样子并离开；取消关闭留在页面
+- 条件面板的「打开编辑视图」按钮，或双击节点上方的条件附属，在新标签页打开条件文件 `…/<宿主文件>/<uuid>/condition.json`。它是普通的 Behavior3 Editor 文档，画布、Inspector、复制粘贴、撤销都照常工作，侧栏 Inspector 也把它当普通文件
+- 条件文件的树级「自定义数据」就是这项条件的 `custom`，可以查看、增删改。保存条件文件：根节点、`custom` 和 `overrides` 通过 `setConditionRoot` 写回宿主文件第一项条件，`abort` 和其他项不变；宿主文件已打开时它变成未保存、可以撤销，没打开时直接写盘。违反条件树约束时拒绝保存。条件文件里其他树级字段（说明、变量等）的修改不写回
+- 宿主文件变化（编辑、撤销、保存、还原、外部修改）后，条件文件没有未保存修改时直接刷新，有时按外部修改冲突处理
 - 双击节点本体仍打开 subtree
 
 #### C. 从 subtree link 脱链
@@ -284,7 +283,7 @@ host reducer 当前分三条路径：
 
 - 主编辑器或侧栏发起保存后，最终都进入 VS Code custom editor 保存生命周期
 - 宿主写盘前会重新解析当前主文档，并用 resolved graph 的主树 display id 回写 persisted `id`
-- 这次回写包括条件树里的节点，并同时更新每项条件 `custom` 里的优先级。进入优先级写成新的节点 id。维持优先级若仍等于旧的进入优先级，也写成新 id；已经改小的值保持不变，大于新的进入优先级时降到该值
+- 这次回写包括条件树里的节点
 - 该回写只作用于主树结构节点，不把 subtree 内部实例 id 反写到主文档
 - 同一次保存动作会显式写回当前可达 legacy subtree 的规范化内容
 - 保存成功后，宿主当前 history 游标快照同步替换为写盘后的规范化内容
@@ -335,7 +334,7 @@ host reducer 当前分三条路径：
 - 只是把 build 请求交给宿主
 - 结果通过 `buildResult` 回推
 - 宿主执行 build 时，进程当前工作目录必须切换到解析出的行为树项目目录，也就是命中的 `*.b3-workspace` 所在目录；如果该目录经过符号链接进入，宿主必须先把已有文件路径规范化到同一个 canonical filesystem path，再让 build script 观察 `process.cwd()` 与 build context `workdir` 保持一致，而不是一个是 lexical path、另一个是 real path
-- 构建产物带上节点 `conditions`：条件树里的 subtree 被展开、override 被应用，id 按节点、条件树、子节点的顺序重新编号后加前缀，条件 `custom` 里的优先级按最终 id（不含前缀）重算。build 校验和 batch `onProcessNode` 也会走到条件树里的节点；batch hook 对条件根返回空时去掉该条件项
+- 构建产物带上节点 `conditions`：条件树里的 subtree 被展开、override 被应用，id 按节点、条件树、子节点的顺序重新编号后加前缀，条件 `custom` 原样导出。build 校验和 batch `onProcessNode` 也会走到条件树里的节点；batch hook 对条件根返回空时去掉该条件项
 - `Ctrl+B` / `Cmd+B` 与 `Ctrl+Shift+B` / `Cmd+Shift+B` 由 VS Code contributed keybindings 直接触发 extension-host build command；webview 不应重复绑定同一组 build 快捷键
 - Inspector view title 中的 build action 同样触发 `behavior3.build` extension-host command，不新增 webview 内部 build 入口
 

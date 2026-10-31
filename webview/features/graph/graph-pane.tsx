@@ -1,8 +1,8 @@
-import { App, Button, Dropdown, Flex, Modal, Select } from "antd";
+import { App, Dropdown, Flex, Modal, Select } from "antd";
 import type { MenuProps } from "antd";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useGraphUiStore, useRuntime, useWorkspaceStore } from "../../app/runtime";
+import { useRuntime, useWorkspaceStore } from "../../app/runtime";
 import { canOpenSubtreeTarget } from "../../domain/subtree-navigation";
 import { nodeDefReturnsRunning } from "../../shared/condition-branch";
 import { isEditableEventTarget } from "../../shared/editable-event-target";
@@ -35,18 +35,11 @@ export const GraphPane: React.FC = () => {
     const [searchFocusToken, setSearchFocusToken] = useState(0);
     const [conditionPickerOpen, setConditionPickerOpen] = useState(false);
     const [conditionEntryName, setConditionEntryName] = useState<string | undefined>();
-    const [conditionCloseOpen, setConditionCloseOpen] = useState(false);
     const { selectedNode, selectedNodeRef, searchOpen, rootStableId } = useGraphPaneState();
     const nodeDefs = useWorkspaceStore((state) => state.nodeDefs);
-    const conditionEdit = useGraphUiStore((state) => state.conditionEdit);
-    const canAddCondition = Boolean(
-        selectedNode &&
-        !conditionEdit &&
-        !selectedNode.hasAttachedCondition
-    );
+    const canAddCondition = Boolean(selectedNode && !selectedNode.hasAttachedCondition);
     const canRemoveCondition = Boolean(
         selectedNode &&
-        !conditionEdit &&
         selectedNode.hasAttachedCondition &&
         !(selectedNode.subtreeNode && selectedNode.subtreeOriginal?.conditions?.length)
     );
@@ -274,7 +267,7 @@ export const GraphPane: React.FC = () => {
                 }),
             onNodeDoubleClicked: (node, source) => {
                 if (source === "condition") {
-                    void runtime.controller.openConditionEditor(node);
+                    void runtime.controller.openConditionFile(node);
                     return;
                 }
                 void runtime.controller.openSelectedSubtree(node);
@@ -293,29 +286,8 @@ export const GraphPane: React.FC = () => {
         return () => adapter.unmount();
     }, [adapter, message, runtime.controller]);
 
-    const requestCloseConditionEditor = () => {
-        if (runtime.controller.conditionEditIsDirty()) {
-            setConditionCloseOpen(true);
-            return;
-        }
-        void runtime.controller.finishConditionEditor("discard");
-    };
-
     return (
         <div ref={shellRef} className="b3-graph-shell" tabIndex={-1}>
-            {conditionEdit ? (
-                <Flex
-                    align="center"
-                    justify="space-between"
-                    gap={12}
-                    style={{ padding: "6px 12px" }}
-                >
-                    <span>{t("condition.editing", { name: conditionEdit.hostName })}</span>
-                    <Button size="small" onClick={requestCloseConditionEditor}>
-                        {t("condition.close")}
-                    </Button>
-                </Flex>
-            ) : null}
             {searchOpen ? (
                 <SearchBar
                     focusToken={searchFocusToken}
@@ -350,41 +322,6 @@ export const GraphPane: React.FC = () => {
                     options={conditionEntryOptions}
                     onChange={(value) => setConditionEntryName(value)}
                 />
-            </Modal>
-            <Modal
-                title={t("condition.unsavedTitle")}
-                open={conditionCloseOpen}
-                onCancel={() => setConditionCloseOpen(false)}
-                footer={[
-                    <Button key="cancel" onClick={() => setConditionCloseOpen(false)}>
-                        {t("condition.cancelClose")}
-                    </Button>,
-                    <Button
-                        key="discard"
-                        onClick={() => {
-                            setConditionCloseOpen(false);
-                            void runtime.controller.finishConditionEditor("discard");
-                        }}
-                    >
-                        {t("condition.discard")}
-                    </Button>,
-                    <Button
-                        key="save"
-                        type="primary"
-                        onClick={() => {
-                            void (async () => {
-                                const saved = await runtime.controller.finishConditionEditor("save");
-                                if (saved) {
-                                    setConditionCloseOpen(false);
-                                }
-                            })();
-                        }}
-                    >
-                        {t("condition.save")}
-                    </Button>,
-                ]}
-            >
-                {t("condition.unsavedBody")}
             </Modal>
         </div>
     );

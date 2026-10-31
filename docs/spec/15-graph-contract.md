@@ -144,7 +144,7 @@ graph adapter 允许保留实现自有的 graph-local 视觉缓存，例如节�
 - node context menu
     - 先选择节点，再由外层决定菜单行为
 - node double click
-    - 命中节点上方的条件附属时进入当前编辑器的临时页面，编辑该节点第一项条件的条件树
+    - 命中节点上方的条件附属时在新标签页打开该节点第一项条件的条件文件
     - 条件附属双击的命中范围与单击相同，覆盖整条上方附属，不限于文字
     - 命中节点本体时按 `node.ref` 打开 subtree
     - 不依赖当前 host selection store 已经先收敛到这个节点

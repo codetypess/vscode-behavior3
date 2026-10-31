@@ -1,9 +1,4 @@
 import { DOCUMENT_VERSION } from "../shared/b3type";
-import {
-    buildConditionRestoreUpdate,
-    projectConditionBranchMutation,
-    readHostConditionBranch,
-} from "../domain/condition-edit";
 import i18n from "../shared/i18n";
 import type {
     DropIntent,
@@ -39,9 +34,7 @@ type MutationCommandKeys =
     | "saveSelectedAsSubtree"
     | "attachCondition"
     | "removeCondition"
-    | "openConditionEditor"
-    | "conditionEditIsDirty"
-    | "finishConditionEditor";
+    | "openConditionFile";
 
 type DropPreflightDenialReason =
     | "missing-context"
@@ -119,41 +112,6 @@ const forwardDocumentMutation = async (
     runtime: ControllerRuntime,
     mutation: DocumentMutation
 ): Promise<DocumentMutationResponse> => {
-    const session = runtime.deps.graphUiStore.getState().conditionEdit;
-    const tree = runtime.deps.documentStore.getState().persistedTree;
-    if (session && tree && isReducibleDocumentMutation(mutation)) {
-        const workspace = runtime.deps.workspaceStore.getState();
-        const projected = projectConditionBranchMutation({
-            tree,
-            subtreeSources: workspace.subtreeSources,
-            nodeDefs: workspace.nodeDefs,
-            subtreeEditable: workspace.settings.subtreeEditable,
-            session,
-            mutation,
-        });
-        if (projected.kind === "error") {
-            const message = formatDocumentMutationReducerError(
-                projected.error,
-                workspace.settings.language
-            );
-            runtime.notifyError(message);
-            return { success: false, error: message };
-        }
-        if (projected.kind === "noop") {
-            return { success: true };
-        }
-        if (projected.kind === "update") {
-            const response = await runtime.deps.hostAdapter.mutateDocument({
-                type: "updateNode",
-                payload: projected.update,
-            });
-            if (!response.success) {
-                runtime.notifyError(response.error ?? "Document mutation failed");
-            }
-            return response;
-        }
-    }
-
     // Mutations always round-trip through the host so undo history and filesystem state stay canonical.
     const response = await runtime.deps.hostAdapter.mutateDocument(mutation);
     if (!response.success) {
@@ -531,10 +489,6 @@ export const createMutationCommands = (
                 runtime.notifyError(i18n.t("node.noNodeSelected"));
                 return;
             }
-            if (runtime.deps.graphUiStore.getState().conditionEdit) {
-                runtime.notifyError(i18n.t("mutation.conditionNested"));
-                return;
-            }
             if (selected.attachedConditionName) {
                 runtime.notifyError(i18n.t("mutation.conditionAlreadyAttached"));
                 return;
@@ -565,10 +519,6 @@ export const createMutationCommands = (
                 runtime.notifyError(i18n.t("node.noNodeSelected"));
                 return;
             }
-            if (runtime.deps.graphUiStore.getState().conditionEdit) {
-                runtime.notifyError(i18n.t("mutation.conditionNested"));
-                return;
-            }
             if (!selected.attachedConditionName) {
                 runtime.notifyError(i18n.t("mutation.conditionNotAttached"));
                 return;
@@ -596,157 +546,9 @@ export const createMutationCommands = (
             });
         },
 
-        async openConditionEditor(target) {
-            if (runtime.deps.graphUiStore.getState().conditionEdit) {
-                return;
-            }
-            const resolved = runtime.getResolvedGraph()?.nodesByInstanceKey[target.instanceKey];
-            const tree = runtime.deps.documentStore.getState().persistedTree;
-            const workspace = runtime.deps.workspaceStore.getState();
-            if (!resolved?.attachedConditionName || !tree) {
-                return;
-            }
-            const branch = readHostConditionBranch({
-                tree,
-                subtreeSources: workspace.subtreeSources,
-                nodeDefs: workspace.nodeDefs,
-                subtreeEditable: workspace.settings.subtreeEditable,
-                hostRef: resolved.ref,
-            });
-            if (!branch) {
-                return;
-            }
-
-            runtime.deps.graphUiStore.setState((state) => ({
-                ...state,
-                conditionEdit: {
-                    hostRef: resolved.ref,
-                    source: "editor",
-                    hostName: resolved.name,
-                    hostSubtreeNode: resolved.subtreeNode,
-                    entryCondition: branch,
-                },
-            }));
-            await runtime.rebuildGraph({ preserveSelection: false });
-            const rootKey = runtime.getResolvedGraph()?.rootKey;
-            const root = rootKey
-                ? runtime.getResolvedGraph()?.nodesByInstanceKey[rootKey]
-                : undefined;
-            if (root) {
-                // `conditionHost` lets the sidebar open the same page and resolve this ref.
-                runtime.deps.hostAdapter.selectNode(root.ref, undefined, resolved.ref);
-                await runtime.showSelectionVisualHint(root.ref.instanceKey);
-            }
-        },
-
-        conditionEditIsDirty() {
-            const session = runtime.deps.graphUiStore.getState().conditionEdit;
-            const tree = runtime.deps.documentStore.getState().persistedTree;
-            const workspace = runtime.deps.workspaceStore.getState();
-            if (!session?.entryCondition || !tree) {
-                return false;
-            }
-            const branch = readHostConditionBranch({
-                tree,
-                subtreeSources: workspace.subtreeSources,
-                nodeDefs: workspace.nodeDefs,
-                subtreeEditable: workspace.settings.subtreeEditable,
-                hostRef: session.hostRef,
-            });
-            return !isJsonEqual(branch, session.entryCondition);
-        },
-
-        async finishConditionEditor(action) {
-            const session = runtime.deps.graphUiStore.getState().conditionEdit;
-            if (!session) {
-                return true;
-            }
-
-            const leave = async () => {
-                runtime.deps.graphUiStore.setState((state) => ({
-                    ...state,
-                    conditionEdit: null,
-                }));
-                await runtime.rebuildGraph({ preserveSelection: false });
-                const graph = runtime.getResolvedGraph();
-                const host = graph
-                    ? Object.values(graph.nodesByInstanceKey).find(
-                          (node) =>
-                              node.ref.structuralStableId === session.hostRef.structuralStableId &&
-                              node.ref.sourceStableId === session.hostRef.sourceStableId
-                      )
-                    : undefined;
-                // Either selection drops `conditionHost`, which closes mirrored pages too.
-                if (host) {
-                    runtime.deps.hostAdapter.selectNode(host.ref);
-                    await runtime.showSelectionVisualHint(host.ref.instanceKey);
-                } else {
-                    runtime.deps.hostAdapter.selectTree();
-                }
-            };
-
-            if (action === "save") {
-                const currentTree = runtime.deps.documentStore.getState().persistedTree;
-                if (
-                    currentTree &&
-                    compareDocumentVersion(currentTree.version, DOCUMENT_VERSION) > 0
-                ) {
-                    runtime.deps.hostAdapter.log(
-                        "warn",
-                        `[v2] refusing to save newer file version: ${currentTree.version}`
-                    );
-                    return false;
-                }
-                const saved = await runtime.deps.hostAdapter.saveDocument();
-                if (!saved.success) {
-                    const error = saved.error ?? "Save failed";
-                    runtime.notifyError(
-                        error.includes("condition-nested")
-                            ? i18n.t("mutation.conditionNested")
-                            : error.includes("condition-running-status")
-                              ? i18n.t("mutation.conditionRunningStatus")
-                              : error
-                    );
-                    return false;
-                }
-                await leave();
-                return true;
-            }
-
-            const tree = runtime.deps.documentStore.getState().persistedTree;
-            const workspace = runtime.deps.workspaceStore.getState();
-            if (tree && session.entryCondition) {
-                const current = readHostConditionBranch({
-                    tree,
-                    subtreeSources: workspace.subtreeSources,
-                    nodeDefs: workspace.nodeDefs,
-                    subtreeEditable: workspace.settings.subtreeEditable,
-                    hostRef: session.hostRef,
-                });
-                if (!isJsonEqual(current, session.entryCondition)) {
-                    const update = buildConditionRestoreUpdate({
-                        tree,
-                        subtreeSources: workspace.subtreeSources,
-                        nodeDefs: workspace.nodeDefs,
-                        subtreeEditable: workspace.settings.subtreeEditable,
-                        session,
-                    });
-                    if (!update) {
-                        runtime.notifyError(i18n.t("mutation.missingTargetNode"));
-                        return false;
-                    }
-                    const response = await runtime.deps.hostAdapter.mutateDocument({
-                        type: "updateNode",
-                        payload: update,
-                    });
-                    if (!response.success) {
-                        runtime.notifyError(response.error ?? "Document mutation failed");
-                        return false;
-                    }
-                }
-            }
-            await leave();
-            return true;
+        async openConditionFile(target) {
+            // The host opens `<host file>/<uuid>/condition.json` in its own tab.
+            runtime.deps.hostAdapter.requestOpenConditionFile(target);
         },
     };
 };

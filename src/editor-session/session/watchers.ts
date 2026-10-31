@@ -50,10 +50,11 @@ export function registerSessionWatchers({
         clearSubtreeRefreshTimer,
     } = subtreeTracking;
 
+    // Condition files watch their host file on disk.
     const mainDocumentWatcher = vscode.workspace.createFileSystemWatcher(
         new vscode.RelativePattern(
-            path.dirname(document.uri.fsPath),
-            path.basename(document.uri.fsPath)
+            path.dirname(context.locationUri.fsPath),
+            path.basename(context.locationUri.fsPath)
         )
     );
     const subtreeFileWatcher = vscode.workspace.createFileSystemWatcher(

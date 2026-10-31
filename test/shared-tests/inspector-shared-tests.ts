@@ -300,6 +300,15 @@ export const inspectorSharedTests = defineSharedTests([
             );
 
             assert.equal(values.type, "Action");
+            assert.equal(values.preemptive, "false");
+            assert.equal(
+                createNodeInspectorFormValues(
+                    { name: "Selector", type: "Composite", desc: "", preemptive: true },
+                    selectedNode,
+                    "Unknown"
+                ).preemptive,
+                "true"
+            );
             assert.equal(values.id, "7 (node-uuid)");
             assert.match(values.rawNodeJson, /"uuid": "node-uuid"/);
             assert.match(values.rawNodeJson, /"id": "legacy-7"/);
