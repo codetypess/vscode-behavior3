@@ -50,7 +50,7 @@
     - 语义：sidebar 请求把变量聚焦作为一次性视觉 intent relay 给当前 active editor；不是共享状态同步
 - `openConditionFile`
     - payload: `{ target: NodeInstanceRef }`
-    - 语义：editor 或 sidebar 请求宿主在新标签页打开该节点第一项条件的条件文件（`behavior3-condition:/<宿主文件名>/<uuid>/condition.json?host=<宿主文件完整路径>`）。`target.sourceTreePath` 非空时宿主文件是那份 subtree 文件、uuid 用 `sourceStableId`；否则是当前文件、uuid 用 `structuralStableId`。条件不在该文件里时提示，不打开
+    - 语义：editor 或 sidebar 请求宿主在新标签页打开该节点第 `index` 项（缺省 0）条件的条件文件（`behavior3-condition:/<宿主文件名>/<uuid>/condition.json?host=<宿主文件完整路径>`，第 n 项是 `condition-<n>.json`）。`target.sourceTreePath` 非空时宿主文件是那份 subtree 文件、uuid 用 `sourceStableId`；否则是当前文件、uuid 用 `structuralStableId`。条件不在该文件里时提示，不打开
 
 ### 项目与设置
 
@@ -190,7 +190,7 @@
 
 - `{ kind: "tree" }`
 - `{ kind: "node", ref: NodeInstanceRef }`
-- `{ kind: "condition", ref: NodeInstanceRef }`：`ref` 仍是宿主节点。单击节点上方的条件附属时使用，Inspector 显示条件面板
+- `{ kind: "condition", ref: NodeInstanceRef, index: number }`：`ref` 仍是宿主节点，`index` 是条件项序号。单击某张条件卡片时使用，Inspector 显示这一项的条件面板。`selectNode` 消息用 `surface: "condition"` 加 `conditionIndex` 表达，缺省为 0
 
 说明：
 
@@ -243,8 +243,9 @@
 
 补充：
 
-- `attachCondition` 在没有条件的宿主节点上写入一项条件，根节点为选定的节点；子树内部节点的结果进入主文档 `overrides`
-- `removeCondition` 去掉宿主节点上的第一项条件（其他手写的项保留）。子树节点只能去掉 override 挂上的条件，不能清掉子树源文件里已有的条件
+- `attachCondition` 在宿主节点的条件末尾追加一项，根节点为选定的节点；子树内部节点的结果进入主文档 `overrides`
+- `removeCondition` 去掉宿主节点上第 `index` 项条件；`moveCondition` 把第 `index` 项和上一项或下一项交换。子树节点写整个数组的 override，不能清掉子树源文件里已有的条件
+- `setConditionRoot` 按 `index` 写回条件文件对应的那一项
 - `updateNode` intent 会携带 `currentNodeSnapshot`
 - 该快照来自当前发起 webview 的选中节点投影，包含 host reducer 需要的当前节点数据、subtree 标记和 `subtreeOriginal`
 - `updateNode` 在“解绑 subtree 引用为本地节点”时可以携带 `detachedSubtreeRoot`

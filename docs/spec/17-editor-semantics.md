@@ -222,22 +222,24 @@ host reducer 当前分三条路径：
 
 ### `attachCondition(entryName)`
 
-- 任意节点在当前还没有条件时可用（编辑器目前每个节点只编辑一项）
-- 选定的节点成为 `conditions[0].root`，不进入宿主的 `children`。`abort` 为 `none`；`custom` 是 `settings.customFields.condition` 里所有带默认值的字段（`"$nodeId"` 默认值取目标节点的 id），没有时不写
+- 任意节点都可用，已有条件时追加一项（项与项之间是 AND，按数组顺序）。添加后选中新的这一项
+- 选定的节点成为新项的 `root`，不进入宿主的 `children`。`abort` 为 `none`；`custom` 是 `settings.customFields.condition` 里所有带默认值的字段（`"$nodeId"` 默认值取目标节点的 id），没有时不写
 - 根节点定义的 `status` 含字面量 `running` 时拒绝
 - 条件树内部不能再带 `conditions`；条件树不能返回 `running`：按 behavior3 2.0 的静态推导，`running` 节点自己会返回 running，`|running` 节点在任一启用的子节点会返回 running 时会返回 running。没有声明 `status` 的节点这里不拦（后续校验给 warning）
 - 子树内部节点的结果写入主文档 `overrides`
 
-### `removeCondition()`
+### `removeCondition()` / `moveCondition(direction)`
 
-- 当前已有条件时可用，去掉第一项；其他手写的项保留，数组为空时去掉字段
-- 子树节点上仅由主文档 override 挂上的条件可以去掉；去掉后若没有其他差异，删除对应 override 条目
-- 子树源文件里已经有的条件不能清掉。右键菜单不显示这项，reducer 也会拒绝
+- 作用于选中的那一项条件（选中条件卡片时才可用）。删除后选中同位置的下一项，没有就选上一项，都没有就回到选中节点；数组为空时去掉字段
+- 移动和相邻项交换，到头时不变；选中跟着这一项移动
+- 子树节点上的条件通过 override 写整个数组；删完或移动后和源文件一致时删除对应 override 条目
+- 子树源文件里已经有条件时，不能删到一项不剩（override 不能清掉源文件里的条件）。界面禁用，reducer 也会拒绝
 
 ### 条件文件
 
-- 条件面板的「打开编辑视图」按钮，或双击节点上方的条件附属，在新标签页打开条件文件 `…/<宿主文件>/<uuid>/condition.json`。它是普通的 Behavior3 Editor 文档，画布、Inspector、复制粘贴、撤销都照常工作，侧栏 Inspector 也把它当普通文件
-- 条件文件的树级「自定义数据」就是这项条件的 `custom`，可以查看、增删改。保存条件文件：根节点、`custom` 和 `overrides` 通过 `setConditionRoot` 写回宿主文件第一项条件，`abort` 和其他项不变；宿主文件已打开时它变成未保存、可以撤销，没打开时直接写盘。违反条件树约束时拒绝保存。条件文件里其他树级字段（说明、变量等）的修改不写回
+- 条件面板的「打开编辑视图」按钮，或双击节点上方的条件附属，在新标签页打开那一项的条件文件：第 1 项是 `…/<宿主文件>/<uuid>/condition.json`，第 n 项是 `condition-<n>.json`。它是普通的 Behavior3 Editor 文档，画布、Inspector、复制粘贴、撤销都照常工作，侧栏 Inspector 也把它当普通文件
+- 条件文件里节点的 id 和它们在宿主树里的 id 一致：宿主读条件文件时先按保存时的规则算出宿主当前的 id（包括未保存的修改和展开的 subtree），写进条件树；条件树在宿主的编号里是连续的一段，所以条件文件的画布从根节点的 id 开始编号（`settings.conditionFile` 时用 `getDisplayIdStart`），而不是从 1 开始。宿主重新编号后条件文件刷新，id 跟着变
+- 条件文件的树级「自定义数据」就是这项条件的 `custom`，可以查看、增删改。保存条件文件：根节点、`custom` 和 `overrides` 通过 `setConditionRoot` 写回宿主文件对应序号的那一项，`abort` 和其他项不变；条件文件打开期间宿主里删除或移动了条件时，标签页按序号重新读取；宿主文件已打开时它变成未保存、可以撤销，没打开时直接写盘。违反条件树约束时拒绝保存。条件文件里其他树级字段（说明、变量等）的修改不写回
 - 宿主文件变化（编辑、撤销、保存、还原、外部修改）后，条件文件没有未保存修改时直接刷新，有时按外部修改冲突处理
 - 双击节点本体仍打开 subtree
 

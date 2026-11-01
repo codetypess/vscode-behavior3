@@ -23,11 +23,17 @@ export type EditorToHostMessage =
     | { type: "undo" }
     | { type: "redo" }
     | { type: "selectTree" }
-    | { type: "selectNode"; target: NodeInstanceRef; surface?: "node" | "condition" }
+    | {
+          type: "selectNode";
+          target: NodeInstanceRef;
+          surface?: "node" | "condition";
+          /** Condition item for `surface: "condition"`; 0 when omitted. */
+          conditionIndex?: number;
+      }
     /** Ask the host to relay a one-shot variable highlight intent to the active editor. */
     | { type: "requestFocusVariable"; names: string[] }
     /** Ask the host to open the condition file of this node in its own tab. */
-    | { type: "openConditionFile"; target: NodeInstanceRef }
+    | { type: "openConditionFile"; target: NodeInstanceRef; index?: number }
     | { type: "mutateDocument"; requestId: string; mutation: DocumentMutation }
     | { type: "saveDocument"; requestId: string }
     | { type: "revertDocument"; requestId: string }
@@ -77,6 +83,7 @@ export type HostToEditorMessage =
           allFiles: string[];
           nodeColors?: Record<string, string>;
           customFields: CustomFieldDefs;
+          conditionFile?: boolean;
           documentSession: HostDocumentSessionState;
           selection: HostSelectionState;
       }
@@ -102,6 +109,7 @@ export type HostToEditorMessage =
               inspectorMode?: "sidebar" | "embedded";
               nodeColors?: Record<string, string>;
               customFields?: CustomFieldDefs;
+              conditionFile?: boolean;
           };
       }
     | { type: "buildResult"; success: boolean; message: string }

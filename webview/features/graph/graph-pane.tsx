@@ -2,7 +2,7 @@ import { App, Dropdown, Flex, Modal, Select } from "antd";
 import type { MenuProps } from "antd";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useRuntime, useWorkspaceStore } from "../../app/runtime";
+import { useRuntime, useSelectionStore, useWorkspaceStore } from "../../app/runtime";
 import { canOpenSubtreeTarget } from "../../domain/subtree-navigation";
 import { nodeDefReturnsRunning } from "../../shared/condition-branch";
 import { isEditableEventTarget } from "../../shared/editable-event-target";
@@ -37,12 +37,25 @@ export const GraphPane: React.FC = () => {
     const [conditionEntryName, setConditionEntryName] = useState<string | undefined>();
     const { selectedNode, selectedNodeRef, searchOpen, rootStableId } = useGraphPaneState();
     const nodeDefs = useWorkspaceStore((state) => state.nodeDefs);
-    const canAddCondition = Boolean(selectedNode && !selectedNode.hasAttachedCondition);
-    const canRemoveCondition = Boolean(
-        selectedNode &&
-        selectedNode.hasAttachedCondition &&
-        !(selectedNode.subtreeNode && selectedNode.subtreeOriginal?.conditions?.length)
+    const conditionCount = selectedNode?.conditionCount ?? 0;
+    // Remove and move act on the condition card the inspector shows, never on a guessed item.
+    const selectedConditionIndex = useSelectionStore((state) =>
+        state.inspectorSurface === "condition"
+            ? Math.min(state.selectedConditionIndex, conditionCount - 1)
+            : null
     );
+    const hasSelectedCondition = selectedConditionIndex !== null && conditionCount > 0;
+    const canAddCondition = Boolean(selectedNode);
+    const canRemoveCondition =
+        hasSelectedCondition &&
+        !(
+            conditionCount === 1 &&
+            selectedNode?.subtreeNode &&
+            selectedNode.subtreeOriginal?.conditions?.length
+        );
+    const canMoveConditionUp = hasSelectedCondition && selectedConditionIndex > 0;
+    const canMoveConditionDown =
+        hasSelectedCondition && selectedConditionIndex < conditionCount - 1;
     const conditionEntryOptions = nodeDefs
         .filter((entry) => !nodeDefReturnsRunning(entry))
         .map((entry) => ({ value: entry.name, label: entry.name }));
@@ -118,11 +131,31 @@ export const GraphPane: React.FC = () => {
                 undefined,
                 !canAddCondition
             ),
-            canRemoveCondition
+            hasSelectedCondition
                 ? createItem(
                       "removeCondition",
                       t("removeCondition"),
-                      renderCodicon("close")
+                      renderCodicon("close"),
+                      undefined,
+                      !canRemoveCondition
+                  )
+                : null,
+            hasSelectedCondition && conditionCount > 1
+                ? createItem(
+                      "moveConditionUp",
+                      t("moveConditionUp"),
+                      renderCodicon("arrow-up"),
+                      isMacos ? "⌘+↑" : "Ctrl+↑",
+                      !canMoveConditionUp
+                  )
+                : null,
+            hasSelectedCondition && conditionCount > 1
+                ? createItem(
+                      "moveConditionDown",
+                      t("moveConditionDown"),
+                      renderCodicon("arrow-down"),
+                      isMacos ? "⌘+↓" : "Ctrl+↓",
+                      !canMoveConditionDown
                   )
                 : null,
             createItem(
@@ -145,8 +178,12 @@ export const GraphPane: React.FC = () => {
         ].filter(Boolean);
     }, [
         canAddCondition,
+        canMoveConditionDown,
+        canMoveConditionUp,
         canOpenSubtree,
         canRemoveCondition,
+        conditionCount,
+        hasSelectedCondition,
         isRootSelected,
         selectedNode,
         structureLocked,
@@ -174,6 +211,12 @@ export const GraphPane: React.FC = () => {
             case "removeCondition":
                 await runtime.controller.removeCondition();
                 break;
+            case "moveConditionUp":
+                await runtime.controller.moveCondition("up");
+                break;
+            case "moveConditionDown":
+                await runtime.controller.moveCondition("down");
+                break;
             case "delete":
                 await runtime.controller.deleteNode();
                 break;
@@ -196,6 +239,16 @@ export const GraphPane: React.FC = () => {
         event.stopPropagation();
         setSearchFocusToken((value) => value + 1);
         void runtime.controller.openSearch(key === Hotkey.JumpNode ? "id" : "content");
+    });
+
+    // Only while a condition card is selected; otherwise the keys stay with the webview.
+    useKeyPress([Hotkey.MoveConditionUp, Hotkey.MoveConditionDown], null, (event, key) => {
+        if (isEditableEventTarget(event.target) || !hasSelectedCondition) {
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        void runtime.controller.moveCondition(key === Hotkey.MoveConditionUp ? "up" : "down");
     });
 
     useKeyPress(
@@ -264,10 +317,11 @@ export const GraphPane: React.FC = () => {
                     force: opts?.force,
                     clearVariableFocus: opts?.clearVariableFocus,
                     surface: opts?.surface,
+                    conditionIndex: opts?.conditionIndex,
                 }),
-            onNodeDoubleClicked: (node, source) => {
+            onNodeDoubleClicked: (node, source, conditionIndex) => {
                 if (source === "condition") {
-                    void runtime.controller.openConditionFile(node);
+                    void runtime.controller.openConditionFile(node, conditionIndex ?? 0);
                     return;
                 }
                 void runtime.controller.openSelectedSubtree(node);

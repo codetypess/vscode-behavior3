@@ -70,6 +70,8 @@ export interface Settings {
     inspectorMode: "sidebar" | "embedded";
     nodeColors?: Record<string, string>;
     customFields: CustomFieldDefs;
+    /** The document is a condition file, numbered from its root's id in the host. */
+    conditionFile: boolean;
 }
 
 export interface HostDocumentSessionState {
@@ -114,7 +116,7 @@ export interface NodeInstanceRef {
 export type HostSelectionState =
     | { kind: "tree" }
     | { kind: "node"; ref: NodeInstanceRef }
-    | { kind: "condition"; ref: NodeInstanceRef };
+    | { kind: "condition"; ref: NodeInstanceRef; index: number };
 
 /** Committed document fanout; local graph UI state such as variable focus is excluded. */
 export interface HostDocumentSnapshot {
@@ -135,7 +137,8 @@ export interface EditNode {
     subtreeEditable: boolean;
     subtreeOriginal?: PersistedNodeModel;
     resolutionError?: "missing-subtree" | "invalid-subtree" | "cyclic-subtree";
-    hasAttachedCondition?: boolean;
+    /** Number of condition items on the node. */
+    conditionCount?: number;
 }
 
 export interface DocumentState {
@@ -169,6 +172,8 @@ export interface SelectionState {
     selectedNodeSnapshot: EditNode | null;
     /** Which inspector the current node selection should show. */
     inspectorSurface: "node" | "condition" | null;
+    /** The condition item the condition inspector shows; 0 unless a condition is selected. */
+    selectedConditionIndex: number;
 }
 
 export interface GraphUiSearchState {
@@ -310,12 +315,21 @@ export interface AttachConditionInput {
 
 export interface RemoveConditionInput {
     target: NodeInstanceRef;
+    index: number;
     currentNodeSnapshot?: UpdateNodeInput["currentNodeSnapshot"];
 }
 
-/** Host-only write-back from a condition file into the first condition of its host node. */
+export interface MoveConditionInput {
+    target: NodeInstanceRef;
+    index: number;
+    direction: "up" | "down";
+    currentNodeSnapshot?: UpdateNodeInput["currentNodeSnapshot"];
+}
+
+/** Host-only write-back from a condition file into one condition item of its host node. */
 export interface SetConditionRootInput {
     hostStableId: string;
+    index: number;
     root: PersistedNodeModel;
     custom?: ConditionData<PersistedNodeModel>["custom"];
     overrides: PersistedTreeModel["overrides"];
@@ -326,6 +340,7 @@ export type DocumentMutation =
     | { type: "updateNode"; payload: UpdateNodeInput }
     | { type: "attachCondition"; payload: AttachConditionInput }
     | { type: "removeCondition"; payload: RemoveConditionInput }
+    | { type: "moveCondition"; payload: MoveConditionInput }
     | { type: "setConditionRoot"; payload: SetConditionRootInput }
     | { type: "performDrop"; payload: DropIntent }
     | { type: "pasteNode"; payload: ClipboardNodeMutationInput }
@@ -379,7 +394,8 @@ export interface ResolvedNodeModel {
     subtreeEditable: boolean;
     subtreeOriginal?: PersistedNodeModel;
     resolutionError?: "missing-subtree" | "invalid-subtree" | "cyclic-subtree";
-    attachedConditionName?: string;
+    /** Root names of the node's condition items, in order. */
+    attachedConditionNames: string[];
     /** Persisted `conditions` of the node (overrides applied, subtree paths not expanded). */
     conditions?: PersistedConditionData[];
 }
@@ -428,8 +444,8 @@ export interface GraphNodeVM {
     inputs: Array<{ label: string; variable?: string }>;
     outputs: Array<{ label: string; variable?: string }>;
     argsText?: string;
-    attachedConditionName?: string;
-    attachedConditionAbort?: AbortMode;
+    /** Condition cards stacked above the node, first item on top. */
+    attachedConditions: Array<{ name: string; abort: AbortMode }>;
 }
 
 export interface ResolvedGraphModel {
@@ -440,6 +456,8 @@ export interface ResolvedGraphModel {
 
 export interface GraphSelectionState {
     selectedNodeKey: string | null;
+    /** The selected node's condition card the inspector shows, if any. */
+    selectedConditionIndex?: number | null;
 }
 
 export interface GraphHighlightState {
@@ -476,9 +494,14 @@ export interface GraphEventHandlers {
             via?: "click" | "contextMenu" | "restore";
             clearVariableFocus?: boolean;
             surface?: "node" | "condition";
+            conditionIndex?: number;
         }
     ): void;
-    onNodeDoubleClicked(node: NodeInstanceRef, source?: "body" | "condition"): void;
+    onNodeDoubleClicked(
+        node: NodeInstanceRef,
+        source?: "body" | "condition",
+        conditionIndex?: number
+    ): void;
     onVariableHotspotClicked(node: NodeInstanceRef, payload: VariableHotspotClick): void;
     onDropCommitted(intent: DropIntent): Promise<void>;
 }
@@ -490,11 +513,15 @@ export interface HostAdapter {
     redo(): void;
     mutateDocument(mutation: DocumentMutation): Promise<DocumentMutationResponse>;
     selectTree(): void;
-    selectNode(target: NodeInstanceRef, surface?: "node" | "condition"): void;
+    selectNode(
+        target: NodeInstanceRef,
+        surface?: "node" | "condition",
+        conditionIndex?: number
+    ): void;
     /** Send a raw `requestFocusVariable` message; callers must not treat it as persisted state. */
     requestFocusVariable(names: string[]): void;
     /** Ask the host to open this node's condition file in its own tab. */
-    requestOpenConditionFile(target: NodeInstanceRef): void;
+    requestOpenConditionFile(target: NodeInstanceRef, index: number): void;
     sendRequestSetting(): void;
     sendBuild(opts?: { buildScriptDebug?: boolean }): void;
     executeInspectorHostCommand(command: InspectorHostCommandId): void;
@@ -529,7 +556,12 @@ export interface EditorCommand {
     selectTree(): Promise<void>;
     selectNode(
         nodeKey: string,
-        opts?: { force?: boolean; clearVariableFocus?: boolean; surface?: "node" | "condition" }
+        opts?: {
+            force?: boolean;
+            clearVariableFocus?: boolean;
+            surface?: "node" | "condition";
+            conditionIndex?: number;
+        }
     ): Promise<void>;
     revealNode(target: NodeInstanceRef): Promise<void>;
     focusVariable(names: string[]): Promise<void>;
@@ -550,8 +582,10 @@ export interface EditorCommand {
     refreshGraph(opts?: { preserveSelection?: boolean }): Promise<void>;
     saveDocument(): Promise<boolean>;
     attachCondition(entryName: string): Promise<void>;
+    /** Remove or move the selected condition item. */
     removeCondition(): Promise<void>;
-    openConditionFile(target: NodeInstanceRef): Promise<void>;
+    moveCondition(direction: "up" | "down"): Promise<void>;
+    openConditionFile(target: NodeInstanceRef, index: number): Promise<void>;
     revertDocument(): Promise<void>;
     buildDocument(opts?: { buildScriptDebug?: boolean }): Promise<void>;
     openSubtreePath(path: string, opts?: { openSelection?: NodeInstanceRef }): Promise<void>;

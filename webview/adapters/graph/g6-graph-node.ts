@@ -23,6 +23,7 @@ import {
 } from "./g6-graph-node-constants";
 import {
     accentColorMap,
+    conditionCardIconUrl,
     debugIconUrl,
     disabledIconUrl,
     fallbackNodeIconMap,
@@ -39,10 +40,12 @@ import {
     getOutputText,
 } from "./g6-graph-node-measure";
 import {
+    CONDITION_SELECTED_STATE_PREFIX,
     type GraphNodeShapeName,
     type GraphNodeState,
     type GraphNodeStateStyleMap,
 } from "./g6-graph-node-style";
+import { conditionCardClassName } from "./graph-event-shape";
 export const G6_GRAPH_NODE_TYPE = "b3-tree-node";
 export {
     G6_GRAPH_NODE_H_GAP,
@@ -80,6 +83,13 @@ const CONDITION_TAB_DEPTH = 6;
 const CONDITION_TAB_SLANT = 5;
 const CONDITION_TAB_CORNER = 3;
 const CONDITION_CARD_TINT = 0.22;
+const CONDITION_CARD_SELECTED_TINT = 0.45;
+const CONDITION_ICON_SIZE = 14;
+const CONDITION_ICON_GAP = 19;
+// The bolt's glyph sits high in its box; nudge it down to sit on the text's center line.
+const CONDITION_ICON_OFFSET_Y = 1;
+// Above the body shapes, so tabs cover the rail and the card below.
+const CONDITION_CARD_Z_INDEX = 10;
 
 type PathCommand = [string, ...number[]];
 
@@ -140,6 +150,7 @@ class GraphNode extends Rect {
     private contentWidth = G6_GRAPH_NODE_WIDTH;
     private height = G6_GRAPH_NODE_MIN_HEIGHT;
     private bodyTop = 0;
+    private drawnConditionCount = 0;
     private bodyHeight = G6_GRAPH_NODE_MIN_HEIGHT;
     private radius = RADIUS;
     private node!: GraphNodeVM;
@@ -148,11 +159,13 @@ class GraphNode extends Rect {
     private states: GraphNodeState[] = [];
     private palette: GraphNodePalette = getGraphNodePalette();
 
+    // The key shape spans the whole block, condition cards included, so G6 places ports, edge
+    // connection points and the halo on the block. The cards are drawn opaque over its top.
     protected override getKeyStyle(attributes: Required<RectStyleProps>) {
         const style = super.getKeyStyle(attributes);
         if (style) {
             style.x = 0;
-            style.y = this.bodyTop;
+            style.y = 0;
         }
         return style;
     }
@@ -161,7 +174,7 @@ class GraphNode extends Rect {
         const style = super.getHaloStyle(attributes);
         if (style) {
             style.x = 0;
-            style.y = this.bodyTop;
+            style.y = 0;
         }
         return style;
     }
@@ -211,9 +224,9 @@ class GraphNode extends Rect {
     private drawBackground(attributes: Required<RectStyleProps>, container: Group) {
         const style = {
             ...attributes,
-            size: [this.width, this.bodyHeight] as [number, number],
+            size: [this.width, this.height] as [number, number],
             lineWidth: 2,
-            radius: this.bodyTop > 0 ? [0, 0, this.radius, this.radius] : this.radius,
+            radius: this.radius,
         };
         this.applyStyle("key-shape", style);
         this.drawKeyShape(style as Required<RectStyleProps>, container);
@@ -229,9 +242,7 @@ class GraphNode extends Rect {
                 height: this.bodyHeight,
                 fill: this.accent,
                 radius:
-                    this.bodyTop > 0
-                        ? [0, 0, 0, this.radius]
-                        : [this.radius, 0, 0, this.radius],
+                    this.bodyTop > 0 ? [0, 0, 0, this.radius] : [this.radius, 0, 0, this.radius],
             },
             container
         );
@@ -265,7 +276,7 @@ class GraphNode extends Rect {
                 textAlign: "right",
                 textBaseline: "top",
                 x: -3,
-                y: this.bodyTop + this.bodyHeight / 2 - 8,
+                y: this.height / 2 - 8,
             },
             container
         );
@@ -349,12 +360,7 @@ class GraphNode extends Rect {
                 fill: this.palette.overrideBar,
                 lineWidth: 2,
                 opacity: 1,
-                radius: [
-                    0,
-                    this.bodyTop > 0 ? 0 : this.radius - 1,
-                    this.radius - 1,
-                    0,
-                ],
+                radius: [0, this.bodyTop > 0 ? 0 : this.radius - 1, this.radius - 1, 0],
                 visibility: this.node.hasOverride ? "visible" : "hidden",
             },
             container
@@ -523,7 +529,8 @@ class GraphNode extends Rect {
     }
 
     private drawSubtreeText(container: Group) {
-        const isSubtree = Boolean(this.node.subtreePath) && this.id !== "1";
+        // Not on the graph root: a condition file's root keeps its host id, which is not "1".
+        const isSubtree = Boolean(this.node.subtreePath) && this.node.parentKey !== null;
         const text = isSubtree
             ? cutWordTo(
                   `${i18n.t("regnode.subtree")}${this.node.subtreePath}`,
@@ -569,92 +576,161 @@ class GraphNode extends Rect {
         this.contentY = layout.nextSectionTop;
     }
 
-    private drawConditionTab(container: Group) {
-        // Left: "condition: <root name>", right: the abort mode.
-        const label = this.node.attachedConditionName
-            ? `${i18n.t("condition.adornment")}: ${this.node.attachedConditionName}`
-            : "";
-        const abortType = label ? (this.node.attachedConditionAbort ?? "") : "";
+    /**
+     * One card per condition item, stacked top-down in array order. Each card's tab drops into
+     * the card below it, and the last one into the node rail, so upper cards sit higher in z.
+     */
+    private drawConditionCards(container: Group) {
+        const conditions = this.node.attachedConditions;
+        const selectedIndex = this.getSelectedConditionIndex();
+        const drawCount = Math.max(conditions.length, this.drawnConditionCount);
+        for (let index = 0; index < drawCount; index += 1) {
+            this.drawConditionCard(container, index, selectedIndex === index);
+        }
+        this.drawnConditionCount = conditions.length;
+    }
+
+    private drawConditionCard(container: Group, index: number, selected: boolean) {
+        const conditions = this.node.attachedConditions;
+        const condition = conditions[index];
+        const top = index * G6_GRAPH_CONDITION_TAB_HEIGHT;
+        const zIndex = CONDITION_CARD_Z_INDEX + (conditions.length - index) * 2;
+        const className = conditionCardClassName(index);
+        // Left: the condition icon and the root name, which lines up with the node title below;
+        // right: the abort mode.
+        const nameLeft = G6_GRAPH_NODE_CONTENT_X;
+        const iconLeft = nameLeft - CONDITION_ICON_GAP - CONDITION_ICON_SIZE;
+        const abortType = condition?.abort ?? "";
         const abortReserve = abortType ? 48 : 0;
-        const adornment = this.upsert(
-            "condition-adornment",
+        const textY = top + G6_GRAPH_CONDITION_TAB_HEIGHT / 2;
+
+        const card = this.upsert(
+            `condition-adornment-${index}`,
             GPath,
-            label
+            condition
                 ? {
-                      d: toPathString(this.getConditionCardPath()),
-                      ...this.getConditionCardFill(),
+                      d: toPathString(this.getConditionCardPath(index)),
+                      ...this.getConditionCardFill(selected),
                       stroke: this.accent,
                       lineWidth: 2,
                       lineJoin: "round",
                       cursor: "pointer",
+                      zIndex,
                   }
                 : false,
             container
         );
-        if (adornment) {
-            adornment.className = "condition-adornment";
+        if (card) {
+            card.className = className;
         }
-        const adornmentLabel = this.upsert(
-            "condition-label",
-            GText,
-            label
+        const icon = this.upsert(
+            `condition-icon-${index}`,
+            GImage,
+            condition
                 ? {
-                      x: 8,
-                      y: G6_GRAPH_CONDITION_TAB_HEIGHT / 2,
-                      text: cutWordTo(label, this.width - 16 - abortReserve, "12px"),
+                      x: iconLeft,
+                      y: textY - CONDITION_ICON_SIZE / 2 + CONDITION_ICON_OFFSET_Y,
+                      width: CONDITION_ICON_SIZE,
+                      height: CONDITION_ICON_SIZE,
+                      src: conditionCardIconUrl,
+                      cursor: "pointer",
+                      zIndex: zIndex + 1,
+                  }
+                : false,
+            container
+        );
+        if (icon) {
+            icon.className = className;
+        }
+        const nameLabel = this.upsert(
+            `condition-name-${index}`,
+            GText,
+            condition
+                ? {
+                      x: nameLeft,
+                      y: textY,
+                      text: cutWordTo(
+                          condition.name,
+                          this.width - 8 - nameLeft - abortReserve,
+                          "12px"
+                      ),
                       fontSize: 12,
                       textAlign: "left",
                       textBaseline: "middle",
                       fill: "#ffffff",
                       cursor: "pointer",
+                      zIndex: zIndex + 1,
                   }
                 : false,
             container
         );
-        if (adornmentLabel) {
-            adornmentLabel.className = "condition-label";
+        if (nameLabel) {
+            nameLabel.className = className;
         }
         const abortLabel = this.upsert(
-            "condition-abort",
+            `condition-abort-${index}`,
             GText,
-            abortType
+            condition && abortType
                 ? {
                       x: this.width - 8,
-                      y: G6_GRAPH_CONDITION_TAB_HEIGHT / 2,
+                      y: textY,
                       text: abortType,
                       fontSize: 12,
                       textAlign: "right",
                       textBaseline: "middle",
                       fill: "#ffffff",
                       cursor: "pointer",
+                      zIndex: zIndex + 1,
                   }
                 : false,
             container
         );
         if (abortLabel) {
-            abortLabel.className = "condition-label";
+            abortLabel.className = className;
         }
     }
 
-    private getConditionCardFill() {
-        const fill = mixColor(this.accent, this.palette.graphBg, CONDITION_CARD_TINT);
-        return fill
-            ? { fill, fillOpacity: 1 }
-            : { fill: this.accent, fillOpacity: CONDITION_CARD_TINT };
+    private getSelectedConditionIndex(): number | null {
+        for (const state of this.states) {
+            if (state.startsWith(CONDITION_SELECTED_STATE_PREFIX)) {
+                return Number(state.slice(CONDITION_SELECTED_STATE_PREFIX.length));
+            }
+        }
+        return null;
     }
 
-    /** Card flush on the node body, with a trapezoid tab dropping into the left rail. */
-    private getConditionCardPath(): PathCommand[] {
+    /** The selected card is a brighter tint, so the inspector's item stands out in the stack. */
+    private getConditionCardFill(selected: boolean) {
+        const tint = selected ? CONDITION_CARD_SELECTED_TINT : CONDITION_CARD_TINT;
+        const fill = mixColor(this.accent, this.palette.graphBg, tint);
+        return fill ? { fill, fillOpacity: 1 } : { fill: this.accent, fillOpacity: tint };
+    }
+
+    /**
+     * Card `index` of the stack, flush on the next card (or the node body), with a trapezoid
+     * tab dropping into it. Only the top card rounds its upper corners.
+     */
+    private getConditionCardPath(index: number): PathCommand[] {
         const w = this.width;
-        const h = G6_GRAPH_CONDITION_TAB_HEIGHT;
-        const r = this.radius;
+        const top = index * G6_GRAPH_CONDITION_TAB_HEIGHT;
+        const h = top + G6_GRAPH_CONDITION_TAB_HEIGHT;
+        const r = index === 0 ? this.radius : 0;
         const tabLeft = CONDITION_TAB_LEFT;
         const tabRight = CONDITION_TAB_LEFT + CONDITION_TAB_WIDTH;
         const tabBottom = h + CONDITION_TAB_DEPTH;
+        const topEdge: PathCommand[] =
+            r > 0
+                ? [
+                      ["M", r, top],
+                      ["L", w - r, top],
+                      ["A", r, r, 0, 0, 1, w, top + r],
+                  ]
+                : [
+                      ["M", 0, top],
+                      ["L", w, top],
+                  ];
         return [
-            ["M", r, 0],
-            ["L", w - r, 0],
-            ["A", r, r, 0, 0, 1, w, r],
+            ...topEdge,
             ["L", w, h],
             ...roundedPolyline(
                 [w, h],
@@ -667,8 +743,12 @@ class GraphNode extends Rect {
                 [0, h],
                 CONDITION_TAB_CORNER
             ),
-            ["L", 0, r],
-            ["A", r, r, 0, 0, 1, r, 0],
+            ...((r > 0
+                ? [
+                      ["L", 0, top + r],
+                      ["A", r, r, 0, 0, 1, r, top],
+                  ]
+                : [["L", 0, top]]) as PathCommand[]),
             ["Z"],
         ];
     }
@@ -693,7 +773,9 @@ class GraphNode extends Rect {
                 textBaseline: "middle",
                 visibility: this.node.childKeys.length > 0 ? "visible" : "hidden",
                 x: this.contentWidth,
-                y: this.bodyTop + this.bodyHeight / 2,
+                y: this.height / 2,
+                // The block's middle can fall on a condition card; stay above every card.
+                zIndex: CONDITION_CARD_Z_INDEX + this.node.attachedConditions.length * 2 + 2,
             },
             container
         );
@@ -782,7 +864,7 @@ class GraphNode extends Rect {
         this.width = data.width;
         this.contentWidth = data.width;
         this.height = data.height;
-        this.bodyTop = this.node.attachedConditionName ? G6_GRAPH_CONDITION_TAB_HEIGHT : 0;
+        this.bodyTop = this.node.attachedConditions.length * G6_GRAPH_CONDITION_TAB_HEIGHT;
         this.bodyHeight = Math.max(G6_GRAPH_NODE_MIN_HEIGHT, data.height - this.bodyTop);
         this.accent =
             this.node.accentColor ??
@@ -815,7 +897,7 @@ class GraphNode extends Rect {
         this.drawOutputText(container);
         this.drawSubtreeText(container);
         this.drawDragShapes(container);
-        this.drawConditionTab(container);
+        this.drawConditionCards(container);
         this.drawCollapseBadge(attributes, container);
         this.drawIdText(container);
     }

@@ -44,7 +44,7 @@ import {
     buildSearchState,
     computeVariableHighlights,
 } from "../domain/graph-selectors";
-import { resolveDocumentGraph } from "../domain/resolve-graph";
+import { getDisplayIdStart, resolveDocumentGraph } from "../domain/resolve-graph";
 import { createInitialGraphUiState, patchGraphUiSearchState } from "../stores/graph-ui-store";
 import { isJsonEqual } from "../shared/json";
 
@@ -71,6 +71,7 @@ export type SelectionPatch = Partial<
         | "selectedNodeRef"
         | "selectedNodeSnapshot"
         | "inspectorSurface"
+        | "selectedConditionIndex"
     >
 >;
 
@@ -171,6 +172,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             selectedNodeRef: null,
             selectedNodeSnapshot: null,
             inspectorSurface: null,
+            selectedConditionIndex: 0,
         };
     };
 
@@ -220,7 +222,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             subtreeEditable: node.subtreeEditable,
             subtreeOriginal: node.subtreeOriginal,
             resolutionError: node.resolutionError,
-            hasAttachedCondition: Boolean(node.attachedConditionName),
+            conditionCount: node.attachedConditionNames.length,
         };
     };
 
@@ -244,13 +246,15 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
 
     const buildPendingNodeSelectionPatch = (
         ref: NodeInstanceRef,
-        inspectorSurface: "node" | "condition" = "node"
+        inspectorSurface: "node" | "condition" = "node",
+        selectedConditionIndex = 0
     ): SelectionPatch => ({
         selectedTree: null,
         selectedNodeKey: null,
         selectedNodeRef: ref,
         selectedNodeSnapshot: null,
         inspectorSurface,
+        selectedConditionIndex,
     });
 
     const hasSameSelectionContext = (left: NodeInstanceRef, right: NodeInstanceRef) =>
@@ -349,10 +353,19 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         );
     };
 
-    const getCurrentGraphSelectionState = (): GraphSelectionState =>
-        deps.graphUiStore.getState().selectionVisualHint ?? {
-            selectedNodeKey: deps.selectionStore.getState().selectedNodeKey,
+    const getStoreGraphSelectionState = (): GraphSelectionState => {
+        const selection = deps.selectionStore.getState();
+        return {
+            selectedNodeKey: selection.selectedNodeKey,
+            selectedConditionIndex:
+                selection.inspectorSurface === "condition"
+                    ? selection.selectedConditionIndex
+                    : null,
         };
+    };
+
+    const getCurrentGraphSelectionState = (): GraphSelectionState =>
+        deps.graphUiStore.getState().selectionVisualHint ?? getStoreGraphSelectionState();
 
     const showSelectionVisualHint = async (selectedNodeKey: string | null) => {
         updateGraphUiState(() => ({
@@ -400,7 +413,8 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         updateSelectionState(() =>
             buildPendingNodeSelectionPatch(
                 selection.ref,
-                selection.kind === "condition" ? "condition" : "node"
+                selection.kind === "condition" ? "condition" : "node",
+                selection.kind === "condition" ? selection.index : 0
             )
         );
         deps.workspaceStore.setState((state) => ({
@@ -419,6 +433,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         updateSelectionState(() => ({
             ...projectSelectionRef(selection.ref),
             inspectorSurface: selection.kind === "condition" ? "condition" : "node",
+            selectedConditionIndex: selection.kind === "condition" ? selection.index : 0,
         }));
         void requestSelectedNodeFieldVisibility();
     };
@@ -849,6 +864,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             subtreeSources: workspace.subtreeSources,
             nodeDefs: workspace.nodeDefs,
             subtreeEditable: workspace.settings.subtreeEditable,
+            displayIdStart: getDisplayIdStart(tree, workspace.settings.conditionFile),
         });
 
         resolvedGraph = result.graph;
@@ -872,9 +888,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
         if (opts?.preserveSelection) {
             await restoreSelection();
         } else {
-            await deps.graphAdapter.applySelection({
-                selectedNodeKey: deps.selectionStore.getState().selectedNodeKey,
-            });
+            await deps.graphAdapter.applySelection(getStoreGraphSelectionState());
         }
         await applyVisualState();
         await requestSelectedNodeFieldVisibility();

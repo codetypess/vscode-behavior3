@@ -125,8 +125,10 @@ export const buildResolvedGraphModel = (
                 node.args && Object.keys(node.args).length > 0
                     ? stringifyCompactJson5(node.args)
                     : undefined,
-            attachedConditionName: node.attachedConditionName,
-            attachedConditionAbort: node.conditions?.[0]?.abort,
+            attachedConditions: (node.conditions ?? []).map((condition) => ({
+                name: condition.root.name,
+                abort: condition.abort,
+            })),
         });
 
         for (const childKey of node.childKeys) {

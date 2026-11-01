@@ -24,7 +24,11 @@ import {
     parseConditionFileUri,
     type ConditionFileAccess,
 } from "./condition-files";
-import type { HostSelectionState, NodeInstanceRef } from "../webview/shared/contracts";
+import type {
+    HostSelectionState,
+    NodeInstanceRef,
+    PersistedTreeModel,
+} from "../webview/shared/contracts";
 import type { EditorToHostMessage, HostToEditorMessage } from "../webview/shared/message-protocol";
 import type { ActiveTreeEditorWebview } from "./editor-session/webview-session";
 import { resolveTreeEditorSession } from "./editor-session/webview-session";
@@ -134,6 +138,8 @@ export class TreeEditorProvider
                       type: "selectNode",
                       target: normalized.ref,
                       surface: normalized.kind === "condition" ? "condition" : "node",
+                      conditionIndex:
+                          normalized.kind === "condition" ? normalized.index : undefined,
                   };
 
         TreeEditorProvider.dispatchMessageToDocument(documentUri, message, async () => true);
@@ -160,6 +166,40 @@ export class TreeEditorProvider
         );
     }
 
+    /**
+     * The host tree with the ids it would save now, condition trees included, so a condition
+     * file shows the ids its nodes have in the host (they form one run starting at its root).
+     * Falls back to the stored ids when the host cannot be resolved.
+     */
+    private async withLiveDisplayIds(
+        hostUri: vscode.Uri,
+        hostTree: PersistedTreeModel
+    ): Promise<PersistedTreeModel> {
+        const workspaceFolderUri = vscode.workspace.getWorkspaceFolder(hostUri)?.uri;
+        if (!workspaceFolderUri) {
+            return hostTree;
+        }
+        const projectRootFsPath = getBehaviorProjectRootFsPath(hostUri, workspaceFolderUri);
+        try {
+            const savePlan = await preparePersistedTreeForMainDocumentSave({
+                tree: hostTree,
+                nodeDefs: await resolveNodeDefs(workspaceFolderUri, hostUri),
+                readSubtreeContent: async (relativePath) => {
+                    try {
+                        return await readFileContentFromDisk(
+                            vscode.Uri.file(path.join(projectRootFsPath, relativePath))
+                        );
+                    } catch {
+                        return null;
+                    }
+                },
+            });
+            return parsePersistedTreeContent(savePlan.content, hostUri.fsPath);
+        } catch {
+            return hostTree;
+        }
+    }
+
     async readConditionFile(uri: vscode.Uri): Promise<string> {
         const location = parseConditionFileUri(uri);
         if (!location) {
@@ -171,8 +211,15 @@ export class TreeEditorProvider
         } catch {
             throw vscode.FileSystemError.FileNotFound(uri);
         }
-        const hostTree = parsePersistedTreeContent(hostContent, location.hostUri.fsPath);
-        const conditionTree = buildConditionFileTree(hostTree, location.hostStableId);
+        const hostTree = await this.withLiveDisplayIds(
+            location.hostUri,
+            parsePersistedTreeContent(hostContent, location.hostUri.fsPath)
+        );
+        const conditionTree = buildConditionFileTree(
+            hostTree,
+            location.hostStableId,
+            location.index
+        );
         if (!conditionTree) {
             throw vscode.FileSystemError.FileNotFound(uri);
         }
@@ -193,6 +240,7 @@ export class TreeEditorProvider
             type: "setConditionRoot" as const,
             payload: {
                 hostStableId: location.hostStableId,
+                index: location.index,
                 ...readConditionFileWriteBack(conditionTree),
             },
         };

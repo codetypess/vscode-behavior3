@@ -2,7 +2,7 @@ import { FormOutlined } from "@ant-design/icons";
 import { Button, Form, Input, Select } from "antd";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useRuntime, useWorkspaceStore } from "../../app/runtime";
+import { useRuntime, useSelectionStore, useWorkspaceStore } from "../../app/runtime";
 import { ABORT_MODES, type AbortMode } from "../../shared/b3type";
 import type { PersistedConditionData } from "../../shared/contracts";
 import { clonePersistedConditions } from "../../shared/tree";
@@ -17,14 +17,18 @@ import {
 import { createInspectorLabelProps } from "./inspector-shared";
 import { useNodeInspectorState } from "./inspector-state";
 
-/** Inspector for the first entry of the selected node's `conditions`. */
+/** Inspector for the selected item of the selected node's `conditions`. */
 export const ConditionInspectorForm: React.FC = () => {
     const { t } = useTranslation();
     const runtime = useRuntime();
     const [form] = Form.useForm();
     const { selectedNode } = useNodeInspectorState();
     const conditions = selectedNode?.data.conditions;
-    const condition = conditions?.[0];
+    const count = conditions?.length ?? 0;
+    const selectedIndex = useSelectionStore((state) => state.selectedConditionIndex);
+    // Undo or an outside edit can drop items; fall back to the last one.
+    const index = Math.max(0, Math.min(selectedIndex, count - 1));
+    const condition = conditions?.[index];
     const readOnly = selectedNode?.disabled ?? false;
     const customFields = useWorkspaceStore((state) => state.settings.customFields.condition);
     const hostNodeId = selectedNode?.ref.displayId;
@@ -40,12 +44,17 @@ export const ConditionInspectorForm: React.FC = () => {
         });
     }, [condition, customFields, form, hostNodeId]);
 
+
     const commitCondition = (next: Pick<PersistedConditionData, "abort" | "custom">) => {
         if (!selectedNode || !conditions?.length || !condition || readOnly) {
             return;
         }
         const nextConditions = clonePersistedConditions(conditions) ?? [];
-        nextConditions[0] = { ...nextConditions[0], abort: next.abort, custom: next.custom };
+        nextConditions[index] = {
+            ...nextConditions[index],
+            abort: next.abort,
+            custom: next.custom,
+        };
         trackPendingInspectorEdit(
             runtime.controller.updateNode({
                 target: selectedNode.ref,
@@ -120,7 +129,9 @@ export const ConditionInspectorForm: React.FC = () => {
                     block
                     icon={<FormOutlined />}
                     className="b3-node-subtree-button"
-                    onClick={() => void runtime.controller.openConditionFile(selectedNode.ref)}
+                    onClick={() =>
+                        void runtime.controller.openConditionFile(selectedNode.ref, index)
+                    }
                 >
                     {t("condition.openEditor")}
                 </Button>

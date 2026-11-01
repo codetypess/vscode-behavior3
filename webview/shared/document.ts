@@ -3,6 +3,7 @@ import { DOCUMENT_VERSION, type CustomFieldDefs } from "./b3type";
 import type {
     DocumentMutation,
     EditNode,
+    NodeInstanceRef,
     NodeDef,
     PersistedNodeModel,
     PersistedNodeOverride,
@@ -77,7 +78,6 @@ export type DocumentMutationReducerError =
     | { code: "move-into-descendant-denied" }
     | { code: "delete-root-node-denied" }
     | { code: "edit-subtree-denied" }
-    | { code: "condition-already-attached" }
     | { code: "condition-not-attached" }
     | { code: "condition-clear-denied" }
     | { code: "condition-running-status" }
@@ -100,6 +100,7 @@ export type ReducibleDocumentMutation = Extract<
     | { type: "updateNode" }
     | { type: "attachCondition" }
     | { type: "removeCondition" }
+    | { type: "moveCondition" }
     | { type: "setConditionRoot" }
     | { type: "performDrop" }
     | { type: "pasteNode" }
@@ -919,11 +920,9 @@ const reduceAttachCondition = (
     };
 
     if (inlineNode) {
-        // The editor edits one condition per node for now; the file format allows more.
-        if (inlineNode.conditions?.length) {
-            return { status: "error", error: { code: "condition-already-attached" } };
-        }
+        // New items go last; `conditions` items are ANDed in order.
         inlineNode.conditions = [
+            ...(inlineNode.conditions ?? []),
             createConditionData(entryNode, conditionCustom),
         ];
         return {
@@ -945,13 +944,11 @@ const reduceAttachCondition = (
         return { status: "error", error: { code: "missing-subtree-original" } };
     }
     const hostDef = getNodeDef(context.nodeDefs, snapshot.data.name);
-    if (snapshot.data.conditions?.length) {
-        return { status: "error", error: { code: "condition-already-attached" } };
-    }
 
     const editedNode: PersistedNodeModel = {
         ...clonePersistedNode(snapshot.data),
         conditions: [
+            ...(clonePersistedConditions(snapshot.data.conditions) ?? []),
             createConditionData(entryNode, conditionCustom),
         ],
     };
@@ -969,30 +966,39 @@ const reduceAttachCondition = (
     };
 };
 
-const reduceRemoveCondition = (
-    mutation: Extract<ReducibleDocumentMutation, { type: "removeCondition" }>,
-    context: DocumentMutationReducerContext
+type PersistedConditions = NonNullable<PersistedNodeModel["conditions"]>;
+
+/**
+ * Rewrite one node's condition list. Inline nodes change in place; external subtree nodes get
+ * a sparse override, which can replace the whole list but cannot clear the source's items.
+ */
+const reduceConditionList = (
+    payload: {
+        target: NodeInstanceRef;
+        currentNodeSnapshot?: UpdateNodeInput["currentNodeSnapshot"];
+    },
+    context: DocumentMutationReducerContext,
+    edit: (conditions: PersistedConditions) => PersistedConditions | "noop" | null
 ): DocumentMutationReducerResult => {
     const tree = clonePersistedTree(context.tree);
-    const inlineNode = findPersistedNodeByStableId(
-        tree.root,
-        mutation.payload.target.structuralStableId
-    );
+    const inlineNode = findPersistedNodeByStableId(tree.root, payload.target.structuralStableId);
 
     if (inlineNode) {
         if (!inlineNode.conditions?.length) {
             return { status: "error", error: { code: "condition-not-attached" } };
         }
-        // Remove the condition the editor shows; any further hand-written items stay.
-        inlineNode.conditions = clonePersistedConditions(inlineNode.conditions.slice(1));
-        return {
-            status: "changed",
-            tree,
-            rebuildGraph: true,
-        };
+        const next = edit(clonePersistedConditions(inlineNode.conditions) ?? []);
+        if (next === null) {
+            return { status: "error", error: { code: "condition-not-attached" } };
+        }
+        if (next === "noop") {
+            return { status: "noop" };
+        }
+        inlineNode.conditions = next.length ? next : undefined;
+        return { status: "changed", tree, rebuildGraph: true };
     }
 
-    const snapshot = resolveUpdateNodeSnapshot(mutation.payload, context);
+    const snapshot = resolveUpdateNodeSnapshot(payload, context);
     if ("error" in snapshot) {
         return { status: "error", error: snapshot.error };
     }
@@ -1003,28 +1009,65 @@ const reduceRemoveCondition = (
     if (!original) {
         return { status: "error", error: { code: "missing-subtree-original" } };
     }
-    const hostDef = getNodeDef(context.nodeDefs, snapshot.data.name);
     if (!snapshot.data.conditions?.length) {
         return { status: "error", error: { code: "condition-not-attached" } };
     }
-    if (original.conditions?.length) {
+    const next = edit(clonePersistedConditions(snapshot.data.conditions) ?? []);
+    if (next === null) {
+        return { status: "error", error: { code: "condition-not-attached" } };
+    }
+    if (next === "noop") {
+        return { status: "noop" };
+    }
+    if (!next.length && original.conditions?.length) {
         return { status: "error", error: { code: "condition-clear-denied" } };
     }
 
     const editedNode = clonePersistedNode(snapshot.data);
-    delete editedNode.conditions;
-    const diff = computeNodeOverride(original, editedNode, hostDef);
-    if (diff) {
-        tree.overrides[mutation.payload.target.sourceStableId] = diff;
+    if (next.length) {
+        editedNode.conditions = next;
     } else {
-        delete tree.overrides[mutation.payload.target.sourceStableId];
+        delete editedNode.conditions;
     }
+    const diff = computeNodeOverride(
+        original,
+        editedNode,
+        getNodeDef(context.nodeDefs, snapshot.data.name)
+    );
+    if (diff) {
+        tree.overrides[payload.target.sourceStableId] = diff;
+    } else {
+        delete tree.overrides[payload.target.sourceStableId];
+    }
+    return { status: "changed", tree, rebuildGraph: true };
+};
 
-    return {
-        status: "changed",
-        tree,
-        rebuildGraph: true,
-    };
+const reduceRemoveCondition = (
+    mutation: Extract<ReducibleDocumentMutation, { type: "removeCondition" }>,
+    context: DocumentMutationReducerContext
+): DocumentMutationReducerResult => {
+    const { index } = mutation.payload;
+    return reduceConditionList(mutation.payload, context, (conditions) =>
+        conditions[index] ? conditions.filter((_, i) => i !== index) : null
+    );
+};
+
+const reduceMoveCondition = (
+    mutation: Extract<ReducibleDocumentMutation, { type: "moveCondition" }>,
+    context: DocumentMutationReducerContext
+): DocumentMutationReducerResult => {
+    const { index, direction } = mutation.payload;
+    return reduceConditionList(mutation.payload, context, (conditions) => {
+        if (!conditions[index]) {
+            return null;
+        }
+        const other = direction === "up" ? index - 1 : index + 1;
+        if (!conditions[other]) {
+            return "noop";
+        }
+        [conditions[index], conditions[other]] = [conditions[other], conditions[index]];
+        return conditions;
+    });
 };
 
 const reduceDeleteNode = (
@@ -1062,6 +1105,7 @@ export const isReducibleDocumentMutation = (
     mutation.type === "updateNode" ||
     mutation.type === "attachCondition" ||
     mutation.type === "removeCondition" ||
+    mutation.type === "moveCondition" ||
     mutation.type === "setConditionRoot" ||
     mutation.type === "performDrop" ||
     mutation.type === "pasteNode" ||
@@ -1081,14 +1125,14 @@ export const reduceDocumentMutation = (
     return reduced;
 };
 
-/** Condition files replace the condition tree and its `custom`; `abort` and other items stay. */
+/** A condition file replaces its item's tree and `custom`; `abort` and other items stay. */
 const reduceSetConditionRoot = (
     mutation: Extract<ReducibleDocumentMutation, { type: "setConditionRoot" }>,
     context: DocumentMutationReducerContext
 ): DocumentMutationReducerResult => {
-    const { hostStableId, root, overrides } = mutation.payload;
+    const { hostStableId, index, root, overrides } = mutation.payload;
     const host = findPersistedNodeByStableId(context.tree.root, hostStableId);
-    const condition = host?.conditions?.[0];
+    const condition = host?.conditions?.[index];
     if (!host || !condition) {
         return { status: "error", error: { code: "missing-target-node" } };
     }
@@ -1115,8 +1159,8 @@ const reduceSetConditionRoot = (
 
     const tree = clonePersistedTree(context.tree);
     const nextHost = findPersistedNodeByStableId(tree.root, hostStableId);
-    nextHost!.conditions![0] = {
-        ...nextHost!.conditions![0],
+    nextHost!.conditions![index] = {
+        ...nextHost!.conditions![index],
         custom: custom && Object.keys(custom).length ? cloneJsonValue(custom) : undefined,
         root: clonePersistedNode(root),
     };
@@ -1140,6 +1184,9 @@ const reduceDocumentMutationUnchecked = (
 
         case "removeCondition":
             return reduceRemoveCondition(mutation, context);
+
+        case "moveCondition":
+            return reduceMoveCondition(mutation, context);
 
         case "setConditionRoot":
             return reduceSetConditionRoot(mutation, context);
@@ -1207,9 +1254,6 @@ export const formatDocumentMutationReducerError = (
         case "edit-subtree-denied":
             return translateRuntimeMessage(language, "mutation.editSubtreeDenied");
 
-
-        case "condition-already-attached":
-            return translateRuntimeMessage(language, "mutation.conditionAlreadyAttached");
 
         case "condition-not-attached":
             return translateRuntimeMessage(language, "mutation.conditionNotAttached");

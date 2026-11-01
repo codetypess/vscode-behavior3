@@ -201,6 +201,6 @@ export const measureGraphNode = (node: GraphNodeVM) => {
         width: G6_GRAPH_NODE_WIDTH,
         height:
             Math.max(G6_GRAPH_NODE_MIN_HEIGHT, height) +
-            (node.attachedConditionName ? G6_GRAPH_CONDITION_TAB_HEIGHT : 0),
+            node.attachedConditions.length * G6_GRAPH_CONDITION_TAB_HEIGHT,
     };
 };

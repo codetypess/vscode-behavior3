@@ -11,15 +11,20 @@ export type GraphNodeState =
     | "highlightgray"
     | "highlightinput"
     | "highlightoutput"
-    | "selected";
+    | "selected"
+    | `${typeof CONDITION_SELECTED_STATE_PREFIX}${number}`;
+
+/** Node state naming the selected condition card, read back by the node renderer. */
+export const CONDITION_SELECTED_STATE_PREFIX = "conditionselected";
 
 export type GraphNodeShapeName =
     | "args-bg"
     | "args-text"
     | "debug"
-    | "condition-adornment"
-    | "condition-abort"
-    | "condition-label"
+    | `condition-adornment-${number}`
+    | `condition-icon-${number}`
+    | `condition-abort-${number}`
+    | `condition-name-${number}`
     | "desc-text"
     | "disabled"
     | "collapse"

@@ -247,7 +247,7 @@ export function createSessionFileRequestHandlers({
         const hostStableId = target.sourceTreePath
             ? target.sourceStableId
             : target.structuralStableId;
-        const conditionUri = buildConditionFileUri(hostUri, hostStableId);
+        const conditionUri = buildConditionFileUri(hostUri, hostStableId, msg.index ?? 0);
         try {
             await vscode.workspace.fs.stat(conditionUri);
         } catch {

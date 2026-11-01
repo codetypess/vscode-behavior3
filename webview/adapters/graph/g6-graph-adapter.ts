@@ -22,6 +22,7 @@ import type {
 } from "../../shared/contracts";
 import type { GraphAdapter, GraphRenderOptions } from "../../shared/graph-contracts";
 import { G6_GRAPH_CONDITION_TAB_HEIGHT } from "./g6-graph-node-constants";
+import { CONDITION_SELECTED_STATE_PREFIX } from "./g6-graph-node-style";
 import {
     G6_GRAPH_NODE_H_GAP,
     G6_GRAPH_NODE_MIN_HEIGHT,
@@ -57,6 +58,7 @@ import {
 } from "./graph-collapse-state";
 import {
     eventHasShapeClass,
+    readEventConditionCardIndex,
     isDoubleShapeClick,
     type ShapeClickStamp,
 } from "./graph-event-shape";
@@ -414,6 +416,10 @@ export class G6GraphAdapter implements GraphAdapter {
 
         if (this.selection.selectedNodeKey === nodeKey) {
             states.push("selected");
+            const conditionIndex = this.selection.selectedConditionIndex;
+            if (conditionIndex !== null && conditionIndex !== undefined) {
+                states.push(`${CONDITION_SELECTED_STATE_PREFIX}${conditionIndex}`);
+            }
         }
         if (this.focusedNodeKey === nodeKey) {
             states.push("focused");
@@ -660,7 +666,14 @@ export class G6GraphAdapter implements GraphAdapter {
 
         const node = this.getNodeVM(nodeKey);
         if (node) {
-            this.handlers?.onNodeSelected(node.ref, { via: "contextMenu" });
+            // Right-clicking a condition card selects that item so the menu acts on it.
+            const conditionIndex = readEventConditionCardIndex(event);
+            this.handlers?.onNodeSelected(node.ref, {
+                via: "contextMenu",
+                ...(conditionIndex === null
+                    ? {}
+                    : { surface: "condition" as const, conditionIndex }),
+            });
         }
     };
 
@@ -705,12 +718,12 @@ export class G6GraphAdapter implements GraphAdapter {
             }
         }
 
-        const surface =
-            eventHasShapeClass(event, "condition-adornment") ||
-            eventHasShapeClass(event, "condition-label")
-                ? "condition"
-                : "node";
-        const conditionClick = surface === "condition" ? { key: nodeKey, time: Date.now() } : null;
+        const conditionIndex = readEventConditionCardIndex(event);
+        const surface = conditionIndex === null ? "node" : "condition";
+        const conditionClick =
+            conditionIndex === null
+                ? null
+                : { key: `${nodeKey}#${conditionIndex}`, time: Date.now() };
         const openConditionEditor =
             conditionClick !== null && isDoubleShapeClick(this.lastConditionClick, conditionClick);
         this.lastConditionClick = openConditionEditor ? null : conditionClick;
@@ -718,11 +731,12 @@ export class G6GraphAdapter implements GraphAdapter {
             via: "click",
             clearVariableFocus: !keepVariableFocus,
             surface,
+            conditionIndex: conditionIndex ?? undefined,
         });
         if (openConditionEditor) {
             // G6 only emits dblclick when both clicks hit the same display object.
-            // Selection refresh replaces the tab rect, so repeat the click hit test here.
-            this.handlers?.onNodeDoubleClicked(node.ref, "condition");
+            // Selection refresh replaces the card shapes, so repeat the click hit test here.
+            this.handlers?.onNodeDoubleClicked(node.ref, "condition", conditionIndex ?? 0);
         }
     };
 
@@ -734,12 +748,12 @@ export class G6GraphAdapter implements GraphAdapter {
 
         const node = this.getNodeVM(nodeKey);
         if (node) {
-            const source =
-                eventHasShapeClass(event, "condition-adornment") ||
-                eventHasShapeClass(event, "condition-label")
-                    ? "condition"
-                    : "body";
-            this.handlers?.onNodeDoubleClicked(node.ref, source);
+            const conditionIndex = readEventConditionCardIndex(event);
+            if (conditionIndex === null) {
+                this.handlers?.onNodeDoubleClicked(node.ref, "body");
+            } else {
+                this.handlers?.onNodeDoubleClicked(node.ref, "condition", conditionIndex);
+            }
         }
     };
 
@@ -810,7 +824,7 @@ export class G6GraphAdapter implements GraphAdapter {
 
         const x = canvas[0] - position[0];
         const y = canvas[1] - position[1];
-        const tabHeight = data.vm.attachedConditionName ? G6_GRAPH_CONDITION_TAB_HEIGHT : 0;
+        const tabHeight = data.vm.attachedConditions.length * G6_GRAPH_CONDITION_TAB_HEIGHT;
         const bodyHeight = Math.max(1, data.height - tabHeight);
         const yInBody = y - tabHeight;
         // Left half of the node card drops around the target; right half nests as a child.

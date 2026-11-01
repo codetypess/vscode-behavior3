@@ -1,6 +1,6 @@
 export const G6_GRAPH_NODE_WIDTH = 260;
 /** Space the condition card adds above the node body; the two sit flush. */
-export const G6_GRAPH_CONDITION_TAB_HEIGHT = 26;
+export const G6_GRAPH_CONDITION_TAB_HEIGHT = 30;
 export const G6_GRAPH_NODE_MIN_HEIGHT = 52;
 export const G6_GRAPH_NODE_CONTENT_X = 46;
 export const G6_GRAPH_NODE_CONTENT_RIGHT_PADDING = 8;

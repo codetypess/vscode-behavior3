@@ -167,10 +167,11 @@ export const hostProtocolSharedTests = defineSharedTests([
                     sourceTreePath: null,
                     subtreeStack: [],
                 };
-                adapter.requestOpenConditionFile(conditionTarget);
+                adapter.requestOpenConditionFile(conditionTarget, 1);
                 assert.deepEqual(posts.at(-1), {
                     type: "openConditionFile",
                     target: conditionTarget,
+                    index: 1,
                 });
 
                 const resultPromise = adapter.readFile(

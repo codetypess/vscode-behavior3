@@ -15,12 +15,13 @@ import { materializePersistedTree, type MaterializedTreeNode } from "../shared/t
  */
 const flattenMaterializedTree = (
     root: MaterializedTreeNode,
-    prefix: string
+    prefix: string,
+    displayIdStart: number
 ): ResolveGraphResult => {
     const nodesByInstanceKey: Record<string, ResolvedNodeModel> = {};
     const nodeOrder: string[] = [];
     const mainTreeDisplayIdsByStableId: Record<string, string> = {};
-    let nextDisplayId = 1;
+    let nextDisplayId = displayIdStart;
 
     // Condition-tree nodes share the display id sequence but are not graph nodes.
     const numberConditionTree = (node: MaterializedTreeNode) => {
@@ -75,7 +76,9 @@ const flattenMaterializedTree = (
             subtreeEditable: node.subtreeEditable,
             subtreeOriginal: node.subtreeOriginal,
             resolutionError: node.resolutionError,
-            attachedConditionName: node.data.conditions?.[0]?.root.name,
+            attachedConditionNames: (node.data.conditions ?? []).map(
+                (condition) => condition.root.name
+            ),
             conditions: node.data.conditions,
         };
         nodeOrder.push(instanceKey);
@@ -101,11 +104,22 @@ const flattenMaterializedTree = (
  * graph snapshot. The rest of the webview treats this as the canonical runtime
  * model until the next rebuild.
  */
+/**
+ * A condition file's nodes are one run of the host tree's ids, starting at the id its root has
+ * there (the host writes it into the file); other trees count from 1.
+ */
+export const getDisplayIdStart = (tree: PersistedTreeModel, conditionFile: boolean): number => {
+    const rootId = Number(tree.root.id);
+    return conditionFile && Number.isSafeInteger(rootId) && rootId > 0 ? rootId : 1;
+};
+
 export const resolveDocumentGraph = (params: {
     persistedTree: PersistedTreeModel;
     subtreeSources: Record<WorkdirRelativeJsonPath, SubtreeSourceCacheEntry>;
     nodeDefs: NodeDef[];
     subtreeEditable: boolean;
+    /** First display id; see `getDisplayIdStart`. */
+    displayIdStart?: number;
 }): ResolveGraphResult => {
     const root = materializePersistedTree({
         persistedTree: params.persistedTree,
@@ -114,5 +128,9 @@ export const resolveDocumentGraph = (params: {
         subtreeEditable: params.subtreeEditable,
     });
 
-    return flattenMaterializedTree(root, params.persistedTree.prefix ?? "");
+    return flattenMaterializedTree(
+        root,
+        params.persistedTree.prefix ?? "",
+        params.displayIdStart ?? 1
+    );
 };

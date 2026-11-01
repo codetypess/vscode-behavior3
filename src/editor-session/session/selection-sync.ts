@@ -64,11 +64,11 @@ export function createSessionSelectionSync(
         msg: Extract<EditorToHostMessage, { type: "selectNode" }>
     ): Promise<void> => {
         await enqueueMainDocumentOperation(async () => {
+            const ref = normalizeNodeInstanceRef(msg.target);
             const result = updateSharedSelection(
-                {
-                    kind: msg.surface === "condition" ? "condition" : "node",
-                    ref: normalizeNodeInstanceRef(msg.target),
-                },
+                msg.surface === "condition"
+                    ? { kind: "condition", ref, index: msg.conditionIndex ?? 0 }
+                    : { kind: "node", ref },
                 { reassertIfEqual: true }
             );
             if (result === "noop") {

@@ -71,12 +71,13 @@ const applySidebarVars = (runtime: EditorRuntime, payload: HostVarsPayload) => {
 };
 
 const buildCurrentHostSelection = (runtime: EditorRuntime): HostSelectionState => {
-    const { selectedNodeRef, inspectorSurface } = runtime.selectionStore.getState();
+    const { selectedNodeRef, inspectorSurface, selectedConditionIndex } =
+        runtime.selectionStore.getState();
     if (!selectedNodeRef) {
         return { kind: "tree" };
     }
     return inspectorSurface === "condition"
-        ? { kind: "condition", ref: selectedNodeRef }
+        ? { kind: "condition", ref: selectedNodeRef, index: selectedConditionIndex }
         : { kind: "node", ref: selectedNodeRef };
 };
 

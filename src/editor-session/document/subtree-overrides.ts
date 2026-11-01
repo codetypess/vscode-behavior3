@@ -98,7 +98,7 @@ export function mutationMayAffectSubtreeOverrideReachability(
             const currentRoot = findPersistedNodeByStableId(
                 currentTree.root,
                 mutation.payload.hostStableId
-            )?.conditions?.[0]?.root;
+            )?.conditions?.[mutation.payload.index]?.root;
             return (
                 branchContainsSubtreeLink(currentRoot) ||
                 branchContainsSubtreeLink(mutation.payload.root)

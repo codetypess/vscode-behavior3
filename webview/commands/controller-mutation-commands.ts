@@ -34,6 +34,7 @@ type MutationCommandKeys =
     | "saveSelectedAsSubtree"
     | "attachCondition"
     | "removeCondition"
+    | "moveCondition"
     | "openConditionFile";
 
 type DropPreflightDenialReason =
@@ -119,6 +120,37 @@ const forwardDocumentMutation = async (
         return response;
     }
     return response;
+};
+
+const buildCurrentNodeSnapshot = (
+    runtime: ControllerRuntime
+): UpdateNodeInput["currentNodeSnapshot"] => {
+    const selectedSnapshot = runtime.deps.selectionStore.getState().selectedNodeSnapshot;
+    return selectedSnapshot
+        ? {
+              data: clonePersistedNode(selectedSnapshot.data),
+              subtreeNode: selectedSnapshot.subtreeNode,
+              subtreeOriginal: selectedSnapshot.subtreeOriginal
+                  ? clonePersistedNode(selectedSnapshot.subtreeOriginal)
+                  : undefined,
+          }
+        : undefined;
+};
+
+/** The condition item the condition inspector shows, clamped to the node's current items. */
+const getSelectedCondition = (runtime: ControllerRuntime) => {
+    const selected = runtime.getSelectedResolvedNode();
+    if (!selected) {
+        runtime.notifyError(i18n.t("node.noNodeSelected"));
+        return null;
+    }
+    const count = selected.attachedConditionNames.length;
+    const { inspectorSurface, selectedConditionIndex } = runtime.deps.selectionStore.getState();
+    if (count === 0 || inspectorSurface !== "condition") {
+        runtime.notifyError(i18n.t("mutation.conditionNotSelected"));
+        return null;
+    }
+    return { selected, index: Math.min(selectedConditionIndex, count - 1), count };
 };
 
 const buildUpdateNodePayload = (
@@ -489,66 +521,91 @@ export const createMutationCommands = (
                 runtime.notifyError(i18n.t("node.noNodeSelected"));
                 return;
             }
-            if (selected.attachedConditionName) {
-                runtime.notifyError(i18n.t("mutation.conditionAlreadyAttached"));
-                return;
-            }
 
-            const selectedSnapshot = runtime.deps.selectionStore.getState().selectedNodeSnapshot;
-            await forwardDocumentMutation(runtime, {
+            const response = await forwardDocumentMutation(runtime, {
                 type: "attachCondition",
                 payload: {
                     target: selected.ref,
                     entryName,
-                    currentNodeSnapshot: selectedSnapshot
-                        ? {
-                              data: clonePersistedNode(selectedSnapshot.data),
-                              subtreeNode: selectedSnapshot.subtreeNode,
-                              subtreeOriginal: selectedSnapshot.subtreeOriginal
-                                  ? clonePersistedNode(selectedSnapshot.subtreeOriginal)
-                                  : undefined,
-                          }
-                        : undefined,
+                    currentNodeSnapshot: buildCurrentNodeSnapshot(runtime),
                 },
             });
+            if (response.success) {
+                // The new item goes last; show it in the condition inspector.
+                runtime.deps.hostAdapter.selectNode(
+                    selected.ref,
+                    "condition",
+                    selected.attachedConditionNames.length
+                );
+            }
         },
 
         async removeCondition() {
-            const selected = runtime.getSelectedResolvedNode();
-            if (!selected) {
-                runtime.notifyError(i18n.t("node.noNodeSelected"));
+            const target = getSelectedCondition(runtime);
+            if (!target) {
                 return;
             }
-            if (!selected.attachedConditionName) {
-                runtime.notifyError(i18n.t("mutation.conditionNotAttached"));
-                return;
-            }
+            const { selected, index, count } = target;
             const selectedSnapshot = runtime.deps.selectionStore.getState().selectedNodeSnapshot;
-            if (selected.subtreeNode && selectedSnapshot?.subtreeOriginal?.conditions?.length) {
+            if (
+                count === 1 &&
+                selected.subtreeNode &&
+                selectedSnapshot?.subtreeOriginal?.conditions?.length
+            ) {
                 runtime.notifyError(i18n.t("mutation.conditionClearDenied"));
                 return;
             }
 
-            await forwardDocumentMutation(runtime, {
+            const response = await forwardDocumentMutation(runtime, {
                 type: "removeCondition",
                 payload: {
                     target: selected.ref,
-                    currentNodeSnapshot: selectedSnapshot
-                        ? {
-                              data: clonePersistedNode(selectedSnapshot.data),
-                              subtreeNode: selectedSnapshot.subtreeNode,
-                              subtreeOriginal: selectedSnapshot.subtreeOriginal
-                                  ? clonePersistedNode(selectedSnapshot.subtreeOriginal)
-                                  : undefined,
-                          }
-                        : undefined,
+                    index,
+                    currentNodeSnapshot: buildCurrentNodeSnapshot(runtime),
                 },
             });
+            if (response.success) {
+                // Keep the same slot (the next item), else the previous one, else the node.
+                if (count > 1) {
+                    runtime.deps.hostAdapter.selectNode(
+                        selected.ref,
+                        "condition",
+                        Math.min(index, count - 2)
+                    );
+                } else {
+                    runtime.deps.hostAdapter.selectNode(selected.ref, "node");
+                }
+            }
         },
 
-        async openConditionFile(target) {
-            // The host opens `<host file>/<uuid>/condition.json` in its own tab.
-            runtime.deps.hostAdapter.requestOpenConditionFile(target);
+        async moveCondition(direction) {
+            const target = getSelectedCondition(runtime);
+            if (!target) {
+                return;
+            }
+            const { selected, index, count } = target;
+            const nextIndex = direction === "up" ? index - 1 : index + 1;
+            if (nextIndex < 0 || nextIndex >= count) {
+                return;
+            }
+
+            const response = await forwardDocumentMutation(runtime, {
+                type: "moveCondition",
+                payload: {
+                    target: selected.ref,
+                    index,
+                    direction,
+                    currentNodeSnapshot: buildCurrentNodeSnapshot(runtime),
+                },
+            });
+            if (response.success) {
+                runtime.deps.hostAdapter.selectNode(selected.ref, "condition", nextIndex);
+            }
+        },
+
+        async openConditionFile(target, index) {
+            // The host opens `<host file>/<uuid>/condition[-n].json` in its own tab.
+            runtime.deps.hostAdapter.requestOpenConditionFile(target, index);
         },
     };
 };

@@ -6,6 +6,7 @@ import debugIconUrl from "../../../media/icons/Debug.svg";
 import decoratorIconUrl from "../../../media/icons/Decorator.svg";
 import disabledIconUrl from "../../../media/icons/Disabled.svg";
 import errorIconUrl from "../../../media/icons/Error.svg";
+import flushIconUrl from "../../../media/icons/Flush.svg";
 import otherIconUrl from "../../../media/icons/Other.svg";
 import status000IconUrl from "../../../media/icons/status000.svg";
 import status001IconUrl from "../../../media/icons/status001.svg";
@@ -100,5 +101,22 @@ export const statusIconMap: Record<number, string> = {
     6: status110IconUrl,
     7: status111IconUrl,
 };
+
+/**
+ * Recolor a `currentColor` SVG icon. Images do not inherit a text color, so `currentColor`
+ * would draw black; small SVGs are inlined as data URLs, which can be rewritten in place.
+ * An icon emitted as a separate asset keeps its original colors.
+ */
+export const tintSvgIconUrl = (url: string, color: string): string => {
+    const match = /^data:image\/svg\+xml(;base64)?,(.*)$/s.exec(url);
+    if (!match) {
+        return url;
+    }
+    const svg = match[1] ? atob(match[2]) : decodeURIComponent(match[2]);
+    return `data:image/svg+xml,${encodeURIComponent(svg.replaceAll("currentColor", color))}`;
+};
+
+/** Marks a condition card in place of the word "condition". */
+export const conditionCardIconUrl = tintSvgIconUrl(flushIconUrl, "#ffffff");
 
 export { debugIconUrl, disabledIconUrl, status000IconUrl };

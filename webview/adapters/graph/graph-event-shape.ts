@@ -22,6 +22,29 @@ const hasShapeClassInChain = (
     return false;
 };
 
+const CONDITION_CARD_CLASS_PATTERN = /^condition-card-(\d+)$/;
+
+/** Class of every shape in condition card `index`, read back from pointer events. */
+export const conditionCardClassName = (index: number) => `condition-card-${index}`;
+
+/** The condition card a pointer event hit, or `null` for anything else. */
+export const readEventConditionCardIndex = (event: EventLike): number | null => {
+    for (const start of [event.originalTarget, event.target]) {
+        let current = start ?? null;
+        while (current) {
+            const match =
+                typeof current.className === "string"
+                    ? CONDITION_CARD_CLASS_PATTERN.exec(current.className)
+                    : null;
+            if (match) {
+                return Number(match[1]);
+            }
+            current = current.parentElement ?? null;
+        }
+    }
+    return null;
+};
+
 export const eventHasShapeClass = (
     event: EventLike,
     shapeClassName: string

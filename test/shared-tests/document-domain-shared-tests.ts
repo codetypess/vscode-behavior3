@@ -26,7 +26,7 @@ import { reduceDocumentMutation } from "../../webview/shared/document";
 import { parseWorkdirRelativeJsonPath } from "../../webview/shared/protocol";
 import { parseNodeDefsContent, parseWorkspaceModelContent } from "../../webview/shared/schema";
 import { materializePersistedTree } from "../../webview/shared/tree-materializer";
-import { resolveDocumentGraph } from "../../webview/domain/resolve-graph";
+import { getDisplayIdStart, resolveDocumentGraph } from "../../webview/domain/resolve-graph";
 import {
     applyMainTreeDisplayIds,
     collectReachableSubtreePaths,
@@ -1988,6 +1988,7 @@ export const documentDomainSharedTests = defineSharedTests([
                 {
                     type: "removeCondition",
                     payload: {
+                        index: 0,
                         target: {
                             instanceKey: "1",
                             displayId: "1",
@@ -2160,7 +2161,7 @@ export const documentDomainSharedTests = defineSharedTests([
                 patrol: "6",
             });
             assert.deepEqual(graph.nodeOrder.sort(), ["1", "2", "5", "6"]);
-            assert.equal(graph.nodesByInstanceKey["2"].attachedConditionName, "Guard");
+            assert.deepEqual(graph.nodesByInstanceKey["2"].attachedConditionNames, ["Guard"]);
 
             const plan = await preparePersistedTreeForMainDocumentSave({
                 tree,
@@ -2403,6 +2404,7 @@ export const documentDomainSharedTests = defineSharedTests([
                 {
                     type: "removeCondition",
                     payload: {
+                        index: 0,
                         target: {
                             instanceKey: "1",
                             displayId: "1",
@@ -2433,6 +2435,264 @@ export const documentDomainSharedTests = defineSharedTests([
             assert.equal(removed.tree.root.conditions, undefined);
             assert.equal(removed.tree.root.children?.length ?? 0, 0);
             assert.equal(removed.tree.custom.$condition_type, "local");
+        },
+    },
+    {
+        name: "appends, removes and moves condition items on an inline node",
+        run() {
+            const nodeDefs: NodeDef[] = [
+                { name: "Attack", type: "Action", desc: "" },
+                { name: "Guard", type: "Condition", desc: "", status: ["success", "failure"] },
+                { name: "Check", type: "Condition", desc: "", status: ["success", "failure"] },
+            ];
+            const target = {
+                instanceKey: "1",
+                displayId: "1",
+                structuralStableId: "root",
+                sourceStableId: "root",
+                sourceTreePath: null,
+                subtreeStack: [],
+            };
+            const tree = treeWithoutCondition();
+            const names = (result: ReturnType<typeof reduceDocumentMutation>) =>
+                result.status === "changed"
+                    ? result.tree.root.conditions?.map((condition) => condition.root.name)
+                    : result.status;
+            const attach = (current: PersistedTreeModel, entryName: string) =>
+                reduceDocumentMutation(
+                    { type: "attachCondition", payload: { target, entryName } },
+                    { tree: current, nodeDefs }
+                );
+
+            const first = attach(tree, "Guard");
+            assert.equal(first.status, "changed");
+            if (first.status !== "changed") {
+                return;
+            }
+            const second = attach(first.tree, "Check");
+            assert.deepEqual(names(second), ["Guard", "Check"]);
+            if (second.status !== "changed") {
+                return;
+            }
+            const third = attach(second.tree, "Guard");
+            if (third.status !== "changed") {
+                assert.fail("expected a third condition");
+            }
+
+            const move = (direction: "up" | "down", index: number) =>
+                reduceDocumentMutation(
+                    { type: "moveCondition", payload: { target, index, direction } },
+                    { tree: second.tree, nodeDefs }
+                );
+            assert.deepEqual(names(move("up", 1)), ["Check", "Guard"]);
+            assert.deepEqual(names(move("down", 0)), ["Check", "Guard"]);
+            assert.equal(move("up", 0).status, "noop");
+            assert.equal(move("down", 1).status, "noop");
+            assert.equal(move("down", 5).status, "error");
+
+            const removed = reduceDocumentMutation(
+                { type: "removeCondition", payload: { target, index: 1 } },
+                { tree: third.tree, nodeDefs }
+            );
+            assert.deepEqual(names(removed), ["Guard", "Guard"]);
+            const out = reduceDocumentMutation(
+                { type: "removeCondition", payload: { target, index: 3 } },
+                { tree: third.tree, nodeDefs }
+            );
+            assert.equal(out.status, "error");
+        },
+    },
+    {
+        name: "edits condition items of a subtree node through a whole-list override",
+        run() {
+            const tree = createTestTree();
+            const target = {
+                instanceKey: "node-1",
+                displayId: "2",
+                structuralStableId: "sub-node",
+                sourceStableId: "sub-node",
+                sourceTreePath: "subtree/child.json" as any,
+                subtreeStack: [],
+            };
+            const nodeDefs: NodeDef[] = [
+                { name: "Wait", type: "Action", desc: "" },
+                { name: "Guard", type: "Condition", desc: "", status: ["success", "failure"] },
+            ];
+            const source = [
+                attachedCondition({ uuid: "a", id: "3", name: "Check" }),
+                attachedCondition({ uuid: "b", id: "4", name: "Guard" }),
+            ];
+            const snapshot = (conditions: PersistedConditionData[]) => ({
+                data: { uuid: "sub-node", id: "2", name: "Wait", conditions },
+                subtreeNode: true,
+                subtreeOriginal: { uuid: "sub-node", id: "2", name: "Wait", conditions: source },
+            });
+
+            const appended = reduceDocumentMutation(
+                {
+                    type: "attachCondition",
+                    payload: { target, entryName: "Guard", currentNodeSnapshot: snapshot(source) },
+                },
+                { tree, nodeDefs }
+            );
+            assert.equal(appended.status, "changed");
+            if (appended.status === "changed") {
+                assert.deepEqual(
+                    appended.tree.overrides["sub-node"]?.conditions?.map((c) => c.root.name),
+                    ["Check", "Guard", "Guard"]
+                );
+            }
+
+            const moved = reduceDocumentMutation(
+                {
+                    type: "moveCondition",
+                    payload: {
+                        target,
+                        index: 1,
+                        direction: "up",
+                        currentNodeSnapshot: snapshot(source),
+                    },
+                },
+                { tree, nodeDefs }
+            );
+            assert.equal(moved.status, "changed");
+            if (moved.status === "changed") {
+                assert.deepEqual(
+                    moved.tree.overrides["sub-node"]?.conditions?.map((c) => c.root.uuid),
+                    ["b", "a"]
+                );
+            }
+
+            // Removing one source item still leaves a list to override with.
+            const removedOne = reduceDocumentMutation(
+                {
+                    type: "removeCondition",
+                    payload: { target, index: 0, currentNodeSnapshot: snapshot(source) },
+                },
+                { tree, nodeDefs }
+            );
+            assert.equal(removedOne.status, "changed");
+            if (removedOne.status === "changed") {
+                assert.deepEqual(
+                    removedOne.tree.overrides["sub-node"]?.conditions?.map((c) => c.root.uuid),
+                    ["b"]
+                );
+            }
+
+            // An override cannot clear the source's items.
+            const clearing = reduceDocumentMutation(
+                {
+                    type: "removeCondition",
+                    payload: { target, index: 0, currentNodeSnapshot: snapshot([source[1]]) },
+                },
+                { tree, nodeDefs }
+            );
+            assert.equal(clearing.status, "error");
+            if (clearing.status === "error") {
+                assert.equal(clearing.error.code, "condition-clear-denied");
+            }
+        },
+    },
+    {
+        name: "numbers a condition file with the ids its nodes have in the host",
+        async run() {
+            const nodeDefs: NodeDef[] = [
+                { name: "Sequence", type: "Composite", desc: "", children: -1 },
+                { name: "Check", type: "Condition", desc: "", status: ["success", "failure"] },
+                { name: "Log", type: "Action", desc: "" },
+            ];
+            // Stored ids are stale: the host would renumber them on save.
+            const hostTree = parseMainTree({
+                custom: {},
+                root: {
+                    uuid: "root",
+                    id: "9",
+                    name: "Sequence",
+                    children: [
+                        { uuid: "first", id: "9", name: "Log" },
+                        {
+                            uuid: "host",
+                            id: "9",
+                            name: "Sequence",
+                            conditions: [
+                                { root: { uuid: "a", id: "9", name: "Check" } },
+                                {
+                                    root: {
+                                        uuid: "b",
+                                        id: "9",
+                                        name: "Sequence",
+                                        children: [{ uuid: "b1", id: "9", name: "Check" }],
+                                    },
+                                },
+                            ],
+                            children: [{ uuid: "last", id: "9", name: "Log" }],
+                        },
+                    ],
+                },
+            });
+
+            const plan = await preparePersistedTreeForMainDocumentSave({
+                tree: hostTree,
+                nodeDefs,
+                readSubtreeContent: async () => null,
+            });
+            const liveHost = parsePersistedTreeContent(plan.content, "/tmp/main.json");
+            const hostIds = resolveDocumentGraph({
+                persistedTree: liveHost,
+                subtreeSources: {},
+                nodeDefs,
+                subtreeEditable: true,
+            }).mainTreeDisplayIdsByStableId;
+            // root 1, first 2, host 3, condition a 4, condition b 5 and 6, last 7
+            assert.equal(hostIds.b, "5");
+            assert.equal(hostIds.b1, "6");
+
+            const conditionTree = buildConditionFileTree(liveHost, "host", 1);
+            assert.ok(conditionTree);
+            assert.equal(getDisplayIdStart(conditionTree, true), 5);
+            assert.equal(getDisplayIdStart(conditionTree, false), 1);
+            const conditionGraph = resolveDocumentGraph({
+                persistedTree: conditionTree,
+                subtreeSources: {},
+                nodeDefs,
+                subtreeEditable: true,
+                displayIdStart: getDisplayIdStart(conditionTree, true),
+            });
+            assert.deepEqual(conditionGraph.mainTreeDisplayIdsByStableId, { b: "5", b1: "6" });
+            assert.equal(conditionGraph.graph.rootKey, "5");
+        },
+    },
+    {
+        name: "writes a condition file back into its own item",
+        run() {
+            const tree = createTestTree();
+            tree.root.conditions = [
+                attachedCondition({ uuid: "first", id: "2", name: "Check" }),
+                attachedCondition({ uuid: "second", id: "3", name: "Check" }),
+            ];
+            const nodeDefs: NodeDef[] = [
+                { name: "Check", type: "Condition", desc: "", status: ["success", "failure"] },
+            ];
+            const fileTree = buildConditionFileTree(tree, "root", 1);
+            assert.ok(fileTree);
+            fileTree.root.name = "Check";
+            fileTree.root.desc = "edited";
+            const written = reduceDocumentMutation(
+                {
+                    type: "setConditionRoot",
+                    payload: {
+                        hostStableId: "root",
+                        index: 1,
+                        ...readConditionFileWriteBack(fileTree),
+                    },
+                },
+                { tree, nodeDefs }
+            );
+            assert.equal(written.status, "changed");
+            if (written.status === "changed") {
+                assert.equal(written.tree.root.conditions?.[0].root.desc, undefined);
+                assert.equal(written.tree.root.conditions?.[1].root.desc, "edited");
+            }
         },
     },
     {
@@ -2479,6 +2739,7 @@ export const documentDomainSharedTests = defineSharedTests([
                 {
                     type: "removeCondition",
                     payload: {
+                        index: 0,
                         target,
                         currentNodeSnapshot: {
                             data: {
@@ -2504,6 +2765,7 @@ export const documentDomainSharedTests = defineSharedTests([
                 {
                     type: "removeCondition",
                     payload: {
+                        index: 0,
                         target,
                         currentNodeSnapshot: {
                             data: {
@@ -2739,7 +3001,7 @@ export const documentDomainSharedTests = defineSharedTests([
     {
         name: "builds short condition file locations that keep the host path in the query",
         run() {
-            const location = buildConditionFileLocation("/w/workdir/hero.json", "a/b c");
+            const location = buildConditionFileLocation("/w/workdir/hero.json", "a/b c", 0);
             assert.deepEqual(location, {
                 path: "/hero.json/a%2Fb%20c/condition.json",
                 query: "host=%2Fw%2Fworkdir%2Fhero.json",
@@ -2747,11 +3009,26 @@ export const documentDomainSharedTests = defineSharedTests([
             assert.deepEqual(parseConditionFileLocation(location), {
                 hostFilePath: "/w/workdir/hero.json",
                 hostStableId: "a/b c",
+                index: 0,
             });
             assert.equal(
-                buildConditionFilePath("/w/workdir/hero.json", "abc"),
+                buildConditionFilePath("/w/workdir/hero.json", "abc", 0),
                 "/w/workdir/hero.json/abc/condition.json"
             );
+            // Later items are `condition-<n>.json`, n counting from 1.
+            const third = buildConditionFileLocation("/w/workdir/hero.json", "abc", 2);
+            assert.equal(third.path, "/hero.json/abc/condition-3.json");
+            assert.equal(parseConditionFileLocation(third)?.index, 2);
+            for (const name of ["condition-1.json", "condition-0.json", "condition-x.json"]) {
+                assert.equal(
+                    parseConditionFileLocation({
+                        path: `/hero.json/abc/${name}`,
+                        query: third.query,
+                    }),
+                    null,
+                    name
+                );
+            }
             assert.equal(parseConditionFileLocation({ ...location, query: "" }), null);
             assert.equal(
                 parseConditionFileLocation({ ...location, query: "host=%2Fw%2Fother.json" }),
@@ -2788,8 +3065,10 @@ export const documentDomainSharedTests = defineSharedTests([
                 { name: "Wait", type: "Action", desc: "", status: ["running"] },
             ];
 
-            assert.equal(buildConditionFileTree(tree, "missing"), null);
-            const conditionTree = buildConditionFileTree(tree, "root");
+            assert.equal(buildConditionFileTree(tree, "missing", 0), null);
+            assert.equal(buildConditionFileTree(tree, "root", 2), null);
+            assert.equal(buildConditionFileTree(tree, "root", 1)?.root.uuid, "second");
+            const conditionTree = buildConditionFileTree(tree, "root", 0);
             assert.ok(conditionTree);
             assert.equal(conditionTree.name, "condition");
             assert.equal(conditionTree.prefix, "H");
@@ -2838,7 +3117,11 @@ export const documentDomainSharedTests = defineSharedTests([
             const written = reduceDocumentMutation(
                 {
                     type: "setConditionRoot",
-                    payload: { hostStableId: "root", ...readConditionFileWriteBack(edited.tree) },
+                    payload: {
+                        hostStableId: "root",
+                        index: 0,
+                        ...readConditionFileWriteBack(edited.tree),
+                    },
                 },
                 { tree, nodeDefs }
             );
@@ -2858,7 +3141,11 @@ export const documentDomainSharedTests = defineSharedTests([
             const unchanged = reduceDocumentMutation(
                 {
                     type: "setConditionRoot",
-                    payload: { hostStableId: "root", ...readConditionFileWriteBack(conditionTree) },
+                    payload: {
+                        hostStableId: "root",
+                        index: 0,
+                        ...readConditionFileWriteBack(conditionTree),
+                    },
                 },
                 { tree, nodeDefs }
             );
@@ -2869,6 +3156,7 @@ export const documentDomainSharedTests = defineSharedTests([
                     type: "setConditionRoot",
                     payload: {
                         hostStableId: "root",
+                        index: 0,
                         overrides: tree.overrides,
                         root: {
                             uuid: "guard",
@@ -2899,7 +3187,12 @@ export const documentDomainSharedTests = defineSharedTests([
             const missing = reduceDocumentMutation(
                 {
                     type: "setConditionRoot",
-                    payload: { hostStableId: "nope", root: conditionTree.root, overrides: {} },
+                    payload: {
+                        hostStableId: "nope",
+                        index: 0,
+                        root: conditionTree.root,
+                        overrides: {},
+                    },
                 },
                 { tree, nodeDefs }
             );

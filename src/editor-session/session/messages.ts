@@ -81,6 +81,7 @@ export function buildInitMessage(params: {
         allFiles: params.allFiles,
         nodeColors: params.settings.nodeColors,
         customFields: params.settings.customFields,
+        conditionFile: params.settings.conditionFile,
         documentSession: params.documentSession,
         selection: params.selection,
     };

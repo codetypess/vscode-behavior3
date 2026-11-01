@@ -36,6 +36,8 @@ export const Hotkey = {
     F2: Key.F2,
     Insert: Key.Insert,
     JumpNode: hotkey("ctrl.g"),
+    MoveConditionDown: hotkey("ctrl.downarrow"),
+    MoveConditionUp: hotkey("ctrl.uparrow"),
     MacDelete: isMacos ? hotkey("ctrl.backspace") : "",
     Paste: hotkey("ctrl.v"),
     Redo: isMacos ? hotkey("shift.ctrl.z") : hotkey("ctrl.y"),

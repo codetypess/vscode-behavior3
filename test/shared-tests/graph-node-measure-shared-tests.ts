@@ -4,6 +4,10 @@ import {
     getGraphNodeMetadataSectionLayout,
     toBreakWord,
 } from "../../webview/adapters/graph/g6-graph-node-measure";
+import {
+    conditionCardClassName,
+    readEventConditionCardIndex,
+} from "../../webview/adapters/graph/graph-event-shape";
 import { defineSharedTests } from "../shared-test-types";
 
 const withMockTextMeasure = (run: (fonts: string[]) => void) => {
@@ -68,6 +72,20 @@ const withMockTextMeasure = (run: (fonts: string[]) => void) => {
 
 export const graphNodeMeasureSharedTests = defineSharedTests([
     {
+        name: "reads the condition card index from a pointer event",
+        run() {
+            const card = { className: conditionCardClassName(2), parentElement: null };
+            const label = { className: "label", parentElement: card };
+            assert.equal(readEventConditionCardIndex({ originalTarget: label }), 2);
+            assert.equal(readEventConditionCardIndex({ target: card }), 2);
+            assert.equal(readEventConditionCardIndex({ target: { className: "key-shape" } }), null);
+            assert.equal(
+                readEventConditionCardIndex({ target: { className: "condition-card-x" } }),
+                null
+            );
+        },
+    },
+    {
         name: "wraps graph node metadata on natural delimiters",
         run() {
             withMockTextMeasure(() => {
@@ -117,10 +135,7 @@ export const graphNodeMeasureSharedTests = defineSharedTests([
 
             assert.equal(argsLayout.textTop - descTop, G6_GRAPH_NODE_ROW_HEIGHT);
             assert.equal(argsLayout.nextSectionTop - argsLayout.textTop, G6_GRAPH_NODE_ROW_HEIGHT);
-            assert.equal(
-                inputLayout.textTop - argsLayout.nextSectionTop,
-                G6_GRAPH_NODE_ROW_HEIGHT
-            );
+            assert.equal(inputLayout.textTop - argsLayout.nextSectionTop, G6_GRAPH_NODE_ROW_HEIGHT);
         },
     },
 ]);

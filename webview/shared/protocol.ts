@@ -92,7 +92,11 @@ export const normalizeHostSelectionState = (selection: HostSelectionState): Host
         return { kind: "tree" };
     }
     if (selection.kind === "condition") {
-        return { kind: "condition", ref: normalizeNodeInstanceRef(selection.ref) };
+        return {
+            kind: "condition",
+            ref: normalizeNodeInstanceRef(selection.ref),
+            index: Number.isInteger(selection.index) && selection.index > 0 ? selection.index : 0,
+        };
     }
     return { kind: "node", ref: normalizeNodeInstanceRef(selection.ref) };
 };
@@ -119,6 +123,7 @@ export const normalizeHostInitMessage = (
         inspectorMode: message.inspectorMode,
         nodeColors: message.nodeColors,
         customFields: message.customFields ?? { tree: [], condition: [] },
+        conditionFile: message.conditionFile ?? false,
     };
 
     return {

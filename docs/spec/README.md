@@ -238,6 +238,7 @@ Scope: <short boundary>
 - [`visible-expression-field-errors.md`](visible-expression-field-errors.md)：Status `Implementing`。字段可见性表达式与字段级错误。
 - [`node-conditions.md`](node-conditions.md)：Status `Implemented`。behavior3 2.0 节点条件（`conditions`）的数据层，以及从原「节点附属装饰器」改过来的显示和编辑。
 - [`workspace-custom-fields.md`](workspace-custom-fields.md)：Status `Verifying`。在 `.b3-workspace` 里声明树和条件的自定义数据字段，取代写死的 `$condition_type`。
+- [`multiple-node-conditions.md`](multiple-node-conditions.md)：Status `Verifying`。一个节点挂多项条件：画布叠放、按项选中、添加/删除/上下移、条件文件按序号。
 - [`custom-field-script-hooks.md`](custom-field-script-hooks.md)：Status `Verifying`。用 `@behavior3.customField` 脚本钩子决定条件字段的值（例如原装饰器的优先级规则）。
 
 新增 work-item 时，请继续按以上格式补充；完成后如果长期规则已同步进编号基线 spec，直接从目录中删除对应 work-item。

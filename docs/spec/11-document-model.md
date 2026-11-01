@@ -171,7 +171,7 @@
 
 ### 条件文件
 
-- 节点的第一项条件可以作为虚拟文件 `behavior3-condition:/<宿主文件名>/<宿主节点 uuid>/condition.json?host=<宿主文件完整路径>` 在独立标签页里编辑。它是一份独立的 `TreeEditorDocument`，有自己的 dirty 和撤销记录
+- 节点的每一项条件都可以作为虚拟文件 `behavior3-condition:/<宿主文件名>/<宿主节点 uuid>/condition.json?host=<宿主文件完整路径>`（第 n 项是 `condition-<n>.json`）在独立标签页里编辑。它是一份独立的 `TreeEditorDocument`，有自己的 dirty 和撤销记录
 - 它的内容由宿主文件生成：根节点是条件树，`prefix`、`group`、`variables`、`overrides` 复制宿主文件。保存时只把根节点和 `overrides` 通过 `setConditionRoot` 写回宿主文件，宿主文件已打开时进入它的 history 并变成 dirty，否则直接写盘
 - 宿主文件内容变化后，打开的条件文件按外部修改重新读取
 

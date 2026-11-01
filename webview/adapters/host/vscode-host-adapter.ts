@@ -301,16 +301,16 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
             postMessage({ type: "selectTree" });
         },
 
-        selectNode(target, surface) {
-            postMessage({ type: "selectNode", target, surface });
+        selectNode(target, surface, conditionIndex) {
+            postMessage({ type: "selectNode", target, surface, conditionIndex });
         },
 
         requestFocusVariable(names) {
             postMessage({ type: "requestFocusVariable", names });
         },
 
-        requestOpenConditionFile(target) {
-            postMessage({ type: "openConditionFile", target });
+        requestOpenConditionFile(target, index) {
+            postMessage({ type: "openConditionFile", target, index });
         },
 
         sendRequestSetting() {

@@ -13,6 +13,8 @@ export interface EditorLiveSettings {
     nodeColors?: Record<string, string>;
     /** Always present so a removed declaration clears the webview copy. */
     customFields: CustomFieldDefs;
+    /** The document is a condition file: its node ids continue the host's numbering. */
+    conditionFile: boolean;
 }
 
 export function createLiveSettingsResolver(
@@ -37,6 +39,7 @@ export function createLiveSettingsResolver(
             customFields: opts?.conditionFile
                 ? scopeCustomFieldDefsForConditionFile(customFields)
                 : customFields,
+            conditionFile: opts?.conditionFile ?? false,
         };
     };
 }
