@@ -55,6 +55,45 @@ export const getAbortModeViolation = (
     return { code: "parent-not-preemptive", parentName: parent.name };
 };
 
+type AbortScopeNode = { parentKey: string | null; childKeys: string[]; disabled?: boolean };
+
+/**
+ * Keys of the nodes a condition on `nodeKey` can abort, for the selection hint: `self` covers the
+ * node's subtree, `lower` the subtrees of its enabled right siblings, `both` the two. `null` when
+ * the mode aborts nothing.
+ */
+export const getConditionAbortScope = (
+    nodesByKey: ReadonlyMap<string, AbortScopeNode>,
+    nodeKey: string,
+    abort: AbortMode
+): Set<string> | null => {
+    if (abort === "none") {
+        return null;
+    }
+    const scope = new Set<string>();
+    const addSubtree = (key: string) => {
+        const node = nodesByKey.get(key);
+        if (!node || scope.has(key)) {
+            return;
+        }
+        scope.add(key);
+        node.childKeys.forEach(addSubtree);
+    };
+    if (abort === "self" || abort === "both") {
+        addSubtree(nodeKey);
+    }
+    const parentKey = nodesByKey.get(nodeKey)?.parentKey;
+    const siblings = parentKey ? (nodesByKey.get(parentKey)?.childKeys ?? []) : [];
+    if (abort === "lower" || abort === "both") {
+        for (const key of siblings.slice(siblings.indexOf(nodeKey) + 1)) {
+            if (!nodesByKey.get(key)?.disabled) {
+                addSubtree(key);
+            }
+        }
+    }
+    return scope;
+};
+
 /**
  * A subtree reference that sits inside another subtree: the instance's structural uuid is the
  * reference node, its source uuid the subtree root. Its conditions live in that outer subtree

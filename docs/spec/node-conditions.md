@@ -25,7 +25,7 @@ behavior3-ts 2.0 参考 UE Observer Aborts 加了条件打断：节点上可以�
 ## 3. Non-Goals
 
 - 校验（第 3 步）：没有 `status` 的节点给 warning、Action / 有 `output` 的节点给 warning。（多项条件后来已支持；`lower` / `both` 需要 preemptive 父节点的检查后来已实现为错误，见 `17-editor-semantics.md`。）
-- 提示（第 4 步）：选中条件时高亮它能影响的范围。
+- 提示（第 4 步）：选中条件时高亮它能影响的范围。（后来已实现，见 `condition-abort-scope-hint.md`。）
 - 编辑器 UI 同时编辑多项条件。数据层完整支持多项（多项界面后来由 `multiple-node-conditions.md` 实现）。
 
 ## 4. Design

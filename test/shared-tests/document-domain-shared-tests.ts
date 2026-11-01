@@ -15,7 +15,10 @@ import {
     readConditionFileWriteBack,
 } from "../../webview/shared/condition-file";
 import { DOCUMENT_VERSION, type CustomFieldDefs } from "../../webview/shared/b3type";
-import { ConditionBranchSaveError } from "../../webview/shared/condition-branch";
+import {
+    ConditionBranchSaveError,
+    getConditionAbortScope,
+} from "../../webview/shared/condition-branch";
 import type {
     NodeDef,
     PersistedConditionData,
@@ -3355,6 +3358,29 @@ export const documentDomainSharedTests = defineSharedTests([
                     }),
                 (error: unknown) => error instanceof ConditionBranchSaveError
             );
+        },
+    },
+    {
+        name: "computes the nodes a condition can abort for the selection hint",
+        run() {
+            // root -> [left, cond -> [child], right -> [grandchild], off (disabled)]
+            const nodesByKey = new Map([
+                ["root", { parentKey: null, childKeys: ["left", "cond", "right", "off"] }],
+                ["left", { parentKey: "root", childKeys: [] }],
+                ["cond", { parentKey: "root", childKeys: ["child"] }],
+                ["child", { parentKey: "cond", childKeys: [] }],
+                ["right", { parentKey: "root", childKeys: ["grandchild"] }],
+                ["grandchild", { parentKey: "right", childKeys: [] }],
+                ["off", { parentKey: "root", childKeys: [], disabled: true }],
+            ]);
+            const scope = (abort: "none" | "self" | "lower" | "both") => {
+                const keys = getConditionAbortScope(nodesByKey, "cond", abort);
+                return keys ? [...keys].sort() : null;
+            };
+            assert.equal(scope("none"), null);
+            assert.deepEqual(scope("self"), ["child", "cond"]);
+            assert.deepEqual(scope("lower"), ["grandchild", "right"]);
+            assert.deepEqual(scope("both"), ["child", "cond", "grandchild", "right"]);
         },
     },
 ]);

@@ -171,6 +171,11 @@ graph adapter 允许保留实现自有的 graph-local 视觉缓存，例如节�
 - 命中 `input` / `output` / `args` 的节点进入对应高亮态
 - 当前存在变量 focus 时，未命中节点进入灰化态
 
+条件打断范围提示（`condition-abort-scope-hint.md`）：
+
+- 选中一张条件卡片时，按这一项的 `abort` 算出打断范围：`self` 是节点自己的子树，`lower` 是右侧未禁用兄弟节点的子树，`both` 是两者的并集
+- 范围以外、不是选中节点的节点进入灰化态；`none`、无效的条件项、只选中节点时不灰化
+
 ## Search Contract
 
 输入为：

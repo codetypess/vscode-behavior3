@@ -20,6 +20,7 @@ import type {
     NodeInstanceRef,
     ResolvedGraphModel,
 } from "../../shared/contracts";
+import { getConditionAbortScope } from "../../shared/condition-branch";
 import type { GraphAdapter, GraphRenderOptions } from "../../shared/graph-contracts";
 import { G6_GRAPH_CONDITION_TAB_HEIGHT } from "./g6-graph-node-constants";
 import { CONDITION_SELECTED_STATE_PREFIX } from "./g6-graph-node-style";
@@ -153,6 +154,8 @@ export class G6GraphAdapter implements GraphAdapter {
     private model: ResolvedGraphModel | null = null;
     private selection: GraphSelectionState = { selectedNodeKey: null };
     private lastConditionClick: ShapeClickStamp | null = null;
+    /** Nodes the selected condition card can abort; others are grayed. `null`: no hint. */
+    private conditionAbortScope: Set<string> | null = null;
     private highlights: GraphHighlightState = { activeVariableNames: [], variableHits: {} };
     private search: GraphSearchState = {
         query: "",
@@ -365,6 +368,25 @@ export class G6GraphAdapter implements GraphAdapter {
         }
     }
 
+    private updateConditionAbortScope() {
+        const { selectedNodeKey, selectedConditionIndex } = this.selection;
+        const node = selectedNodeKey ? this.getNodeVM(selectedNodeKey) : null;
+        const condition =
+            selectedConditionIndex !== null && selectedConditionIndex !== undefined
+                ? node?.attachedConditions[selectedConditionIndex]
+                : undefined;
+        if (!this.model || !node || !condition || condition.invalid) {
+            this.conditionAbortScope = null;
+            return;
+        }
+        const nodesByKey = new Map(this.model.nodes.map((vm) => [vm.ref.instanceKey, vm]));
+        this.conditionAbortScope = getConditionAbortScope(
+            nodesByKey,
+            node.ref.instanceKey,
+            condition.abort
+        );
+    }
+
     private getNodeVM(nodeKey: string): GraphNodeVM | null {
         return this.model?.nodes.find((node) => node.ref.instanceKey === nodeKey) ?? null;
     }
@@ -413,6 +435,10 @@ export class G6GraphAdapter implements GraphAdapter {
             this.search.focusOnly &&
             this.search.query.length > 0 &&
             !this.search.resultKeys.includes(nodeKey);
+        const shouldGrayForConditionScope =
+            this.conditionAbortScope !== null &&
+            nodeKey !== this.selection.selectedNodeKey &&
+            !this.conditionAbortScope.has(nodeKey);
 
         if (this.selection.selectedNodeKey === nodeKey) {
             states.push("selected");
@@ -424,7 +450,7 @@ export class G6GraphAdapter implements GraphAdapter {
         if (this.focusedNodeKey === nodeKey) {
             states.push("focused");
         }
-        if (shouldGrayForVariableHighlight || shouldGrayForSearch) {
+        if (shouldGrayForVariableHighlight || shouldGrayForSearch || shouldGrayForConditionScope) {
             states.push("highlightgray");
         }
 
@@ -948,6 +974,7 @@ export class G6GraphAdapter implements GraphAdapter {
               this.readViewportCenterAnchor()
             : this.readViewportCenterAnchor();
         this.model = model;
+        this.updateConditionAbortScope();
         this.collapsedNodeRefs = pruneCollapsedNodeRefs(this.collapsedNodeRefs, model);
         this.clearDragIntent();
         this.syncThemeOptions();
@@ -987,6 +1014,7 @@ export class G6GraphAdapter implements GraphAdapter {
 
     async applySelection(selection: GraphSelectionState): Promise<void> {
         this.selection = selection;
+        this.updateConditionAbortScope();
         this.refreshNodeStates();
     }
 
