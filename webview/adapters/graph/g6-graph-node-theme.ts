@@ -55,6 +55,7 @@ export const getGraphNodePalette = () => ({
     dropChild: readThemeCssVariable("--b3-drop-child", "#ff4d4f"),
     focusColor: readThemeCssVariable("--b3-node-focus-color", "#ffab00"),
     focusOpacity: readThemeCssNumber("--b3-node-focus-opacity", 0.45),
+    graphBg: readThemeCssVariable("--b3-graph-bg", "#010409"),
     grayBorder: readThemeCssVariable("--b3-node-gray-border", "#30363d"),
     grayFill: readThemeCssVariable("--b3-node-gray-fill", "#0d1117"),
     grayRail: readThemeCssVariable("--b3-node-gray-rail", "#30363d"),

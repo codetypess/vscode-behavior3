@@ -75,6 +75,7 @@ graph adapter 允许保留实现自有的 graph-local 视觉缓存，例如节�
 - `outputs`
 - `argsText`
 - `attachedConditionName`：有值时在节点卡片上方画出条件附属，没有值时不画。左侧为「条件: 根节点名」（英文 `condition: <name>`），右侧显示 `attachedConditionAbort`，颜色都为白色
+    - 条件附属是一张和节点同宽的卡片，像 Scratch 积木一样直接叠在节点上方、不留缝：卡片顶角圆、底边平，节点有条件时顶角也是直角。卡片底边靠左垂下一个梯形卡扣，落进节点左侧色条。卡片颜色是节点主题色以 22% 叠在画布背景上的不透明色，所以卡扣能盖住色条。节点的 key shape 仍是矩形，命中、拖放和状态样式不受影响
 
 ### GraphEdgeVM
 

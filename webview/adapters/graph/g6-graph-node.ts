@@ -72,6 +72,64 @@ const CONTENT_Y = 28;
 const LEFT_RAIL_WIDTH = 40;
 const RADIUS = 4;
 
+// The condition card stacks flush on the node like a Scratch block: a trapezoid tab hangs
+// from the card's bottom edge into the node's left rail.
+const CONDITION_TAB_LEFT = 8;
+const CONDITION_TAB_WIDTH = 24;
+const CONDITION_TAB_DEPTH = 6;
+const CONDITION_TAB_SLANT = 5;
+const CONDITION_TAB_CORNER = 3;
+const CONDITION_CARD_TINT = 0.22;
+
+type PathCommand = [string, ...number[]];
+
+const toPathString = (commands: PathCommand[]) =>
+    commands.map((command) => command.join(" ")).join(" ");
+
+type Point = [number, number];
+
+/**
+ * Line through `corners` from `from` to `to`, rounding each corner with a quadratic curve.
+ * The rounding never takes more than half of a side, so short sides stay well formed.
+ */
+const roundedPolyline = (from: Point, corners: Point[], to: Point, radius: number) => {
+    const points = [from, ...corners, to];
+    const toward = (a: Point, b: Point): Point => {
+        const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        const t = length > 0 ? Math.min(radius / length, 0.5) : 0;
+        return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    };
+    const commands: PathCommand[] = [];
+    for (let i = 1; i < points.length - 1; i += 1) {
+        const corner = points[i];
+        commands.push(["L", ...toward(corner, points[i - 1])]);
+        commands.push(["Q", ...corner, ...toward(corner, points[i + 1])]);
+    }
+    commands.push(["L", ...to]);
+    return commands;
+};
+
+const parseColor = (value: string): [number, number, number] | undefined => {
+    const hex = value.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)?.[1];
+    if (hex) {
+        const full = hex.length === 3 ? [...hex].map((c) => c + c).join("") : hex;
+        return [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16)) as [number, number, number];
+    }
+    const rgb = value.match(/^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i);
+    return rgb ? [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])] : undefined;
+};
+
+/** `fg` at `alpha` over `bg` as one opaque color, so the card can cover the rail beneath its tab. */
+const mixColor = (fg: string, bg: string, alpha: number): string | undefined => {
+    const front = parseColor(fg);
+    const back = parseColor(bg);
+    if (!front || !back) {
+        return undefined;
+    }
+    const mixed = front.map((channel, i) => Math.round(channel * alpha + back[i] * (1 - alpha)));
+    return `rgb(${mixed.join(", ")})`;
+};
+
 const getMetadataHighlightHeight = (line: number) =>
     Math.max(G6_GRAPH_NODE_ROW_HEIGHT, line * G6_GRAPH_NODE_ROW_HEIGHT - 2);
 
@@ -520,18 +578,14 @@ class GraphNode extends Rect {
         const abortReserve = abortType ? 48 : 0;
         const adornment = this.upsert(
             "condition-adornment",
-            GRect,
+            GPath,
             label
                 ? {
-                      x: 0,
-                      y: 0,
-                      width: this.width,
-                      height: G6_GRAPH_CONDITION_TAB_HEIGHT,
-                      fill: this.accent,
-                      fillOpacity: 0.22,
+                      d: toPathString(this.getConditionCardPath()),
+                      ...this.getConditionCardFill(),
                       stroke: this.accent,
-                      lineWidth: 1,
-                      radius: [this.radius, this.radius, 0, 0],
+                      lineWidth: 2,
+                      lineJoin: "round",
                       cursor: "pointer",
                   }
                 : false,
@@ -580,6 +634,43 @@ class GraphNode extends Rect {
         if (abortLabel) {
             abortLabel.className = "condition-label";
         }
+    }
+
+    private getConditionCardFill() {
+        const fill = mixColor(this.accent, this.palette.graphBg, CONDITION_CARD_TINT);
+        return fill
+            ? { fill, fillOpacity: 1 }
+            : { fill: this.accent, fillOpacity: CONDITION_CARD_TINT };
+    }
+
+    /** Card flush on the node body, with a trapezoid tab dropping into the left rail. */
+    private getConditionCardPath(): PathCommand[] {
+        const w = this.width;
+        const h = G6_GRAPH_CONDITION_TAB_HEIGHT;
+        const r = this.radius;
+        const tabLeft = CONDITION_TAB_LEFT;
+        const tabRight = CONDITION_TAB_LEFT + CONDITION_TAB_WIDTH;
+        const tabBottom = h + CONDITION_TAB_DEPTH;
+        return [
+            ["M", r, 0],
+            ["L", w - r, 0],
+            ["A", r, r, 0, 0, 1, w, r],
+            ["L", w, h],
+            ...roundedPolyline(
+                [w, h],
+                [
+                    [tabRight, h],
+                    [tabRight - CONDITION_TAB_SLANT, tabBottom],
+                    [tabLeft + CONDITION_TAB_SLANT, tabBottom],
+                    [tabLeft, h],
+                ],
+                [0, h],
+                CONDITION_TAB_CORNER
+            ),
+            ["L", 0, r],
+            ["A", r, r, 0, 0, 1, r, 0],
+            ["Z"],
+        ];
     }
 
     private drawCollapseBadge(attributes: Required<RectStyleProps>, container: Group) {
