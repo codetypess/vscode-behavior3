@@ -524,7 +524,7 @@ export interface HostAdapter {
     /** Send a raw `requestFocusVariable` message; callers must not treat it as persisted state. */
     requestFocusVariable(names: string[]): void;
     /** Ask the host to open this node's condition file in its own tab. */
-    requestOpenConditionFile(target: NodeInstanceRef, index: number): void;
+    requestOpenConditionFile(target: NodeInstanceRef, rootUuid: string): void;
     sendRequestSetting(): void;
     sendBuild(opts?: { buildScriptDebug?: boolean }): void;
     executeInspectorHostCommand(command: InspectorHostCommandId): void;

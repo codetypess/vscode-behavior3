@@ -79,8 +79,8 @@ behavior3 2.0 运行时的 `conditions` 是数组，项与项之间是 AND，多
 ### 4.6 条件文件
 
 - 地址按序号区分：第 1 项仍是 `…/<uuid>/condition.json`（已有标签页地址不变），第 n 项（n ≥ 2）是 `…/<uuid>/condition-<n>.json`。面包屑显示 `hero.json › <uuid> › condition-2.json`。
-- 读、写回、刷新都按序号定位。
-- 条件文件打开期间在宿主里删除或移动条件：原来按序号重新读取会变成显示另一项，后来改为关闭这个标签页（有未保存修改时不关），见 `condition-file-stale-tab.md`。
+- 读、写回、刷新都按序号定位。（后来改为按条件根节点 uuid 定位，地址变为 `condition-<条件根节点 uuid>.json`，见 `condition-file-stale-tab.md`。）
+- 条件文件打开期间在宿主里删除或移动条件：原来按序号重新读取会变成显示另一项，后来改为按 uuid 跟随这一项，见 `condition-file-stale-tab.md`。
 
 ## 5. Design
 

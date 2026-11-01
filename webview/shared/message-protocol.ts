@@ -32,8 +32,8 @@ export type EditorToHostMessage =
       }
     /** Ask the host to relay a one-shot variable highlight intent to the active editor. */
     | { type: "requestFocusVariable"; names: string[] }
-    /** Ask the host to open the condition file of this node in its own tab. */
-    | { type: "openConditionFile"; target: NodeInstanceRef; index?: number }
+    /** Ask the host to open the condition file of this node's item with this root uuid. */
+    | { type: "openConditionFile"; target: NodeInstanceRef; rootUuid: string }
     | { type: "mutateDocument"; requestId: string; mutation: DocumentMutation }
     | { type: "saveDocument"; requestId: string }
     | { type: "revertDocument"; requestId: string }

@@ -152,7 +152,7 @@
 - 主图在节点上方显示条件卡片，像 Scratch 积木一样和节点叠在一起、不留缝，卡片左下方的梯形卡扣落进节点左侧色条。左侧为条件图标（`media/icons/Flush.svg`，`currentColor` 换成白色）和根节点名，不显示「条件」二字和序号，右侧为 `abort`，文字为白色
 - 单击附属打开条件面板，而不是节点面板。`abort` 为 `none`、`self`、`lower`、`both`，默认 `none`。条件项的 `custom` 是普通自定义数据，用和树自定义数据相同的键值编辑器，可以增删改；在条件文件里它就是树的自定义数据
 - 条件树里的节点和普通节点共用一个 id 序列（节点、它的条件树、它的子节点）；条件树里通过 `path` 引用的子树会被展开并导出
-- 双击附属或面板中的「打开编辑视图」在新标签页打开 `<宿主文件>/<uuid>/condition.json`；保存它后宿主文件变成未保存且条件树已更新；宿主文件改动后条件标签页跟着刷新。双击节点本体仍打开 subtree
+- 双击附属或面板中的「打开编辑视图」在新标签页打开 `<宿主文件>/<uuid>/condition-<条件根节点 uuid>.json`；保存它后宿主文件变成未保存且条件树已更新；宿主文件改动后条件标签页跟着刷新。双击节点本体仍打开 subtree
 - `.b3-workspace` 的 `settings.customFields` 声明了 `when: hasConditions` 的必填树字段（例如 sample 里的 `$condition_type`）时：树上出现条件后自定义数据包含这一项，值为默认值，用下拉框选择；树上仍有条件时不能删除；删掉最后一个条件后这一项保留，可以手动删除
 - 新建条件时，条件的自定义数据带上 `customFields.condition` 里所有带默认值的字段；没有声明时不带 `custom`。默认值写成 `"$nodeId"` 的字段取宿主节点 id（sample 里的 `enterPriority` / `maintainPriority`）
 
@@ -165,4 +165,4 @@
 3. 执行 copy / paste / replace / insert / delete / drag-drop，确认 history 与 dirty 正常
 4. 触发 subtree 打开、另存和外部 subtree 改动，确认父树刷新
 5. 触发 `settingLoaded`、主题切换与 build，确认图和侧栏行为不漂移
-6. 点击某张条件卡片，确认打开的是这一项的条件面板；双击卡片打开这一项的条件文件标签页（第 2 项是 `condition-2.json`），双击节点本体仍打开 subtree
+6. 点击某张条件卡片，确认打开的是这一项的条件面板；双击卡片打开这一项的条件文件标签页（`condition-<条件根节点 uuid>.json`；宿主里调整顺序后标签页仍是这一项），双击节点本体仍打开 subtree

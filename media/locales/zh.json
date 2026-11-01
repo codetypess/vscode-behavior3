@@ -159,6 +159,8 @@
   "condition.entry": "根节点",
   "condition.openEditor": "打开编辑视图",
   "condition.fileUnavailable": "这个条件不在子树源文件里（可能是主树 override 加上的），暂不支持单独打开。",
+  "condition.fileItemRemoved": "这项条件已在宿主文件里被移除，标签页里的编辑将被丢弃。",
+  "condition.fileItemRemovedSave": "这项条件已在宿主文件里被移除，修改无法保存回去。",
   "condition.custom": "自定义数据",
   "condition.abort": "打断模式",
   "condition.onRoot": "根节点不能挂条件；子树需要条件时，挂在主树里引用它的节点上",

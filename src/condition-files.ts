@@ -7,9 +7,10 @@ import {
 } from "../webview/shared/condition-file";
 
 /**
- * Condition files are virtual tree files (`behavior3-condition:<host path>/<uuid>/condition.json`,
- * `condition-<n>.json` for item n) that edit one condition item of a host node in its own tab.
- * The provider owns the host-document access; this module only maps URIs and bytes.
+ * Condition files are virtual tree files
+ * (`behavior3-condition:<host path>/<host uuid>/condition-<condition root uuid>.json`) that edit
+ * one condition item of a host node in its own tab. The provider owns the host-document access;
+ * this module only maps URIs and bytes.
  */
 export const isConditionFileUri = (uri: vscode.Uri): boolean =>
     uri.scheme === CONDITION_FILE_SCHEME;
@@ -17,16 +18,16 @@ export const isConditionFileUri = (uri: vscode.Uri): boolean =>
 export const buildConditionFileUri = (
     hostUri: vscode.Uri,
     hostStableId: string,
-    index: number
+    rootUuid: string
 ): vscode.Uri =>
     vscode.Uri.from({
         scheme: CONDITION_FILE_SCHEME,
-        ...buildConditionFileLocation(hostUri.path, hostStableId, index),
+        ...buildConditionFileLocation(hostUri.path, hostStableId, rootUuid),
     });
 
 export const parseConditionFileUri = (
     uri: vscode.Uri
-): { hostUri: vscode.Uri; hostStableId: string; index: number } | null => {
+): { hostUri: vscode.Uri; hostStableId: string; rootUuid: string } | null => {
     if (!isConditionFileUri(uri)) {
         return null;
     }
@@ -35,7 +36,7 @@ export const parseConditionFileUri = (
         ? {
               hostUri: vscode.Uri.from({ scheme: "file", path: parsed.hostFilePath }),
               hostStableId: parsed.hostStableId,
-              index: parsed.index,
+              rootUuid: parsed.rootUuid,
           }
         : null;
 };
@@ -44,11 +45,11 @@ export const parseConditionFileUri = (
 export const resolveBackingFileUri = (uri: vscode.Uri): vscode.Uri =>
     parseConditionFileUri(uri)?.hostUri ?? uri;
 
-/** File path given to the webview: `<host file>/<uuid>/condition[-n].json` for condition files. */
+/** File path given to the webview: `<host file>/<uuid>/condition-<root uuid>.json` for conditions. */
 export const resolveDocumentFsPath = (uri: vscode.Uri): string => {
     const location = parseConditionFileUri(uri);
     return location
-        ? buildConditionFilePath(location.hostUri.fsPath, location.hostStableId, location.index)
+        ? buildConditionFilePath(location.hostUri.fsPath, location.hostStableId, location.rootUuid)
         : uri.fsPath;
 };
 

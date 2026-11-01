@@ -309,8 +309,8 @@ export const createVsCodeHostAdapter = (): HostAdapter => {
             postMessage({ type: "requestFocusVariable", names });
         },
 
-        requestOpenConditionFile(target, index) {
-            postMessage({ type: "openConditionFile", target, index });
+        requestOpenConditionFile(target, rootUuid) {
+            postMessage({ type: "openConditionFile", target, rootUuid });
         },
 
         sendRequestSetting() {

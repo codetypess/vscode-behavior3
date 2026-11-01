@@ -160,6 +160,8 @@
   "condition.entry": "Root node",
   "condition.openEditor": "Open editor",
   "condition.fileUnavailable": "This condition is not stored in the subtree file (it may come from a main-tree override), so it cannot be opened on its own.",
+  "condition.fileItemRemoved": "This condition was removed from its host file. The edits in this tab will be discarded.",
+  "condition.fileItemRemovedSave": "This condition was removed from its host file, so the edits cannot be saved back.",
   "condition.custom": "Custom data",
   "condition.abort": "Abort",
   "condition.onRoot": "The root node cannot have conditions; for a subtree, attach them to the node that references it in the main tree",

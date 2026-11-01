@@ -44,13 +44,13 @@
     - payload: `{ requestId, mutation }`
 - `selectTree`
 - `selectNode`
-    - payload: `{ target: NodeInstanceRef }`
+    - payload: `{ target: NodeInstanceRef; rootUuid: string }`
 - `requestFocusVariable`
     - payload: `{ names }`
     - 语义：sidebar 请求把变量聚焦作为一次性视觉 intent relay 给当前 active editor；不是共享状态同步
 - `openConditionFile`
-    - payload: `{ target: NodeInstanceRef }`
-    - 语义：editor 或 sidebar 请求宿主在新标签页打开该节点第 `index` 项（缺省 0）条件的条件文件（`behavior3-condition:/<宿主文件名>/<uuid>/condition.json?host=<宿主文件完整路径>`，第 n 项是 `condition-<n>.json`）。`target.sourceTreePath` 非空时宿主文件是那份 subtree 文件、uuid 用 `sourceStableId`；否则是当前文件、uuid 用 `structuralStableId`。例外：当前文件里的子树引用（`structuralStableId !== sourceStableId` 且 `subtreeStack` 只有一层），它的条件在引用节点上，宿主是当前文件、uuid 用 `structuralStableId`。条件不在该文件里时提示，不打开
+    - payload: `{ target: NodeInstanceRef; rootUuid: string }`
+    - 语义：editor 或 sidebar 请求宿主在新标签页打开该节点根节点 uuid 为 `rootUuid` 的那一项条件的条件文件（`behavior3-condition:/<宿主文件名>/<uuid>/condition-<rootUuid>.json?host=<宿主文件完整路径>`）。`target.sourceTreePath` 非空时宿主文件是那份 subtree 文件、uuid 用 `sourceStableId`；否则是当前文件、uuid 用 `structuralStableId`。例外：当前文件里的子树引用（`structuralStableId !== sourceStableId` 且 `subtreeStack` 只有一层），它的条件在引用节点上，宿主是当前文件、uuid 用 `structuralStableId`。条件不在该文件里时提示，不打开
 
 ### 项目与设置
 

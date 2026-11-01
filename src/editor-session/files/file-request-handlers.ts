@@ -232,8 +232,8 @@ export function createSessionFileRequestHandlers({
     };
 
     /**
-     * Open the first condition of a node as `<host file>/<uuid>/condition.json`. Nodes inside a
-     * subtree open the condition stored in that subtree file.
+     * Open a condition item of a node as `<host file>/<uuid>/condition-<root uuid>.json`. Nodes
+     * inside a subtree open the condition stored in that subtree file.
      */
     const handleOpenConditionFileMessage = async (
         msg: Extract<EditorToHostMessage, { type: "openConditionFile" }>
@@ -250,7 +250,7 @@ export function createSessionFileRequestHandlers({
             return;
         }
         const hostStableId = inSubtreeFile ? target.sourceStableId : target.structuralStableId;
-        const conditionUri = buildConditionFileUri(hostUri, hostStableId, msg.index ?? 0);
+        const conditionUri = buildConditionFileUri(hostUri, hostStableId, msg.rootUuid);
         try {
             await vscode.workspace.fs.stat(conditionUri);
         } catch {

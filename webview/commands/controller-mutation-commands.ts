@@ -604,8 +604,12 @@ export const createMutationCommands = (
         },
 
         async openConditionFile(target, index) {
-            // The host opens `<host file>/<uuid>/condition[-n].json` in its own tab.
-            runtime.deps.hostAdapter.requestOpenConditionFile(target, index);
+            // The host opens `<host file>/<uuid>/condition-<root uuid>.json` in its own tab.
+            const node = getResolvedNodeByInstanceKey(runtime, target.instanceKey);
+            const rootUuid = node?.conditions?.[index]?.root.uuid;
+            if (rootUuid) {
+                runtime.deps.hostAdapter.requestOpenConditionFile(target, rootUuid);
+            }
         },
     };
 };

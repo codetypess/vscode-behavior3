@@ -12,7 +12,8 @@ import {
 import { ConditionBranchSaveError } from "../webview/shared/condition-branch";
 import {
     buildConditionFileTree,
-    findConditionItemRootUuid,
+    conditionItemSignature,
+    findConditionItemIndex,
     readConditionFileWriteBack,
 } from "../webview/shared/condition-file";
 import {
@@ -40,11 +41,18 @@ import { configureBehaviorWebview } from "./webview-html";
 import { isDocumentVersionNewer } from "../webview/shared/document";
 import { normalizeHostSelectionState } from "../webview/shared/protocol";
 import { runCustomFieldScripts } from "./editor-session/session/custom-field-scripts";
+import { translateRuntimeMessage } from "../webview/shared/runtime-i18n";
 import {
     getBehaviorProjectRootFsPath,
     resolveNodeDefs,
     resolveWorkspaceFileSettings,
 } from "./setting-resolver";
+
+function getConfiguredLanguage() {
+    return getEditorLanguage(
+        vscode.workspace.getConfiguration("behavior3").get<string>("language", "auto")
+    );
+}
 
 function getNewerFileWriteError(content: string): string | null {
     const fileVersion = getTreeFileVersion(content);
@@ -86,6 +94,12 @@ export class TreeEditorProvider
     private readonly openDocuments = new Map<string, TreeEditorDocument>();
     // Condition files being saved; their own write-back must not bounce back as an outside change.
     private readonly savingConditionFiles = new Set<string>();
+    // Each condition file's item content at its last read, to tell a reorder from a real change.
+    private readonly conditionFileSignatures = new Map<string, string>();
+    // Condition files with unsaved edits whose item left the host; discarded on their next focus.
+    private readonly removedConditionFiles = new Set<string>();
+    private readonly promptingRemovedConditionFiles = new Set<string>();
+    private readonly conditionFilePanels = new Map<string, vscode.WebviewPanel>();
     private readonly documentSelections = new Map<string, HostSelectionState>();
     private readonly documentRevealTargets = new Map<string, NodeInstanceRef>();
     private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<
@@ -235,29 +249,48 @@ export class TreeEditorProvider
         const conditionTree = buildConditionFileTree(
             hostTree,
             location.hostStableId,
-            location.index
+            location.rootUuid
         );
         if (!conditionTree) {
             throw vscode.FileSystemError.FileNotFound(uri);
+        }
+        const signature = conditionItemSignature(
+            hostTree,
+            location.hostStableId,
+            location.rootUuid
+        );
+        if (signature !== null) {
+            this.conditionFileSignatures.set(uri.toString(), signature);
         }
         return serializePersistedTree(conditionTree);
     }
 
     /**
-     * Write a condition file back into its host. An open host takes it as an ordinary mutation
-     * (undo history, dirty state); a closed host is updated on disk.
+     * Write a condition file back into its host, into the item with the file's root uuid wherever
+     * it sits now. An open host takes it as an ordinary mutation (undo history, dirty state); a
+     * closed host is updated on disk.
      */
     async writeConditionFile(uri: vscode.Uri, content: string): Promise<void> {
         const location = parseConditionFileUri(uri);
         if (!location) {
             throw vscode.FileSystemError.FileNotFound(uri);
         }
+        const hostTree = parsePersistedTreeContent(
+            await this.readHostContent(location.hostUri),
+            location.hostUri.fsPath
+        );
+        const index = findConditionItemIndex(hostTree, location.hostStableId, location.rootUuid);
+        if (index < 0) {
+            throw new Error(
+                translateRuntimeMessage(getConfiguredLanguage(), "condition.fileItemRemovedSave")
+            );
+        }
         const conditionTree = parsePersistedTreeContent(content, uri.path);
         const mutation = {
             type: "setConditionRoot" as const,
             payload: {
                 hostStableId: location.hostStableId,
-                index: location.index,
+                index,
                 ...readConditionFileWriteBack(conditionTree),
             },
         };
@@ -300,10 +333,9 @@ export class TreeEditorProvider
             customFields: workspaceSettings?.customFields,
         });
         if (reduced.status === "error") {
-            const language = getEditorLanguage(
-                vscode.workspace.getConfiguration("behavior3").get<string>("language", "auto")
+            throw new Error(
+                formatDocumentMutationReducerError(reduced.error, getConfiguredLanguage())
             );
-            throw new Error(formatDocumentMutationReducerError(reduced.error, language));
         }
         if (reduced.status === "changed") {
             await this.writeDocumentContentToDisk(
@@ -314,9 +346,10 @@ export class TreeEditorProvider
     }
 
     /**
-     * Re-read open condition files of a host whose content just changed. Tabs are addressed by
-     * item index, so a tab whose item moved or was removed would show another item: it is closed
-     * instead, unless it has unsaved edits (those go through the usual outside-change reload).
+     * Sync open condition files of a host whose content just changed. A file follows its item by
+     * root uuid, so a reorder keeps it open. A clean file re-reads; one with unsaved edits re-reads
+     * (and may show the outside-change conflict) only when its item itself changed. A file whose
+     * item is gone closes, or with unsaved edits waits for its next focus to discard them.
      */
     private refreshConditionFiles(hostUri: vscode.Uri): void {
         const hostKey = hostUri.toString();
@@ -337,35 +370,67 @@ export class TreeEditorProvider
             } catch {
                 // Unreadable host: reload as before and let each tab report it.
             }
-            const staleUris = new Set<string>();
+            const removedCleanUris = new Set<string>();
             for (const entry of entries) {
-                if (hostTree && this.isStaleConditionFile(entry.documentUri, hostTree)) {
-                    staleUris.add(entry.documentUri);
-                } else {
+                const key = entry.documentUri;
+                const document = this.openDocuments.get(key);
+                const location = parseConditionFileUri(vscode.Uri.parse(key));
+                if (!hostTree || !document || !location) {
                     void entry.reloadFromBackingFile();
+                    continue;
                 }
+                const signature = conditionItemSignature(
+                    hostTree,
+                    location.hostStableId,
+                    location.rootUuid
+                );
+                if (signature === null) {
+                    if (document.isDirty) {
+                        this.markConditionFileRemoved(key);
+                    } else {
+                        removedCleanUris.add(key);
+                    }
+                    continue;
+                }
+                // An undo can bring a removed item back.
+                this.removedConditionFiles.delete(key);
+                if (document.isDirty && signature === this.conditionFileSignatures.get(key)) {
+                    continue;
+                }
+                void entry.reloadFromBackingFile();
             }
-            await closeCustomEditorTabs(staleUris);
+            await closeCustomEditorTabs(removedCleanUris);
         })();
     }
 
-    private isStaleConditionFile(documentUri: string, hostTree: PersistedTreeModel): boolean {
-        const document = this.openDocuments.get(documentUri);
-        const location = parseConditionFileUri(vscode.Uri.parse(documentUri));
-        if (!document || document.isDirty || !location) {
-            return false;
+    private markConditionFileRemoved(key: string): void {
+        if (this.removedConditionFiles.has(key)) {
+            return;
         }
-        let shownRootUuid: string;
+        this.removedConditionFiles.add(key);
+        if (this.conditionFilePanels.get(key)?.active) {
+            void this.discardRemovedConditionFile(key);
+        }
+    }
+
+    /** Tell the user the item is gone, then drop the tab's edits and close it. */
+    private async discardRemovedConditionFile(key: string): Promise<void> {
+        if (this.promptingRemovedConditionFiles.has(key)) {
+            return;
+        }
+        this.promptingRemovedConditionFiles.add(key);
         try {
-            const shownTree = parsePersistedTreeContent(document.content, document.uri.path);
-            shownRootUuid = shownTree.root.uuid;
-        } catch {
-            return false;
+            await vscode.window.showWarningMessage(
+                translateRuntimeMessage(getConfiguredLanguage(), "condition.fileItemRemoved"),
+                { modal: true }
+            );
+        } finally {
+            this.promptingRemovedConditionFiles.delete(key);
         }
-        return (
-            findConditionItemRootUuid(hostTree, location.hostStableId, location.index) !==
-            shownRootUuid
-        );
+        if (!this.removedConditionFiles.has(key) || !this.conditionFilePanels.get(key)?.active) {
+            return;
+        }
+        await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
     }
 
     private async saveConditionDocument(document: TreeEditorDocument): Promise<void> {
@@ -587,6 +652,8 @@ export class TreeEditorProvider
         document.onDidDispose(() => {
             if (this.openDocuments.get(key) === document) {
                 this.openDocuments.delete(key);
+                this.conditionFileSignatures.delete(key);
+                this.removedConditionFiles.delete(key);
             }
         });
         return document;
@@ -636,6 +703,14 @@ export class TreeEditorProvider
         document: TreeEditorDocument,
         _cancellation: vscode.CancellationToken
     ): Promise<void> {
+        const key = document.uri.toString();
+        if (this.removedConditionFiles.has(key)) {
+            // Nothing left to revert to: drop the edits and close the tab.
+            this.removedConditionFiles.delete(key);
+            document.markSaved();
+            void closeCustomEditorTabs(new Set([key]));
+            return;
+        }
         const content = await readFileContentFromDisk(document.uri);
         document.clearOwnWrites();
         document.updateContent(content, { markSaved: true, markDirty: false });
@@ -671,11 +746,23 @@ export class TreeEditorProvider
         webviewPanel: vscode.WebviewPanel,
         _token: vscode.CancellationToken
     ): Promise<void> {
+        const documentKey = document.uri.toString();
+        if (isConditionFileUri(document.uri)) {
+            this.conditionFilePanels.set(documentKey, webviewPanel);
+            webviewPanel.onDidDispose(() => {
+                if (this.conditionFilePanels.get(documentKey) === webviewPanel) {
+                    this.conditionFilePanels.delete(documentKey);
+                }
+            });
+        }
         webviewPanel.onDidChangeViewState(() => {
             if (!webviewPanel.active) {
                 return;
             }
-            this.inspectorCoordinator.setActiveDocument(document.uri.toString());
+            this.inspectorCoordinator.setActiveDocument(documentKey);
+            if (this.removedConditionFiles.has(documentKey)) {
+                void this.discardRemovedConditionFile(documentKey);
+            }
         });
 
         const initialSelection =

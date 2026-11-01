@@ -11,7 +11,8 @@ import {
     buildConditionFileLocation,
     buildConditionFilePath,
     buildConditionFileTree,
-    findConditionItemRootUuid,
+    conditionItemSignature,
+    findConditionItemIndex,
     parseConditionFileLocation,
     readConditionFileWriteBack,
 } from "../../webview/shared/condition-file";
@@ -33,6 +34,7 @@ import { materializePersistedTree } from "../../webview/shared/tree-materializer
 import { getDisplayIdStart, resolveDocumentGraph } from "../../webview/domain/resolve-graph";
 import {
     applyMainTreeDisplayIds,
+    clonePersistedTree,
     collectReachableSubtreePaths,
     parsePersistedTreeContent,
     pruneStaleSubtreeOverrides,
@@ -2670,7 +2672,7 @@ export const documentDomainSharedTests = defineSharedTests([
             assert.equal(hostIds.b, "5");
             assert.equal(hostIds.b1, "6");
 
-            const conditionTree = buildConditionFileTree(liveHost, "host", 1);
+            const conditionTree = buildConditionFileTree(liveHost, "host", "b");
             assert.ok(conditionTree);
             assert.equal(getDisplayIdStart(conditionTree, true), 5);
             assert.equal(getDisplayIdStart(conditionTree, false), 1);
@@ -2806,7 +2808,7 @@ export const documentDomainSharedTests = defineSharedTests([
             const nodeDefs: NodeDef[] = [
                 { name: "Check", type: "Condition", desc: "", status: ["success", "failure"] },
             ];
-            const fileTree = buildConditionFileTree(tree, "root", 1);
+            const fileTree = buildConditionFileTree(tree, "root", "second");
             assert.ok(fileTree);
             fileTree.root.name = "Check";
             fileTree.root.desc = "edited";
@@ -3138,29 +3140,25 @@ export const documentDomainSharedTests = defineSharedTests([
     {
         name: "builds short condition file locations that keep the host path in the query",
         run() {
-            const location = buildConditionFileLocation("/w/workdir/hero.json", "a/b c", 0);
+            const location = buildConditionFileLocation("/w/workdir/hero.json", "a/b c", "g/1");
             assert.deepEqual(location, {
-                path: "/hero.json/a%2Fb%20c/condition.json",
+                path: "/hero.json/a%2Fb%20c/condition-g%2F1.json",
                 query: "host=%2Fw%2Fworkdir%2Fhero.json",
             });
             assert.deepEqual(parseConditionFileLocation(location), {
                 hostFilePath: "/w/workdir/hero.json",
                 hostStableId: "a/b c",
-                index: 0,
+                rootUuid: "g/1",
             });
             assert.equal(
-                buildConditionFilePath("/w/workdir/hero.json", "abc", 0),
-                "/w/workdir/hero.json/abc/condition.json"
+                buildConditionFilePath("/w/workdir/hero.json", "abc", "guard"),
+                "/w/workdir/hero.json/abc/condition-guard.json"
             );
-            // Later items are `condition-<n>.json`, n counting from 1.
-            const third = buildConditionFileLocation("/w/workdir/hero.json", "abc", 2);
-            assert.equal(third.path, "/hero.json/abc/condition-3.json");
-            assert.equal(parseConditionFileLocation(third)?.index, 2);
-            for (const name of ["condition-1.json", "condition-0.json", "condition-x.json"]) {
+            for (const name of ["condition.json", "condition-.json", "guard.json"]) {
                 assert.equal(
                     parseConditionFileLocation({
                         path: `/hero.json/abc/${name}`,
-                        query: third.query,
+                        query: location.query,
                     }),
                     null,
                     name
@@ -3173,7 +3171,7 @@ export const documentDomainSharedTests = defineSharedTests([
             );
             assert.equal(
                 parseConditionFileLocation({
-                    path: "/hero.json/condition.json",
+                    path: "/hero.json/condition-guard.json",
                     query: location.query,
                 }),
                 null
@@ -3202,10 +3200,10 @@ export const documentDomainSharedTests = defineSharedTests([
                 { name: "Wait", type: "Action", desc: "", status: ["running"] },
             ];
 
-            assert.equal(buildConditionFileTree(tree, "missing", 0), null);
-            assert.equal(buildConditionFileTree(tree, "root", 2), null);
-            assert.equal(buildConditionFileTree(tree, "root", 1)?.root.uuid, "second");
-            const conditionTree = buildConditionFileTree(tree, "root", 0);
+            assert.equal(buildConditionFileTree(tree, "missing", "guard"), null);
+            assert.equal(buildConditionFileTree(tree, "root", "nope"), null);
+            assert.equal(buildConditionFileTree(tree, "root", "second")?.root.name, "Check");
+            const conditionTree = buildConditionFileTree(tree, "root", "guard");
             assert.ok(conditionTree);
             assert.equal(conditionTree.name, "condition");
             assert.equal(conditionTree.prefix, "H");
@@ -3385,7 +3383,7 @@ export const documentDomainSharedTests = defineSharedTests([
         },
     },
     {
-        name: "finds which condition root a condition file index points at after edits",
+        name: "follows a condition file's item by root uuid through moves and removal",
         run() {
             const nodeDefs: NodeDef[] = [
                 { name: "Attack", type: "Action", desc: "" },
@@ -3412,23 +3410,14 @@ export const documentDomainSharedTests = defineSharedTests([
                     ],
                 },
             ];
-            assert.equal(findConditionItemRootUuid(tree, "host", 0), "guard");
-            assert.equal(findConditionItemRootUuid(tree, "host", 1), "check");
-            assert.equal(findConditionItemRootUuid(tree, "host", 2), null);
-            assert.equal(findConditionItemRootUuid(tree, "missing", 0), null);
+            assert.equal(findConditionItemIndex(tree, "host", "guard"), 0);
+            assert.equal(findConditionItemIndex(tree, "host", "check"), 1);
+            assert.equal(findConditionItemIndex(tree, "host", "nope"), -1);
+            assert.equal(findConditionItemIndex(tree, "missing", "guard"), -1);
+            const guardSignature = conditionItemSignature(tree, "host", "guard");
+            assert.ok(guardSignature);
 
-            // A tab on item 1 (index 0) would now show another root: it must close.
-            const removed = reduceDocumentMutation(
-                { type: "removeCondition", payload: { target, index: 0 } },
-                { tree, nodeDefs }
-            );
-            assert.equal(removed.status, "changed");
-            if (removed.status !== "changed") {
-                return;
-            }
-            assert.equal(findConditionItemRootUuid(removed.tree, "host", 0), "check");
-            assert.equal(findConditionItemRootUuid(removed.tree, "host", 1), null);
-
+            // Moving keeps the item, its content and its signature; only ids may renumber.
             const moved = reduceDocumentMutation(
                 { type: "moveCondition", payload: { target, index: 0, direction: "down" } },
                 { tree, nodeDefs }
@@ -3437,8 +3426,33 @@ export const documentDomainSharedTests = defineSharedTests([
             if (moved.status !== "changed") {
                 return;
             }
-            assert.equal(findConditionItemRootUuid(moved.tree, "host", 0), "check");
-            assert.equal(findConditionItemRootUuid(moved.tree, "host", 1), "guard");
+            assert.equal(findConditionItemIndex(moved.tree, "host", "guard"), 1);
+            assert.equal(buildConditionFileTree(moved.tree, "host", "guard")?.root.name, "Guard");
+            moved.tree.root.children![0].conditions![1].root.id = "40";
+            assert.equal(conditionItemSignature(moved.tree, "host", "guard"), guardSignature);
+
+            // Editing the item itself, its custom data or the host overrides changes it.
+            const edited = clonePersistedTree(tree);
+            edited.root.children![0].conditions![0].root.desc = "changed";
+            assert.notEqual(conditionItemSignature(edited, "host", "guard"), guardSignature);
+            const customized = clonePersistedTree(tree);
+            customized.root.children![0].conditions![0].custom = { note: "x" };
+            assert.notEqual(conditionItemSignature(customized, "host", "guard"), guardSignature);
+            const overridden = clonePersistedTree(tree);
+            overridden.overrides = { other: { desc: "x" } };
+            assert.notEqual(conditionItemSignature(overridden, "host", "guard"), guardSignature);
+
+            const removed = reduceDocumentMutation(
+                { type: "removeCondition", payload: { target, index: 0 } },
+                { tree, nodeDefs }
+            );
+            assert.equal(removed.status, "changed");
+            if (removed.status !== "changed") {
+                return;
+            }
+            assert.equal(findConditionItemIndex(removed.tree, "host", "guard"), -1);
+            assert.equal(conditionItemSignature(removed.tree, "host", "guard"), null);
+            assert.equal(findConditionItemIndex(removed.tree, "host", "check"), 0);
         },
     },
 ]);
