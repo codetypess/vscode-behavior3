@@ -11,6 +11,7 @@ import {
     buildConditionFileLocation,
     buildConditionFilePath,
     buildConditionFileTree,
+    findConditionItemRootUuid,
     parseConditionFileLocation,
     readConditionFileWriteBack,
 } from "../../webview/shared/condition-file";
@@ -3381,6 +3382,63 @@ export const documentDomainSharedTests = defineSharedTests([
             assert.deepEqual(scope("self"), ["child", "cond"]);
             assert.deepEqual(scope("lower"), ["grandchild", "right"]);
             assert.deepEqual(scope("both"), ["child", "cond", "grandchild", "right"]);
+        },
+    },
+    {
+        name: "finds which condition root a condition file index points at after edits",
+        run() {
+            const nodeDefs: NodeDef[] = [
+                { name: "Attack", type: "Action", desc: "" },
+                { name: "Guard", type: "Condition", desc: "", status: ["success", "failure"] },
+                { name: "Check", type: "Condition", desc: "", status: ["success", "failure"] },
+            ];
+            const target = {
+                instanceKey: "2",
+                displayId: "2",
+                structuralStableId: "host",
+                sourceStableId: "host",
+                sourceTreePath: null,
+                subtreeStack: [],
+            };
+            const tree = treeWithoutCondition();
+            tree.root.children = [
+                {
+                    uuid: "host",
+                    id: "2",
+                    name: "Attack",
+                    conditions: [
+                        { abort: "none", root: { uuid: "guard", id: "3", name: "Guard" } },
+                        { abort: "none", root: { uuid: "check", id: "4", name: "Check" } },
+                    ],
+                },
+            ];
+            assert.equal(findConditionItemRootUuid(tree, "host", 0), "guard");
+            assert.equal(findConditionItemRootUuid(tree, "host", 1), "check");
+            assert.equal(findConditionItemRootUuid(tree, "host", 2), null);
+            assert.equal(findConditionItemRootUuid(tree, "missing", 0), null);
+
+            // A tab on item 1 (index 0) would now show another root: it must close.
+            const removed = reduceDocumentMutation(
+                { type: "removeCondition", payload: { target, index: 0 } },
+                { tree, nodeDefs }
+            );
+            assert.equal(removed.status, "changed");
+            if (removed.status !== "changed") {
+                return;
+            }
+            assert.equal(findConditionItemRootUuid(removed.tree, "host", 0), "check");
+            assert.equal(findConditionItemRootUuid(removed.tree, "host", 1), null);
+
+            const moved = reduceDocumentMutation(
+                { type: "moveCondition", payload: { target, index: 0, direction: "down" } },
+                { tree, nodeDefs }
+            );
+            assert.equal(moved.status, "changed");
+            if (moved.status !== "changed") {
+                return;
+            }
+            assert.equal(findConditionItemRootUuid(moved.tree, "host", 0), "check");
+            assert.equal(findConditionItemRootUuid(moved.tree, "host", 1), "guard");
         },
     },
 ]);

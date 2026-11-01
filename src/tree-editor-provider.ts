@@ -12,6 +12,7 @@ import {
 import { ConditionBranchSaveError } from "../webview/shared/condition-branch";
 import {
     buildConditionFileTree,
+    findConditionItemRootUuid,
     readConditionFileWriteBack,
 } from "../webview/shared/condition-file";
 import {
@@ -53,6 +54,22 @@ function getNewerFileWriteError(content: string): string | null {
     const config = vscode.workspace.getConfiguration("behavior3");
     const language = getEditorLanguage(config.get<string>("language", "auto"));
     return getNewerVersionMessage(language, fileVersion, "edit");
+}
+
+async function closeCustomEditorTabs(documentUris: ReadonlySet<string>): Promise<void> {
+    if (documentUris.size === 0) {
+        return;
+    }
+    const tabs = vscode.window.tabGroups.all.flatMap((group) =>
+        group.tabs.filter(
+            (tab) =>
+                tab.input instanceof vscode.TabInputCustom &&
+                documentUris.has(tab.input.uri.toString())
+        )
+    );
+    if (tabs.length > 0) {
+        await vscode.window.tabGroups.close(tabs);
+    }
 }
 
 /**
@@ -296,18 +313,59 @@ export class TreeEditorProvider
         }
     }
 
-    /** Re-read open condition files of a host whose content just changed. */
+    /**
+     * Re-read open condition files of a host whose content just changed. Tabs are addressed by
+     * item index, so a tab whose item moved or was removed would show another item: it is closed
+     * instead, unless it has unsaved edits (those go through the usual outside-change reload).
+     */
     private refreshConditionFiles(hostUri: vscode.Uri): void {
         const hostKey = hostUri.toString();
-        for (const entry of TreeEditorProvider.activeWebviews) {
-            if (this.savingConditionFiles.has(entry.documentUri)) {
-                continue;
-            }
-            const location = parseConditionFileUri(vscode.Uri.parse(entry.documentUri));
-            if (location?.hostUri.toString() === hostKey) {
-                void entry.reloadFromBackingFile();
-            }
+        const entries = [...TreeEditorProvider.activeWebviews].filter(
+            (entry) =>
+                !this.savingConditionFiles.has(entry.documentUri) &&
+                parseConditionFileUri(vscode.Uri.parse(entry.documentUri))?.hostUri.toString() ===
+                    hostKey
+        );
+        if (entries.length === 0) {
+            return;
         }
+        void (async () => {
+            let hostTree: PersistedTreeModel | null = null;
+            try {
+                const hostContent = await this.readHostContent(hostUri);
+                hostTree = parsePersistedTreeContent(hostContent, hostUri.fsPath);
+            } catch {
+                // Unreadable host: reload as before and let each tab report it.
+            }
+            const staleUris = new Set<string>();
+            for (const entry of entries) {
+                if (hostTree && this.isStaleConditionFile(entry.documentUri, hostTree)) {
+                    staleUris.add(entry.documentUri);
+                } else {
+                    void entry.reloadFromBackingFile();
+                }
+            }
+            await closeCustomEditorTabs(staleUris);
+        })();
+    }
+
+    private isStaleConditionFile(documentUri: string, hostTree: PersistedTreeModel): boolean {
+        const document = this.openDocuments.get(documentUri);
+        const location = parseConditionFileUri(vscode.Uri.parse(documentUri));
+        if (!document || document.isDirty || !location) {
+            return false;
+        }
+        let shownRootUuid: string;
+        try {
+            const shownTree = parsePersistedTreeContent(document.content, document.uri.path);
+            shownRootUuid = shownTree.root.uuid;
+        } catch {
+            return false;
+        }
+        return (
+            findConditionItemRootUuid(hostTree, location.hostStableId, location.index) !==
+            shownRootUuid
+        );
     }
 
     private async saveConditionDocument(document: TreeEditorDocument): Promise<void> {

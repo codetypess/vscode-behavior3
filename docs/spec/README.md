@@ -241,6 +241,7 @@ Scope: <short boundary>
 - [`multiple-node-conditions.md`](multiple-node-conditions.md)：Status `Verifying`。一个节点挂多项条件：画布叠放、按项选中、添加/删除/上下移、条件文件按序号。
 - [`subtree-reference-conditions.md`](subtree-reference-conditions.md)：Status `Verifying`。子树根的条件挂在主树引用节点上；树文件根节点不能挂条件。
 - [`condition-abort-scope-hint.md`](condition-abort-scope-hint.md)：Status `Verifying`。选中条件卡片时，范围以外的节点灰化，标出这一项能打断的范围。
+- [`condition-file-stale-tab.md`](condition-file-stale-tab.md)：Status `Verifying`。宿主里移动或删除条件后，指向这一序号的条件标签页关闭，不再显示另一项。
 - [`custom-field-script-hooks.md`](custom-field-script-hooks.md)：Status `Verifying`。用 `@behavior3.customField` 脚本钩子决定条件字段的值（例如原装饰器的优先级规则）。
 
 新增 work-item 时，请继续按以上格式补充；完成后如果长期规则已同步进编号基线 spec，直接从目录中删除对应 work-item。

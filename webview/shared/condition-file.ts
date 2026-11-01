@@ -91,6 +91,18 @@ export const buildConditionFileTree = (
     };
 };
 
+/**
+ * Root uuid of the host node's condition item at `index`, or `null` when there is none. An open
+ * condition file whose root differs is showing an item that moved or was removed.
+ */
+export const findConditionItemRootUuid = (
+    hostTree: PersistedTreeModel,
+    hostStableId: string,
+    index: number
+): string | null =>
+    findPersistedNodeByStableId(hostTree.root, hostStableId)?.conditions?.[index]?.root.uuid ??
+    null;
+
 /** What a condition file writes back to its host file. */
 export const readConditionFileWriteBack = (
     conditionTree: PersistedTreeModel
