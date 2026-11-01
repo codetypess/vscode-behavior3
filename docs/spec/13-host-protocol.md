@@ -50,7 +50,7 @@
     - 语义：sidebar 请求把变量聚焦作为一次性视觉 intent relay 给当前 active editor；不是共享状态同步
 - `openConditionFile`
     - payload: `{ target: NodeInstanceRef }`
-    - 语义：editor 或 sidebar 请求宿主在新标签页打开该节点第 `index` 项（缺省 0）条件的条件文件（`behavior3-condition:/<宿主文件名>/<uuid>/condition.json?host=<宿主文件完整路径>`，第 n 项是 `condition-<n>.json`）。`target.sourceTreePath` 非空时宿主文件是那份 subtree 文件、uuid 用 `sourceStableId`；否则是当前文件、uuid 用 `structuralStableId`。条件不在该文件里时提示，不打开
+    - 语义：editor 或 sidebar 请求宿主在新标签页打开该节点第 `index` 项（缺省 0）条件的条件文件（`behavior3-condition:/<宿主文件名>/<uuid>/condition.json?host=<宿主文件完整路径>`，第 n 项是 `condition-<n>.json`）。`target.sourceTreePath` 非空时宿主文件是那份 subtree 文件、uuid 用 `sourceStableId`；否则是当前文件、uuid 用 `structuralStableId`。例外：当前文件里的子树引用（`structuralStableId !== sourceStableId` 且 `subtreeStack` 只有一层），它的条件在引用节点上，宿主是当前文件、uuid 用 `structuralStableId`。条件不在该文件里时提示，不打开
 
 ### 项目与设置
 
@@ -243,7 +243,7 @@
 
 补充：
 
-- `attachCondition` 在宿主节点的条件末尾追加一项，根节点为选定的节点；子树内部节点的结果进入主文档 `overrides`
+- `attachCondition` 在宿主节点的条件末尾追加一项，根节点为选定的节点；子树内部节点的结果进入主文档 `overrides`，子树引用节点的条件写在引用节点上；树的根节点和嵌套引用拒绝
 - `removeCondition` 去掉宿主节点上第 `index` 项条件；`moveCondition` 把第 `index` 项和上一项或下一项交换。子树节点写整个数组的 override，不能清掉子树源文件里已有的条件
 - `setConditionRoot` 按 `index` 写回条件文件对应的那一项
 - `updateNode` intent 会携带 `currentNodeSnapshot`

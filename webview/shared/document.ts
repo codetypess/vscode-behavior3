@@ -17,6 +17,7 @@ import { parseWorkdirRelativeJsonPath } from "./protocol";
 import { translateRuntimeMessage, type SupportedLanguage } from "./runtime-i18n";
 import {
     createConditionData,
+    isNestedSubtreeReference,
     findConditionBranchViolation,
     findEnclosingConditionBranch,
     nodeDefReturnsRunning,
@@ -79,6 +80,8 @@ export type DocumentMutationReducerError =
     | { code: "delete-root-node-denied" }
     | { code: "edit-subtree-denied" }
     | { code: "condition-not-attached" }
+    | { code: "condition-on-root" }
+    | { code: "condition-nested-reference" }
     | { code: "condition-clear-denied" }
     | { code: "condition-running-status" }
     | { code: "condition-nested" }
@@ -549,6 +552,14 @@ const reduceUpdateNode = (
         return { status: "noop" };
     }
 
+    if (
+        conditionsProvided &&
+        isNestedSubtreeReference(payload.target) &&
+        !isJsonEqual(nextConditions ?? [], selectedNode.data.conditions ?? [])
+    ) {
+        return { status: "error", error: { code: "condition-nested-reference" } };
+    }
+
     for (const condition of conditionsProvided ? (nextConditions ?? []) : []) {
         const violation = conditionViolationResult(
             findConditionBranchViolation(condition.root, context.nodeDefs)
@@ -919,6 +930,13 @@ const reduceAttachCondition = (
         name: entryName,
     };
 
+    if (inlineNode === tree.root) {
+        return { status: "error", error: { code: "condition-on-root" } };
+    }
+    if (isNestedSubtreeReference(mutation.payload.target)) {
+        return { status: "error", error: { code: "condition-nested-reference" } };
+    }
+
     if (inlineNode) {
         // New items go last; `conditions` items are ANDed in order.
         inlineNode.conditions = [
@@ -980,6 +998,9 @@ const reduceConditionList = (
     context: DocumentMutationReducerContext,
     edit: (conditions: PersistedConditions) => PersistedConditions | "noop" | null
 ): DocumentMutationReducerResult => {
+    if (isNestedSubtreeReference(payload.target)) {
+        return { status: "error", error: { code: "condition-nested-reference" } };
+    }
     const tree = clonePersistedTree(context.tree);
     const inlineNode = findPersistedNodeByStableId(tree.root, payload.target.structuralStableId);
 
@@ -1254,6 +1275,12 @@ export const formatDocumentMutationReducerError = (
         case "edit-subtree-denied":
             return translateRuntimeMessage(language, "mutation.editSubtreeDenied");
 
+
+        case "condition-on-root":
+            return translateRuntimeMessage(language, "mutation.conditionOnRoot");
+
+        case "condition-nested-reference":
+            return translateRuntimeMessage(language, "mutation.conditionNestedReference");
 
         case "condition-not-attached":
             return translateRuntimeMessage(language, "mutation.conditionNotAttached");

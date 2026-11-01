@@ -11,6 +11,7 @@ import type {
     ResolvedGraphModel,
     VarDecl,
 } from "../shared/contracts";
+import { getAbortModeViolation, isConditionOnRoot } from "../shared/condition-branch";
 import { stringifyCompactJson5, stringifySearchValueAsJson5 } from "../shared/json";
 import { hasNodeOverrideDiff } from "../shared/node-overrides";
 import { createNodeDefMap, findNodeDef } from "../shared/node-utils";
@@ -52,6 +53,18 @@ const hasNodeOverride = (node: ResolvedNodeModel, def: NodeDef | null): boolean 
 
     // Subtree nodes compare against their resolved source snapshot to show override markers.
     return hasNodeOverrideDiff(node, node.subtreeOriginal, def);
+};
+
+/** The node a condition's `lower`/`both` relies on: the host's parent in the graph. */
+export const getConditionParent = (
+    graph: ResolvedDocumentGraph,
+    node: Pick<ResolvedNodeModel, "parentKey">,
+    defsByName: ReadonlyMap<string, NodeDef>
+): { name: string; preemptive?: boolean } | null => {
+    const parent = node.parentKey ? graph.nodesByInstanceKey[node.parentKey] : undefined;
+    return parent
+        ? { name: parent.name, preemptive: findNodeDef(defsByName, parent.name)?.preemptive }
+        : null;
 };
 
 export const buildResolvedGraphModel = (
@@ -125,10 +138,16 @@ export const buildResolvedGraphModel = (
                 node.args && Object.keys(node.args).length > 0
                     ? stringifyCompactJson5(node.args)
                     : undefined,
-            attachedConditions: (node.conditions ?? []).map((condition) => ({
-                name: condition.root.name,
-                abort: condition.abort,
-            })),
+            attachedConditions: (node.conditions ?? []).map((condition) => {
+                const parent = getConditionParent(graph, node, defsByName);
+                return {
+                    name: condition.root.name,
+                    abort: condition.abort,
+                    invalid:
+                        isConditionOnRoot(parent) ||
+                        Boolean(getAbortModeViolation(condition.abort, parent)),
+                };
+            }),
         });
 
         for (const childKey of node.childKeys) {

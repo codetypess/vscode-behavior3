@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useRuntime, useSelectionStore, useWorkspaceStore } from "../../app/runtime";
 import { canOpenSubtreeTarget } from "../../domain/subtree-navigation";
-import { nodeDefReturnsRunning } from "../../shared/condition-branch";
+import { isNestedSubtreeReference, nodeDefReturnsRunning } from "../../shared/condition-branch";
 import { isEditableEventTarget } from "../../shared/editable-event-target";
 import { Hotkey, isMacos, useKeyPress } from "../../shared/keys";
 import { useGraphPaneState } from "./graph-pane-state";
@@ -45,17 +45,22 @@ export const GraphPane: React.FC = () => {
             : null
     );
     const hasSelectedCondition = selectedConditionIndex !== null && conditionCount > 0;
-    const canAddCondition = Boolean(selectedNode);
+    // Not on a tree root, and not on a subtree reference nested in another subtree (edited there).
+    const conditionsLocked = selectedNodeRef ? isNestedSubtreeReference(selectedNodeRef) : false;
+    const canAddCondition =
+        Boolean(selectedNode) && selectedNode?.conditionParent !== null && !conditionsLocked;
     const canRemoveCondition =
         hasSelectedCondition &&
+        !conditionsLocked &&
         !(
             conditionCount === 1 &&
             selectedNode?.subtreeNode &&
             selectedNode.subtreeOriginal?.conditions?.length
         );
-    const canMoveConditionUp = hasSelectedCondition && selectedConditionIndex > 0;
+    const canMoveConditionUp =
+        hasSelectedCondition && !conditionsLocked && selectedConditionIndex > 0;
     const canMoveConditionDown =
-        hasSelectedCondition && selectedConditionIndex < conditionCount - 1;
+        hasSelectedCondition && !conditionsLocked && selectedConditionIndex < conditionCount - 1;
     const conditionEntryOptions = nodeDefs
         .filter((entry) => !nodeDefReturnsRunning(entry))
         .map((entry) => ({ value: entry.name, label: entry.name }));
@@ -243,7 +248,7 @@ export const GraphPane: React.FC = () => {
 
     // Only while a condition card is selected; otherwise the keys stay with the webview.
     useKeyPress([Hotkey.MoveConditionUp, Hotkey.MoveConditionDown], null, (event, key) => {
-        if (isEditableEventTarget(event.target) || !hasSelectedCondition) {
+        if (isEditableEventTarget(event.target) || !hasSelectedCondition || conditionsLocked) {
             return;
         }
         event.preventDefault();

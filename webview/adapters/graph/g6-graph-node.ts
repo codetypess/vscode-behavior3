@@ -596,6 +596,8 @@ class GraphNode extends Rect {
         const top = index * G6_GRAPH_CONDITION_TAB_HEIGHT;
         const zIndex = CONDITION_CARD_Z_INDEX + (conditions.length - index) * 2;
         const className = conditionCardClassName(index);
+        // A condition on a tree root, or an abort mode that cannot take effect, is a build error.
+        const errorColor = condition?.invalid ? accentColorMap.Error : undefined;
         // Left: the condition icon and the root name, which lines up with the node title below;
         // right: the abort mode.
         const nameLeft = G6_GRAPH_NODE_CONTENT_X;
@@ -611,7 +613,7 @@ class GraphNode extends Rect {
                 ? {
                       d: toPathString(this.getConditionCardPath(index)),
                       ...this.getConditionCardFill(selected),
-                      stroke: this.accent,
+                      stroke: errorColor ?? this.accent,
                       lineWidth: 2,
                       lineJoin: "round",
                       cursor: "pointer",
@@ -676,9 +678,10 @@ class GraphNode extends Rect {
                       y: textY,
                       text: abortType,
                       fontSize: 12,
+                      fontWeight: errorColor ? "bold" : "normal",
                       textAlign: "right",
                       textBaseline: "middle",
-                      fill: "#ffffff",
+                      fill: errorColor ?? "#ffffff",
                       cursor: "pointer",
                       zIndex: zIndex + 1,
                   }

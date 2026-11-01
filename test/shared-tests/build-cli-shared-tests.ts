@@ -1661,6 +1661,80 @@ export const buildCliSharedTests = defineSharedTests([
         },
     },
     {
+        name: "fails the build when a condition abort mode cannot take effect",
+        async run() {
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-abort-check-"));
+            const treeFile = path.join(root, "main.json");
+            const outputDir = path.join(root, "dist");
+            const writeJson = (file: string, value: unknown) =>
+                fs.writeFileSync(file, JSON.stringify(value), "utf-8");
+            const guarded = (uuid: string, abort: string) => ({
+                uuid,
+                id: "",
+                name: "Log",
+                conditions: [{ abort, root: { uuid: `${uuid}-check`, id: "", name: "Check" } }],
+            });
+            const build = async (rootNode: unknown) => {
+                writeJson(treeFile, { version: "2.8.0", name: "main", root: rootNode });
+                const errors: string[] = [];
+                const result = await buildBehaviorProject({
+                    projectPath: treeFile,
+                    outputDir,
+                    logger: {
+                        log() {},
+                        info() {},
+                        debug() {},
+                        warn() {},
+                        error: (...args: unknown[]) => errors.push(args.join(" ")),
+                    },
+                } as Parameters<typeof buildBehaviorProject>[0]);
+                return { hasError: result.hasError, errors: errors.join("\n") };
+            };
+
+            try {
+                writeJson(path.join(root, "workspace.b3-workspace"), { settings: {} });
+                writeJson(path.join(root, "node-config.b3-setting"), [
+                    {
+                        name: "Selector",
+                        type: "Composite",
+                        desc: "",
+                        children: -1,
+                        preemptive: true,
+                    },
+                    { name: "Sequence", type: "Composite", desc: "", children: -1 },
+                    { name: "Check", type: "Condition", desc: "", status: ["success", "failure"] },
+                    { name: "Log", type: "Action", desc: "" },
+                ]);
+
+                const preemptive = await build({
+                    uuid: "r",
+                    id: "",
+                    name: "Selector",
+                    children: [guarded("a", "lower"), guarded("b", "both"), guarded("c", "self")],
+                });
+                assert.equal(preemptive.hasError, false, preemptive.errors);
+
+                const notPreemptive = await build({
+                    uuid: "r",
+                    id: "",
+                    name: "Sequence",
+                    children: [guarded("a", "lower")],
+                });
+                assert.equal(notPreemptive.hasError, true);
+                assert.match(notPreemptive.errors, /'lower' needs a preemptive parent, 'Sequence'/);
+
+                // A tree root cannot carry conditions, whatever the abort mode.
+                for (const abort of ["self", "both"]) {
+                    const onRoot = await build(guarded("r", abort));
+                    assert.equal(onRoot.hasError, true, abort);
+                    assert.match(onRoot.errors, /conditions are not allowed on the root node/);
+                }
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+    },
+    {
         name: "recomputes customField hooks after build renumbering",
         async run() {
             const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-custom-field-build-"));
@@ -1711,7 +1785,8 @@ export const buildCliSharedTests = defineSharedTests([
                     { name: "Check", type: "Condition", desc: "", status: ["success", "failure"] },
                     { name: "Log", type: "Action", desc: "" },
                 ]);
-                // One subtree used twice: each expanded instance gets its own priorities.
+                // One subtree used twice; conditions on its root belong to each reference, and
+                // each expanded instance gets its own priorities.
                 writeJson(path.join(root, "sub", "unit.json"), {
                     version: "2.8.0",
                     name: "unit",
@@ -1719,9 +1794,6 @@ export const buildCliSharedTests = defineSharedTests([
                         uuid: "unit-root",
                         id: "1",
                         name: "Sequence",
-                        conditions: [
-                            condition({ enterPriority: 1, maintainPriority: 1 }, "unit-check"),
-                        ],
                         children: [{ uuid: "unit-log", id: "3", name: "Log" }],
                     },
                 });
@@ -1745,8 +1817,24 @@ export const buildCliSharedTests = defineSharedTests([
                                 ],
                                 children: [{ uuid: "leaf", id: "11", name: "Log" }],
                             },
-                            { uuid: "ref-a", id: "12", name: "Sequence", path: "sub/unit.json" },
-                            { uuid: "ref-b", id: "13", name: "Sequence", path: "sub/unit.json" },
+                            {
+                                uuid: "ref-a",
+                                id: "12",
+                                name: "Sequence",
+                                path: "sub/unit.json",
+                                conditions: [
+                                    condition({ enterPriority: 1, maintainPriority: 1 }, "check-a"),
+                                ],
+                            },
+                            {
+                                uuid: "ref-b",
+                                id: "13",
+                                name: "Sequence",
+                                path: "sub/unit.json",
+                                conditions: [
+                                    condition({ enterPriority: 1, maintainPriority: 1 }, "check-b"),
+                                ],
+                            },
                         ],
                     },
                 });

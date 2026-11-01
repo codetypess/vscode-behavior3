@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useRuntime, useSelectionStore, useWorkspaceStore } from "../../app/runtime";
 import { ABORT_MODES, type AbortMode } from "../../shared/b3type";
+import { getAbortModeViolation } from "../../shared/condition-branch";
 import type { PersistedConditionData } from "../../shared/contracts";
 import { clonePersistedConditions } from "../../shared/tree";
 import { CustomDataSection } from "./custom-data-section";
@@ -94,6 +95,18 @@ export const ConditionInspectorForm: React.FC = () => {
         return null;
     }
 
+    // `lower`/`both` need a preemptive parent; an existing value that cannot work is an error.
+    // A tree root cannot carry conditions at all. `undefined` means the parent is not known yet.
+    const conditionParent = selectedNode.conditionParent ?? null;
+    const onRoot = selectedNode.conditionParent === null;
+    const describeViolation = (abort: AbortMode) => {
+        const violation = getAbortModeViolation(abort, conditionParent);
+        return violation
+            ? t("condition.abortNeedsPreemptive", { abort, parent: violation.parentName })
+            : undefined;
+    };
+    const currentError = onRoot ? t("condition.onRoot") : describeViolation(condition.abort);
+
     return (
         <div className="b3-inspector-content">
             <Form
@@ -107,11 +120,24 @@ export const ConditionInspectorForm: React.FC = () => {
                 <Form.Item {...createInspectorLabelProps(t("condition.entry"))} name="entryName">
                     <Input disabled />
                 </Form.Item>
-                <Form.Item {...createInspectorLabelProps(t("condition.abort"))} name="abort">
+                <Form.Item
+                    {...createInspectorLabelProps(t("condition.abort"))}
+                    name="abort"
+                    validateStatus={currentError ? "error" : undefined}
+                    help={currentError}
+                >
                     <Select
                         style={{ width: "100%" }}
                         disabled={readOnly}
-                        options={ABORT_MODES.map((value) => ({ value, label: value }))}
+                        options={ABORT_MODES.map((value) => {
+                            const violation = getAbortModeViolation(value, conditionParent);
+                            return {
+                                value,
+                                label: value,
+                                disabled: Boolean(violation),
+                                title: violation ? describeViolation(value) : undefined,
+                            };
+                        })}
                         onChange={commitAbort}
                     />
                 </Form.Item>

@@ -1,5 +1,6 @@
 {
   "custom": {
+    "$condition_type": "local"
   },
   "desc": "怪物测试AI",
   "export": true,
@@ -36,8 +37,6 @@
               "gt": 50,
               "value": "hp"
             },
-            "children": [
-            ],
             "id": "6",
             "input": [
               "hp"
@@ -53,14 +52,26 @@
               "status": "FAILURE",
               "time": 1
             },
-            "children": [
-            ],
             "desc": "攻击",
             "id": "7",
             "name": "TestB3",
             "uuid": "yVjZBJEf1c"
           },
           {
+            "conditions": [
+              {
+                "abort": "none",
+                "custom": {
+                  "enterPriority": 8,
+                  "maintainPriority": 8
+                },
+                "root": {
+                  "id": "9",
+                  "name": "Sequence",
+                  "uuid": "bZTL93cEDr"
+                }
+              }
+            ],
             "desc": "新建行为树",
             "id": "8",
             "name": "Sequence",
@@ -77,10 +88,8 @@
         "args": {
           "message": "Run!"
         },
-        "children": [
-        ],
         "desc": "逃跑",
-        "id": "11",
+        "id": "12",
         "name": "Log",
         "uuid": "JSrq3ZHiO1"
       }
@@ -96,5 +105,5 @@
     "locals": [
     ]
   },
-  "version": "2.1.0"
+  "version": "2.8.0"
 }

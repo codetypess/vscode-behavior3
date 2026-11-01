@@ -5,6 +5,7 @@ import type {
     HostToEditorMessage,
 } from "../../../webview/shared/message-protocol";
 import type { HostSelectionState } from "../../../webview/shared/contracts";
+import type { NodeInstanceRef } from "../../../webview/shared/contracts";
 import { normalizeNodeInstanceRef } from "../../../webview/shared/protocol";
 import {
     translateRuntimeMessage,
@@ -238,15 +239,17 @@ export function createSessionFileRequestHandlers({
         msg: Extract<EditorToHostMessage, { type: "openConditionFile" }>
     ): Promise<void> => {
         const target = normalizeNodeInstanceRef(msg.target);
-        const hostUri = target.sourceTreePath
-            ? resolvePathInWorkdir(target.sourceTreePath, projectRootUri)
+        // A subtree reference keeps its conditions on the reference node in this file; nodes
+        // inside a subtree keep theirs in the subtree file.
+        const inSubtreeFile =
+            Boolean(target.sourceTreePath) && !isSubtreeReferenceInThisFile(target);
+        const hostUri = inSubtreeFile
+            ? resolvePathInWorkdir(target.sourceTreePath!, projectRootUri)
             : locationUri;
         if (!hostUri) {
             return;
         }
-        const hostStableId = target.sourceTreePath
-            ? target.sourceStableId
-            : target.structuralStableId;
+        const hostStableId = inSubtreeFile ? target.sourceStableId : target.structuralStableId;
         const conditionUri = buildConditionFileUri(hostUri, hostStableId, msg.index ?? 0);
         try {
             await vscode.workspace.fs.stat(conditionUri);
@@ -273,3 +276,9 @@ export function createSessionFileRequestHandlers({
         saveSubtreeContentAs,
     };
 }
+
+/** A subtree reference placed directly in this file (not inside another subtree). */
+const isSubtreeReferenceInThisFile = (target: NodeInstanceRef): boolean =>
+    Boolean(target.sourceTreePath) &&
+    target.structuralStableId !== target.sourceStableId &&
+    target.subtreeStack.length === 1;

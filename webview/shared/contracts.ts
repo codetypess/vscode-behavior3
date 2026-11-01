@@ -139,6 +139,8 @@ export interface EditNode {
     resolutionError?: "missing-subtree" | "invalid-subtree" | "cyclic-subtree";
     /** Number of condition items on the node. */
     conditionCount?: number;
+    /** The parent `lower`/`both` conditions rely on; `null` for the root. */
+    conditionParent?: { name: string; preemptive?: boolean } | null;
 }
 
 export interface DocumentState {
@@ -445,7 +447,8 @@ export interface GraphNodeVM {
     outputs: Array<{ label: string; variable?: string }>;
     argsText?: string;
     /** Condition cards stacked above the node, first item on top. */
-    attachedConditions: Array<{ name: string; abort: AbortMode }>;
+    /** `invalid`: on a tree root, or `lower`/`both` without a preemptive parent (build errors). */
+    attachedConditions: Array<{ name: string; abort: AbortMode; invalid?: boolean }>;
 }
 
 export interface ResolvedGraphModel {

@@ -32,6 +32,44 @@ export const treeUsesConditions = (tree: {
     return Object.values(tree.overrides ?? {}).some((entry) => Boolean(entry?.conditions?.length));
 };
 
+/**
+ * A tree file's root cannot carry conditions. Any file may be used as a subtree, and a subtree
+ * root's conditions belong to the reference that places it under a parent.
+ */
+export const isConditionOnRoot = (parent: { name: string } | null): boolean => !parent;
+
+/**
+ * Why `abort` cannot take effect under `parent`, or `null`. `lower` and `both` are checked by
+ * the parent while a sibling on the right runs, so they need a parent declared `preemptive`.
+ * The root has no parent; `isConditionOnRoot` covers it.
+ */
+export type AbortModeViolation = { code: "parent-not-preemptive"; parentName: string };
+
+export const getAbortModeViolation = (
+    abort: AbortMode,
+    parent: { name: string; preemptive?: boolean } | null
+): AbortModeViolation | null => {
+    if ((abort !== "lower" && abort !== "both") || !parent || parent.preemptive) {
+        return null;
+    }
+    return { code: "parent-not-preemptive", parentName: parent.name };
+};
+
+/**
+ * A subtree reference that sits inside another subtree: the instance's structural uuid is the
+ * reference node, its source uuid the subtree root. Its conditions live in that outer subtree
+ * file, so they are edited there, not from the main tree.
+ */
+export const isNestedSubtreeReference = (ref: {
+    structuralStableId: string;
+    sourceStableId: string;
+    sourceTreePath: string | null;
+    subtreeStack: readonly string[];
+}): boolean =>
+    Boolean(ref.sourceTreePath) &&
+    ref.structuralStableId !== ref.sourceStableId &&
+    ref.subtreeStack.length > 1;
+
 export const isAbortMode = (value: unknown): value is AbortMode =>
     typeof value === "string" && (ABORT_MODES as readonly string[]).includes(value);
 

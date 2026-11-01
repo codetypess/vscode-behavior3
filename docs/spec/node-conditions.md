@@ -24,7 +24,7 @@ behavior3-ts 2.0 参考 UE Observer Aborts 加了条件打断：节点上可以�
 
 ## 3. Non-Goals
 
-- 校验（第 3 步）：`conditions` 只允许 1 项、父节点不是 preemptive 时禁用 `lower` / `both`、根节点不能用 `lower` / `both`、没有 `status` 的节点给 warning、Action / 有 `output` 的节点给 warning。
+- 校验（第 3 步）：没有 `status` 的节点给 warning、Action / 有 `output` 的节点给 warning。（多项条件后来已支持；`lower` / `both` 需要 preemptive 父节点的检查后来已实现为错误，见 `17-editor-semantics.md`。）
 - 提示（第 4 步）：选中条件时高亮它能影响的范围。
 - 编辑器 UI 同时编辑多项条件。数据层完整支持多项（多项界面后来由 `multiple-node-conditions.md` 实现）。
 
@@ -118,6 +118,5 @@ interface NodeDef {
 ## 8. Known Limitations
 
 - 主文档 `overrides` 里新写的条件如果在条件树里引用了 subtree，这个 subtree 不会被预加载（`loadSubtreeSourceCache` 只从主树和 subtree 源收集路径），物化时显示为 missing。
-- 条件面板的 `abort` 下拉框还没有按父节点是否 preemptive 禁用选项（第 3 步）。
 - 条件文件里修改的树级字段（自定义数据除外）不会写回；在条件文件里给节点添加条件会在保存时被拒绝，而不是在添加时就拦住。
 - 条件文件保存时整体替换宿主文件的 `overrides`。如果宿主文件在条件文件打开期间改了 overrides，而条件文件又有未保存修改，会出现冲突提示，此时仍强行保存会覆盖宿主文件的那些修改。

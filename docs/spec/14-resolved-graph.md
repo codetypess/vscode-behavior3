@@ -181,7 +181,7 @@
 - `displayId` / `instanceKey` 也按这个顺序生成
 - `mainTreeDisplayIdsByStableId` 记录所有属于主文档结构锚点的节点
 - 带 `path` 的主树锚点也会记录；只有 subtree 内部节点不会记录
-- 节点上的 `conditions` 不进入 `children`，也不参与主图父子布局。物化时条件树和子节点用同一个上下文解析（包括 subtree `path` 和 override），结果在 `MaterializedTreeNode.conditions`；`data.conditions` 保留持久化形状供编辑。条件树里的节点占用 display id（节点、条件树、子节点的顺序），写进 `mainTreeDisplayIdsByStableId`，但不是 graph 节点。resolved node 用 `attachedConditionNames`（各项根节点名，按顺序）表示上方有几张条件卡片，并带上 `conditions` 供附属显示和复制
+- 节点上的 `conditions` 不进入 `children`，也不参与主图父子布局。物化时条件树和子节点用同一个上下文解析（包括 subtree `path` 和 override）；例外是子树引用：展开后子树根的条件取引用节点自己的（存在引用它的文件里，用引用处的上下文解析，参与引用处文件的编号），子树文件根节点上的条件在引用时不生效。结果在 `MaterializedTreeNode.conditions`；`data.conditions` 保留持久化形状供编辑。条件树里的节点占用 display id（节点、条件树、子节点的顺序），写进 `mainTreeDisplayIdsByStableId`，但不是 graph 节点。resolved node 用 `attachedConditionNames`（各项根节点名，按顺序）表示上方有几张条件卡片，并带上 `conditions` 供附属显示和复制
 
 ## 降级显示规则
 

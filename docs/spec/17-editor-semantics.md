@@ -222,7 +222,9 @@ host reducer 当前分三条路径：
 
 ### `attachCondition(entryName)`
 
-- 任意节点都可用，已有条件时追加一项（项与项之间是 AND，按数组顺序）。添加后选中新的这一项
+- 树的根节点不能加条件（`condition-on-root`，菜单置灰）：任何树文件都可能被当成子树引用，子树根的条件属于引用处。子树需要条件时，挂在引用它的节点上
+- 子树里面的子树引用节点（嵌套引用）不能从外层文件加、删、移、改条件（`condition-nested-reference`），要打开那个子树文件编辑
+- 其他节点都可用，已有条件时追加一项（项与项之间是 AND，按数组顺序）。添加后选中新的这一项
 - 选定的节点成为新项的 `root`，不进入宿主的 `children`。`abort` 为 `none`；`custom` 是 `settings.customFields.condition` 里所有带默认值的字段（`"$nodeId"` 默认值取目标节点的 id），没有时不写
 - 根节点定义的 `status` 含字面量 `running` 时拒绝
 - 条件树内部不能再带 `conditions`；条件树不能返回 `running`：按 behavior3 2.0 的静态推导，`running` 节点自己会返回 running，`|running` 节点在任一启用的子节点会返回 running 时会返回 running。没有声明 `status` 的节点这里不拦（后续校验给 warning）
@@ -340,6 +342,8 @@ host reducer 当前分三条路径：
 - 只是把 build 请求交给宿主
 - 结果通过 `buildResult` 回推
 - 宿主执行 build 时，进程当前工作目录必须切换到解析出的行为树项目目录，也就是命中的 `*.b3-workspace` 所在目录；如果该目录经过符号链接进入，宿主必须先把已有文件路径规范化到同一个 canonical filesystem path，再让 build script 观察 `process.cwd()` 与 build context `workdir` 保持一致，而不是一个是 lexical path、另一个是 real path
+- 树的根节点不能挂条件，已有的构建报错（`conditions are not allowed on the root node; attach them where the tree is referenced`）
+- `lower` / `both` 要靠父节点在右侧兄弟运行时检查，所以只在父节点声明 `preemptive: true` 时有效。不能生效的 `abort` 一律按错误处理（运行时只会给 warning，然后这项条件只在进入节点时检查，容易被忽略）。构建检查节点时对每项这样的条件报错（`condition abort '<abort>' needs a preemptive parent, '<parent>' is not preemptive`），构建失败
 - 构建在重新编号、加前缀之后，用 `@behavior3.customField` 钩子重新计算条件里的 `script` 字段（`reason: "build"`，每个展开实例各算一次，只写进产物）；钩子缺失或出错时构建失败
 - 构建产物带上节点 `conditions`：条件树里的 subtree 被展开、override 被应用，id 按节点、条件树、子节点的顺序重新编号后加前缀，条件 `custom` 原样导出。build 校验和 batch `onProcessNode` 也会走到条件树里的节点；batch hook 对条件根返回空时去掉该条件项
 - `Ctrl+B` / `Cmd+B` 与 `Ctrl+Shift+B` / `Cmd+Shift+B` 由 VS Code contributed keybindings 直接触发 extension-host build command；webview 不应重复绑定同一组 build 快捷键

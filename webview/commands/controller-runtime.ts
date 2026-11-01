@@ -43,6 +43,7 @@ import {
     buildResolvedGraphModel,
     buildSearchState,
     computeVariableHighlights,
+    getConditionParent,
 } from "../domain/graph-selectors";
 import { getDisplayIdStart, resolveDocumentGraph } from "../domain/resolve-graph";
 import { createInitialGraphUiState, patchGraphUiSearchState } from "../stores/graph-ui-store";
@@ -223,6 +224,11 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             subtreeOriginal: node.subtreeOriginal,
             resolutionError: node.resolutionError,
             conditionCount: node.attachedConditionNames.length,
+            conditionParent: getConditionParent(
+                resolvedGraph,
+                node,
+                createNodeDefMap(deps.workspaceStore.getState().nodeDefs)
+            ),
         };
     };
 

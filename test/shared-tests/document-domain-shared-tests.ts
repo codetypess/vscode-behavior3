@@ -1906,13 +1906,14 @@ export const documentDomainSharedTests = defineSharedTests([
             const target = {
                 instanceKey: "1",
                 displayId: "7",
-                structuralStableId: "root",
-                sourceStableId: "root",
+                structuralStableId: "host",
+                sourceStableId: "host",
                 sourceTreePath: null,
                 subtreeStack: [],
             };
+            // Conditions go on a node under the root; the root cannot carry them.
             const tree = treeWithoutCondition();
-            tree.root.id = "7";
+            tree.root.children = [{ uuid: "host", id: "7", name: "Attack" }];
 
             const attached = reduceDocumentMutation(
                 { type: "attachCondition", payload: { target, entryName: "Guard" } },
@@ -1922,12 +1923,12 @@ export const documentDomainSharedTests = defineSharedTests([
             if (attached.status !== "changed") {
                 return;
             }
-            assert.deepEqual(attached.tree.root.conditions?.[0].custom, {
+            assert.deepEqual(attached.tree.root.children![0].conditions?.[0].custom, {
                 enterPriority: 7,
                 maintainPriority: 7,
             });
 
-            const condition = attached.tree.root.conditions![0];
+            const condition = attached.tree.root.children![0].conditions![0];
             const commitConditionCustom = (custom: Record<string, number>) =>
                 reduceDocumentMutation(
                     {
@@ -1935,10 +1936,13 @@ export const documentDomainSharedTests = defineSharedTests([
                         payload: {
                             target,
                             data: {
-                                ...attached.tree.root,
+                                ...attached.tree.root.children![0],
                                 conditions: [{ ...condition, custom }],
                             },
-                            currentNodeSnapshot: { data: attached.tree.root, subtreeNode: false },
+                            currentNodeSnapshot: {
+                                data: attached.tree.root.children![0],
+                                subtreeNode: false,
+                            },
                         },
                     },
                     { tree: attached.tree, nodeDefs, customFields }
@@ -1948,7 +1952,7 @@ export const documentDomainSharedTests = defineSharedTests([
             const edited = commitConditionCustom({ enterPriority: 1, maintainPriority: 5 });
             assert.equal(edited.status, "changed");
             if (edited.status === "changed") {
-                assert.deepEqual(edited.tree.root.conditions?.[0].custom, {
+                assert.deepEqual(edited.tree.root.children![0].conditions?.[0].custom, {
                     enterPriority: 7,
                     maintainPriority: 5,
                 });
@@ -2265,11 +2269,20 @@ export const documentDomainSharedTests = defineSharedTests([
                     [subtreePath]: {
                         ...createTestTree(),
                         name: "child",
+                        // Overrides reach nodes inside the subtree; its root takes conditions
+                        // only from the reference.
                         root: {
-                            uuid: "sub-node",
+                            uuid: "sub-root",
                             id: "1",
                             name: "Wait",
-                            children: [{ uuid: "leaf", id: "2", name: "Leaf" }],
+                            children: [
+                                {
+                                    uuid: "sub-node",
+                                    id: "2",
+                                    name: "Wait",
+                                    children: [{ uuid: "leaf", id: "3", name: "Leaf" }],
+                                },
+                            ],
                         },
                     },
                 },
@@ -2277,9 +2290,10 @@ export const documentDomainSharedTests = defineSharedTests([
                 subtreeEditable: true,
             });
 
-            assert.equal(materialized.data.conditions?.[0]?.root.name, "Guard");
+            const inner = materialized.children[0];
+            assert.equal(inner.data.conditions?.[0]?.root.name, "Guard");
             assert.deepEqual(
-                materialized.children.map((child) => child.data.name),
+                inner.children.map((child) => child.data.name),
                 ["Leaf"]
             );
         },
@@ -2356,7 +2370,8 @@ export const documentDomainSharedTests = defineSharedTests([
         name: "attaches a condition entry node without adding it to children",
         run() {
             const tree = createTestTree();
-            tree.root.name = "Attack";
+            // Conditions go on a node under the root; the root cannot carry them.
+            tree.root.children = [{ uuid: "host", id: "2", name: "Attack" }];
             const result = reduceDocumentMutation(
                 {
                     type: "attachCondition",
@@ -2364,8 +2379,8 @@ export const documentDomainSharedTests = defineSharedTests([
                         target: {
                             instanceKey: "1",
                             displayId: "1",
-                            structuralStableId: "root",
-                            sourceStableId: "root",
+                            structuralStableId: "host",
+                            sourceStableId: "host",
                             sourceTreePath: null,
                             subtreeStack: [],
                         },
@@ -2391,13 +2406,13 @@ export const documentDomainSharedTests = defineSharedTests([
             if (result.status !== "changed") {
                 return;
             }
-            assert.deepEqual(result.tree.root.conditions?.[0]?.custom, {
+            assert.deepEqual(result.tree.root.children![0].conditions?.[0]?.custom, {
                 enterPriority: 0,
                 maintainPriority: 0,
             });
-            assert.equal(result.tree.root.conditions?.[0]?.abort, "none");
-            assert.equal(result.tree.root.conditions?.[0]?.root.name, "Guard");
-            assert.equal(result.tree.root.children?.length ?? 0, 0);
+            assert.equal(result.tree.root.children![0].conditions?.[0]?.abort, "none");
+            assert.equal(result.tree.root.children![0].conditions?.[0]?.root.name, "Guard");
+            assert.equal(result.tree.root.children![0].children?.length ?? 0, 0);
             assert.equal(result.tree.custom.$condition_type, "local");
 
             const removed = reduceDocumentMutation(
@@ -2408,8 +2423,8 @@ export const documentDomainSharedTests = defineSharedTests([
                         target: {
                             instanceKey: "1",
                             displayId: "1",
-                            structuralStableId: "root",
-                            sourceStableId: "root",
+                            structuralStableId: "host",
+                            sourceStableId: "host",
                             sourceTreePath: null,
                             subtreeStack: [],
                         },
@@ -2432,8 +2447,8 @@ export const documentDomainSharedTests = defineSharedTests([
             if (removed.status !== "changed") {
                 return;
             }
-            assert.equal(removed.tree.root.conditions, undefined);
-            assert.equal(removed.tree.root.children?.length ?? 0, 0);
+            assert.equal(removed.tree.root.children![0].conditions, undefined);
+            assert.equal(removed.tree.root.children![0].children?.length ?? 0, 0);
             assert.equal(removed.tree.custom.$condition_type, "local");
         },
     },
@@ -2448,15 +2463,19 @@ export const documentDomainSharedTests = defineSharedTests([
             const target = {
                 instanceKey: "1",
                 displayId: "1",
-                structuralStableId: "root",
-                sourceStableId: "root",
+                structuralStableId: "host",
+                sourceStableId: "host",
                 sourceTreePath: null,
                 subtreeStack: [],
             };
             const tree = treeWithoutCondition();
+            // Conditions go on a node under the root; the root cannot carry them.
+            tree.root.children = [{ uuid: "host", id: "2", name: "Attack" }];
             const names = (result: ReturnType<typeof reduceDocumentMutation>) =>
                 result.status === "changed"
-                    ? result.tree.root.conditions?.map((condition) => condition.root.name)
+                    ? result.tree.root.children![0].conditions?.map(
+                          (condition) => condition.root.name
+                      )
                     : result.status;
             const attach = (current: PersistedTreeModel, entryName: string) =>
                 reduceDocumentMutation(
@@ -2663,6 +2682,116 @@ export const documentDomainSharedTests = defineSharedTests([
         },
     },
     {
+        name: "takes a subtree root's conditions from the reference node",
+        async run() {
+            const subPath = parseWorkdirRelativeJsonPath("sub.json");
+            assert.ok(subPath);
+            const nodeDefs: NodeDef[] = [
+                { name: "Selector", type: "Composite", desc: "", children: -1, preemptive: true },
+                { name: "Sequence", type: "Composite", desc: "", children: -1 },
+                { name: "Check", type: "Condition", desc: "", status: ["success", "failure"] },
+                { name: "Log", type: "Action", desc: "" },
+            ];
+            // The subtree file's own root condition does not travel with the reference.
+            const sub = parseMainTree({
+                name: "sub",
+                custom: {},
+                root: {
+                    uuid: "sub-root",
+                    id: "1",
+                    name: "Sequence",
+                    conditions: [{ root: { uuid: "stale", id: "", name: "Check" } }],
+                    children: [{ uuid: "sub-log", id: "2", name: "Log" }],
+                },
+            });
+            const main = parseMainTree({
+                custom: {},
+                root: {
+                    uuid: "root",
+                    id: "1",
+                    name: "Selector",
+                    children: [{ uuid: "ref", id: "2", name: "Sequence", path: subPath }],
+                },
+            });
+            const resolve = (tree: PersistedTreeModel) =>
+                resolveDocumentGraph({
+                    persistedTree: tree,
+                    subtreeSources: { [subPath]: sub },
+                    nodeDefs,
+                    subtreeEditable: true,
+                });
+            const before = resolve(main).graph.nodesByInstanceKey["2"];
+            assert.deepEqual(before.attachedConditionNames, []);
+
+            const attached = reduceDocumentMutation(
+                {
+                    type: "attachCondition",
+                    payload: {
+                        target: before.ref,
+                        entryName: "Check",
+                        currentNodeSnapshot: {
+                            data: { uuid: "sub-root", id: "2", name: "Sequence", path: subPath },
+                            subtreeNode: before.subtreeNode,
+                            subtreeOriginal: before.subtreeOriginal,
+                        },
+                    },
+                },
+                { tree: main, nodeDefs }
+            );
+            assert.equal(attached.status, "changed");
+            if (attached.status !== "changed") {
+                return;
+            }
+            // Stored on the reference in the main file, shown on the expanded subtree root.
+            assert.equal(attached.tree.root.children?.[0].conditions?.length, 1);
+            const resolved = resolve(attached.tree);
+            const host = resolved.graph.nodesByInstanceKey["2"];
+            assert.deepEqual(host.attachedConditionNames, ["Check"]);
+            // The condition tree is a main-tree node: numbered after the host, saved with an id.
+            const conditionUuid = attached.tree.root.children![0].conditions![0].root.uuid;
+            assert.equal(resolved.mainTreeDisplayIdsByStableId[conditionUuid], "3");
+            assert.equal(host.childKeys.length, 1);
+            assert.equal(resolved.graph.nodesByInstanceKey[host.childKeys[0]].name, "Log");
+
+            const rootAttach = reduceDocumentMutation(
+                {
+                    type: "attachCondition",
+                    payload: {
+                        target: resolved.graph.nodesByInstanceKey["1"].ref,
+                        entryName: "Check",
+                    },
+                },
+                { tree: main, nodeDefs }
+            );
+            assert.equal(rootAttach.status, "error");
+            if (rootAttach.status === "error") {
+                assert.equal(rootAttach.error.code, "condition-on-root");
+            }
+
+            const nested = reduceDocumentMutation(
+                {
+                    type: "attachCondition",
+                    payload: {
+                        target: {
+                            instanceKey: "9",
+                            displayId: "9",
+                            structuralStableId: "inner-ref",
+                            sourceStableId: "inner-root",
+                            sourceTreePath: subPath,
+                            subtreeStack: [subPath, subPath],
+                        },
+                        entryName: "Check",
+                    },
+                },
+                { tree: main, nodeDefs }
+            );
+            assert.equal(nested.status, "error");
+            if (nested.status === "error") {
+                assert.equal(nested.error.code, "condition-nested-reference");
+            }
+        },
+    },
+    {
         name: "writes a condition file back into its own item",
         run() {
             const tree = createTestTree();
@@ -2804,6 +2933,8 @@ export const documentDomainSharedTests = defineSharedTests([
         name: "rejects a condition entry whose own status returns running",
         run() {
             const tree = createTestTree();
+            // Conditions go on a node under the root; the root cannot carry them.
+            tree.root.children = [{ uuid: "host", id: "2", name: "Attack" }];
             const result = reduceDocumentMutation(
                 {
                     type: "attachCondition",
@@ -2811,8 +2942,8 @@ export const documentDomainSharedTests = defineSharedTests([
                         target: {
                             instanceKey: "1",
                             displayId: "1",
-                            structuralStableId: "root",
-                            sourceStableId: "root",
+                            structuralStableId: "host",
+                            sourceStableId: "host",
                             sourceTreePath: null,
                             subtreeStack: [],
                         },
@@ -2833,13 +2964,15 @@ export const documentDomainSharedTests = defineSharedTests([
                 return;
             }
             assert.equal(result.error.code, "condition-running-status");
-            assert.equal(tree.root.conditions, undefined);
+            assert.equal(tree.root.children![0].conditions, undefined);
         },
     },
     {
         name: "allows a condition entry that only propagates child running",
         run() {
             const tree = createTestTree();
+            // Conditions go on a node under the root; the root cannot carry them.
+            tree.root.children = [{ uuid: "host", id: "2", name: "Attack" }];
             const result = reduceDocumentMutation(
                 {
                     type: "attachCondition",
@@ -2847,8 +2980,8 @@ export const documentDomainSharedTests = defineSharedTests([
                         target: {
                             instanceKey: "1",
                             displayId: "1",
-                            structuralStableId: "root",
-                            sourceStableId: "root",
+                            structuralStableId: "host",
+                            sourceStableId: "host",
                             sourceTreePath: null,
                             subtreeStack: [],
                         },
@@ -2868,7 +3001,7 @@ export const documentDomainSharedTests = defineSharedTests([
             if (result.status !== "changed") {
                 return;
             }
-            assert.equal(result.tree.root.conditions?.[0]?.root.name, "Wait");
+            assert.equal(result.tree.root.children![0].conditions?.[0]?.root.name, "Wait");
         },
     },
     {

@@ -9,7 +9,7 @@ import type {
 } from "./contracts";
 import { createNodeDefMap } from "./node-utils";
 import { parseWorkdirRelativeJsonPath } from "./protocol";
-import { clonePersistedNode } from "./tree";
+import { clonePersistedConditions, clonePersistedNode } from "./tree";
 
 const enum StatusFlag {
     // Lower bits mirror node status; *_ZERO bits record whether any child lacks a status.
@@ -330,14 +330,28 @@ export const materializePersistedTree = (params: {
                   ? []
                   : (sourceNode.children ?? []);
 
+        // A subtree root's conditions belong to the reference, not to the subtree file: its parent,
+        // and so whether `lower`/`both` work, is only known where the subtree is used. They live
+        // in the referencing file and resolve in its context.
+        if (materialized) {
+            const reference = context.sourceTreePath
+                ? buildResolvedExternalNode(
+                      structuredNode,
+                      context.overrideSourceChain,
+                      params.persistedTree.overrides
+                  ).value
+                : structuredNode;
+            sourceNode.conditions = clonePersistedConditions(reference.conditions);
+        }
         // Runtime order: the node, its condition trees, then its children.
-        // Condition trees belong to the same source file as the children.
+        // Other condition trees belong to the same source file as the children.
+        const conditionContext = materialized ? context : childContext;
         const conditions: MaterializedCondition[] = unresolved
             ? []
             : (sourceNode.conditions ?? []).map((condition) => ({
                   abort: condition.abort,
                   custom: condition.custom ? { ...condition.custom } : undefined,
-                  root: resolveNode(condition.root, childContext),
+                  root: resolveNode(condition.root, conditionContext),
               }));
         const children = nextChildren.map((child) => resolveNode(child, childContext));
         sourceNode.children = children.map((child) => child.data);

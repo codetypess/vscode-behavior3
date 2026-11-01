@@ -12,6 +12,7 @@ import { logger } from "./logger";
 import { getFs } from "./b3fs";
 import { readTreeFromFile } from "./tree";
 import { dfs, isSubtreeRoot } from "./tree-model";
+import { getAbortModeViolation } from "./condition-branch";
 import { createNodeDefMap, type NodeSlotDef, parseSlotDefinition } from "./node-utils";
 import { normalizeNodeDefCollection } from "./schema";
 import {
@@ -208,7 +209,10 @@ const checkNodeDataWithState = (
     state: Pick<
         BuildValidationState,
         "nodeDefs" | "usingGroups" | "usingVars" | "parsedExprs" | "checkExpr"
-    >
+    >,
+    /** `null` for the tree root and for condition roots. */
+    parent: NodeData | null = null,
+    isTreeRoot = true
 ) => {
     if (!data) {
         return false;
@@ -337,15 +341,33 @@ const checkNodeDataWithState = (
         data.args = args;
     }
 
+    if (data.conditions?.length && !parent && isTreeRoot) {
+        error("conditions are not allowed on the root node; attach them where the tree is referenced");
+        hasError = true;
+    }
     for (const condition of data.conditions ?? []) {
-        if (!checkNodeDataWithState(condition.root, printer, state)) {
+        // An abort mode that cannot take effect is an error, not a runtime warning.
+        const violation = getAbortModeViolation(
+            condition.abort ?? "none",
+            parent && {
+                name: parent.name,
+                preemptive: getBuildNodeDef(state.nodeDefs, parent.name).preemptive,
+            }
+        );
+        if (violation) {
+            error(
+                `condition abort '${condition.abort}' needs a preemptive parent, '${violation.parentName}' is not preemptive`
+            );
+            hasError = true;
+        }
+        if (!checkNodeDataWithState(condition.root, printer, state, null, false)) {
             hasError = true;
         }
     }
 
     if (data.children) {
         for (const child of data.children) {
-            if (!checkNodeDataWithState(child, printer, state)) {
+            if (!checkNodeDataWithState(child, printer, state, data)) {
                 hasError = true;
             }
         }
