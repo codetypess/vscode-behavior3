@@ -594,6 +594,47 @@ export const validationMaterializationSharedTests = defineSharedTests([
         },
     },
     {
+        name: "shows the condition root description on condition cards",
+        run() {
+            const nodeDefs: NodeDef[] = [
+                { name: "Sequence", type: "Composite", desc: "" },
+                { name: "Attack", type: "Action", desc: "" },
+                { name: "Selector", type: "Composite", desc: "选择执行" },
+                { name: "Check", type: "Condition", desc: "" },
+            ];
+            const tree = createTestTree();
+            tree.root.children = [
+                {
+                    uuid: "attack",
+                    id: "2",
+                    name: "Attack",
+                    conditions: [
+                        {
+                            abort: "none",
+                            root: { uuid: "c1", id: "", name: "Selector", desc: " 选择执行ccc " },
+                        },
+                        { abort: "none", root: { uuid: "c2", id: "", name: "Selector" } },
+                        { abort: "none", root: { uuid: "c3", id: "", name: "Check" } },
+                    ],
+                },
+            ];
+            const { graph } = resolveDocumentGraph({
+                persistedTree: tree,
+                nodeDefs,
+                subtreeSources: {},
+                subtreeEditable: true,
+            });
+            const attack = buildResolvedGraphModel(graph, nodeDefs).nodes.find(
+                (node) => node.title === "Attack"
+            );
+
+            assert.deepEqual(
+                attack?.attachedConditions.map((condition) => condition.desc),
+                ["选择执行ccc", "选择执行", undefined]
+            );
+        },
+    },
+    {
         name: "marks the sample Listen node red for invalid options and clears the error after correction",
         run() {
             const nodeDefs = parseNodeDefsContent(

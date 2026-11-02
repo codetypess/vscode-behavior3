@@ -144,6 +144,10 @@ export const buildResolvedGraphModel = (
                 const parent = getConditionParent(graph, node, defsByName);
                 return {
                     name: condition.root.name,
+                    desc: pickNodeSubtitle(
+                        condition.root.desc,
+                        findNodeDef(defsByName, condition.root.name)?.desc
+                    ),
                     abort: condition.abort,
                     invalid:
                         isConditionOnRoot(parent) ||

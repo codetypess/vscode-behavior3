@@ -33,7 +33,7 @@ const ensureMeasureStyle = (fontSize?: string) => {
     };
 };
 
-const calcTextWidth = (text: string, fontSize?: string) => {
+export const calcTextWidth = (text: string, fontSize?: string) => {
     const { fontSize: resolvedFontSize, fontFamily } = ensureMeasureStyle(fontSize);
     const key = `${text}-${resolvedFontSize}-${fontFamily}`;
     const cachedWidth = textWidthCache.get(key);

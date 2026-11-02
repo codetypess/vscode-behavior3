@@ -451,7 +451,13 @@ export interface GraphNodeVM {
     argsText?: string;
     /** Condition cards stacked above the node, first item on top. */
     /** `invalid`: on a tree root, or `lower`/`both` without a preemptive parent (build errors). */
-    attachedConditions: Array<{ name: string; abort: AbortMode; invalid?: boolean }>;
+    /** `desc`: the condition root's description, or its node definition's when it has none. */
+    attachedConditions: Array<{
+        name: string;
+        desc?: string;
+        abort: AbortMode;
+        invalid?: boolean;
+    }>;
 }
 
 export interface ResolvedGraphModel {

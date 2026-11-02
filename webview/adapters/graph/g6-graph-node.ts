@@ -33,6 +33,7 @@ import {
     type GraphNodePalette,
 } from "./g6-graph-node-theme";
 import {
+    calcTextWidth,
     cutWordTo,
     getArgsText,
     getGraphNodeMetadataSectionLayout,
@@ -88,6 +89,9 @@ const CONDITION_ICON_SIZE = 14;
 const CONDITION_ICON_GAP = 19;
 // The bolt's glyph sits high in its box; nudge it down to sit on the text's center line.
 const CONDITION_ICON_OFFSET_Y = 1;
+// The root's description follows its name, dimmed, and is dropped when it would not fit.
+const CONDITION_DESC_GAP = 8;
+const CONDITION_DESC_MIN_WIDTH = 24;
 // Above the body shapes, so tabs cover the rail and the card below.
 const CONDITION_CARD_Z_INDEX = 10;
 
@@ -598,8 +602,8 @@ class GraphNode extends Rect {
         const className = conditionCardClassName(index);
         // A condition on a tree root, or an abort mode that cannot take effect, is a build error.
         const errorColor = condition?.invalid ? accentColorMap.Error : undefined;
-        // Left: the condition icon and the root name, which lines up with the node title below;
-        // right: the abort mode.
+        // Left: the condition icon and the root name, which lines up with the node title below,
+        // then the root's description in what room is left; right: the abort mode.
         const nameLeft = G6_GRAPH_NODE_CONTENT_X;
         const iconLeft = nameLeft - CONDITION_ICON_GAP - CONDITION_ICON_SIZE;
         const abortType = condition?.abort ?? "";
@@ -644,6 +648,13 @@ class GraphNode extends Rect {
         if (icon) {
             icon.className = className;
         }
+        const textRight = this.width - 8 - abortReserve;
+        const nameText = condition ? cutWordTo(condition.name, textRight - nameLeft, "12px") : "";
+        const descLeft = nameLeft + calcTextWidth(nameText, "12px") + CONDITION_DESC_GAP;
+        const descText =
+            condition?.desc && textRight - descLeft >= CONDITION_DESC_MIN_WIDTH
+                ? cutWordTo(condition.desc, textRight - descLeft, "12px")
+                : "";
         const nameLabel = this.upsert(
             `condition-name-${index}`,
             GText,
@@ -651,11 +662,7 @@ class GraphNode extends Rect {
                 ? {
                       x: nameLeft,
                       y: textY,
-                      text: cutWordTo(
-                          condition.name,
-                          this.width - 8 - nameLeft - abortReserve,
-                          "12px"
-                      ),
+                      text: nameText,
                       fontSize: 12,
                       textAlign: "left",
                       textBaseline: "middle",
@@ -668,6 +675,28 @@ class GraphNode extends Rect {
         );
         if (nameLabel) {
             nameLabel.className = className;
+        }
+        const descLabel = this.upsert(
+            `condition-desc-${index}`,
+            GText,
+            descText
+                ? {
+                      x: descLeft,
+                      y: textY,
+                      text: descText,
+                      fontSize: 12,
+                      textAlign: "left",
+                      textBaseline: "middle",
+                      fill: "#ffffff",
+                      fillOpacity: 0.7,
+                      cursor: "pointer",
+                      zIndex: zIndex + 1,
+                  }
+                : false,
+            container
+        );
+        if (descLabel) {
+            descLabel.className = className;
         }
         const abortLabel = this.upsert(
             `condition-abort-${index}`,

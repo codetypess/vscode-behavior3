@@ -25,6 +25,7 @@ export type GraphNodeShapeName =
     | `condition-icon-${number}`
     | `condition-abort-${number}`
     | `condition-name-${number}`
+    | `condition-desc-${number}`
     | "desc-text"
     | "disabled"
     | "collapse"
