@@ -91,6 +91,8 @@
   "tree.prefix": "ID prefix",
   "tree.group": "Enable Node Grouping",
   "tree.group.placeholder": "Select node groups",
+  "tree.group.requiredInStrictMode": "Strict group mode requires selecting node groups",
+  "tree.group.coreAlwaysEnabled": "The '{{group}}' group is always enabled",
   "tree.vars": "Define Variables",
   "tree.vars.local": "Local Variables",
   "tree.vars.add": "Add Variable",

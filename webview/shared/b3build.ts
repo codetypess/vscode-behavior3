@@ -155,6 +155,8 @@ interface BuildContext {
     refreshVarDecl(root: NodeData, group: string[], declare: FileVarDecl): boolean;
     checkNodeData(data: NodeData | null | undefined, printer: (message: string) => void): boolean;
     setCheckExpr(check: boolean): void;
+    setStrictGroup(strict: boolean): void;
+    isTreeGroupMissing(group: string[]): boolean;
 }
 
 export interface BatchProcessProjectResult {
@@ -2206,6 +2208,7 @@ export const buildProjectWithContext = async (
     let buildScriptModule: unknown;
     const checkScriptModules: CheckScriptModule[] = [];
     context.setCheckExpr(context.checkExprOverride ?? settings.checkExpr ?? true);
+    context.setStrictGroup(settings.strictGroup ?? false);
     if (buildSetting) {
         const scriptPath = context.workdir + "/" + buildSetting;
         try {
@@ -2313,6 +2316,10 @@ export const buildProjectWithContext = async (
             subtree: [],
         };
         context.refreshVarDecl(tree.root, tree.group, declare);
+        if (context.isTreeGroupMissing(tree.group)) {
+            errors.push("tree group is required in strict group mode");
+            hasError = true;
+        }
         if (!context.checkNodeData(tree.root, (message) => errors.push(message))) {
             hasError = true;
         }

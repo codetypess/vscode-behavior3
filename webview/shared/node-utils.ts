@@ -29,6 +29,32 @@ export const deriveGroupDefs = (nodeDefs: readonly NodeDef[]): string[] => {
     return Array.from(groups).sort();
 };
 
+/** behavior3 registers its builtin nodes in this group regardless of the tree's groups. */
+export const CORE_NODE_GROUP = "Core";
+
+/**
+ * A node is usable when it declares no group, when the tree enables one of its groups,
+ * or, outside strict group mode, when it is a `Core` node.
+ */
+export const isNodeGroupEnabled = (
+    groups: string | readonly string[] | undefined,
+    usingGroups: Record<string, boolean> | null,
+    strictGroup: boolean
+): boolean => {
+    const list = groups === undefined ? [] : typeof groups === "string" ? [groups] : groups;
+    if (list.length === 0 || list.some((group) => usingGroups?.[group])) {
+        return true;
+    }
+    return !strictGroup && list.includes(CORE_NODE_GROUP);
+};
+
+/** Strict group mode makes a tree pick its groups first, as long as the node config has any. */
+export const isTreeGroupMissing = (
+    treeGroups: readonly string[],
+    groupDefs: readonly string[],
+    strictGroup: boolean
+): boolean => strictGroup && groupDefs.length > 0 && treeGroups.length === 0;
+
 export const findNodeDef = (
     nodeDefMap: ReadonlyMap<string, NodeDef>,
     nodeName: string | null | undefined

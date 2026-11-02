@@ -128,8 +128,9 @@ Behavior3 会从当前激活的行为树或脚本上下文出发，向上查找 
 - `buildScript`：指定项目 build hook 模块
 - `checkScripts`：加载匹配到的自定义 `@behavior3.check(...)` 与 `@behavior3.visible(...)` 模块
 - `nodeColors`：覆盖图中 `Composite`、`Decorator`、`Condition`、`Action`、`Other`、`Error` 节点颜色
+- `strictGroup`：严格分组模式，默认值为 `false`。节点声明了 `group` 时，树必须启用其中一个分组；默认模式下 `Core` 分组（behavior3 内置节点）视为始终启用，和运行时一致。打开后，树必须先选分组，没勾选 `Core` 时 `Selector` 等内置节点也不合法，编辑器和构建都会报错
 
-`buildScript` 和 `checkScripts` 都是相对 `*.b3-workspace` 文件所在目录解析的。修改 `allowNewFunction`、`nodeColors` 与 `customFields` 后，无需重开编辑器即可刷新生效。
+`buildScript` 和 `checkScripts` 都是相对 `*.b3-workspace` 文件所在目录解析的。修改 `allowNewFunction`、`nodeColors`、`customFields` 与 `strictGroup` 后，无需重开编辑器即可刷新生效。
 
 ### 自定义数据字段
 

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useRuntime, useWebviewKind, useWorkspaceStore } from "../../app/runtime";
 import { treeUsesConditions } from "../../shared/condition-branch";
 import { activeTreeCustomFields } from "../../shared/custom-fields";
+import { CORE_NODE_GROUP, isTreeGroupMissing } from "../../shared/node-utils";
 import { isValidVariableName } from "../../shared/validation";
 import {
     SectionDivider,
@@ -35,6 +36,15 @@ const TreeMetaFields: React.FC<{
     const { t } = useTranslation();
     // A condition file's prefix comes from its host node and is not written back.
     const conditionFile = useWorkspaceStore((state) => state.settings.conditionFile);
+    const strictGroup = useWorkspaceStore((state) => state.settings.strictGroup);
+    const form = Form.useFormInstance();
+    const group = (Form.useWatch("group", form) as string[] | undefined) ?? [];
+    // Shown without a rule so a strict tree can still clear its groups and save.
+    const groupMissing = isTreeGroupMissing(group, groupDefs, strictGroup);
+    const groupHint =
+        !strictGroup && groupDefs.includes(CORE_NODE_GROUP)
+            ? t("tree.group.coreAlwaysEnabled", { group: CORE_NODE_GROUP })
+            : undefined;
 
     return (
         <>
@@ -65,7 +75,11 @@ const TreeMetaFields: React.FC<{
             {groupDefs.length > 0 ? (
                 <>
                     <SectionDivider>{t("tree.group")}</SectionDivider>
-                    <Form.Item name="group">
+                    <Form.Item
+                        name="group"
+                        validateStatus={groupMissing ? "error" : undefined}
+                        help={groupMissing ? t("tree.group.requiredInStrictMode") : groupHint}
+                    >
                         <Select
                             mode="multiple"
                             disabled={readOnly}

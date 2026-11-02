@@ -4,9 +4,9 @@ import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import { canOpenSubtreeTarget } from "../../domain/subtree-navigation";
-import { findNodeDef, parseSlotDefinition } from "../../shared/node-utils";
+import { findNodeDef, isNodeGroupEnabled, parseSlotDefinition } from "../../shared/node-utils";
 import { getNodeType, isExprType, type NodeDef } from "../../shared/b3type";
-import { useRuntime } from "../../app/runtime";
+import { useRuntime, useWorkspaceStore } from "../../app/runtime";
 import {
     OverrideBar,
     SectionDivider,
@@ -83,6 +83,7 @@ const NodeMetaFields: React.FC<{
     onResetDisabled,
 }) => {
     const { t } = useTranslation();
+    const strictGroup = useWorkspaceStore((state) => state.settings.strictGroup);
     const formatResolutionError = () => {
         switch (selectedNode.resolutionError) {
             case "missing-subtree":
@@ -132,7 +133,7 @@ const NodeMetaFields: React.FC<{
                     rules={[
                         {
                             validator: async () => {
-                                if (!nodeDef.group?.some((group) => usingGroups?.[group])) {
+                                if (!isNodeGroupEnabled(nodeDef.group, usingGroups, strictGroup)) {
                                     throw new Error(
                                         t("node.groupNotEnabled", {
                                             group: nodeDef.group,

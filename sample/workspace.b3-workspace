@@ -4,6 +4,7 @@
     "allowNewFunction": true,
     "buildScript": "scripts/build.ts",
     "checkScripts": ["scripts/checkers/**/*.ts"],
+    "strictGroup": true,
     "customFields": {
       "tree": [
         {

@@ -18,6 +18,7 @@ import {
     getNodeArgRawType,
     isNodeArgArray,
     isNodeArgOptional,
+    isNodeGroupEnabled,
     type NodeSlotDef,
     parseSlotDefinition,
 } from "./node-utils";
@@ -345,9 +346,10 @@ export const collectResolvedNodeDiagnostics = (params: {
     def: NodeDef | null | undefined;
     usingVars: Record<string, VarDecl> | null;
     usingGroups: Record<string, boolean> | null;
+    strictGroup?: boolean;
     checkExpr: boolean;
 }): TreeValidationDiagnostic[] => {
-    const { node, def, usingVars, usingGroups, checkExpr } = params;
+    const { node, def, usingVars, usingGroups, strictGroup = false, checkExpr } = params;
     const diagnostics: TreeValidationDiagnostic[] = [];
 
     if (node.resolutionError) {
@@ -359,11 +361,12 @@ export const collectResolvedNodeDiagnostics = (params: {
         return diagnostics;
     }
 
-    if (def.group) {
-        const groups = Array.isArray(def.group) ? def.group : [def.group];
-        if (!groups.some((group) => usingGroups?.[group])) {
-            diagnostics.push({ code: "group-not-enabled", nodeName: node.name, groups });
-        }
+    if (!isNodeGroupEnabled(def.group, usingGroups, strictGroup)) {
+        diagnostics.push({
+            code: "group-not-enabled",
+            nodeName: node.name,
+            groups: def.group ?? [],
+        });
     }
 
     for (const value of node.input ?? []) {

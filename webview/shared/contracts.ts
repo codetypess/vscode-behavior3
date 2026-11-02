@@ -70,6 +70,8 @@ export interface Settings {
     inspectorMode: "sidebar" | "embedded";
     nodeColors?: Record<string, string>;
     customFields: CustomFieldDefs;
+    /** `settings.strictGroup` in `.b3-workspace`. */
+    strictGroup: boolean;
     /** The document is a condition file, numbered from its root's id in the host. */
     conditionFile: boolean;
 }

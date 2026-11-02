@@ -4,15 +4,13 @@
   "desc": "",
   "export": true,
   "group": [
+    "Core"
   ],
   "name": "declare-core",
   "overrides": {
   },
   "prefix": "",
   "root": {
-    "args": {
-      "time": 1
-    },
     "children": [
     ],
     "id": "1",

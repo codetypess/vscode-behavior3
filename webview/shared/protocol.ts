@@ -123,6 +123,7 @@ export const normalizeHostInitMessage = (
         inspectorMode: message.inspectorMode,
         nodeColors: message.nodeColors,
         customFields: message.customFields ?? { tree: [], condition: [] },
+        strictGroup: message.strictGroup ?? false,
         conditionFile: message.conditionFile ?? false,
     };
 

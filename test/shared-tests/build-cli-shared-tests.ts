@@ -188,6 +188,71 @@ export const buildCliSharedTests = defineSharedTests([
         },
     },
     {
+        name: "allows Core nodes without tree groups unless strict group mode is on",
+        async run() {
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-strict-group-"));
+            const workspaceFile = path.join(root, "workspace.b3-workspace");
+            const treeFile = path.join(root, "main.json");
+            const outputDir = path.join(root, "dist");
+            const build = async (strictGroup: boolean, group: string[]) => {
+                fs.writeFileSync(
+                    workspaceFile,
+                    JSON.stringify({ settings: { strictGroup } }),
+                    "utf-8"
+                );
+                fs.writeFileSync(
+                    treeFile,
+                    JSON.stringify({
+                        version: "2.0.0",
+                        name: "main",
+                        prefix: "",
+                        group,
+                        variables: { imports: [], locals: [] },
+                        custom: {},
+                        overrides: {},
+                        root: { uuid: "root", id: "1", name: "Sequence" },
+                    }),
+                    "utf-8"
+                );
+                const errors: string[] = [];
+                const record = (...args: unknown[]) => errors.push(args.map(String).join(" "));
+                const result = await buildBehaviorProject({
+                    projectPath: treeFile,
+                    outputDir,
+                    logger: { log() {}, debug() {}, info() {}, warn() {}, error: record },
+                });
+                return { hasError: result.hasError, errors: errors.join("\n") };
+            };
+
+            try {
+                fs.writeFileSync(
+                    path.join(root, "node-config.b3-setting"),
+                    JSON.stringify([
+                        {
+                            name: "Sequence",
+                            type: "Composite",
+                            desc: "",
+                            children: -1,
+                            group: ["Core"],
+                        },
+                    ]),
+                    "utf-8"
+                );
+
+                assert.equal((await build(false, [])).hasError, false);
+
+                const strict = await build(true, []);
+                assert.equal(strict.hasError, true);
+                assert.match(strict.errors, /tree group is required in strict group mode/);
+                assert.match(strict.errors, /node group 'Core' is not enabled/);
+
+                assert.equal((await build(true, ["Core"])).hasError, false);
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+    },
+    {
         name: "exports node conditions with expanded subtrees and runtime id order",
         async run() {
             const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-conditions-"));

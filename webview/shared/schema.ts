@@ -539,6 +539,10 @@ export const normalizeWorkspaceModel = (value: unknown): WorkspaceModel => {
                   )
                 : undefined,
             customFields,
+            strictGroup:
+                typeof settingsRecord.strictGroup === "boolean"
+                    ? settingsRecord.strictGroup
+                    : undefined,
         },
     };
 };

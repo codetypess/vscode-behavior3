@@ -884,6 +884,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
                 {
                     usingVars: workspace.usingVars,
                     usingGroups: workspace.usingGroups,
+                    strictGroup: workspace.settings.strictGroup,
                     checkExpr: workspace.settings.checkExpr,
                     nodeFieldDiagnostics,
                 }

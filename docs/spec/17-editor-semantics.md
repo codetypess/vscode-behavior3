@@ -165,6 +165,13 @@
 - rebuild graph
 - 不承担 host vars 刷新职责；宿主会直接补发新的 `varDeclLoaded`
 
+## 节点分组
+
+- 节点合法的条件：节点没有声明 `group`；或者它的某个分组在树的 `group` 里；或者非严格模式下它的分组包含 `Core`。`Core` 是 behavior3 内置节点的分组，运行时总会注册，所以默认模式下视为每棵树都启用
+- `.b3-workspace` 的 `settings.strictGroup` 为 `true` 时是严格分组模式：`Core` 不再自动启用；树的 `group` 为空且节点配置里有分组可选时，树本身报错（Tree Inspector 提示，构建报 `tree group is required in strict group mode`）
+- 画布、节点 Inspector 和构建用同一个判断（`isNodeGroupEnabled`），结论一致；`usingGroups` 只记树自己的分组，不包含自动启用的 `Core`
+- 没有声明 `group` 的节点在两种模式下都合法
+
 ## 文档变更命令
 
 ### `updateTreeMeta(payload)`

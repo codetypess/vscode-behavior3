@@ -24,7 +24,7 @@
 - `prefix`
 - `desc`
 - `export`
-- `group`
+- `group`。树启用的节点分组；节点分组的校验和 `settings.strictGroup` 见 `17-editor-semantics.md`
 - `variables.imports`
 - `variables.locals`
 - `custom`。解析时原样读入，不补任何字段。`.b3-workspace` 的 `settings.customFields` 声明的必填字段由编辑修改补上（见 `17-editor-semantics.md`），构建和 CLI 不补

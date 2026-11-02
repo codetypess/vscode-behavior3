@@ -4,6 +4,7 @@
   "desc": "",
   "export": true,
   "group": [
+    "Core"
   ],
   "name": "declare-vars",
   "overrides": {

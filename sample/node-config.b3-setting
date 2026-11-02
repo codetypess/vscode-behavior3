@@ -2,37 +2,50 @@
   {
     "name": "AlwaysFailure",
     "type": "Decorator",
+    "group": [
+      "Core"
+    ],
     "children": 1,
     "status": [
       "failure",
       "|running"
     ],
     "desc": "始终返回失败",
-    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 当子节点返回 `running` 时，返回 `running`\n+ 其它情况，不管子节点是否成功都返回 `failure`\n"
+    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 当子节点返回 `running` 时，返回 `running`\n+ 当子节点返回 `error` 时，返回 `error`：数据不可信，不能当成失败；要忽略 `error`，在子节点外面先包一层 `ErrorToFailure`\n+ 子节点返回 `success` 或 `failure` 时，都返回 `failure`\n"
   },
   {
     "name": "AlwaysRunning",
     "type": "Decorator",
+    "group": [
+      "Core"
+    ],
     "children": 1,
     "status": [
       "running"
     ],
     "desc": "始终返回运行中状态",
-    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 始终返回 `running`\n"
+    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 子节点返回 `error` 时返回 `error`，其它情况都返回 `running`\n"
   },
   {
     "name": "AlwaysSuccess",
     "type": "Decorator",
-    "desc": "始终返回成功",
-    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 不管子节点是否成功都返回`成功`",
+    "group": [
+      "Core"
+    ],
+    "children": 1,
     "status": [
       "success",
       "|running"
-    ]
+    ],
+    "desc": "始终返回成功",
+    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 当子节点返回 `running` 时，返回 `running`\n+ 当子节点返回 `error` 时，返回 `error`：数据不可信，不能当成成功；要忽略 `error`，在子节点外面先包一层 `ErrorToFailure`\n+ 子节点返回 `success` 或 `failure` 时，都返回 `success`\n"
   },
   {
     "name": "Assert",
     "type": "Decorator",
+    "group": [
+      "Core"
+    ],
     "children": 1,
     "status": [
       "success"
@@ -45,11 +58,14 @@
         "desc": "消息"
       }
     ],
-    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 当子节点返回 `failure` 时，抛出异常\n+ 其余情况返回子节点的执行状态\n"
+    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 当子节点返回 `failure` 时，打印 message 并返回 `error`\n+ 其余情况返回子节点的执行状态\n"
   },
   {
     "name": "Calculate",
     "type": "Action",
+    "group": [
+      "Core"
+    ],
     "children": 0,
     "status": [
       "success"
@@ -65,11 +81,14 @@
     "output": [
       "计算结果"
     ],
-    "doc": "+ 做简单的数值公式计算，返回结果到输出\n"
+    "doc": "+ 做简单的数值公式计算，返回结果到输出\n+ 求值出错时（比如引用不存在的变量），返回 `error`\n"
   },
   {
     "name": "Case",
     "type": "Composite",
+    "group": [
+      "Core"
+    ],
     "children": 2,
     "status": [
       "&success",
@@ -82,6 +101,14 @@
   {
     "name": "Check",
     "type": "Condition",
+    "group": [
+      "Core"
+    ],
+    "children": 0,
+    "status": [
+      "success",
+      "failure"
+    ],
     "desc": "检查True或False",
     "args": [
       {
@@ -90,11 +117,7 @@
         "desc": "值"
       }
     ],
-    "doc": "+ 做简单数值公式判定，返回「成功」或「失败」",
-    "status": [
-      "success",
-      "failure"
-    ]
+    "doc": "+ 做简单数值公式判定，返回 `success` 或 `failure`\n+ 求值出错时（比如引用不存在的变量），返回 `error`\n"
   },
   {
     "name": "Clear",
@@ -108,6 +131,9 @@
   {
     "name": "Concat",
     "type": "Action",
+    "group": [
+      "Core"
+    ],
     "children": 0,
     "status": [
       "success",
@@ -121,11 +147,14 @@
     "output": [
       "新数组"
     ],
-    "doc": "+ 如果输入不是数组，则返回 `failure`\n"
+    "doc": "+ 如果输入不是数组，则返回 `error`\n"
   },
   {
     "name": "Delay",
     "type": "Decorator",
+    "group": [
+      "Core"
+    ],
     "children": 1,
     "status": [
       "success"
@@ -147,11 +176,29 @@
         "desc": "暂存环境变量"
       }
     ],
-    "doc": "+ 当延时触发时，执行第一个子节点，多个仅执行第一个\n+ 如果子节点返回 `running`，会被中止\n+ 定时器属于整棵树，所在分支被中止或打断后仍会触发，只有清理行为树时才会移除"
+    "doc": "+ 当延时触发时，执行第一个子节点，多个仅执行第一个\n+ 如果子节点返回 `running`，会被中止\n+ 子节点返回 `error` 或抛异常时只打印日志，不影响行为树正在运行的分支\n+ 定时器属于整棵树，所在分支被中止或打断后仍会触发，只有清理行为树时才会移除"
+  },
+  {
+    "name": "ErrorToFailure",
+    "type": "Decorator",
+    "group": [
+      "Core"
+    ],
+    "children": 1,
+    "status": [
+      "|success",
+      "|failure",
+      "|running"
+    ],
+    "desc": "错误转失败",
+    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 当子节点返回 `error` 时，返回 `failure`，父节点可以接着执行其它分支\n+ 其余情况返回子节点的执行状态\n+ 不处理异常：子树里抛异常时，仍然中断整棵树\n"
   },
   {
     "name": "Filter",
     "type": "Decorator",
+    "group": [
+      "Core"
+    ],
     "children": 1,
     "status": [
       "success",
@@ -166,28 +213,36 @@
       "变量",
       "新数组"
     ],
-    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 遍历输入数组，将当前元素写入`变量`，满足条件的元素放入新数组\n+ 只有当新数组不为空时，才返回 `success`\n"
+    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 遍历输入数组，将当前元素写入`变量`，满足条件的元素放入新数组\n+ 只有当新数组不为空时，才返回 `success`\n+ 输入不是数组，或者子节点返回 `error` 时，返回 `error`\n"
   },
   {
     "name": "ForEach",
-    "type": "Composite",
+    "type": "Decorator",
+    "group": [
+      "Core"
+    ],
+    "children": 1,
+    "status": [
+      "success",
+      "|running",
+      "|failure"
+    ],
     "desc": "遍历数组",
     "input": [
       "数组"
     ],
     "output": [
-      "变量"
+      "变量",
+      "索引?"
     ],
-    "doc": "+ 每次执行子节点前会设置当前遍历到的变量\n+ 会执行所有子节点\n+ 永远返回「成功」/「运行中」",
-    "status": [
-      "success",
-      "|running",
-      "|failure"
-    ]
+    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 遍历输入数组，将当前元素写入`变量`\n+ 当子节点返回 `failure` 或 `error` 时，退出遍历并返回该状态\n+ 输入不是数组时，返回 `error`\n+ 执行完所有子节点后，返回 `success`"
   },
   {
     "name": "GetField",
     "type": "Action",
+    "group": [
+      "Core"
+    ],
     "children": 0,
     "status": [
       "success",
@@ -209,11 +264,14 @@
     "output": [
       "字段值(value)"
     ],
-    "doc": "+ 合法元素不包括 `undefined` 和 `null`\n+ 只有获取到合法元素时候才会返回 `success`，否则返回 `failure`\n"
+    "doc": "+ 合法元素不包括 `undefined` 和 `null`\n+ 只有获取到合法元素时候才会返回 `success`，否则返回 `failure`\n+ 输入不是对象，或者 `field` 不为 `string` 或 `number` 时，返回 `error`\n"
   },
   {
     "name": "IfElse",
     "type": "Composite",
+    "group": [
+      "Core"
+    ],
     "children": 3,
     "status": [
       "|success",
@@ -226,6 +284,9 @@
   {
     "name": "Includes",
     "type": "Condition",
+    "group": [
+      "Core"
+    ],
     "children": 0,
     "status": [
       "success",
@@ -236,11 +297,14 @@
       "数组",
       "元素"
     ],
-    "doc": "+ 若输入的元素不合法，返回 `failure`\n+ 只有数组包含元素时返回 `success`，否则返回 `failure`\n"
+    "doc": "+ 若输入的数组不是数组，返回 `error`\n+ 若输入的元素不合法，返回 `failure`\n+ 只有数组包含元素时返回 `success`，否则返回 `failure`\n"
   },
   {
     "name": "Index",
     "type": "Action",
+    "group": [
+      "Core"
+    ],
     "children": 0,
     "status": [
       "success",
@@ -262,11 +326,14 @@
     "output": [
       "值"
     ],
-    "doc": "+ 合法元素不包括 `undefined` 和 `null`\n+ 索引数组的时候，第一个元素的索引为 0\n+ 只有索引到有合法元素时候才会返回 `success`，否则返回 `failure`\n"
+    "doc": "+ 合法元素不包括 `undefined` 和 `null`\n+ 索引数组的时候，第一个元素的索引为 0\n+ 只有索引到有合法元素时候才会返回 `success`，否则返回 `failure`\n+ 输入不是数组，或者索引不是数字时，返回 `error`\n"
   },
   {
     "name": "Invert",
     "type": "Decorator",
+    "group": [
+      "Core"
+    ],
     "children": 1,
     "status": [
       "!success",
@@ -274,18 +341,22 @@
       "|running"
     ],
     "desc": "反转子节点运行结果",
-    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 当子节点返回 `success` 时返回 `failure`\n+ 当子节点返回 `failure` 时返回 `success`\n"
+    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 当子节点返回 `success` 时返回 `failure`\n+ 当子节点返回 `failure` 时返回 `success`\n+ 当子节点返回 `running` 或 `error` 时原样返回，`error` 不会被反转\n"
   },
   {
     "name": "IsNull",
     "type": "Condition",
-    "desc": "判断变量是否不存在",
-    "input": [
-      "判断的变量"
+    "group": [
+      "Core"
     ],
+    "children": 0,
     "status": [
       "success",
       "failure"
+    ],
+    "desc": "判断变量是否不存在",
+    "input": [
+      "判断的变量"
     ]
   },
   {
@@ -327,6 +398,9 @@
   {
     "name": "JustFailure",
     "type": "Action",
+    "group": [
+      "Core"
+    ],
     "children": 0,
     "status": [
       "failure"
@@ -336,6 +410,9 @@
   {
     "name": "JustSuccess",
     "type": "Action",
+    "group": [
+      "Core"
+    ],
     "children": 0,
     "status": [
       "success"
@@ -345,6 +422,9 @@
   {
     "name": "Let",
     "type": "Action",
+    "group": [
+      "Core"
+    ],
     "children": 0,
     "status": [
       "success"
@@ -369,65 +449,130 @@
   {
     "name": "Listen",
     "type": "Decorator",
-    "desc": "侦听行为树事件",
+    "group": [
+      "Core"
+    ],
+    "children": 1,
+    "status": [
+      "success"
+    ],
+    "desc": "侦听事件",
+    "input": [
+      "目标对象?"
+    ],
+    "output": [
+      "事件目标?",
+      "事件参数..."
+    ],
     "args": [
       {
-        "name": "builtin",
+        "name": "event",
         "type": "string",
         "desc": "事件",
         "options": [
           {
-            "name": "行为树被中断",
-            "value": "interrupted"
-          },
-          {
-            "name": "行为树开始执行前",
-            "value": "beforeRun"
-          },
-          {
-            "name": "行为树执行完成后",
-            "value": "afterRun"
-          },
-          {
-            "name": "行为树执行成功后",
-            "value": "afterRunSuccess"
-          },
-          {
-            "name": "行为树执行失败后",
-            "value": "afterRunFailure"
+            "source": [
+              {
+                "name": "行为树被中断",
+                "value": "treeInterrupted"
+              },
+              {
+                "name": "行为树开始执行前",
+                "value": "treeBeforeTicked"
+              },
+              {
+                "name": "行为树执行完成后",
+                "value": "treeAfterTicked"
+              },
+              {
+                "name": "行为树执行成功后",
+                "value": "treeTickedSuccess"
+              },
+              {
+                "name": "行为树执行失败后",
+                "value": "treeTickedFailure"
+              },
+              {
+                "name": "行为树被清理",
+                "value": "treeCleaned"
+              },
+              {
+                "name": "testOff",
+                "value": "testOff"
+              },
+              {
+                "name": "hello",
+                "value": "hello"
+              }
+            ]
           }
         ]
-      },
-      {
-        "name": "event",
-        "type": "string?",
-        "desc": "自定义事件"
       }
     ],
-    "doc": "+ 当事件触发时，执行第一个子节点，多个仅执行第一个\n+ 如果子节点返回 「运行中」，会中断执行并清理执行栈",
-    "status": [
-      "success"
-    ]
+    "doc": "+ 当事件触发时，执行第一个子节点，多个仅执行第一个\n+ 如果子节点返回 `running`，会被中止\n+ 子节点返回 `error` 或抛异常时只打印日志，不影响行为树正在运行的分支\n+ 每次执行都会注册一次侦听，通常放在 `Once` 下使用\n+ 侦听属于整棵树，所在分支被中止或打断后仍然有效，只有清理行为树时才会移除"
   },
   {
     "name": "Log",
     "type": "Action",
+    "group": [
+      "Core"
+    ],
+    "children": 0,
+    "status": [
+      "success"
+    ],
     "desc": "打印日志",
+    "input": [
+      "日志?"
+    ],
     "args": [
       {
         "name": "message",
         "type": "string",
         "desc": "日志"
+      },
+      {
+        "name": "level",
+        "type": "string",
+        "desc": "日志级别",
+        "default": "log",
+        "options": [
+          {
+            "source": [
+              {
+                "name": "LOG",
+                "value": "log"
+              },
+              {
+                "name": "INFO",
+                "value": "info"
+              },
+              {
+                "name": "DEBUG",
+                "value": "debug"
+              },
+              {
+                "name": "WARN",
+                "value": "warn"
+              },
+              {
+                "name": "ERROR",
+                "value": "error"
+              }
+            ]
+          }
+        ]
       }
-    ],
-    "status": [
-      "success"
     ]
   },
   {
     "name": "Math",
     "type": "Action",
+    "group": [
+      "Core"
+    ],
     "desc": "执行数学运算",
+    "doc": "+ 优先使用参数1、参数2，没有配置时依次使用输入\n+ 参数个数不对、最小值大于最大值、结果为 NaN 时，返回 `error`\n",
     "input": [
       "参数..."
     ],
@@ -545,50 +690,77 @@
   {
     "name": "NotNull",
     "type": "Condition",
-    "desc": "判断变量是否存在",
-    "input": [
-      "判断的变量"
+    "group": [
+      "Core"
     ],
+    "children": 0,
     "status": [
       "success",
       "failure"
+    ],
+    "desc": "判断变量是否存在",
+    "input": [
+      "判断的变量"
     ]
   },
   {
     "name": "Now",
     "type": "Action",
+    "group": [
+      "Core"
+    ],
+    "children": 0,
+    "status": [
+      "success"
+    ],
     "desc": "获取当前时间",
     "output": [
       "当前时间"
-    ],
-    "status": [
-      "success"
     ]
   },
   {
     "name": "Once",
     "type": "Decorator",
-    "desc": "只执行一次",
-    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 被打断后该节点后的子节点依旧不会执行\n+ 该节点执行后永远返回「成功」",
+    "group": [
+      "Core"
+    ],
+    "children": 1,
     "status": [
       "success",
       "failure",
       "|running"
-    ]
+    ],
+    "desc": "只执行一次",
+    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 第一次执行完全部子节点时返回 `success`，之后永远返回 `failure`\n+ 当子节点返回 `error` 时返回 `error`，不算执行过，下次还会执行"
   },
   {
     "name": "Parallel",
     "type": "Composite",
-    "desc": "并行执行",
-    "doc": "执行所有子节点并返回「成功」/「运行中」",
+    "group": [
+      "Core"
+    ],
     "status": [
-      "success",
+      "|success",
+      "|failure",
       "|running"
-    ]
+    ],
+    "children": -1,
+    "desc": "并行执行",
+    "args": [
+      {
+        "name": "successCount",
+        "type": "int?",
+        "desc": "成功数量（达到即成功，默认全部）"
+      }
+    ],
+    "doc": "+ 每次执行时，执行所有还没结束的子节点\n+ 成功的子节点达到 `successCount`（默认全部子节点）时，立即返回 `success`\n+ 失败的子节点多到不可能达到 `successCount` 时，立即返回 `failure`\n+ 有子节点返回 `error` 时，立即返回 `error`\n+ 返回时中止其他还在运行的子节点"
   },
   {
     "name": "Push",
     "type": "Action",
+    "group": [
+      "Core"
+    ],
     "children": 0,
     "status": [
       "success",
@@ -599,11 +771,14 @@
       "数组",
       "元素"
     ],
-    "doc": "+ 当变量`数组`不是数组类型时返回 `failure`\n+ 其余返回 `success`\n"
+    "doc": "+ 当变量`数组`不是数组类型时返回 `error`\n+ 其余返回 `success`\n"
   },
   {
     "name": "Race",
     "type": "Composite",
+    "group": [
+      "Core"
+    ],
     "status": [
       "|success",
       "&failure",
@@ -616,6 +791,9 @@
   {
     "name": "RandomIndex",
     "type": "Action",
+    "group": [
+      "Core"
+    ],
     "children": 0,
     "status": [
       "success",
@@ -629,11 +807,14 @@
       "随机目标",
       "索引?"
     ],
-    "doc": "+ 合法元素不包括 `undefined` 和 `null`\n+ 在输入数组中，随机返回其中一个\n+ 当输入数组为空时，或者没有合法元素，返回 `failure`\n"
+    "doc": "+ 合法元素不包括 `undefined` 和 `null`\n+ 在输入数组中，随机返回其中一个\n+ 当输入数组为空时，或者没有合法元素，返回 `failure`\n+ 输入不是数组时，返回 `error`\n"
   },
   {
     "name": "Repeat",
     "type": "Decorator",
+    "group": [
+      "Core"
+    ],
     "children": 1,
     "status": [
       "success",
@@ -652,11 +833,14 @@
         "oneof": "循环次数"
       }
     ],
-    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 当子节点返回 `failure` 时，退出遍历并返回 `failure` 状态\n+ 执行完所有子节点后，返回 `success`\n"
+    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 当子节点返回 `failure` 或 `error` 时，退出循环并返回该状态\n+ 执行完所有子节点后，返回 `success`\n"
   },
   {
     "name": "RetryUntilFailure",
     "type": "Decorator",
+    "group": [
+      "Core"
+    ],
     "children": 1,
     "status": [
       "!success",
@@ -674,11 +858,14 @@
         "desc": "最大尝试次数"
       }
     ],
-    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 只有当子节点返回 `failure` 时，才返回 `success`，其它情况返回 `running` 状态\n+ 如果设定了尝试次数，超过指定次数则返回 `failure`"
+    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 只有当子节点返回 `failure` 时，才返回 `success`；返回 `success` 或 `running` 时返回 `running` 状态\n+ 当子节点返回 `error` 时返回 `error`，不再重试\n+ 如果设定了尝试次数，超过指定次数则返回 `failure`"
   },
   {
     "name": "RetryUntilSuccess",
     "type": "Decorator",
+    "group": [
+      "Core"
+    ],
     "children": 1,
     "status": [
       "|success",
@@ -696,34 +883,45 @@
         "desc": "最大尝试次数"
       }
     ],
-    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 只有当子节点返回 `success` 时，才返回 `success`，其它情况返回 `running` 状态\n+ 如果设定了尝试次数，超过指定次数则返回 `failure`"
+    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 只有当子节点返回 `success` 时，才返回 `success`；返回 `failure` 或 `running` 时返回 `running` 状态\n+ 当子节点返回 `error` 时返回 `error`，不再重试\n+ 如果设定了尝试次数，超过指定次数则返回 `failure`"
   },
   {
     "name": "Selector",
     "type": "Composite",
+    "group": [
+      "Core"
+    ],
+    "children": -1,
+    "preemptive": true,
     "desc": "选择执行",
-    "doc": "+ 一直往下执行，有子节点返回「成功」则返回「成功」\n+ 若全部节点返回「失败」则返回「失败」\n+ 子节点是或 (OR) 的关系",
     "status": [
       "|success",
       "&failure",
       "|running"
     ],
-    "preemptive": true
+    "doc": "+ 一直往下执行，直到有子节点返回 `success` 则返回 `success`\n+ 若全部节点返回 `failure` 则返回 `failure`\n+ 子节点的条件配置了 `lower` 或 `both` 时，右侧的子节点运行中，每次执行都会检查它的条件，满足则打断右侧的子节点，转而执行它"
   },
   {
     "name": "Sequence",
     "type": "Composite",
-    "desc": "顺序执行",
-    "doc": "+ 一直往下执行，只有当所有子节点都返回「成功」, 才返回「成功」\n+ 子节点是与（AND）的关系",
+    "group": [
+      "Core"
+    ],
+    "children": -1,
     "status": [
       "&success",
       "|failure",
       "|running"
-    ]
+    ],
+    "desc": "顺序执行",
+    "doc": "+ 一直往下执行，只有当所有子节点都返回 `success`, 才返回 `success`\n+ 若子节点返回 `failure`，则直接返回 `failure` 状态\n+ 其余情况返回 `running` 状态\n"
   },
   {
     "name": "SetField",
     "type": "Action",
+    "group": [
+      "Core"
+    ],
     "children": 0,
     "status": [
       "success",
@@ -749,11 +947,14 @@
         "oneof": "值(value)"
       }
     ],
-    "doc": "+ 对输入对象设置 `field` 和 `value`\n+ 输入参数1必须为对象，否则返回 `failure`\n+ 如果 `field` 不为 `string`, 也返回 `failure`\n+ 如果 `value` 为 `undefined` 或 `null`, 则删除 `field` 的值\n"
+    "doc": "+ 对输入对象设置 `field` 和 `value`\n+ 输入参数1必须为对象，否则返回 `error`\n+ 如果 `field` 不为 `string` 或 `number`，也返回 `error`\n+ 如果 `value` 为 `undefined` 或 `null`, 则删除 `field` 的值\n"
   },
   {
     "name": "Switch",
     "type": "Composite",
+    "group": [
+      "Core"
+    ],
     "children": -1,
     "status": [
       "|success",
@@ -766,25 +967,40 @@
   {
     "name": "Timeout",
     "type": "Decorator",
-    "desc": "超时",
-    "args": [
-      {
-        "name": "time",
-        "type": "float",
-        "default": 2.5,
-        "desc": "超时时间"
-      }
+    "group": [
+      "Core"
     ],
-    "doc": "+ 只能有一个子节点，多个仅执行第一个\n+ 当子节点执行超时或返回「失败」时，返回「失败」\n+ 其余情况返回子节点的执行状态\n",
+    "children": 1,
     "status": [
       "|success",
       "|running",
       "failure"
-    ]
+    ],
+    "desc": "超时",
+    "input": [
+      "超时时间?"
+    ],
+    "args": [
+      {
+        "name": "time",
+        "type": "float?",
+        "desc": "超时时间",
+        "oneof": "超时时间"
+      }
+    ],
+    "doc": "+ 在限定时间内执行子节点，超时则失败\n+ 只能有一个子节点，多个仅执行第一个\n+ 当子节点执行超时或返回 `failure` 时，返回 `failure`\n+ 当子节点返回 `error` 时，返回 `error`\n+ 其余情况返回子节点的执行状态\n"
   },
   {
     "name": "Wait",
     "type": "Action",
+    "group": [
+      "Core"
+    ],
+    "children": 0,
+    "status": [
+      "success",
+      "running"
+    ],
     "desc": "等待",
     "input": [
       "等待时间?"
@@ -792,24 +1008,23 @@
     "args": [
       {
         "name": "time",
-        "type": "float",
+        "type": "float?",
         "desc": "等待时间",
-        "checker": "positive"
+        "oneof": "等待时间"
       },
       {
         "name": "random",
         "type": "float?",
         "desc": "随机范围"
       }
-    ],
-    "status": [
-      "success",
-      "running"
     ]
   },
   {
     "name": "WaitForEvent",
     "type": "Action",
+    "group": [
+      "Core"
+    ],
     "children": 0,
     "status": [
       "success",

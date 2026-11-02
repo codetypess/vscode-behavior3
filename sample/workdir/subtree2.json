@@ -3,6 +3,7 @@
   },
   "desc": "子树2",
   "group": [
+    "Core"
   ],
   "name": "subtree2",
   "overrides": {

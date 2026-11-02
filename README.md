@@ -128,8 +128,9 @@ Use a `*.b3-workspace` file to control validation, script loading, and editor pr
 - `buildScript`: load one build hook module for project builds
 - `checkScripts`: load custom `@behavior3.check(...)` and `@behavior3.visible(...)` modules from glob matches
 - `nodeColors`: override graph colors for `Composite`, `Decorator`, `Condition`, `Action`, `Other`, and `Error`
+- `strictGroup`: strict group mode; defaults to `false`. A node that declares `group` needs the tree to enable one of its groups; by default the `Core` group (behavior3's builtin nodes) counts as always enabled, as it does at runtime. When on, a tree must pick its groups first, and builtin nodes such as `Selector` are invalid unless the tree enables `Core`; the editor and the build both report it
 
-`buildScript` and `checkScripts` are resolved relative to the `*.b3-workspace` file. Changes to `allowNewFunction`, `nodeColors`, and `customFields` are refreshed without reopening the editor.
+`buildScript` and `checkScripts` are resolved relative to the `*.b3-workspace` file. Changes to `allowNewFunction`, `nodeColors`, `customFields`, and `strictGroup` are refreshed without reopening the editor.
 
 ### Custom data fields
 

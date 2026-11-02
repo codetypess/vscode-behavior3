@@ -112,6 +112,7 @@ Inspector 暴露同一组 project/document quick actions，但承载位置随模
 - `desc` / `prefix` 可编辑
 - `export` 用 `Switch`
 - `group` 用多选 `Select`
+- `group` 的提示：严格分组模式（`settings.strictGroup`）下树没选分组时标红，提示必须选择，但不阻止提交；非严格模式下 groupDefs 含 `Core` 时提示 `Core` 始终启用
 
 ### Local Vars
 
@@ -162,7 +163,7 @@ Inspector 暴露同一组 project/document quick actions，但承载位置随模
 
 1. identity
 2. `type`
-3. `group`（若 nodeDef 声明）
+3. `group`（若 nodeDef 声明；分组未启用时报错，判断规则见 `17-editor-semantics.md` 的节点分组）
 4. `children`
 5. `name`
 6. `desc`

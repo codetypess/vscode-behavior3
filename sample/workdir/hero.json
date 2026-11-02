@@ -6,6 +6,7 @@
   "export": true,
   "group": [
     "Client",
+    "Core",
     "Server"
   ],
   "name": "hero",

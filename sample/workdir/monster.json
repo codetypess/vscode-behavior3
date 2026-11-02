@@ -5,6 +5,7 @@
   "desc": "怪物测试AI",
   "export": true,
   "group": [
+    "Core",
     "Test"
   ],
   "name": "monster",

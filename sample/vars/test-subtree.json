@@ -3,7 +3,8 @@
   },
   "export": true,
   "group": [
-    "Client"
+    "Client",
+    "Core"
   ],
   "name": "test-subtree",
   "overrides": {

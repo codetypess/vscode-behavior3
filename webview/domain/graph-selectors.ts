@@ -74,6 +74,7 @@ export const buildResolvedGraphModel = (
     validation?: {
         usingVars: Record<string, VarDecl> | null;
         usingGroups: Record<string, boolean> | null;
+        strictGroup?: boolean;
         checkExpr: boolean;
         nodeFieldDiagnostics?: Record<string, NodeFieldDiagnostic[]>;
     }
@@ -93,6 +94,7 @@ export const buildResolvedGraphModel = (
                 def,
                 usingVars: validation?.usingVars ?? null,
                 usingGroups: validation?.usingGroups ?? null,
+                strictGroup: validation?.strictGroup ?? false,
                 checkExpr: validation?.checkExpr ?? false,
             }).length > 0 || customDiagnostics.length > 0;
         const nodeStyleKind =

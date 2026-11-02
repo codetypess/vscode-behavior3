@@ -120,6 +120,8 @@ export interface WorkspaceModel {
         /** Override default node-type colors. Keys: "Composite" | "Decorator" | "Condition" | "Action" | "Other" | "Error" */
         nodeColors?: Record<string, string>;
         customFields?: CustomFieldDefs;
+        /** Trees must pick their node groups, and `Core` nodes need the `Core` group too. */
+        strictGroup?: boolean;
     };
 }
 

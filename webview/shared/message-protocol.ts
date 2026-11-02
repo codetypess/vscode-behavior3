@@ -83,6 +83,7 @@ export type HostToEditorMessage =
           allFiles: string[];
           nodeColors?: Record<string, string>;
           customFields: CustomFieldDefs;
+          strictGroup?: boolean;
           conditionFile?: boolean;
           documentSession: HostDocumentSessionState;
           selection: HostSelectionState;
@@ -109,6 +110,7 @@ export type HostToEditorMessage =
               inspectorMode?: "sidebar" | "embedded";
               nodeColors?: Record<string, string>;
               customFields?: CustomFieldDefs;
+              strictGroup?: boolean;
               conditionFile?: boolean;
           };
       }

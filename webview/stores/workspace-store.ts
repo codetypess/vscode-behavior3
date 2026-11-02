@@ -44,6 +44,7 @@ export const createInitialWorkspaceState = (): WorkspaceState => ({
         theme: detectInitialThemeMode(),
         inspectorMode: "sidebar",
         customFields: { tree: [], condition: [] },
+        strictGroup: false,
         conditionFile: false,
     },
     themeVersion: 0,

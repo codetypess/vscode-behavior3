@@ -90,6 +90,8 @@
   "tree.prefix": "标识前缀",
   "tree.group": "启用节点分组",
   "tree.group.placeholder": "选择节点分组",
+  "tree.group.requiredInStrictMode": "严格分组模式下必须选择节点分组",
+  "tree.group.coreAlwaysEnabled": "“{{group}}” 分组始终启用",
   "tree.vars": "定义变量",
   "tree.vars.local": "本地变量",
   "tree.vars.add": "添加变量",

@@ -1546,6 +1546,19 @@ export const documentDomainSharedTests = defineSharedTests([
             assert.equal(workspace.settings.buildScript, "scripts/build.ts");
             assert.deepEqual(workspace.settings.checkScripts, ["scripts/checkers/**/*.ts"]);
             assert.equal(workspace.settings.nodeColors?.Action, "#123456");
+            assert.equal(workspace.settings.strictGroup, undefined);
+        },
+    },
+    {
+        name: "parses the strict group workspace setting",
+        run() {
+            const parse = (strictGroup: unknown) =>
+                parseWorkspaceModelContent(JSON.stringify({ settings: { strictGroup } })).settings
+                    .strictGroup;
+
+            assert.equal(parse(true), true);
+            assert.equal(parse(false), false);
+            assert.equal(parse("yes"), undefined);
         },
     },
     {

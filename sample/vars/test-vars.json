@@ -5,6 +5,7 @@
   "export": false,
   "group": [
     "Client",
+    "Core",
     "Server"
   ],
   "name": "test-vars",
@@ -118,7 +119,7 @@
       },
       {
         "args": {
-          "builtin": "afterRunFailure"
+          "event": "treeTickedFailure"
         },
         "id": "17",
         "name": "Listen",

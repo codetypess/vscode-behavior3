@@ -6,7 +6,11 @@ import { resolveDocumentGraph } from "../../webview/domain/resolve-graph";
 import { buildTreeInspectorVariableUsageCount } from "../../webview/features/inspector/inspector-variable-options";
 import { DOCUMENT_VERSION } from "../../webview/shared/b3type";
 import type { NodeDef } from "../../webview/shared/contracts";
-import { createNodeDefMap } from "../../webview/shared/node-utils";
+import {
+    createNodeDefMap,
+    isNodeGroupEnabled,
+    isTreeGroupMissing,
+} from "../../webview/shared/node-utils";
 import { parseWorkdirRelativeJsonPath } from "../../webview/shared/protocol";
 import { parseNodeDefsContent } from "../../webview/shared/schema";
 import {
@@ -24,6 +28,47 @@ import { defineSharedTests } from "../shared-test-types";
 import { createTestTree } from "../shared-test-fixtures";
 
 export const validationMaterializationSharedTests = defineSharedTests([
+    {
+        name: "enables Core nodes outside strict group mode only",
+        run() {
+            const client = { Client: true };
+            assert.equal(isNodeGroupEnabled(undefined, null, true), true);
+            assert.equal(isNodeGroupEnabled([], null, true), true);
+            assert.equal(isNodeGroupEnabled(["Core"], null, false), true);
+            assert.equal(isNodeGroupEnabled(["Core"], client, false), true);
+            assert.equal(isNodeGroupEnabled(["Core"], client, true), false);
+            assert.equal(isNodeGroupEnabled(["Core"], { Core: true }, true), true);
+            assert.equal(isNodeGroupEnabled(["Server"], client, false), false);
+            assert.equal(isNodeGroupEnabled(["Server", "Client"], client, true), true);
+        },
+    },
+    {
+        name: "requires tree groups only in strict group mode with groups to pick",
+        run() {
+            assert.equal(isTreeGroupMissing([], ["Core"], true), true);
+            assert.equal(isTreeGroupMissing(["Core"], ["Core"], true), false);
+            assert.equal(isTreeGroupMissing([], ["Core"], false), false);
+            assert.equal(isTreeGroupMissing([], [], true), false);
+        },
+    },
+    {
+        name: "reports Core nodes as group-not-enabled only in strict group mode",
+        run() {
+            const def: NodeDef = { name: "Sequence", type: "Composite", desc: "", group: ["Core"] };
+            const collect = (strictGroup: boolean) =>
+                collectResolvedNodeDiagnostics({
+                    node: { name: "Sequence" },
+                    def,
+                    usingVars: null,
+                    usingGroups: { Client: true },
+                    strictGroup,
+                    checkExpr: false,
+                }).map((entry) => entry.code);
+
+            assert.deepEqual(collect(false), []);
+            assert.deepEqual(collect(true), ["group-not-enabled"]);
+        },
+    },
     {
         name: "skips variable declaration checks when none are declared",
         run() {
@@ -556,12 +601,14 @@ export const validationMaterializationSharedTests = defineSharedTests([
             );
             const tree = createTestTree();
             tree.root.name = "Listen";
+            // The runtime Listen decorator needs exactly one child.
+            tree.root.children = [{ uuid: "child", id: "2", name: "JustSuccess" }];
 
-            for (const [builtin, expectedStyle] of [
-                ["afterRun1", "Error"],
-                ["afterRun", "Decorator"],
+            for (const [event, expectedStyle] of [
+                ["treeAfterTicked1", "Error"],
+                ["treeAfterTicked", "Decorator"],
             ]) {
-                tree.root.args = { builtin };
+                tree.root.args = { event };
                 const { graph } = resolveDocumentGraph({
                     persistedTree: tree,
                     nodeDefs,
@@ -569,12 +616,13 @@ export const validationMaterializationSharedTests = defineSharedTests([
                     subtreeEditable: true,
                 });
                 const model = buildResolvedGraphModel(graph, nodeDefs);
+                const listen = model.nodes.find((node) => node.title === "Listen");
 
-                assert.equal(model.nodes[0]?.nodeStyleKind, expectedStyle);
+                assert.equal(listen?.nodeStyleKind, expectedStyle);
                 if (expectedStyle === "Error") {
-                    assert.equal(model.nodes[0]?.accentColor, "#ff0000");
+                    assert.equal(listen?.accentColor, "#ff0000");
                 }
-                assert.deepEqual(tree.root.args, { builtin });
+                assert.deepEqual(tree.root.args, { event });
             }
         },
     },

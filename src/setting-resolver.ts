@@ -13,6 +13,7 @@ export interface WorkspaceFileSettings {
     allowNewFunction?: boolean;
     nodeColors?: Record<string, string>;
     customFields?: CustomFieldDefs;
+    strictGroup?: boolean;
 }
 
 /**
@@ -177,6 +178,7 @@ export async function resolveWorkspaceFileSettings(
             allowNewFunction: data.settings.allowNewFunction,
             nodeColors: nodeColors && Object.keys(nodeColors).length > 0 ? nodeColors : undefined,
             customFields: data.settings.customFields,
+            strictGroup: data.settings.strictGroup,
         };
     } catch {
         return undefined;
@@ -213,7 +215,7 @@ export function watchSettingFile(
 
 /**
  * Watch any `*.b3-workspace` under the workspace folder so workspace-backed settings such as
- * `settings.nodeColors`, `settings.allowNewFunction` and `settings.customFields` can be refreshed without reopening the editor.
+ * `settings.nodeColors`, `settings.allowNewFunction`, `settings.customFields` and `settings.strictGroup` can be refreshed without reopening the editor.
  */
 export function watchWorkspaceFile(
     workspaceFolder: vscode.Uri,

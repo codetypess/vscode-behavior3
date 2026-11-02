@@ -13,7 +13,14 @@ import { getFs } from "./b3fs";
 import { readTreeFromFile } from "./tree";
 import { dfs, isSubtreeRoot } from "./tree-model";
 import { getAbortModeViolation } from "./condition-branch";
-import { createNodeDefMap, type NodeSlotDef, parseSlotDefinition } from "./node-utils";
+import {
+    createNodeDefMap,
+    deriveGroupDefs,
+    isNodeGroupEnabled,
+    isTreeGroupMissing,
+    type NodeSlotDef,
+    parseSlotDefinition,
+} from "./node-utils";
 import { normalizeNodeDefCollection } from "./schema";
 import {
     parseExpressionVariables,
@@ -43,6 +50,7 @@ interface BuildValidationState {
     usingVars: Record<string, VarDecl> | null;
     parsedExprs: Record<string, string[]>;
     checkExpr: boolean;
+    strictGroup: boolean;
 }
 
 interface BuildProjectState extends BuildValidationState {
@@ -208,7 +216,7 @@ const checkNodeDataWithState = (
     printer: ErrorPrinter,
     state: Pick<
         BuildValidationState,
-        "nodeDefs" | "usingGroups" | "usingVars" | "parsedExprs" | "checkExpr"
+        "nodeDefs" | "usingGroups" | "usingVars" | "parsedExprs" | "checkExpr" | "strictGroup"
     >,
     /** `null` for the tree root and for condition roots. */
     parent: NodeData | null = null,
@@ -225,12 +233,9 @@ const checkNodeDataWithState = (
     }
 
     let hasError = false;
-    if (conf.group) {
-        const groups = Array.isArray(conf.group) ? conf.group : [conf.group];
-        if (!groups.some((g) => state.usingGroups?.[g])) {
-            error(`node group '${conf.group}' is not enabled`);
-            hasError = true;
-        }
+    if (!isNodeGroupEnabled(conf.group, state.usingGroups, state.strictGroup)) {
+        error(`node group '${conf.group}' is not enabled`);
+        hasError = true;
     }
 
     for (const value of data.input ?? []) {
@@ -595,6 +600,7 @@ export const createBuildProjectContext = (options: {
         usingVars: null,
         parsedExprs: {},
         checkExpr: options.checkExpr,
+        strictGroup: false,
         workdir: options.workdir.replace(/\\/g, "/"),
         files: {},
         parsedVarDecl: {},
@@ -603,6 +609,10 @@ export const createBuildProjectContext = (options: {
 
     const setLocalCheckExpr = (check: boolean) => {
         state.checkExpr = check;
+    };
+
+    const setLocalStrictGroup = (strict: boolean) => {
+        state.strictGroup = strict;
     };
 
     const updateLocalUsingGroups = (group: string[]) => {
@@ -635,6 +645,13 @@ export const createBuildProjectContext = (options: {
         checkNodeData: (data: NodeData | null | undefined, printer: ErrorPrinter) =>
             checkNodeDataWithState(data, printer, state),
         setCheckExpr: setLocalCheckExpr,
+        setStrictGroup: setLocalStrictGroup,
+        isTreeGroupMissing: (group: string[]) =>
+            isTreeGroupMissing(
+                group,
+                deriveGroupDefs(Array.from(state.nodeDefs.values())),
+                state.strictGroup
+            ),
     };
 };
 
