@@ -303,12 +303,13 @@ export const buildCliSharedTests = defineSharedTests([
                 const condition = attack.conditions![0];
                 assert.equal(condition.abort, "lower");
                 assert.deepEqual(condition.custom, { maintainPriority: 9, note: "keep" });
-                assert.equal(condition.root.id, "M4");
+                // Condition-tree nodes do not take main-tree ids: `<host id>.<n>-<k>`.
+                assert.equal(condition.root.id, "M3.1-1");
                 assert.equal(condition.root.name, "Sequence");
-                assert.equal(condition.root.children[0].id, "M5");
+                assert.equal(condition.root.children[0].id, "M3.1-2");
                 assert.equal(condition.root.children[0].name, "Check");
                 assert.equal(condition.root.children[0].desc, "from main");
-                assert.equal(attack.children[0].id, "M6");
+                assert.equal(attack.children[0].id, "M4");
             } finally {
                 fs.rmSync(root, { recursive: true, force: true });
             }

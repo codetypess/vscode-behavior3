@@ -7,6 +7,7 @@ import type {
     SubtreeSourceCacheEntry,
     WorkdirRelativeJsonPath,
 } from "../shared/contracts";
+import { numberConditionTrees } from "../shared/condition-ids";
 import { materializePersistedTree, type MaterializedTreeNode } from "../shared/tree-materializer";
 
 /**
@@ -15,24 +16,20 @@ import { materializePersistedTree, type MaterializedTreeNode } from "../shared/t
  */
 const flattenMaterializedTree = (
     root: MaterializedTreeNode,
-    prefix: string,
-    displayIdStart: number
+    prefix: string
 ): ResolveGraphResult => {
     const nodesByInstanceKey: Record<string, ResolvedNodeModel> = {};
     const nodeOrder: string[] = [];
     const mainTreeDisplayIdsByStableId: Record<string, string> = {};
-    let nextDisplayId = displayIdStart;
+    let nextDisplayId = 1;
 
-    // Condition-tree nodes share the display id sequence but are not graph nodes.
-    const numberConditionTree = (node: MaterializedTreeNode) => {
-        const displayId = String(nextDisplayId);
-        nextDisplayId += 1;
-        if (!node.subtreeNode) {
-            mainTreeDisplayIdsByStableId[node.structuralStableId] = displayId;
-        }
-        node.conditions.forEach((condition) => numberConditionTree(condition.root));
-        node.children.forEach(numberConditionTree);
-    };
+    // Condition-tree nodes are not graph nodes and do not take main-tree ids (`2.1-1`).
+    const numberConditions = (node: MaterializedTreeNode, displayId: string) =>
+        numberConditionTrees(node, displayId, (conditionNode, conditionId) => {
+            if (!conditionNode.subtreeNode) {
+                mainTreeDisplayIdsByStableId[conditionNode.structuralStableId] = conditionId;
+            }
+        });
 
     const visit = (
         node: MaterializedTreeNode,
@@ -42,7 +39,7 @@ const flattenMaterializedTree = (
         const displayId = String(nextDisplayId);
         nextDisplayId += 1;
         const instanceKey = displayId;
-        node.conditions.forEach((condition) => numberConditionTree(condition.root));
+        numberConditions(node, displayId);
         const childKeys = node.children.map((child) => visit(child, instanceKey, depth + 1));
 
         if (!node.subtreeNode) {
@@ -104,22 +101,11 @@ const flattenMaterializedTree = (
  * graph snapshot. The rest of the webview treats this as the canonical runtime
  * model until the next rebuild.
  */
-/**
- * A condition file's nodes are one run of the host tree's ids, starting at the id its root has
- * there (the host writes it into the file); other trees count from 1.
- */
-export const getDisplayIdStart = (tree: PersistedTreeModel, conditionFile: boolean): number => {
-    const rootId = Number(tree.root.id);
-    return conditionFile && Number.isSafeInteger(rootId) && rootId > 0 ? rootId : 1;
-};
-
 export const resolveDocumentGraph = (params: {
     persistedTree: PersistedTreeModel;
     subtreeSources: Record<WorkdirRelativeJsonPath, SubtreeSourceCacheEntry>;
     nodeDefs: NodeDef[];
     subtreeEditable: boolean;
-    /** First display id; see `getDisplayIdStart`. */
-    displayIdStart?: number;
 }): ResolveGraphResult => {
     const root = materializePersistedTree({
         persistedTree: params.persistedTree,
@@ -128,9 +114,5 @@ export const resolveDocumentGraph = (params: {
         subtreeEditable: params.subtreeEditable,
     });
 
-    return flattenMaterializedTree(
-        root,
-        params.persistedTree.prefix ?? "",
-        params.displayIdStart ?? 1
-    );
+    return flattenMaterializedTree(root, params.persistedTree.prefix ?? "");
 };

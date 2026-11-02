@@ -60,13 +60,13 @@ interface NodeDef {
 
 ### 4.2 遍历顺序
 
-和运行时 `Context._createTree` 一致：节点、它的条件树、它的子节点。`walkPersistedNodes`、`dfs`、resolve graph 的 display id、构建时的 `assignSequentialNodeIds` 都按这个顺序。
+和运行时 `Context._createTree` 一致：节点、它的条件树、它的子节点。`walkPersistedNodes`、`dfs` 都按这个顺序。编号不同：主树只数主树节点，条件树里的节点是 `<宿主 id>.<n>-<k>`（`webview/shared/condition-ids.ts`，见 `condition-node-id-prefix.md`），resolve graph 的 display id 和构建都用这个规则。
 
 ### 4.3 物化和 resolved graph
 
 - `MaterializedTreeNode.conditions` 存解析后的条件树：和子节点用同一个上下文（subtree 源、override 链、环检测），所以条件树里的 `path` 会展开，subtree 内部节点的 override 会应用。
 - `data.conditions` 保留持久化形状（未展开的 `path`），供条件面板、条件文件和复制使用。
-- 条件树里的节点占用 display id，写进 `mainTreeDisplayIdsByStableId`，但不是 graph 节点，不在主图布局里。
+- 条件树里的节点不占主树的 display id（编号 `2.1-1`），写进 `mainTreeDisplayIdsByStableId`，但不是 graph 节点，不在主图布局里。
 - `ResolvedNodeModel` 带 `conditions`（持久化形状）和 `attachedConditionNames`（各项根节点名，见 `multiple-node-conditions.md`）。
 
 ### 4.4 导出
@@ -83,7 +83,7 @@ interface NodeDef {
 原来的「同一编辑器里的临时页面」改成在独立标签页里打开一个虚拟的条件文件。
 
 - URI：`behavior3-condition:/<宿主文件名>/<宿主节点 uuid>/condition.json?host=<宿主文件完整路径>`，例如面包屑显示为 `hero.json › 3f2a… › condition.json`。完整路径放在 query 里，面包屑不会显示一长串目录；传给 webview 和检查脚本的文件路径仍是 `<宿主文件完整路径>/<uuid>/condition.json`。用 uuid 定位宿主节点，节点重新编号、改名、移动后地址不变。（后来改为 `condition-<条件根节点 uuid>.json`，按条件根节点 uuid 定位每一项，见 `condition-file-stale-tab.md`。）
-- 扩展注册这个 scheme 的 `FileSystemProvider`。读：从宿主文件（已打开时取内存里的内容，包括未保存的修改；否则读磁盘）找到 uuid 对应的节点，把 `conditions[0].root` 包成一棵普通的树返回：`name` 为 `condition`，`prefix`、`group`、`variables`、`overrides` 复制宿主文件，树的 `custom` 就是这项条件的 `custom`。这个文件用 Behavior3 Editor 打开，画布、Inspector、复制粘贴等都和普通树一样。节点 id 和宿主树里一致，从条件根节点在宿主里的 id 开始编号（见 `17-editor-semantics.md`）。
+- 扩展注册这个 scheme 的 `FileSystemProvider`。读：从宿主文件（已打开时取内存里的内容，包括未保存的修改；否则读磁盘）找到 uuid 对应的节点，把 `conditions[0].root` 包成一棵普通的树返回：`name` 为 `condition`，`prefix`、`group`、`variables`、`overrides` 复制宿主文件，树的 `custom` 就是这项条件的 `custom`。这个文件用 Behavior3 Editor 打开，画布、Inspector、复制粘贴等都和普通树一样。节点 id 和宿主树里一致：树前缀是 `<宿主树前缀><宿主节点 id>.<n>-`，节点从 1 编号（见 `17-editor-semantics.md`）。
 - 保存条件文件：把根节点、`desc`（条件文件的树说明）、`custom` 和 `overrides` 写回宿主文件，走宿主文件的 `setConditionRoot` 修改（`abort`、其他条件项不变）。宿主文件已打开时写进它的内存内容，宿主文件变成未保存、进入它的撤销记录；没打开时直接改磁盘上的宿主文件。条件树约束（4.5）不满足时拒绝保存。条件文件里对其他树级字段（变量等）的修改不会写回。
 - 宿主文件变化（编辑、撤销、保存、外部修改）后，打开的条件文件重新读取：没有未保存修改时直接刷新，有未保存修改时按外部修改冲突处理。宿主节点或它的条件被删掉后，条件文件读不出来。
 - 宿主是 subtree 里的节点时，打开的是 subtree 源文件里该节点的条件（宿主文件为 subtree 文件）。只由主树 override 加上的条件不在源文件里，暂不支持单独打开，给出提示。

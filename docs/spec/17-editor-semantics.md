@@ -240,7 +240,7 @@ host reducer 当前分三条路径：
 ### 条件文件
 
 - 条件面板的「打开编辑视图」按钮，或双击节点上方的条件附属，在新标签页打开那一项的条件文件：地址是 `…/<宿主文件>/<uuid>/condition-<条件根节点 uuid>.json`，按条件根节点 uuid 定位这一项。它是普通的 Behavior3 Editor 文档，画布、Inspector、复制粘贴、撤销都照常工作，侧栏 Inspector 也把它当普通文件
-- 条件文件里节点的 id 和它们在宿主树里的 id 一致：宿主读条件文件时先按保存时的规则算出宿主当前的 id（包括未保存的修改和展开的 subtree），写进条件树；条件树在宿主的编号里是连续的一段，所以条件文件的画布从根节点的 id 开始编号（`settings.conditionFile` 时用 `getDisplayIdStart`），而不是从 1 开始。宿主重新编号后条件文件刷新，id 跟着变
+- 条件文件里节点的 id 和它们在宿主树里的 id 一致：宿主读条件文件时先按保存时的规则算出宿主当前的 id（包括未保存的修改和展开的 subtree）。条件文件的树 `prefix` 是宿主树前缀加 `<宿主节点 id>.<n>-`（例如 `H2.1-`），条件树里的节点从 1 编号，画布上显示 `H2.1-1`。文件里存的是去掉 `<宿主节点 id>.<n>-` 的 id，`setConditionRoot` 写回时加回去。这个前缀由宿主决定、不写回，所以条件文件的树面板里前缀只读。打开期间宿主重新编号或调整条件顺序，前缀在下次读取时更新
 - 条件文件的树级「说明」和「自定义数据」就是这项条件的 `desc` 和 `custom`，可以查看、修改。保存条件文件：根节点、`desc`、`custom` 和 `overrides` 通过 `setConditionRoot` 写回宿主文件里根节点 uuid 相同的那一项（不管它现在排第几），`abort` 和其他项不变；宿主里调整顺序时标签页保持打开；有未保存修改的标签页只在这一项自己的内容（不计 id）或 `overrides` 变了时才提示冲突；这一项被删除时，没有未保存修改的标签页直接关闭，有未保存修改的在回到它时提示「已被移除，编辑将被丢弃」后丢弃并关闭，期间保存失败（见 `condition-file-stale-tab.md`）；宿主文件已打开时它变成未保存、可以撤销，没打开时直接写盘。违反条件树约束时拒绝保存。条件文件里其他树级字段（变量等）的修改不写回
 - 宿主文件变化（编辑、撤销、保存、还原、外部修改）后，条件文件没有未保存修改时直接刷新，有时按外部修改冲突处理
 - 双击节点本体仍打开 subtree
@@ -345,7 +345,7 @@ host reducer 当前分三条路径：
 - 树的根节点不能挂条件，已有的构建报错（`conditions are not allowed on the root node; attach them where the tree is referenced`）
 - `lower` / `both` 要靠父节点在右侧兄弟运行时检查，所以只在父节点声明 `preemptive: true` 时有效。不能生效的 `abort` 一律按错误处理（运行时只会给 warning，然后这项条件只在进入节点时检查，容易被忽略）。构建检查节点时对每项这样的条件报错（`condition abort '<abort>' needs a preemptive parent, '<parent>' is not preemptive`），构建失败
 - 构建在重新编号、加前缀之后，用 `@behavior3.customField` 钩子重新计算条件里的 `script` 字段（`reason: "build"`，每个展开实例各算一次，只写进产物）；钩子缺失或出错时构建失败
-- 构建产物带上节点 `conditions`：条件树里的 subtree 被展开、override 被应用，id 按节点、条件树、子节点的顺序重新编号后加前缀，条件 `custom` 原样导出。build 校验和 batch `onProcessNode` 也会走到条件树里的节点；batch hook 对条件根返回空时去掉该条件项
+- 构建产物带上节点 `conditions`：条件树里的 subtree 被展开、override 被应用，主树节点按节点、子节点的顺序从 1 重新编号，条件树里的节点编号为 `<宿主 id>.<n>-<k>`，然后加树前缀，条件 `custom` 原样导出。build 校验和 batch `onProcessNode` 也会走到条件树里的节点；batch hook 对条件根返回空时去掉该条件项
 - `Ctrl+B` / `Cmd+B` 与 `Ctrl+Shift+B` / `Cmd+Shift+B` 由 VS Code contributed keybindings 直接触发 extension-host build command；webview 不应重复绑定同一组 build 快捷键
 - Inspector view title 中的 build action 同样触发 `behavior3.build` extension-host command，不新增 webview 内部 build 入口
 

@@ -1,4 +1,5 @@
 import type { ConditionCustom } from "./b3type";
+import { conditionIdPrefix, mapTreeIds } from "./condition-ids";
 import type { PersistedConditionData, PersistedNodeModel, PersistedTreeModel } from "./contracts";
 import { clonePersistedNode, cloneJsonValue, findPersistedNodeByStableId } from "./tree";
 
@@ -91,22 +92,30 @@ export const buildConditionFileTree = (
     hostStableId: string,
     rootUuid: string
 ): PersistedTreeModel | null => {
-    const condition = findConditionItem(hostTree, hostStableId, rootUuid);
-    if (!condition) {
+    const host = findPersistedNodeByStableId(hostTree.root, hostStableId);
+    const index =
+        host?.conditions?.findIndex((condition) => condition.root.uuid === rootUuid) ?? -1;
+    const condition = host?.conditions?.[index];
+    if (!host || !condition) {
         return null;
     }
+    // The file numbers its nodes from 1 under the tree prefix `<host prefix><host id>.<n>-`, so the
+    // canvas shows the ids they have in the host; `setConditionRoot` adds the prefix back.
+    const idPrefix = conditionIdPrefix(host.id, index + 1);
+    const root = clonePersistedNode(condition.root);
+    mapTreeIds(root, (id) => (id.startsWith(idPrefix) ? id.slice(idPrefix.length) : id));
     // Variables and overrides come along so inspector checks and subtree nodes match the host file.
     // The tree's description and custom data are the condition item's own `desc` and `custom`.
     return {
         version: hostTree.version,
         name: CONDITION_FILE_TREE_NAME,
         desc: condition.desc,
-        prefix: hostTree.prefix,
+        prefix: `${hostTree.prefix ?? ""}${idPrefix}`,
         export: hostTree.export,
         group: [...hostTree.group],
         variables: cloneJsonValue(hostTree.variables),
         custom: cloneJsonValue(condition.custom ?? {}),
-        root: clonePersistedNode(condition.root),
+        root,
         overrides: cloneJsonValue(hostTree.overrides),
     };
 };

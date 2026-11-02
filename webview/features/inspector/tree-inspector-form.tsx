@@ -33,6 +33,8 @@ const TreeMetaFields: React.FC<{
     queueCommitFields: (fields: string[]) => void;
 }> = ({ groupDefs, readOnly, commitFields, queueCommitFields }) => {
     const { t } = useTranslation();
+    // A condition file's prefix comes from its host node and is not written back.
+    const conditionFile = useWorkspaceStore((state) => state.settings.conditionFile);
 
     return (
         <>
@@ -47,7 +49,10 @@ const TreeMetaFields: React.FC<{
                 />
             </Form.Item>
             <Form.Item {...createInspectorLabelProps(t("tree.prefix"))} name="prefix">
-                <Input disabled={readOnly} onBlur={() => commitFields(["prefix"])} />
+                <Input
+                    disabled={readOnly || conditionFile}
+                    onBlur={() => commitFields(["prefix"])}
+                />
             </Form.Item>
             <Form.Item
                 {...createInspectorSwitchLabelProps(t("tree.export"))}

@@ -10,6 +10,7 @@ import type {
     PersistedTreeModel,
     UpdateNodeInput,
 } from "./contracts";
+import { conditionIdPrefix, mapTreeIds } from "./condition-ids";
 import { isJsonEqual } from "./json";
 import { getNodeArgOverrideCompareValue } from "./node-overrides";
 import { createNodeDefMap, findNodeDef, parseSlotDefinition } from "./node-utils";
@@ -1151,12 +1152,16 @@ const reduceSetConditionRoot = (
     mutation: Extract<ReducibleDocumentMutation, { type: "setConditionRoot" }>,
     context: DocumentMutationReducerContext
 ): DocumentMutationReducerResult => {
-    const { hostStableId, index, root, overrides } = mutation.payload;
+    const { hostStableId, index, overrides } = mutation.payload;
     const host = findPersistedNodeByStableId(context.tree.root, hostStableId);
     const condition = host?.conditions?.[index];
     if (!host || !condition) {
         return { status: "error", error: { code: "missing-target-node" } };
     }
+    // The condition file numbers from 1; in the host its ids carry `<host id>.<n>-`.
+    const root = clonePersistedNode(mutation.payload.root);
+    const idPrefix = conditionIdPrefix(host.id, index + 1);
+    mapTreeIds(root, (id) => (id && !id.startsWith(idPrefix) ? `${idPrefix}${id}` : id));
     const custom = mergeCustomCommit(
         condition.custom,
         mutation.payload.custom,

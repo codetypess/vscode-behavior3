@@ -45,7 +45,7 @@ import {
     computeVariableHighlights,
     getConditionParent,
 } from "../domain/graph-selectors";
-import { getDisplayIdStart, resolveDocumentGraph } from "../domain/resolve-graph";
+import { resolveDocumentGraph } from "../domain/resolve-graph";
 import { createInitialGraphUiState, patchGraphUiSearchState } from "../stores/graph-ui-store";
 import { isJsonEqual } from "../shared/json";
 
@@ -870,7 +870,6 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
             subtreeSources: workspace.subtreeSources,
             nodeDefs: workspace.nodeDefs,
             subtreeEditable: workspace.settings.subtreeEditable,
-            displayIdStart: getDisplayIdStart(tree, workspace.settings.conditionFile),
         });
 
         resolvedGraph = result.graph;

@@ -1,4 +1,5 @@
 import { getFs, hasFs } from "./b3fs";
+import { numberTreeIds } from "./condition-ids";
 import type { FileVarDecl, ImportDecl, NodeData, NodeDef, TreeData } from "./b3type";
 import type {
     BatchScript,
@@ -1062,19 +1063,6 @@ const materializedNodeToExpandedTreeData = (node: MaterializedTreeNode): NodeDat
     };
 };
 
-// Same order as the behavior3 runtime: node, condition trees, children.
-const assignSequentialNodeIds = (node: NodeData, nextId = 1): number => {
-    node.id = String(nextId);
-    let currentId = nextId + 1;
-    for (const condition of node.conditions ?? []) {
-        currentId = assignSequentialNodeIds(condition.root, currentId);
-    }
-    for (const child of node.children ?? []) {
-        currentId = assignSequentialNodeIds(child, currentId);
-    }
-    return currentId;
-};
-
 const clearInternalKeys = (data: NodeData | TreeData) => {
     for (const key in data) {
         if (key === "uuid" || key === "overrides" || key.startsWith("$")) {
@@ -1187,7 +1175,10 @@ export const createBuildDataWithContext = async (
 
         // Expanded subtree instances share a uuid, so source ids are keyed by node object.
         const sourceNodeIds = customFieldScripts ? collectNodeIds(treeModel.root) : undefined;
-        assignSequentialNodeIds(treeModel.root);
+        // Main-tree nodes count from 1; condition-tree nodes are `<host id>.<n>-<k>`.
+        numberTreeIds(treeModel.root, "", (node, id) => {
+            node.id = id;
+        });
         context.dfs(treeModel.root, (node) => {
             node.id = treeModel.prefix + node.id;
         });

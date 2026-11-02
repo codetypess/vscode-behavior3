@@ -31,7 +31,7 @@ import { reduceDocumentMutation } from "../../webview/shared/document";
 import { parseWorkdirRelativeJsonPath } from "../../webview/shared/protocol";
 import { parseNodeDefsContent, parseWorkspaceModelContent } from "../../webview/shared/schema";
 import { materializePersistedTree } from "../../webview/shared/tree-materializer";
-import { getDisplayIdStart, resolveDocumentGraph } from "../../webview/domain/resolve-graph";
+import { resolveDocumentGraph } from "../../webview/domain/resolve-graph";
 import {
     applyMainTreeDisplayIds,
     clonePersistedTree,
@@ -39,6 +39,7 @@ import {
     parsePersistedTreeContent,
     pruneStaleSubtreeOverrides,
     serializePersistedTree,
+    walkPersistedNodes,
 } from "../../webview/shared/tree";
 import { createTestTree } from "../shared-test-fixtures";
 import { defineSharedTests } from "../shared-test-types";
@@ -2162,15 +2163,16 @@ export const documentDomainSharedTests = defineSharedTests([
                 nodeDefs,
                 subtreeEditable: false,
             });
-            // Node, its condition tree, then its children; condition nodes are not graph nodes.
+            // Condition nodes are not graph nodes and take `<host id>.<n>-<k>` ids; the expanded
+            // subtree node in the condition tree is 2.1-2.
             assert.deepEqual(mainTreeDisplayIdsByStableId, {
                 root: "1",
                 attack: "2",
-                "guard-ref": "3",
-                leaf: "5",
-                patrol: "6",
+                "guard-ref": "2.1-1",
+                leaf: "3",
+                patrol: "4",
             });
-            assert.deepEqual(graph.nodeOrder.sort(), ["1", "2", "5", "6"]);
+            assert.deepEqual(graph.nodeOrder.sort(), ["1", "2", "3", "4"]);
             assert.deepEqual(graph.nodesByInstanceKey["2"].attachedConditionNames, ["Guard"]);
 
             const plan = await preparePersistedTreeForMainDocumentSave({
@@ -2182,13 +2184,13 @@ export const documentDomainSharedTests = defineSharedTests([
             const saved = parsePersistedTreeContent(plan.content, "/tmp/main.json");
             const attack = saved.root.children?.[0];
             assert.equal(attack?.id, "2");
-            assert.equal(attack?.conditions?.[0].root.id, "3");
+            assert.equal(attack?.conditions?.[0].root.id, "2.1-1");
             assert.equal(attack?.conditions?.[0].root.children, undefined);
             assert.deepEqual(attack?.conditions?.[0].custom, {
                 enterPriority: 7,
                 maintainPriority: 7,
             });
-            assert.equal(attack?.children?.[0].id, "5");
+            assert.equal(attack?.children?.[0].id, "3");
             // Overrides on subtree nodes inside a condition tree are reachable, so they are kept.
             assert.equal(saved.overrides["guard-check"]?.desc, "from main");
         },
@@ -2619,7 +2621,7 @@ export const documentDomainSharedTests = defineSharedTests([
         },
     },
     {
-        name: "numbers a condition file with the ids its nodes have in the host",
+        name: "numbers condition trees under their host id instead of the main tree",
         async run() {
             const nodeDefs: NodeDef[] = [
                 { name: "Sequence", type: "Composite", desc: "", children: -1 },
@@ -2629,6 +2631,7 @@ export const documentDomainSharedTests = defineSharedTests([
             // Stored ids are stale: the host would renumber them on save.
             const hostTree = parseMainTree({
                 custom: {},
+                prefix: "H",
                 root: {
                     uuid: "root",
                     id: "9",
@@ -2662,29 +2665,53 @@ export const documentDomainSharedTests = defineSharedTests([
                 readSubtreeContent: async () => null,
             });
             const liveHost = parsePersistedTreeContent(plan.content, "/tmp/main.json");
-            const hostIds = resolveDocumentGraph({
-                persistedTree: liveHost,
-                subtreeSources: {},
-                nodeDefs,
-                subtreeEditable: true,
-            }).mainTreeDisplayIdsByStableId;
-            // root 1, first 2, host 3, condition a 4, condition b 5 and 6, last 7
-            assert.equal(hostIds.b, "5");
-            assert.equal(hostIds.b1, "6");
+            const ids: Record<string, string> = {};
+            walkPersistedNodes(liveHost.root, (node) => {
+                ids[node.uuid] = node.id;
+            });
+            // Condition trees do not take main-tree ids; saved ids carry no tree prefix.
+            assert.deepEqual(ids, {
+                root: "1",
+                first: "2",
+                host: "3",
+                a: "3.1-1",
+                b: "3.2-1",
+                b1: "3.2-2",
+                last: "4",
+            });
 
+            // The condition file numbers from 1 under the prefix `<tree prefix><host id>.<n>-`.
             const conditionTree = buildConditionFileTree(liveHost, "host", "b");
             assert.ok(conditionTree);
-            assert.equal(getDisplayIdStart(conditionTree, true), 5);
-            assert.equal(getDisplayIdStart(conditionTree, false), 1);
+            assert.equal(conditionTree.prefix, "H3.2-");
+            assert.equal(conditionTree.root.id, "1");
             const conditionGraph = resolveDocumentGraph({
                 persistedTree: conditionTree,
                 subtreeSources: {},
                 nodeDefs,
                 subtreeEditable: true,
-                displayIdStart: getDisplayIdStart(conditionTree, true),
             });
-            assert.deepEqual(conditionGraph.mainTreeDisplayIdsByStableId, { b: "5", b1: "6" });
-            assert.equal(conditionGraph.graph.rootKey, "5");
+            assert.deepEqual(conditionGraph.mainTreeDisplayIdsByStableId, { b: "1", b1: "2" });
+            assert.equal(
+                conditionGraph.graph.nodesByInstanceKey[conditionGraph.graph.rootKey]
+                    .renderedIdLabel,
+                "H3.2-1"
+            );
+
+            // Writing the file back puts the host's ids back.
+            const written = reduceDocumentMutation(
+                {
+                    type: "setConditionRoot",
+                    payload: {
+                        hostStableId: "host",
+                        index: 1,
+                        root: conditionTree.root,
+                        overrides: liveHost.overrides,
+                    },
+                },
+                { tree: liveHost, nodeDefs }
+            );
+            assert.equal(written.status, "noop");
         },
     },
     {
@@ -2753,9 +2780,9 @@ export const documentDomainSharedTests = defineSharedTests([
             const resolved = resolve(attached.tree);
             const host = resolved.graph.nodesByInstanceKey["2"];
             assert.deepEqual(host.attachedConditionNames, ["Check"]);
-            // The condition tree is a main-tree node: numbered after the host, saved with an id.
+            // The condition tree belongs to the main file: numbered under its host, saved with an id.
             const conditionUuid = attached.tree.root.children![0].conditions![0].root.uuid;
-            assert.equal(resolved.mainTreeDisplayIdsByStableId[conditionUuid], "3");
+            assert.equal(resolved.mainTreeDisplayIdsByStableId[conditionUuid], "2.1-1");
             assert.equal(host.childKeys.length, 1);
             assert.equal(resolved.graph.nodesByInstanceKey[host.childKeys[0]].name, "Log");
 
@@ -3240,9 +3267,9 @@ export const documentDomainSharedTests = defineSharedTests([
                 {
                     abort: "both",
                     custom: { enterPriority: 1, maintainPriority: 1, note: "keep" },
-                    root: { uuid: "guard", id: "2", name: "Sequence" },
+                    root: { uuid: "guard", id: "1.1-1", name: "Sequence" },
                 },
-                { abort: "none", root: { uuid: "second", id: "3", name: "Check" } },
+                { abort: "none", root: { uuid: "second", id: "1.2-1", name: "Check" } },
             ];
             const nodeDefs: NodeDef[] = [
                 { name: "Sequence", type: "Composite", desc: "" },
@@ -3256,7 +3283,7 @@ export const documentDomainSharedTests = defineSharedTests([
             const conditionTree = buildConditionFileTree(tree, "root", "guard");
             assert.ok(conditionTree);
             assert.equal(conditionTree.name, "condition");
-            assert.equal(conditionTree.prefix, "H");
+            assert.equal(conditionTree.prefix, "H1.1-");
             assert.deepEqual(conditionTree.group, ["Client"]);
             assert.deepEqual(conditionTree.variables.locals, [{ name: "hp", desc: "" }]);
             // The file's custom data is the condition's custom data.
@@ -3267,6 +3294,8 @@ export const documentDomainSharedTests = defineSharedTests([
             });
             assert.deepEqual(conditionTree.overrides, tree.overrides);
             assert.equal(conditionTree.root.uuid, "guard");
+            // The file numbers from 1 under its prefix; write-back restores the host form.
+            assert.equal(conditionTree.root.id, "1");
             assert.equal(conditionTree.root.conditions, undefined);
             // The file round-trips like any tree file.
             const reread = parsePersistedTreeContent(
@@ -3318,6 +3347,7 @@ export const documentDomainSharedTests = defineSharedTests([
             assert.equal(first?.abort, "both");
             assert.deepEqual(first?.custom, { maintainPriority: 1, extra: true });
             assert.equal(first?.root.uuid, "guard");
+            assert.equal(first?.root.id, "1.1-1");
             assert.equal(first?.root.children?.length, 1);
             assert.equal(second?.root.uuid, "second");
             assert.deepEqual(written.tree.overrides, {});

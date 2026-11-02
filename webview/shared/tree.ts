@@ -83,7 +83,7 @@ export const walkPersistedNodes = (
     parent: PersistedNodeModel | null = null,
     depth = 0
 ) => {
-    // Condition trees come before children, matching runtime and build id order.
+    // Condition trees come before children, matching the runtime node order.
     // Their `parent` is the host node even though they are not in `children`.
     visitor(node, parent, depth);
     for (const condition of node.conditions ?? []) {
