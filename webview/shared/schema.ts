@@ -1,5 +1,6 @@
 import {
     ABORT_MODES,
+    copyConditionVariables,
     DEFAULT_ABORT_MODE,
     DOCUMENT_VERSION,
     type ConditionData,
@@ -333,10 +334,23 @@ const normalizeConditions = (
         }
 
         const custom = normalizeCustomRecord(record.custom, `${itemLabel}.custom`);
+        const variables =
+            record.variables === undefined
+                ? undefined
+                : expectPlainRecord(record.variables, `${itemLabel}.variables`);
         return {
             abort,
             desc: asOptionalString(record.desc) || undefined,
             custom: Object.keys(custom).length > 0 ? custom : undefined,
+            variables: copyConditionVariables(
+                variables && {
+                    imports: asWorkdirRelativeJsonPathArray(
+                        variables.imports,
+                        `${itemLabel}.variables.imports`
+                    ),
+                    locals: asVarDeclArray(variables.locals, `${itemLabel}.variables.locals`),
+                }
+            ),
             root: normalizeNodeData(record.root, `${itemLabel}.root`, stableIdSeed),
         };
     });
@@ -560,6 +574,10 @@ export const normalizeTreeData = (value: unknown, opts?: { stableIdSeed?: string
         variablesValue === undefined
             ? undefined
             : expectPlainRecord(variablesValue, "tree file variables");
+    const inheritedRecord =
+        record.inheritedVariables === undefined
+            ? undefined
+            : expectPlainRecord(record.inheritedVariables, "tree file inheritedVariables");
 
     return {
         version: normalizeTreeVersion(record.version),
@@ -577,6 +595,13 @@ export const normalizeTreeData = (value: unknown, opts?: { stableIdSeed?: string
                 variablesRecord?.locals ?? record.vars,
                 variablesRecord ? "tree file variables.locals" : "tree file vars"
             ),
+        },
+        inheritedVariables: inheritedRecord && {
+            imports: asWorkdirRelativeJsonPathArray(
+                inheritedRecord.imports,
+                "tree file inheritedVariables.imports"
+            ),
+            locals: asVarDeclArray(inheritedRecord.locals, "tree file inheritedVariables.locals"),
         },
         custom: normalizeCustomRecord(record.custom, "tree file custom"),
         root: normalizeNodeData(record.root, "tree file root", opts?.stableIdSeed),

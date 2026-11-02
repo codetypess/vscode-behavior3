@@ -1,4 +1,4 @@
-import type { NodeData } from "./b3type";
+import { copyConditionVariables, type NodeData } from "./b3type";
 import { generateUuid } from "./stable-id";
 
 /** Visits a node, then its condition trees, then its children (behavior3 runtime order). */
@@ -82,6 +82,7 @@ export const createNode = (data: NodeData, includeChildren: boolean = true): Nod
             abort: condition.abort,
             desc: condition.desc,
             custom: condition.custom ? { ...condition.custom } : undefined,
+            variables: copyConditionVariables(condition.variables),
             root: createNode(condition.root),
         }));
     }

@@ -58,7 +58,7 @@
 - `uuid` 是稳定结构锚点
 - `id` 是面向展示或兼容旧数据的字段，不再被视为唯一运行时主键
 - `path` 表示该节点引用了外部 subtree 文件
-- `conditions` 是 behavior3 2.0 的条件数组，每项为 `{ abort, custom?, root }`。`root` 是一棵普通格式的条件树，不是 `children` 的成员，可以带 `path` 引用 subtree。`abort` 只能是 `none`、`self`、`lower`、`both`，缺省为 `none`，其他取值读入时报错。`custom` 是普通的自定义数据（运行时忽略），值的格式和树的 `custom` 相同，编辑器不管理其中任何键，原样读写和导出。任何节点都可以带条件；条件树内部不能再带条件
+- `conditions` 是 behavior3 2.0 的条件数组，每项为 `{ abort, desc?, custom?, variables?, root }`。`variables` 是条件树自己的变量（形状同树的 `variables`，只给编辑器用，运行时忽略，见 `condition-file-host-variables.md`）。`root` 是一棵普通格式的条件树，不是 `children` 的成员，可以带 `path` 引用 subtree。`abort` 只能是 `none`、`self`、`lower`、`both`，缺省为 `none`，其他取值读入时报错。`custom` 是普通的自定义数据（运行时忽略），值的格式和树的 `custom` 相同，编辑器不管理其中任何键，原样读写和导出。任何节点都可以带条件；条件树内部不能再带条件
 - 遍历顺序是节点、它的条件树、它的子节点，和运行时一致。保存时的 id 回写、subtree 路径收集、override 清理和导出都按这个顺序包括条件树里的节点
 - 编号：主树节点按节点、子节点的顺序从 1 编号，条件树不占号；宿主第 n 项（从 1 数）条件树里的节点编号为 `<宿主 id>.<n>-<k>`，`k` 在这棵条件树内按节点、子节点的顺序从 1 数（例如 `2.1-1`）。保存的 id 不带树 `prefix`，画布和构建产物带（`H2.1-1`）。规则在 `webview/shared/condition-ids.ts`
 - `$status` 是物化后按 nodeDefs 和子节点状态计算出的位标记
@@ -173,7 +173,7 @@
 ### 条件文件
 
 - 节点的每一项条件都可以作为虚拟文件 `behavior3-condition:/<宿主文件名>/<宿主节点 uuid>/condition-<条件根节点 uuid>.json?host=<宿主文件完整路径>`（按条件根节点 uuid 定位这一项，宿主里调整顺序不影响）在独立标签页里编辑。它是一份独立的 `TreeEditorDocument`，有自己的 dirty 和撤销记录
-- 它的内容由宿主文件生成：根节点是条件树，`prefix`、`group`、`variables`、`overrides` 复制宿主文件。保存时只把根节点和 `overrides` 通过 `setConditionRoot` 写回宿主文件，宿主文件已打开时进入它的 history 并变成 dirty，否则直接写盘
+- 它的内容由宿主文件生成：根节点是条件树，`prefix`、`group`、`variables`、`overrides` 复制宿主文件。宿主的 `variables` 放在条件文件的 `inheritedVariables` 里（只读），条件文件的 `variables` 是这项条件自己的变量（条件项的 `variables`）。保存时把根节点、`overrides` 和条件自己的变量通过 `setConditionRoot` 写回宿主文件（`prefix`、`group`、宿主的变量由宿主决定，只读、不写回），宿主文件已打开时进入它的 history 并变成 dirty（宿主原来没有未保存修改时随即保存宿主），否则直接写盘
 - 宿主文件内容变化后，打开的条件文件按外部修改重新读取
 
 ## Override Model

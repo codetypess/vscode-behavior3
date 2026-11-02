@@ -126,15 +126,17 @@ export class ProjectIndex {
             return null;
         }
 
+        // A condition file also uses the host tree's variables it inherits.
+        const inherited = tree.inheritedVariables;
         const usingVars: Record<string, { name: string; desc: string }> = {};
-        for (const entry of tree.variables.locals) {
+        for (const entry of [...(inherited?.locals ?? []), ...tree.variables.locals]) {
             if (entry.name) {
                 usingVars[entry.name] = { name: entry.name, desc: entry.desc ?? "" };
             }
         }
 
         const visited = new Set<string>();
-        const importSeeds = [...tree.variables.imports];
+        const importSeeds = [...(inherited?.imports ?? []), ...tree.variables.imports];
 
         for (const importPath of importSeeds) {
             await this.readVarsFromFile(importPath, visited, usingVars);

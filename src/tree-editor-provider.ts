@@ -267,8 +267,8 @@ export class TreeEditorProvider
 
     /**
      * Write a condition file back into its host, into the item with the file's root uuid wherever
-     * it sits now. An open host takes it as an ordinary mutation (undo history, dirty state); a
-     * closed host is updated on disk.
+     * it sits now. An open host takes it as an ordinary mutation (undo history, dirty state) and,
+     * when it had no unsaved edits, is saved too; a closed host is updated on disk.
      */
     async writeConditionFile(uri: vscode.Uri, content: string): Promise<void> {
         const location = parseConditionFileUri(uri);
@@ -296,6 +296,9 @@ export class TreeEditorProvider
         };
 
         const hostKey = location.hostUri.toString();
+        // A host with no unsaved edits of its own is saved with the condition file; one that has
+        // some only takes the change, so its own edits are not written without the user.
+        const hostWasClean = this.openDocuments.get(hostKey)?.isDirty === false;
         const result = await new Promise<{ success: boolean; error?: string } | null>((resolve) => {
             const delivered = TreeEditorProvider.dispatchMessageToDocument(
                 hostKey,
@@ -314,6 +317,10 @@ export class TreeEditorProvider
         if (result) {
             if (!result.success) {
                 throw new Error(result.error ?? "Failed to update the host file");
+            }
+            if (hostWasClean) {
+                // Not awaited: the host saves on its own; if that fails it stays unsaved.
+                vscode.workspace.save(location.hostUri).then(undefined, () => undefined);
             }
             return;
         }

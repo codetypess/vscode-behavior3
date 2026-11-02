@@ -1,6 +1,13 @@
 import { getFs, hasFs } from "./b3fs";
 import { numberTreeIds } from "./condition-ids";
-import type { FileVarDecl, ImportDecl, NodeData, NodeDef, TreeData } from "./b3type";
+import {
+    copyConditionVariables,
+    type FileVarDecl,
+    type ImportDecl,
+    type NodeData,
+    type NodeDef,
+    type TreeData,
+} from "./b3type";
 import type {
     BatchScript,
     BuildEnv,
@@ -1058,6 +1065,7 @@ const materializedNodeToExpandedTreeData = (node: MaterializedTreeNode): NodeDat
                   abort: condition.abort,
                   desc: condition.desc,
                   custom: condition.custom ? { ...condition.custom } : undefined,
+                  variables: copyConditionVariables(condition.variables),
                   root: materializedNodeToExpandedTreeData(condition.root),
               }))
             : undefined,
@@ -1110,6 +1118,7 @@ export const createFileDataWithContext = (
                 condition.custom && Object.keys(condition.custom).length > 0
                     ? { ...condition.custom }
                     : undefined,
+            variables: copyConditionVariables(condition.variables),
             root: createFileDataWithContext(condition.root, includeSubtree, context),
         }));
     }

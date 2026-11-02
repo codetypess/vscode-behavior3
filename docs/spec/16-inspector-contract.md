@@ -111,7 +111,8 @@ Inspector 暴露同一组 project/document quick actions，但承载位置随模
 - `name` 只读
 - `desc` / `prefix` 可编辑
 - `export` 用 `Switch`
-- `group` 用多选 `Select`
+- `group` 用多选 `Select`；条件文件里只读，显示宿主树的分组
+- 条件文件里，宿主树的本地变量和导入变量列在最前面，只读、不能删除；后面是这项条件自己的变量和导入，可以编辑，和宿主同名的变量报错「主树已有同名变量」
 - `group` 的提示：严格分组模式（`settings.strictGroup`）下树没选分组时标红，提示必须选择，但不阻止提交；非严格模式下 groupDefs 含 `Core` 时提示 `Core` 始终启用
 
 ### Local Vars

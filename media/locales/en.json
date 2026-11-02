@@ -98,6 +98,7 @@
   "tree.vars.add": "Add Variable",
   "tree.vars.name": "name",
   "tree.vars.invalidName": "Invalid variable name",
+  "tree.vars.inheritedName": "The host tree already declares this variable",
   "tree.vars.desc": "description",
   "tree.vars.imports": "Import Variables",
   "tree.vars.subtree": "Subtree Variables",

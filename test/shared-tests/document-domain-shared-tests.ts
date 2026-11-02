@@ -2720,6 +2720,7 @@ export const documentDomainSharedTests = defineSharedTests([
                         index: 1,
                         root: conditionTree.root,
                         overrides: liveHost.overrides,
+                        variables: liveHost.variables,
                     },
                 },
                 { tree: liveHost, nodeDefs }
@@ -2918,6 +2919,79 @@ export const documentDomainSharedTests = defineSharedTests([
                 assert.equal(written.tree.root.conditions?.[0].root.desc, undefined);
                 assert.equal(written.tree.root.conditions?.[1].root.desc, "edited");
             }
+        },
+    },
+    {
+        name: "keeps a condition's own variables apart from the inherited host variables",
+        run() {
+            const tree = createTestTree();
+            tree.variables.locals = [{ name: "target", desc: "目标" }];
+            tree.root.conditions = [attachedCondition({ uuid: "guard", id: "2", name: "Check" })];
+            const nodeDefs: NodeDef[] = [
+                { name: "Check", type: "Condition", desc: "", status: ["success", "failure"] },
+            ];
+            const fileTree = buildConditionFileTree(tree, "root", "guard");
+            assert.ok(fileTree);
+            assert.deepEqual(fileTree.inheritedVariables, tree.variables);
+            assert.deepEqual(fileTree.variables, { imports: [], locals: [] });
+            const signature = conditionItemSignature(tree, "root", "guard");
+
+            // The file round-trips through its serialized content.
+            fileTree.variables.locals.push({ name: "range", desc: "范围" });
+            fileTree.variables.imports.push(
+                "vars/common.json" as (typeof tree.variables.imports)[0]
+            );
+            const saved = parsePersistedTreeContent(serializePersistedTree(fileTree));
+            assert.deepEqual(saved.inheritedVariables, tree.variables);
+            const written = reduceDocumentMutation(
+                {
+                    type: "setConditionRoot",
+                    payload: {
+                        hostStableId: "root",
+                        index: 0,
+                        ...readConditionFileWriteBack(saved),
+                    },
+                },
+                { tree, nodeDefs }
+            );
+            assert.equal(written.status, "changed");
+            if (written.status !== "changed") {
+                return;
+            }
+            assert.deepEqual(written.tree.root.conditions?.[0].variables, {
+                imports: ["vars/common.json"],
+                locals: [{ name: "range", desc: "范围" }],
+            });
+            assert.deepEqual(written.tree.variables, tree.variables);
+            assert.notEqual(conditionItemSignature(written.tree, "root", "guard"), signature);
+
+            // The host file keeps the condition's variables, and the condition file shows them again.
+            const reloaded = parsePersistedTreeContent(serializePersistedTree(written.tree));
+            assert.deepEqual(
+                buildConditionFileTree(reloaded, "root", "guard")?.variables,
+                written.tree.root.conditions?.[0].variables
+            );
+
+            // A host variable change refreshes the open condition file.
+            const hostEdited = clonePersistedTree(written.tree);
+            hostEdited.variables.locals.push({ name: "hp", desc: "血量" });
+            assert.notEqual(
+                conditionItemSignature(hostEdited, "root", "guard"),
+                conditionItemSignature(written.tree, "root", "guard")
+            );
+
+            const again = reduceDocumentMutation(
+                {
+                    type: "setConditionRoot",
+                    payload: {
+                        hostStableId: "root",
+                        index: 0,
+                        ...readConditionFileWriteBack(saved),
+                    },
+                },
+                { tree: written.tree, nodeDefs }
+            );
+            assert.equal(again.status, "noop");
         },
     },
     {
@@ -3298,7 +3372,8 @@ export const documentDomainSharedTests = defineSharedTests([
             assert.equal(conditionTree.name, "condition");
             assert.equal(conditionTree.prefix, "H1.1-");
             assert.deepEqual(conditionTree.group, ["Client"]);
-            assert.deepEqual(conditionTree.variables.locals, [{ name: "hp", desc: "" }]);
+            assert.deepEqual(conditionTree.inheritedVariables?.locals, [{ name: "hp", desc: "" }]);
+            assert.deepEqual(conditionTree.variables.locals, []);
             // The file's custom data is the condition's custom data.
             assert.deepEqual(conditionTree.custom, {
                 enterPriority: 1,
@@ -3386,6 +3461,7 @@ export const documentDomainSharedTests = defineSharedTests([
                         hostStableId: "root",
                         index: 0,
                         overrides: tree.overrides,
+                        variables: tree.variables,
                         root: {
                             uuid: "guard",
                             id: "2",
@@ -3420,6 +3496,7 @@ export const documentDomainSharedTests = defineSharedTests([
                         index: 0,
                         root: conditionTree.root,
                         overrides: {},
+                        variables: tree.variables,
                     },
                 },
                 { tree, nodeDefs }

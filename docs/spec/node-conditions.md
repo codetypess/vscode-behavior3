@@ -84,7 +84,7 @@ interface NodeDef {
 
 - URI：`behavior3-condition:/<宿主文件名>/<宿主节点 uuid>/condition.json?host=<宿主文件完整路径>`，例如面包屑显示为 `hero.json › 3f2a… › condition.json`。完整路径放在 query 里，面包屑不会显示一长串目录；传给 webview 和检查脚本的文件路径仍是 `<宿主文件完整路径>/<uuid>/condition.json`。用 uuid 定位宿主节点，节点重新编号、改名、移动后地址不变。（后来改为 `condition-<条件根节点 uuid>.json`，按条件根节点 uuid 定位每一项，见 `condition-file-stale-tab.md`。）
 - 扩展注册这个 scheme 的 `FileSystemProvider`。读：从宿主文件（已打开时取内存里的内容，包括未保存的修改；否则读磁盘）找到 uuid 对应的节点，把 `conditions[0].root` 包成一棵普通的树返回：`name` 为 `condition`，`prefix`、`group`、`variables`、`overrides` 复制宿主文件，树的 `custom` 就是这项条件的 `custom`。这个文件用 Behavior3 Editor 打开，画布、Inspector、复制粘贴等都和普通树一样。节点 id 和宿主树里一致：树前缀是 `<宿主树前缀><宿主节点 id>.<n>-`，节点从 1 编号（见 `17-editor-semantics.md`）。
-- 保存条件文件：把根节点、`desc`（条件文件的树说明）、`custom` 和 `overrides` 写回宿主文件，走宿主文件的 `setConditionRoot` 修改（`abort`、其他条件项不变）。宿主文件已打开时写进它的内存内容，宿主文件变成未保存、进入它的撤销记录；没打开时直接改磁盘上的宿主文件。条件树约束（4.5）不满足时拒绝保存。条件文件里对其他树级字段（变量等）的修改不会写回。
+- 保存条件文件：把根节点、`desc`（条件文件的树说明）、`custom` 和 `overrides` 写回宿主文件，走宿主文件的 `setConditionRoot` 修改（`abort`、其他条件项不变）。宿主文件已打开时写进它的内存内容，宿主文件变成未保存、进入它的撤销记录（宿主原来没有未保存修改时随即自动保存）；没打开时直接改磁盘上的宿主文件。条件树约束（4.5）不满足时拒绝保存。条件文件里对其他树级字段（变量等）的修改不会写回。
 - 宿主文件变化（编辑、撤销、保存、外部修改）后，打开的条件文件重新读取：没有未保存修改时直接刷新，有未保存修改时按外部修改冲突处理。宿主节点或它的条件被删掉后，条件文件读不出来。
 - 宿主是 subtree 里的节点时，打开的是 subtree 源文件里该节点的条件（宿主文件为 subtree 文件）。只由主树 override 加上的条件不在源文件里，暂不支持单独打开，给出提示。
 - 条件文件的 session 用宿主文件定位 workspace、b3-setting 和项目根目录，并监视磁盘上的宿主文件。
@@ -119,5 +119,5 @@ interface NodeDef {
 ## 8. Known Limitations
 
 - 主文档 `overrides` 里新写的条件如果在条件树里引用了 subtree，这个 subtree 不会被预加载（`loadSubtreeSourceCache` 只从主树和 subtree 源收集路径），物化时显示为 missing。
-- 条件文件里修改的树级字段（自定义数据除外）不会写回；在条件文件里给节点添加条件会在保存时被拒绝，而不是在添加时就拦住。
+- 条件文件里修改的树级字段（自定义数据和条件自己的变量除外，变量见 `condition-file-host-variables.md`）不会写回；在条件文件里给节点添加条件会在保存时被拒绝，而不是在添加时就拦住。
 - 条件文件保存时整体替换宿主文件的 `overrides`。如果宿主文件在条件文件打开期间改了 overrides，而条件文件又有未保存修改，会出现冲突提示，此时仍强行保存会覆盖宿主文件的那些修改。

@@ -1,5 +1,5 @@
 import { generateUuid } from "./stable-id";
-import { DOCUMENT_VERSION, type CustomFieldDefs } from "./b3type";
+import { copyConditionVariables, DOCUMENT_VERSION, type CustomFieldDefs } from "./b3type";
 import type {
     DocumentMutation,
     EditNode,
@@ -1147,7 +1147,10 @@ export const reduceDocumentMutation = (
     return reduced;
 };
 
-/** A condition file replaces its item's tree and `custom`; `abort` and other items stay. */
+/**
+ * A condition file replaces its item's tree, `custom` and own variables, and the host's overrides;
+ * `abort`, other items and the host's variables stay.
+ */
 const reduceSetConditionRoot = (
     mutation: Extract<ReducibleDocumentMutation, { type: "setConditionRoot" }>,
     context: DocumentMutationReducerContext
@@ -1169,10 +1172,12 @@ const reduceSetConditionRoot = (
         host.id
     );
     const desc = mutation.payload.desc?.trim() || undefined;
+    const variables = copyConditionVariables(mutation.payload.variables);
     if (
         isJsonEqual(condition.root, root) &&
         condition.desc === desc &&
         isJsonEqual(condition.custom ?? {}, custom ?? {}) &&
+        isJsonEqual(condition.variables ?? null, variables ?? null) &&
         isJsonEqual(context.tree.overrides, overrides)
     ) {
         return { status: "noop" };
@@ -1191,6 +1196,7 @@ const reduceSetConditionRoot = (
         ...nextHost!.conditions![index],
         desc,
         custom: custom && Object.keys(custom).length ? cloneJsonValue(custom) : undefined,
+        variables,
         root: clonePersistedNode(root),
     };
     tree.overrides = cloneJsonValue(overrides);

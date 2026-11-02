@@ -1,4 +1,10 @@
-import type { AbortMode, ConditionCustom, NodeDef } from "./b3type";
+import {
+    copyConditionVariables,
+    type AbortMode,
+    type ConditionCustom,
+    type NodeDef,
+    type TreeVariables,
+} from "./b3type";
 import type {
     InvalidSubtreeSource,
     PersistedNodeModel,
@@ -33,6 +39,7 @@ export interface MaterializedCondition {
     abort: AbortMode;
     desc?: string;
     custom?: ConditionCustom;
+    variables?: TreeVariables;
     root: MaterializedTreeNode;
 }
 
@@ -83,6 +90,7 @@ const applyPatchIfAny = (
             abort: condition.abort,
             desc: condition.desc,
             custom: condition.custom ? { ...condition.custom } : undefined,
+            variables: copyConditionVariables(condition.variables),
             root: clonePersistedNode(condition.root),
         }));
     }
@@ -354,6 +362,7 @@ export const materializePersistedTree = (params: {
                   abort: condition.abort,
                   desc: condition.desc,
                   custom: condition.custom ? { ...condition.custom } : undefined,
+                  variables: copyConditionVariables(condition.variables),
                   root: resolveNode(condition.root, conditionContext),
               }));
         const children = nextChildren.map((child) => resolveNode(child, childContext));

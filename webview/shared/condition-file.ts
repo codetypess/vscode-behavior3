@@ -1,4 +1,4 @@
-import type { ConditionCustom } from "./b3type";
+import { copyConditionVariables, type ConditionCustom } from "./b3type";
 import { conditionIdPrefix, mapTreeIds } from "./condition-ids";
 import type { PersistedConditionData, PersistedNodeModel, PersistedTreeModel } from "./contracts";
 import { clonePersistedNode, cloneJsonValue, findPersistedNodeByStableId } from "./tree";
@@ -104,8 +104,9 @@ export const buildConditionFileTree = (
     const idPrefix = conditionIdPrefix(host.id, index + 1);
     const root = clonePersistedNode(condition.root);
     mapTreeIds(root, (id) => (id.startsWith(idPrefix) ? id.slice(idPrefix.length) : id));
-    // Variables and overrides come along so inspector checks and subtree nodes match the host file.
-    // The tree's description and custom data are the condition item's own `desc` and `custom`.
+    // Groups, overrides and the host's variables come along so inspector checks and subtree nodes
+    // match the host file; the host's variables are inherited, read-only. The tree's description,
+    // custom data and variables are the condition item's own `desc`, `custom` and `variables`.
     return {
         version: hostTree.version,
         name: CONDITION_FILE_TREE_NAME,
@@ -113,7 +114,10 @@ export const buildConditionFileTree = (
         prefix: `${hostTree.prefix ?? ""}${idPrefix}`,
         export: hostTree.export,
         group: [...hostTree.group],
-        variables: cloneJsonValue(hostTree.variables),
+        variables: cloneJsonValue(
+            condition.variables ?? { imports: [], locals: [] }
+        ) as PersistedTreeModel["variables"],
+        inheritedVariables: cloneJsonValue(hostTree.variables),
         custom: cloneJsonValue(condition.custom ?? {}),
         root,
         overrides: cloneJsonValue(hostTree.overrides),
@@ -134,8 +138,9 @@ const withoutDisplayIds = (node: PersistedNodeModel): unknown => {
 
 /**
  * What a condition file shows of its item that an outside change can touch: the condition tree,
- * its `custom` and the host overrides it writes back. Display ids are left out, since reordering
- * or editing elsewhere in the host renumbers them without changing the item.
+ * its `custom` and variables, the host overrides it writes back and the host variables it
+ * inherits. Display ids are left out, since reordering or editing elsewhere in the host
+ * renumbers them without changing the item.
  */
 export const conditionItemSignature = (
     hostTree: PersistedTreeModel,
@@ -147,7 +152,9 @@ export const conditionItemSignature = (
         ? JSON.stringify({
               root: withoutDisplayIds(condition.root),
               custom: condition.custom ?? null,
+              variables: condition.variables ?? null,
               overrides: hostTree.overrides,
+              inheritedVariables: hostTree.variables,
           })
         : null;
 };
@@ -160,6 +167,7 @@ export const readConditionFileWriteBack = (
     desc: string | undefined;
     custom: ConditionCustom | undefined;
     overrides: PersistedTreeModel["overrides"];
+    variables: PersistedTreeModel["variables"] | undefined;
 } => ({
     root: clonePersistedNode(conditionTree.root),
     desc: conditionTree.desc?.trim() || undefined,
@@ -167,4 +175,7 @@ export const readConditionFileWriteBack = (
         ? cloneJsonValue(conditionTree.custom)
         : undefined,
     overrides: cloneJsonValue(conditionTree.overrides),
+    variables: copyConditionVariables(conditionTree.variables) as
+        | PersistedTreeModel["variables"]
+        | undefined,
 });

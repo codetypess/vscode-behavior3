@@ -24,6 +24,8 @@ export interface ConditionData<TNode> {
     desc?: string;
     /** Editor-defined data; the runtime ignores it. */
     custom?: ConditionCustom;
+    /** The condition tree's own variables, on top of its host tree's; the runtime ignores them. */
+    variables?: TreeVariables;
     root: TNode;
 }
 
@@ -60,6 +62,17 @@ export interface TreeVariables {
     locals: VarDecl[];
 }
 
+/** A copy of a condition's own variables, or `undefined` when it declares none. */
+export const copyConditionVariables = (
+    variables: TreeVariables | undefined
+): TreeVariables | undefined =>
+    variables && (variables.imports.length > 0 || variables.locals.length > 0)
+        ? {
+              imports: [...variables.imports],
+              locals: variables.locals.map((entry) => ({ ...entry })),
+          }
+        : undefined;
+
 export interface GroupDecl {
     name: string;
     value: boolean;
@@ -89,6 +102,8 @@ export interface TreeData {
     export?: boolean;
     group: string[];
     variables: TreeVariables;
+    /** Condition files only: the host tree's variables, usable but not editable there. */
+    inheritedVariables?: TreeVariables;
     custom: Record<string, string | number | boolean | object>;
     root: NodeData;
 

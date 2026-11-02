@@ -38,6 +38,7 @@ export const treeDataForPersistence = (data: TreeData, name: string): TreeData =
             imports: data.variables?.imports ?? [],
             locals: data.variables?.locals ?? [],
         },
+        inheritedVariables: data.inheritedVariables,
         root: createNode(data.root),
         custom: data.custom ?? {},
         overrides: data.overrides ?? {},

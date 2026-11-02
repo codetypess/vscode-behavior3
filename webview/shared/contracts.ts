@@ -56,6 +56,8 @@ export interface PersistedTreeModel {
         imports: WorkdirRelativeJsonPath[];
         locals: VarDecl[];
     };
+    /** Condition files only: the host tree's variables, usable but not editable there. */
+    inheritedVariables?: PersistedTreeModel["variables"];
     custom: Record<string, string | number | boolean | object>;
     root: PersistedNodeModel;
     overrides: Record<string, PersistedNodeOverride>;
@@ -338,6 +340,8 @@ export interface SetConditionRootInput {
     root: PersistedNodeModel;
     custom?: ConditionData<PersistedNodeModel>["custom"];
     overrides: PersistedTreeModel["overrides"];
+    /** The condition tree's own variables. */
+    variables?: PersistedTreeModel["variables"];
 }
 
 export type DocumentMutation =

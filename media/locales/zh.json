@@ -97,6 +97,7 @@
   "tree.vars.add": "添加变量",
   "tree.vars.name": "变量名",
   "tree.vars.invalidName": "变量名不合法",
+  "tree.vars.inheritedName": "主树已有同名变量",
   "tree.vars.desc": "变量说明",
   "tree.vars.imports": "导入变量",
   "tree.vars.subtree": "子树变量",

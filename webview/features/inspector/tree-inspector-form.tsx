@@ -34,7 +34,7 @@ const TreeMetaFields: React.FC<{
     queueCommitFields: (fields: string[]) => void;
 }> = ({ groupDefs, readOnly, commitFields, queueCommitFields }) => {
     const { t } = useTranslation();
-    // A condition file's prefix comes from its host node and is not written back.
+    // A condition file's prefix and groups come from its host and are not written back.
     const conditionFile = useWorkspaceStore((state) => state.settings.conditionFile);
     const strictGroup = useWorkspaceStore((state) => state.settings.strictGroup);
     const form = Form.useFormInstance();
@@ -82,7 +82,7 @@ const TreeMetaFields: React.FC<{
                     >
                         <Select
                             mode="multiple"
-                            disabled={readOnly}
+                            disabled={readOnly || conditionFile}
                             placeholder={t("tree.group.placeholder")}
                             options={groupDefs.map((group) => ({
                                 label: group,
@@ -98,11 +98,13 @@ const TreeMetaFields: React.FC<{
 };
 
 const LocalVariablesSection: React.FC<{
+    /** A condition file's host variables: listed first, read-only. */
+    inheritedRows: VariableRowValue[];
     onFocusVariable: (name: string) => void;
     readOnly: boolean;
     commitVars: () => void;
     queueCommitVars: () => void;
-}> = ({ onFocusVariable, readOnly, commitVars, queueCommitVars }) => {
+}> = ({ inheritedRows, onFocusVariable, readOnly, commitVars, queueCommitVars }) => {
     const { t } = useTranslation();
 
     return (
@@ -111,6 +113,14 @@ const LocalVariablesSection: React.FC<{
             <Form.List name="vars">
                 {(fields, { add, remove }, { errors }) => (
                     <div className="b3-list-block">
+                        {inheritedRows.map((variable) => (
+                            <VariableDeclRow
+                                key={`inherited:${variable.name}`}
+                                value={variable}
+                                disabled
+                                onFocusVariable={readOnly ? undefined : onFocusVariable}
+                            />
+                        ))}
                         {fields.map((field) => (
                             <Form.Item
                                 key={field.key}
@@ -122,6 +132,13 @@ const LocalVariablesSection: React.FC<{
                                         validator: async (_, value: VariableRowValue) => {
                                             if (!value?.name || !isValidVariableName(value.name)) {
                                                 throw new Error(t("tree.vars.invalidName"));
+                                            }
+                                            if (
+                                                inheritedRows.some(
+                                                    (entry) => entry.name === value.name
+                                                )
+                                            ) {
+                                                throw new Error(t("tree.vars.inheritedName"));
                                             }
                                             if (!value.desc?.trim()) {
                                                 throw new Error(
@@ -209,6 +226,8 @@ const SubtreeVariablesSection: React.FC<{
 };
 
 const ImportRefsSection: React.FC<{
+    /** A condition file's host imports: listed first, read-only. */
+    inheritedImports: string[];
     allFiles: string[];
     currentImportRefs: Array<{ path?: string }>;
     importDeclByPath: Map<string, VariableRowValue[]>;
@@ -217,6 +236,7 @@ const ImportRefsSection: React.FC<{
     commitImportRefs: () => void;
     queueCommitImportRefs: () => void;
 }> = ({
+    inheritedImports,
     allFiles,
     currentImportRefs,
     importDeclByPath,
@@ -233,6 +253,25 @@ const ImportRefsSection: React.FC<{
             <Form.List name="importRefs">
                 {(fields, { add, remove }, { errors }) => (
                     <div className="b3-list-block">
+                        {inheritedImports.map((path) => (
+                            <div key={`inherited:${path}`} className="b3-decl-group">
+                                <Flex gap={4} align="center" className="b3-subtree-path-row">
+                                    <Form.Item style={{ flex: 1, marginBottom: 0 }}>
+                                        <Input value={path} disabled />
+                                    </Form.Item>
+                                </Flex>
+                                <div className="b3-decl-vars">
+                                    {(importDeclByPath.get(path) ?? []).map((variable) => (
+                                        <VariableDeclRow
+                                            key={`${path}:${variable.name}`}
+                                            value={variable}
+                                            disabled
+                                            onFocusVariable={readOnly ? undefined : onFocusVariable}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
                         {fields.map((field) => {
                             const currentPath = currentImportRefs[field.name]?.path?.trim() ?? "";
                             const importVars = currentPath
@@ -318,6 +357,14 @@ export const TreeInspectorForm: React.FC = () => {
     } = useTreeInspectorViewState(form);
     const treeCustomFieldDefs = useWorkspaceStore((state) => state.settings.customFields.tree);
     const usesConditions = document ? treeUsesConditions(document) : false;
+    const inheritedRows = useMemo(
+        () =>
+            (document?.inheritedVariables?.locals ?? []).map((variable) => ({
+                ...variable,
+                count: variableUsageCount[variable.name] ?? 0,
+            })),
+        [document?.inheritedVariables, variableUsageCount]
+    );
     const customFields = useMemo(
         () => activeTreeCustomFields(treeCustomFieldDefs, usesConditions),
         [treeCustomFieldDefs, usesConditions]
@@ -424,6 +471,7 @@ export const TreeInspectorForm: React.FC = () => {
                     queueCommitFields={queueCommitTreeFields}
                 />
                 <LocalVariablesSection
+                    inheritedRows={inheritedRows}
                     onFocusVariable={focusVariable}
                     readOnly={readOnly}
                     commitVars={() => void commitTreeFields(["vars"])}
@@ -436,6 +484,7 @@ export const TreeInspectorForm: React.FC = () => {
                     readOnly={readOnly}
                 />
                 <ImportRefsSection
+                    inheritedImports={document?.inheritedVariables?.imports ?? []}
                     allFiles={allFiles}
                     currentImportRefs={currentImportRefs}
                     importDeclByPath={importDeclByPath}

@@ -253,6 +253,120 @@ export const buildCliSharedTests = defineSharedTests([
         },
     },
     {
+        name: "checks a condition tree against its host variables and its own",
+        async run() {
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-condition-vars-"));
+            const treeFile = path.join(root, "main.json");
+            const outputDir = path.join(root, "dist");
+            const build = async (conditionInput: string) => {
+                fs.writeFileSync(
+                    treeFile,
+                    JSON.stringify({
+                        version: "2.0.0",
+                        name: "main",
+                        prefix: "",
+                        group: [],
+                        variables: { imports: [], locals: [{ name: "target", desc: "目标" }] },
+                        custom: {},
+                        overrides: {},
+                        root: {
+                            uuid: "root",
+                            id: "1",
+                            name: "Sequence",
+                            children: [
+                                {
+                                    uuid: "attack",
+                                    id: "2",
+                                    name: "Log",
+                                    input: ["target"],
+                                    conditions: [
+                                        {
+                                            abort: "none",
+                                            variables: {
+                                                imports: ["vars.json"],
+                                                locals: [{ name: "range", desc: "范围" }],
+                                            },
+                                            root: {
+                                                uuid: "guard",
+                                                id: "",
+                                                name: "Check",
+                                                input: [conditionInput],
+                                            },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    }),
+                    "utf-8"
+                );
+                const errors: string[] = [];
+                const record = (...args: unknown[]) => errors.push(args.map(String).join(" "));
+                const result = await buildBehaviorProject({
+                    projectPath: treeFile,
+                    outputDir,
+                    logger: { log() {}, debug() {}, info() {}, warn() {}, error: record },
+                });
+                return { hasError: result.hasError, errors: errors.join("\n") };
+            };
+
+            try {
+                fs.writeFileSync(
+                    path.join(root, "workspace.b3-workspace"),
+                    JSON.stringify({ settings: {} }),
+                    "utf-8"
+                );
+                fs.writeFileSync(
+                    path.join(root, "node-config.b3-setting"),
+                    JSON.stringify([
+                        { name: "Sequence", type: "Composite", desc: "", children: -1 },
+                        { name: "Log", type: "Action", desc: "", input: ["目标"] },
+                        {
+                            name: "Check",
+                            type: "Condition",
+                            desc: "",
+                            input: ["值"],
+                            status: ["success", "failure"],
+                        },
+                    ]),
+                    "utf-8"
+                );
+                fs.writeFileSync(
+                    path.join(root, "vars.json"),
+                    JSON.stringify({
+                        version: "2.0.0",
+                        name: "vars",
+                        prefix: "",
+                        group: [],
+                        variables: { imports: [], locals: [{ name: "hp", desc: "血量" }] },
+                        custom: {},
+                        overrides: {},
+                        root: { uuid: "vars-root", id: "1", name: "Sequence" },
+                    }),
+                    "utf-8"
+                );
+
+                for (const input of ["target", "range", "hp"]) {
+                    const result = await build(input);
+                    assert.equal(result.hasError, false, `${input}: ${result.errors}`);
+                }
+                const missing = await build("missing");
+                assert.equal(missing.hasError, true);
+                assert.match(missing.errors, /missing/);
+
+                const output = JSON.parse(
+                    fs.readFileSync(path.join(outputDir, "main.json"), "utf-8")
+                ) as { root: { children: Array<{ conditions: Array<{ variables?: unknown }> }> } };
+                assert.deepEqual(output.root.children[0].conditions[0].variables, {
+                    imports: ["vars.json"],
+                    locals: [{ name: "range", desc: "范围" }],
+                });
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+    },
+    {
         name: "exports node conditions with expanded subtrees and runtime id order",
         async run() {
             const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-conditions-"));

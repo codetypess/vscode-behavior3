@@ -6,6 +6,7 @@ import {
     NodeData,
     NodeDef,
     TreeData,
+    TreeVariables,
     VarDecl,
 } from "./b3type";
 import { logger } from "./logger";
@@ -51,6 +52,8 @@ interface BuildValidationState {
     parsedExprs: Record<string, string[]>;
     checkExpr: boolean;
     strictGroup: boolean;
+    /** The variables a condition declares itself, imports included. */
+    resolveConditionVars?: (variables: TreeVariables) => Record<string, VarDecl>;
 }
 
 interface BuildProjectState extends BuildValidationState {
@@ -216,7 +219,13 @@ const checkNodeDataWithState = (
     printer: ErrorPrinter,
     state: Pick<
         BuildValidationState,
-        "nodeDefs" | "usingGroups" | "usingVars" | "parsedExprs" | "checkExpr" | "strictGroup"
+        | "nodeDefs"
+        | "usingGroups"
+        | "usingVars"
+        | "parsedExprs"
+        | "checkExpr"
+        | "strictGroup"
+        | "resolveConditionVars"
     >,
     /** `null` for the tree root and for condition roots. */
     parent: NodeData | null = null,
@@ -365,7 +374,18 @@ const checkNodeDataWithState = (
             );
             hasError = true;
         }
-        if (!checkNodeDataWithState(condition.root, printer, state, null, false)) {
+        // A condition tree uses its host tree's variables and its own.
+        const conditionState =
+            condition.variables && state.resolveConditionVars
+                ? {
+                      ...state,
+                      usingVars: {
+                          ...state.usingVars,
+                          ...state.resolveConditionVars(condition.variables),
+                      },
+                  }
+                : state;
+        if (!checkNodeDataWithState(condition.root, printer, conditionState, null, false)) {
             hasError = true;
         }
     }
@@ -605,6 +625,24 @@ export const createBuildProjectContext = (options: {
         files: {},
         parsedVarDecl: {},
         alertError: options.alertError ?? (() => {}),
+    };
+    state.resolveConditionVars = (variables) => {
+        const vars: VarDecl[] = [...variables.locals];
+        const imports: ImportDecl[] = variables.imports.map((path: string) => ({
+            path,
+            vars: [],
+            depends: [],
+        }));
+        // loadVarDecl appends the imported variables to `vars`.
+        loadVarDecl(
+            imports,
+            vars,
+            createRefreshVarDeclContext(state, {
+                updateUsingGroups: () => {},
+                updateUsingVars: () => {},
+            })
+        );
+        return toUsingVars(vars) ?? {};
     };
 
     const setLocalCheckExpr = (check: boolean) => {
