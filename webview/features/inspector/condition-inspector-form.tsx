@@ -2,6 +2,7 @@ import { FormOutlined } from "@ant-design/icons";
 import { Button, Form, Input, Select } from "antd";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import ReactMarkdown from "react-markdown";
 import { useRuntime, useSelectionStore, useWorkspaceStore } from "../../app/runtime";
 import { ABORT_MODES, type AbortMode } from "../../shared/b3type";
 import { getAbortModeViolation } from "../../shared/condition-branch";
@@ -174,6 +175,16 @@ export const ConditionInspectorForm: React.FC = () => {
                         onBlur={commitRootDesc}
                     />
                 </Form.Item>
+                <ReactMarkdown className="b3-markdown">
+                    {[
+                        t(`condition.abortHelp.${condition.abort}`),
+                        t("condition.resultHelp.value"),
+                        t("condition.resultHelp.skip"),
+                        t("condition.resultHelp.running"),
+                    ]
+                        .map((line) => `+ ${line}`)
+                        .join("\n")}
+                </ReactMarkdown>
                 <SectionDivider>{t("condition.treeProps")}</SectionDivider>
                 <Form.Item {...createInspectorLabelProps(t("tree.desc"))} name="conditionDesc">
                     <TextArea
