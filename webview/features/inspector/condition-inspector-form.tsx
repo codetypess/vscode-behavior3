@@ -6,6 +6,7 @@ import { useRuntime, useSelectionStore, useWorkspaceStore } from "../../app/runt
 import { ABORT_MODES, type AbortMode } from "../../shared/b3type";
 import { getAbortModeViolation } from "../../shared/condition-branch";
 import type { PersistedConditionData } from "../../shared/contracts";
+import { createNodeDefMap, findNodeDef } from "../../shared/node-utils";
 import { clonePersistedConditions } from "../../shared/tree";
 import { CustomDataSection } from "./custom-data-section";
 import { queueInspectorTask, trackPendingInspectorEdit } from "./inspector-commit-queue";
@@ -15,8 +16,10 @@ import {
     createCustomRows,
     type TreeCustomRowValue,
 } from "./inspector-form-values";
-import { createInspectorLabelProps } from "./inspector-shared";
+import { createInspectorLabelProps, SectionDivider } from "./inspector-shared";
 import { useNodeInspectorState } from "./inspector-state";
+
+const { TextArea } = Input;
 
 /** Inspector for the selected item of the selected node's `conditions`. */
 export const ConditionInspectorForm: React.FC = () => {
@@ -32,7 +35,12 @@ export const ConditionInspectorForm: React.FC = () => {
     const condition = conditions?.[index];
     const readOnly = selectedNode?.disabled ?? false;
     const customFields = useWorkspaceStore((state) => state.settings.customFields.condition);
+    const nodeDefs = useWorkspaceStore((state) => state.nodeDefs);
     const hostNodeId = selectedNode?.ref.displayId;
+    // Like the node inspector: show the definition's description until the node has its own.
+    const rootDefDesc = condition
+        ? findNodeDef(createNodeDefMap(nodeDefs), condition.root.name)?.desc?.trim() || undefined
+        : undefined;
 
     useEffect(() => {
         if (!condition) {
@@ -41,21 +49,18 @@ export const ConditionInspectorForm: React.FC = () => {
         form.setFieldsValue({
             entryName: condition.root.name,
             abort: condition.abort,
+            rootDesc: condition.root.desc ?? rootDefDesc ?? "",
+            conditionDesc: condition.desc ?? "",
             customRows: createCustomRows(condition.custom, customFields, hostNodeId),
         });
-    }, [condition, customFields, form, hostNodeId]);
+    }, [condition, customFields, form, hostNodeId, rootDefDesc]);
 
-
-    const commitCondition = (next: Pick<PersistedConditionData, "abort" | "custom">) => {
+    const commitCondition = (patch: Partial<PersistedConditionData>) => {
         if (!selectedNode || !conditions?.length || !condition || readOnly) {
             return;
         }
         const nextConditions = clonePersistedConditions(conditions) ?? [];
-        nextConditions[index] = {
-            ...nextConditions[index],
-            abort: next.abort,
-            custom: next.custom,
-        };
+        nextConditions[index] = { ...nextConditions[index], ...patch };
         trackPendingInspectorEdit(
             runtime.controller.updateNode({
                 target: selectedNode.ref,
@@ -71,7 +76,31 @@ export const ConditionInspectorForm: React.FC = () => {
         if (!condition || abort === condition.abort) {
             return;
         }
-        commitCondition({ abort, custom: condition.custom });
+        commitCondition({ abort });
+    };
+
+    /** The condition tree's root node description; the definition's text is not stored. */
+    const commitRootDesc = () => {
+        if (!condition) {
+            return;
+        }
+        const value = String(form.getFieldValue("rootDesc") ?? "").trim() || undefined;
+        const desc = value === rootDefDesc ? undefined : value;
+        if (desc === condition.root.desc) {
+            return;
+        }
+        commitCondition({ root: { ...condition.root, desc } });
+    };
+
+    /** The condition item's own description ("tree properties": the condition tree's desc). */
+    const commitConditionDesc = () => {
+        if (!condition) {
+            return;
+        }
+        const desc = String(form.getFieldValue("conditionDesc") ?? "").trim() || undefined;
+        if (desc !== condition.desc) {
+            commitCondition({ desc });
+        }
     };
 
     const commitCustomRows = async () => {
@@ -85,10 +114,7 @@ export const ConditionInspectorForm: React.FC = () => {
         }
         const rows = (form.getFieldValue("customRows") as TreeCustomRowValue[] | undefined) ?? [];
         const custom = buildTreeCustomRecord(rows, customFields);
-        commitCondition({
-            abort: condition.abort,
-            custom: Object.keys(custom).length > 0 ? custom : undefined,
-        });
+        commitCondition({ custom: Object.keys(custom).length > 0 ? custom : undefined });
     };
 
     if (!selectedNode || !condition) {
@@ -139,6 +165,21 @@ export const ConditionInspectorForm: React.FC = () => {
                             };
                         })}
                         onChange={commitAbort}
+                    />
+                </Form.Item>
+                <Form.Item {...createInspectorLabelProps(t("node.desc"))} name="rootDesc">
+                    <TextArea
+                        autoSize={{ minRows: 1 }}
+                        disabled={readOnly}
+                        onBlur={commitRootDesc}
+                    />
+                </Form.Item>
+                <SectionDivider>{t("condition.treeProps")}</SectionDivider>
+                <Form.Item {...createInspectorLabelProps(t("tree.desc"))} name="conditionDesc">
+                    <TextArea
+                        autoSize={{ minRows: 1 }}
+                        disabled={readOnly}
+                        onBlur={commitConditionDesc}
                     />
                 </Form.Item>
                 <CustomDataSection

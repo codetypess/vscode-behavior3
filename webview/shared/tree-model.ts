@@ -80,6 +80,7 @@ export const createNode = (data: NodeData, includeChildren: boolean = true): Nod
     if (data.conditions?.length) {
         node.conditions = data.conditions.map((condition) => ({
             abort: condition.abort,
+            desc: condition.desc,
             custom: condition.custom ? { ...condition.custom } : undefined,
             root: createNode(condition.root),
         }));

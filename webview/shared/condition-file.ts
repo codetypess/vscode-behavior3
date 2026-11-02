@@ -96,10 +96,11 @@ export const buildConditionFileTree = (
         return null;
     }
     // Variables and overrides come along so inspector checks and subtree nodes match the host file.
-    // The tree's custom data is the condition item's own `custom`.
+    // The tree's description and custom data are the condition item's own `desc` and `custom`.
     return {
         version: hostTree.version,
         name: CONDITION_FILE_TREE_NAME,
+        desc: condition.desc,
         prefix: hostTree.prefix,
         export: hostTree.export,
         group: [...hostTree.group],
@@ -147,10 +148,12 @@ export const readConditionFileWriteBack = (
     conditionTree: PersistedTreeModel
 ): {
     root: PersistedNodeModel;
+    desc: string | undefined;
     custom: ConditionCustom | undefined;
     overrides: PersistedTreeModel["overrides"];
 } => ({
     root: clonePersistedNode(conditionTree.root),
+    desc: conditionTree.desc?.trim() || undefined,
     custom: Object.keys(conditionTree.custom).length
         ? cloneJsonValue(conditionTree.custom)
         : undefined,

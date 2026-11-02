@@ -2798,6 +2798,56 @@ export const documentDomainSharedTests = defineSharedTests([
         },
     },
     {
+        name: "keeps a condition item's own description in files and condition files",
+        run() {
+            const tree = treeWithoutCondition();
+            tree.root.children = [
+                {
+                    uuid: "host",
+                    id: "2",
+                    name: "Attack",
+                    conditions: [
+                        {
+                            abort: "none",
+                            desc: "enemy in range",
+                            root: { uuid: "guard", id: "3", name: "Check", desc: "range check" },
+                        },
+                    ],
+                },
+            ];
+            const reloaded = parsePersistedTreeContent(
+                serializePersistedTree(tree),
+                "/tmp/main.json"
+            );
+            const condition = reloaded.root.children?.[0].conditions?.[0];
+            assert.equal(condition?.desc, "enemy in range");
+            assert.equal(condition?.root.desc, "range check");
+
+            // A condition file's tree description is the item's description.
+            const fileTree = buildConditionFileTree(reloaded, "host", "guard");
+            assert.equal(fileTree?.desc, "enemy in range");
+            fileTree!.desc = "  enemy close  ";
+            const nodeDefs: NodeDef[] = [
+                { name: "Check", type: "Condition", desc: "", status: ["success", "failure"] },
+            ];
+            const written = reduceDocumentMutation(
+                {
+                    type: "setConditionRoot",
+                    payload: {
+                        hostStableId: "host",
+                        index: 0,
+                        ...readConditionFileWriteBack(fileTree!),
+                    },
+                },
+                { tree: reloaded, nodeDefs }
+            );
+            assert.equal(written.status, "changed");
+            if (written.status === "changed") {
+                assert.equal(written.tree.root.children?.[0].conditions?.[0].desc, "enemy close");
+            }
+        },
+    },
+    {
         name: "writes a condition file back into its own item",
         run() {
             const tree = createTestTree();

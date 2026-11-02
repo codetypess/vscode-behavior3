@@ -1163,8 +1163,10 @@ const reduceSetConditionRoot = (
         context.customFields?.condition ?? [],
         host.id
     );
+    const desc = mutation.payload.desc?.trim() || undefined;
     if (
         isJsonEqual(condition.root, root) &&
+        condition.desc === desc &&
         isJsonEqual(condition.custom ?? {}, custom ?? {}) &&
         isJsonEqual(context.tree.overrides, overrides)
     ) {
@@ -1182,6 +1184,7 @@ const reduceSetConditionRoot = (
     const nextHost = findPersistedNodeByStableId(tree.root, hostStableId);
     nextHost!.conditions![index] = {
         ...nextHost!.conditions![index],
+        desc,
         custom: custom && Object.keys(custom).length ? cloneJsonValue(custom) : undefined,
         root: clonePersistedNode(root),
     };

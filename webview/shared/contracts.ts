@@ -332,6 +332,7 @@ export interface MoveConditionInput {
 export interface SetConditionRootInput {
     hostStableId: string;
     index: number;
+    desc?: string;
     root: PersistedNodeModel;
     custom?: ConditionData<PersistedNodeModel>["custom"];
     overrides: PersistedTreeModel["overrides"];

@@ -31,6 +31,7 @@ interface MaterializeContext {
 
 export interface MaterializedCondition {
     abort: AbortMode;
+    desc?: string;
     custom?: ConditionCustom;
     root: MaterializedTreeNode;
 }
@@ -80,6 +81,7 @@ const applyPatchIfAny = (
     if (patch.conditions !== undefined) {
         node.conditions = patch.conditions.map((condition) => ({
             abort: condition.abort,
+            desc: condition.desc,
             custom: condition.custom ? { ...condition.custom } : undefined,
             root: clonePersistedNode(condition.root),
         }));
@@ -350,6 +352,7 @@ export const materializePersistedTree = (params: {
             ? []
             : (sourceNode.conditions ?? []).map((condition) => ({
                   abort: condition.abort,
+                  desc: condition.desc,
                   custom: condition.custom ? { ...condition.custom } : undefined,
                   root: resolveNode(condition.root, conditionContext),
               }));

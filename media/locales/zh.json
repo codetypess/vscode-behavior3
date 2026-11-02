@@ -162,6 +162,7 @@
   "condition.fileItemRemoved": "这项条件已在宿主文件里被移除，标签页里的编辑将被丢弃。",
   "condition.fileItemRemovedSave": "这项条件已在宿主文件里被移除，修改无法保存回去。",
   "condition.custom": "自定义数据",
+  "condition.treeProps": "树属性",
   "condition.abort": "打断模式",
   "condition.onRoot": "根节点不能挂条件；子树需要条件时，挂在主树里引用它的节点上",
   "condition.abortNeedsPreemptive": "父节点 {{parent}} 不支持抢占，不能使用 {{abort}}",

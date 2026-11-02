@@ -335,6 +335,7 @@ const normalizeConditions = (
         const custom = normalizeCustomRecord(record.custom, `${itemLabel}.custom`);
         return {
             abort,
+            desc: asOptionalString(record.desc) || undefined,
             custom: Object.keys(custom).length > 0 ? custom : undefined,
             root: normalizeNodeData(record.root, `${itemLabel}.root`, stableIdSeed),
         };

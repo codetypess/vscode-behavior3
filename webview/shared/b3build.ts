@@ -1053,6 +1053,7 @@ const materializedNodeToExpandedTreeData = (node: MaterializedTreeNode): NodeDat
         conditions: node.conditions.length
             ? node.conditions.map((condition) => ({
                   abort: condition.abort,
+                  desc: condition.desc,
                   custom: condition.custom ? { ...condition.custom } : undefined,
                   root: materializedNodeToExpandedTreeData(condition.root),
               }))
@@ -1114,6 +1115,7 @@ export const createFileDataWithContext = (
     if (data.conditions?.length) {
         nodeData.conditions = data.conditions.map((condition) => ({
             abort: condition.abort,
+            desc: condition.desc,
             custom:
                 condition.custom && Object.keys(condition.custom).length > 0
                     ? { ...condition.custom }

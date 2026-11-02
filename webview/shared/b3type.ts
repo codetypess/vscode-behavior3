@@ -20,6 +20,8 @@ export type ConditionCustom = Record<string, string | number | boolean | object>
 /** One entry of a node's `conditions`. `root` is a condition tree, not a child of the host. */
 export interface ConditionData<TNode> {
     abort: AbortMode;
+    /** What this condition is for; editor-only, the runtime ignores it. */
+    desc?: string;
     /** Editor-defined data; the runtime ignores it. */
     custom?: ConditionCustom;
     root: TNode;
