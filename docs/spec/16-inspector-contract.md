@@ -192,6 +192,7 @@ Inspector 暴露同一组 project/document quick actions，但承载位置随模
 ### Editable Core Fields
 
 - `name` 可通过 nodeDefs 自动补全切换节点类型
+- `name` 的校验：名字为空或改成不存在的节点时报「节点不存在」；`selectedNode.inConditionTree`（条件文件里、自己和祖先都没禁用）且名字对应的定义是 `deferred` 时报「不能放在条件树里」，规则见 `17-editor-semantics.md` 的条件树里的 deferred 节点
 - Inspector 发起任意节点更新时，若当前目标 `nodeDef` 不再声明旧 `input`、`output` 或 `args`，该次提交必须裁剪这些陈旧字段，且不得顺带补齐新的默认字段或空槽位
 - `desc`、`debug`、`disabled` 可编辑
 - `path` 可编辑 subtree link；subtree 内部节点自身不允许再改 path

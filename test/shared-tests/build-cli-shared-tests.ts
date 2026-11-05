@@ -1915,6 +1915,105 @@ export const buildCliSharedTests = defineSharedTests([
         },
     },
     {
+        name: "fails the build when a condition tree has an enabled deferred node",
+        async run() {
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-deferred-check-"));
+            const treeFile = path.join(root, "main.json");
+            const outputDir = path.join(root, "dist");
+            const writeJson = (file: string, value: unknown) =>
+                fs.writeFileSync(file, JSON.stringify(value), "utf-8");
+            const listen = (uuid: string, disabled?: boolean) => ({
+                uuid,
+                id: "",
+                name: "Listen",
+                disabled,
+                args: { event: "e" },
+                children: [{ uuid: `${uuid}-log`, id: "", name: "Log" }],
+            });
+            const build = async (rootNode: unknown) => {
+                writeJson(treeFile, { version: "2.8.0", name: "main", root: rootNode });
+                const errors: string[] = [];
+                const result = await buildBehaviorProject({
+                    projectPath: treeFile,
+                    outputDir,
+                    logger: {
+                        log() {},
+                        info() {},
+                        debug() {},
+                        warn() {},
+                        error: (...args: unknown[]) => errors.push(args.join(" ")),
+                    },
+                } as Parameters<typeof buildBehaviorProject>[0]);
+                return { hasError: result.hasError, errors: errors.join("\n") };
+            };
+            const guarded = (conditionRoot: unknown) => ({
+                uuid: "r",
+                id: "",
+                name: "Sequence",
+                children: [
+                    {
+                        uuid: "host",
+                        id: "",
+                        name: "Log",
+                        conditions: [{ abort: "none", root: conditionRoot }],
+                    },
+                ],
+            });
+            const sequence = (uuid: string, children: unknown[], disabled?: boolean) => ({
+                uuid,
+                id: "",
+                name: "Sequence",
+                disabled,
+                children,
+            });
+
+            try {
+                writeJson(path.join(root, "workspace.b3-workspace"), { settings: {} });
+                writeJson(path.join(root, "node-config.b3-setting"), [
+                    { name: "Sequence", type: "Composite", desc: "", children: -1 },
+                    {
+                        name: "Listen",
+                        type: "Decorator",
+                        desc: "",
+                        children: 1,
+                        deferred: true,
+                        args: [{ name: "event", type: "string", desc: "" }],
+                    },
+                    { name: "Log", type: "Action", desc: "" },
+                ]);
+
+                // outside a condition tree a deferred node is fine
+                const outside = await build(sequence("r", [listen("l")]));
+                assert.equal(outside.hasError, false, outside.errors);
+
+                const inCondition = await build(guarded(sequence("c", [listen("l")])));
+                assert.equal(inCondition.hasError, true);
+                assert.match(
+                    inCondition.errors,
+                    /\|Listen: 'Listen' is deferred, not allowed in a condition tree/
+                );
+
+                const asConditionRoot = await build(guarded(listen("l")));
+                assert.equal(asConditionRoot.hasError, true);
+                assert.match(asConditionRoot.errors, /'Listen' is deferred/);
+
+                // a disabled node, or one under a disabled node, is not created by the runtime
+                const disabled = await build(
+                    guarded(
+                        sequence("c", [
+                            listen("l1", true),
+                            sequence("s", [listen("l2")], true),
+                            { uuid: "ok", id: "", name: "Log" },
+                        ])
+                    )
+                );
+                assert.equal(disabled.hasError, false, disabled.errors);
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+    },
+    {
         name: "recomputes customField hooks after build renumbering",
         async run() {
             const root = fs.mkdtempSync(path.join(os.tmpdir(), "behavior3-custom-field-build-"));

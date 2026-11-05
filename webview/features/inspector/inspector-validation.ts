@@ -18,6 +18,8 @@ export const formatValidationDiagnostic = (diagnostic: TreeValidationDiagnostic)
             return i18n.t("node.invalidExpression");
         case "group-not-enabled":
             return i18n.t("node.groupNotEnabled", { group: diagnostic.groups.join(", ") });
+        case "deferred-in-condition":
+            return i18n.t("node.deferredInCondition", { name: diagnostic.nodeName });
         case "required-arg":
             return i18n.t("fieldRequired", { field: diagnostic.label });
         case "required-input":

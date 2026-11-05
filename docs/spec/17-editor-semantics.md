@@ -172,6 +172,14 @@
 - 画布、节点 Inspector 和构建用同一个判断（`isNodeGroupEnabled`），结论一致；`usingGroups` 只记树自己的分组，不包含自动启用的 `Core`
 - 没有声明 `group` 的节点在两种模式下都合法
 
+## 条件树里的 deferred 节点
+
+- 节点定义的 `deferred: true` 来自 behavior3（`Listen`、`WaitForEvent`、`Delay`、`RunTree` 等）：每次执行都注册回调或到运行时才加载别的树。条件可能被反复求值，运行时加载时条件树里有启用的 `deferred` 节点就报错
+- 条件文件里，自己和祖先都没有禁用的 `deferred` 节点报 `deferred-in-condition`：画布标红，节点 Inspector 的名称字段提示。只报错，不拦截编辑；禁用后错误消失。子树引用展开后的节点同样检查
+- 宿主树的画布不展开条件树，不在宿主上标记
+- 构建检查条件树时，启用的 `deferred` 节点报 `'<name>' is deferred, not allowed in a condition tree`，构建失败；被禁用的节点和它下面的节点、被禁用的条件根不报
+- 画布、节点 Inspector 用 `isActiveInConditionFile` 判断节点是否在条件树里生效，构建按同样的规则往下传
+
 ## 文档变更命令
 
 ### `updateTreeMeta(payload)`
@@ -349,6 +357,7 @@ host reducer 当前分三条路径：
 - 只是把 build 请求交给宿主
 - 结果通过 `buildResult` 回推
 - 宿主执行 build 时，进程当前工作目录必须切换到解析出的行为树项目目录，也就是命中的 `*.b3-workspace` 所在目录；如果该目录经过符号链接进入，宿主必须先把已有文件路径规范化到同一个 canonical filesystem path，再让 build script 观察 `process.cwd()` 与 build context `workdir` 保持一致，而不是一个是 lexical path、另一个是 real path
+- 条件树里启用的 `deferred` 节点构建报错，见「条件树里的 deferred 节点」
 - 树的根节点不能挂条件，已有的构建报错（`conditions are not allowed on the root node; attach them where the tree is referenced`）
 - `lower` / `both` 要靠父节点在右侧兄弟运行时检查，所以只在父节点声明 `preemptive: true` 时有效。不能生效的 `abort` 一律按错误处理（运行时只会给 warning，然后这项条件只在进入节点时检查，容易被忽略）。构建检查节点时对每项这样的条件报错（`condition abort '<abort>' needs a preemptive parent, '<parent>' is not preemptive`），构建失败
 - 构建在重新编号、加前缀之后，用 `@behavior3.customField` 钩子重新计算条件里的 `script` 字段（`reason: "build"`，每个展开实例各算一次，只写进产物）；钩子缺失或出错时构建失败

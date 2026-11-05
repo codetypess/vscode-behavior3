@@ -11,7 +11,11 @@ import type {
     ResolvedGraphModel,
     VarDecl,
 } from "../shared/contracts";
-import { getAbortModeViolation, isConditionOnRoot } from "../shared/condition-branch";
+import {
+    getAbortModeViolation,
+    isActiveInConditionFile,
+    isConditionOnRoot,
+} from "../shared/condition-branch";
 import { stringifyCompactJson5, stringifySearchValueAsJson5 } from "../shared/json";
 import { hasNodeOverrideDiff } from "../shared/node-overrides";
 import { createNodeDefMap, findNodeDef } from "../shared/node-utils";
@@ -77,6 +81,8 @@ export const buildResolvedGraphModel = (
         strictGroup?: boolean;
         checkExpr: boolean;
         nodeFieldDiagnostics?: Record<string, NodeFieldDiagnostic[]>;
+        /** The document is a condition file: its nodes are a condition tree. */
+        conditionFile?: boolean;
     }
 ): ResolvedGraphModel => {
     const defsByName = createNodeDefMap(nodeDefs);
@@ -96,6 +102,11 @@ export const buildResolvedGraphModel = (
                 usingGroups: validation?.usingGroups ?? null,
                 strictGroup: validation?.strictGroup ?? false,
                 checkExpr: validation?.checkExpr ?? false,
+                inConditionTree: isActiveInConditionFile(
+                    graph,
+                    node,
+                    validation?.conditionFile ?? false
+                ),
             }).length > 0 || customDiagnostics.length > 0;
         const nodeStyleKind =
             node.resolutionError || invalid ? "Error" : def ? getNodeType(def) : "Error";

@@ -307,6 +307,7 @@ const normalizeNodeDef = (value: unknown, label: string): NodeDef => {
         status,
         children: childrenValue as NodeDef["children"],
         preemptive: record.preemptive === true ? true : undefined,
+        deferred: record.deferred === true ? true : undefined,
     };
 };
 

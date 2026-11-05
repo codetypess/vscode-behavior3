@@ -142,6 +142,8 @@ const formatBuildDiagnostic = (diagnostic: TreeValidationDiagnostic): string => 
             return `expr '${diagnostic.expression}' is not valid`;
         case "group-not-enabled":
             return `node group '${diagnostic.groups.join(", ")}' is not enabled`;
+        case "deferred-in-condition":
+            return `'${diagnostic.nodeName}' is deferred, not allowed in a condition tree`;
         case "required-arg":
             return `arg field '${diagnostic.label}' is required`;
         case "required-input":
@@ -229,7 +231,9 @@ const checkNodeDataWithState = (
     >,
     /** `null` for the tree root and for condition roots. */
     parent: NodeData | null = null,
-    isTreeRoot = true
+    isTreeRoot = true,
+    /** The node is in a condition tree and no node on the way down from its root is disabled. */
+    inConditionTree = false
 ) => {
     if (!data) {
         return false;
@@ -244,6 +248,10 @@ const checkNodeDataWithState = (
     let hasError = false;
     if (!isNodeGroupEnabled(conf.group, state.usingGroups, state.strictGroup)) {
         error(`node group '${conf.group}' is not enabled`);
+        hasError = true;
+    }
+    if (inConditionTree && conf.deferred) {
+        error(formatBuildDiagnostic({ code: "deferred-in-condition", nodeName: data.name }));
         hasError = true;
     }
 
@@ -385,14 +393,25 @@ const checkNodeDataWithState = (
                       },
                   }
                 : state;
-        if (!checkNodeDataWithState(condition.root, printer, conditionState, null, false)) {
+        const conditionRootActive = !condition.root.disabled;
+        if (
+            !checkNodeDataWithState(
+                condition.root,
+                printer,
+                conditionState,
+                null,
+                false,
+                conditionRootActive
+            )
+        ) {
             hasError = true;
         }
     }
 
     if (data.children) {
         for (const child of data.children) {
-            if (!checkNodeDataWithState(child, printer, state, data)) {
+            const childInConditionTree = inConditionTree && !child.disabled;
+            if (!checkNodeDataWithState(child, printer, state, data, true, childInConditionTree)) {
                 hasError = true;
             }
         }

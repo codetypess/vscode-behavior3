@@ -145,6 +145,8 @@ export interface EditNode {
     conditionCount?: number;
     /** The parent `lower`/`both` conditions rely on; `null` for the root. */
     conditionParent?: { name: string; preemptive?: boolean } | null;
+    /** The node runs in the condition tree of a condition file, so it can't be `deferred`. */
+    inConditionTree?: boolean;
 }
 
 export interface DocumentState {

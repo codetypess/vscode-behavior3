@@ -187,15 +187,12 @@ const NodeMetaFields: React.FC<{
                                     t("node.notFound", { name: selectedNode.data.name })
                                 );
                             }
-                            if (nextName === selectedNode.data.name) {
-                                return;
+                            const nextDef = findNodeDef(nodeDefMap, nextName);
+                            if (nextName !== selectedNode.data.name && !nextDef) {
+                                throw new Error(t("node.notFound", { name: nextName }));
                             }
-                            if (!findNodeDef(nodeDefMap, nextName)) {
-                                throw new Error(
-                                    t("node.notFound", {
-                                        name: nextName || selectedNode.data.name,
-                                    })
-                                );
+                            if (selectedNode.inConditionTree && nextDef?.deferred) {
+                                throw new Error(t("node.deferredInCondition", { name: nextName }));
                             }
                         },
                     },

@@ -27,7 +27,7 @@ import type {
 } from "../shared/contracts";
 import type { GraphAdapter } from "../shared/graph-contracts";
 import { parseWorkdirRelativeJsonPath } from "../shared/protocol";
-import { readAbortMode } from "../shared/condition-branch";
+import { isActiveInConditionFile, readAbortMode } from "../shared/condition-branch";
 import { createNodeDefMap, findNodeDef, parseSlotDefinition } from "../shared/node-utils";
 import {
     cloneJsonValue,
@@ -228,6 +228,11 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
                 resolvedGraph,
                 node,
                 createNodeDefMap(deps.workspaceStore.getState().nodeDefs)
+            ),
+            inConditionTree: isActiveInConditionFile(
+                resolvedGraph,
+                node,
+                deps.workspaceStore.getState().settings.conditionFile
             ),
         };
     };
@@ -887,6 +892,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
                     strictGroup: workspace.settings.strictGroup,
                     checkExpr: workspace.settings.checkExpr,
                     nodeFieldDiagnostics,
+                    conditionFile: workspace.settings.conditionFile,
                 }
             ),
             anchorNodeKey ? { anchorNodeKey } : undefined

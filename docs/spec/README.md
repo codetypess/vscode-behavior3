@@ -38,13 +38,14 @@
 当前 `docs/spec` 包含：
 
 - 11 份编号基线 spec
-- 1 份进行中的 work-item spec：
+- 2 份进行中的 work-item spec：
     - [`visible-expression-field-errors.md`](visible-expression-field-errors.md)（Implementing）
+    - [`condition-deferred-nodes.md`](condition-deferred-nodes.md)（Verifying）
 - 1 份已实现、基线已同步的 work-item spec：
     - [`node-conditions.md`](node-conditions.md)（Implemented）
 - 1 份长期保留的实施顺序文档：[`90-implementation-plan.md`](90-implementation-plan.md)
 
-当前有 1 份仍在推进中的 work-item；需要新的 non-trivial 任务时，再新增对应 `docs/spec/<slug>.md`。
+当前有 2 份仍在推进中的 work-item；需要新的 non-trivial 任务时，再新增对应 `docs/spec/<slug>.md`。
 
 这里不是完整历史档案。纯机械整理、模块拆分、重命名、helper 收口这类 work-item，在长期规则已经同步进编号基线后，可以直接删除，不需要长期保留。
 

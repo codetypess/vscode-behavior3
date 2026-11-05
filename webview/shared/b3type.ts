@@ -4,6 +4,8 @@ import type { NodeDef as Behavior3NodeDef } from "behavior3";
 export interface NodeDef<GroupType extends string = string> extends Behavior3NodeDef<GroupType> {
     /** Composite whose left-to-right order is priority, so children may use `lower`/`both` aborts. */
     preemptive?: boolean;
+    /** Registers a callback or loads another tree when ticked, so it can't be in a condition tree. */
+    deferred?: boolean;
 }
 export type NodeType = NodeDef["type"] | "Other" | "Error";
 export type NodeArg = Exclude<NodeDef["args"], undefined>[number];

@@ -130,6 +130,7 @@
   "node.editFailed": "Node '{{name}}' edit failed",
   "node.group": "Node group",
   "node.groupNotEnabled": "One of '{{group}}' node group is not enabled in current file",
+  "node.deferredInCondition": "'{{name}}' is a deferred node and can't be in a condition tree: a condition may be evaluated many times, registering again each time",
   "node.id": "Node id",
   "node.inputVariable": "Input variables",
   "node.invalidChildren": "Invalid number of children",

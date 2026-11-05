@@ -1,5 +1,11 @@
 import { ABORT_MODES, DEFAULT_ABORT_MODE, type AbortMode, type ConditionData } from "./b3type";
-import type { NodeDef, PersistedNodeModel, PersistedTreeModel } from "./contracts";
+import type {
+    NodeDef,
+    PersistedNodeModel,
+    PersistedTreeModel,
+    ResolvedDocumentGraph,
+    ResolvedNodeModel,
+} from "./contracts";
 import { findNodeDef, createNodeDefMap } from "./node-utils";
 
 export type ConditionBranchViolation = "nested-condition" | "running-status";
@@ -30,6 +36,30 @@ export const treeUsesConditions = (tree: {
         return true;
     }
     return Object.values(tree.overrides ?? {}).some((entry) => Boolean(entry?.conditions?.length));
+};
+
+/**
+ * True when `node` runs as part of the condition tree of a condition file: neither it nor an
+ * ancestor is disabled (the runtime doesn't create a disabled node or its children).
+ */
+export const isActiveInConditionFile = (
+    graph: Pick<ResolvedDocumentGraph, "nodesByInstanceKey">,
+    node: Pick<ResolvedNodeModel, "parentKey" | "disabled">,
+    conditionFile: boolean
+): boolean => {
+    if (!conditionFile) {
+        return false;
+    }
+    for (
+        let current: Pick<ResolvedNodeModel, "parentKey" | "disabled"> | undefined = node;
+        current;
+        current = current.parentKey ? graph.nodesByInstanceKey[current.parentKey] : undefined
+    ) {
+        if (current.disabled) {
+            return false;
+        }
+    }
+    return true;
 };
 
 /**

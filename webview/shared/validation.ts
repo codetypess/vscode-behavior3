@@ -44,6 +44,7 @@ export type NodeArgValueExpected =
 export type TreeValidationDiagnostic =
     | { code: "missing-node-def"; nodeName: string }
     | { code: "group-not-enabled"; nodeName: string; groups: string[] }
+    | { code: "deferred-in-condition"; nodeName: string }
     | { code: "invalid-variable-name"; field: "input" | "output"; variable: string }
     | { code: "undefined-variable"; field: "input" | "output" | "args"; variable: string }
     | { code: "invalid-expression"; field: "args"; expression: string }
@@ -348,8 +349,18 @@ export const collectResolvedNodeDiagnostics = (params: {
     usingGroups: Record<string, boolean> | null;
     strictGroup?: boolean;
     checkExpr: boolean;
+    /** The node runs in a condition tree, where a `deferred` node is not allowed. */
+    inConditionTree?: boolean;
 }): TreeValidationDiagnostic[] => {
-    const { node, def, usingVars, usingGroups, strictGroup = false, checkExpr } = params;
+    const {
+        node,
+        def,
+        usingVars,
+        usingGroups,
+        strictGroup = false,
+        checkExpr,
+        inConditionTree = false,
+    } = params;
     const diagnostics: TreeValidationDiagnostic[] = [];
 
     if (node.resolutionError) {
@@ -367,6 +378,10 @@ export const collectResolvedNodeDiagnostics = (params: {
             nodeName: node.name,
             groups: def.group ?? [],
         });
+    }
+
+    if (inConditionTree && def.deferred) {
+        diagnostics.push({ code: "deferred-in-condition", nodeName: node.name });
     }
 
     for (const value of node.input ?? []) {

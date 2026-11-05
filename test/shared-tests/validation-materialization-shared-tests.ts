@@ -70,6 +70,107 @@ export const validationMaterializationSharedTests = defineSharedTests([
         },
     },
     {
+        name: "keeps deferred in parsed node definitions",
+        run() {
+            const [listen, log] = parseNodeDefsContent(
+                JSON.stringify([
+                    { name: "Listen", type: "Decorator", desc: "", deferred: true },
+                    { name: "Log", type: "Action", desc: "", deferred: "yes" },
+                ])
+            );
+            assert.equal(listen?.deferred, true);
+            assert.equal(log?.deferred, undefined);
+        },
+    },
+    {
+        name: "reports deferred nodes only in a condition tree",
+        run() {
+            const listen: NodeDef = { name: "Listen", type: "Decorator", desc: "", deferred: true };
+            const log: NodeDef = { name: "Log", type: "Action", desc: "" };
+            const collect = (def: NodeDef, inConditionTree: boolean) =>
+                collectResolvedNodeDiagnostics({
+                    node: { name: def.name },
+                    def,
+                    usingVars: null,
+                    usingGroups: null,
+                    checkExpr: false,
+                    inConditionTree,
+                }).map((entry) => entry.code);
+
+            assert.deepEqual(collect(listen, true), ["deferred-in-condition"]);
+            assert.deepEqual(collect(listen, false), []);
+            assert.deepEqual(collect(log, true), []);
+        },
+    },
+    {
+        name: "marks enabled deferred nodes red in a condition file",
+        run() {
+            const graphNode = (
+                key: string,
+                name: string,
+                parentKey: string | null,
+                childKeys: string[] = [],
+                disabled?: boolean
+            ) => ({
+                ref: {
+                    instanceKey: key,
+                    displayId: key,
+                    structuralStableId: `n${key}`,
+                    sourceStableId: `n${key}`,
+                    sourceTreePath: null,
+                    subtreeStack: [],
+                },
+                parentKey,
+                childKeys,
+                depth: parentKey ? 1 : 0,
+                renderedIdLabel: key,
+                name,
+                disabled,
+                subtreeNode: false,
+                subtreeEditable: true,
+                attachedConditionNames: [],
+            });
+            // 1 Sequence: 2 Listen, 3 Listen (disabled), 4 Sequence (disabled): 5 Listen
+            const graph = {
+                rootKey: "1",
+                nodeOrder: ["1", "2", "3", "4", "5"],
+                nodesByInstanceKey: {
+                    "1": graphNode("1", "Sequence", null, ["2", "3", "4"]),
+                    "2": graphNode("2", "Listen", "1"),
+                    "3": graphNode("3", "Listen", "1", [], true),
+                    "4": graphNode("4", "Sequence", "1", ["5"], true),
+                    "5": graphNode("5", "Listen", "4"),
+                },
+            };
+            const defs: NodeDef[] = [
+                { name: "Sequence", type: "Composite", desc: "", children: -1 },
+                { name: "Listen", type: "Decorator", desc: "", deferred: true },
+            ];
+            const styles = (conditionFile: boolean) =>
+                buildResolvedGraphModel(graph, defs, undefined, {
+                    usingVars: null,
+                    usingGroups: null,
+                    checkExpr: false,
+                    conditionFile,
+                }).nodes.map((node) => node.nodeStyleKind);
+
+            assert.deepEqual(styles(true), [
+                "Composite",
+                "Error",
+                "Decorator",
+                "Composite",
+                "Decorator",
+            ]);
+            assert.deepEqual(styles(false), [
+                "Composite",
+                "Decorator",
+                "Decorator",
+                "Composite",
+                "Decorator",
+            ]);
+        },
+    },
+    {
         name: "skips variable declaration checks when none are declared",
         run() {
             const graphModel = buildResolvedGraphModel(
