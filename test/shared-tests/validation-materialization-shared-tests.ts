@@ -646,8 +646,8 @@ export const validationMaterializationSharedTests = defineSharedTests([
             tree.root.children = [{ uuid: "child", id: "2", name: "JustSuccess" }];
 
             for (const [event, expectedStyle] of [
-                ["treeAfterTicked1", "Error"],
-                ["treeAfterTicked", "Decorator"],
+                ["treeTicked1", "Error"],
+                ["treeTicked", "Decorator"],
             ]) {
                 tree.root.args = { event };
                 const { graph } = resolveDocumentGraph({

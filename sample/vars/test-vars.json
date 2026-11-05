@@ -119,7 +119,7 @@
       },
       {
         "args": {
-          "event": "treeTickedFailure"
+          "event": "treeTicked"
         },
         "id": "17",
         "name": "Listen",
