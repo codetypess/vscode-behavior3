@@ -171,12 +171,11 @@ Inspector 暴露同一组 project/document quick actions，但承载位置随模
 7. `debug`
 8. `disabled`
 9. `path`
-10. nodeDef markdown doc（若存在，且当前不在 JSON 视图）
-11. input slots（若当前不在 JSON 视图）
+10. input slots（若当前不在 JSON 视图）
+11. structured args（若当前不在 JSON 视图）；JSON 视图时为 raw node JSON view
 12. output slots（若当前不在 JSON 视图）
-13. structured args（若当前不在 JSON 视图）
-14. raw node JSON view
-15. edit subtree action（仅可打开 subtree 的节点）
+13. nodeDef markdown doc（若存在，且当前不在 JSON 视图）：放在输出变量下面，不挡住要编辑的字段；和其他区块一样带分隔标题「节点文档」
+14. edit subtree action（仅可打开 subtree 的节点）
 
 ### Readonly Meta
 

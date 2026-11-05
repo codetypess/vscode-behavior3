@@ -142,6 +142,7 @@
   "node.oneof.error": "输入项 “{{input}}” 和参数 “{{desc}}({{arg}})” 之中，只能选择设置其中之一",
   "node.oneof.inputNotfound": "输入项“{{input}}”不存在",
   "node.outputVariable": "输出变量",
+  "node.doc": "节点文档",
   "node.pasteDataError": "粘贴数据出错",
   "node.rootNodeAsSubtree": "根节点不能保存为子树",
   "node.subtree": "子树",

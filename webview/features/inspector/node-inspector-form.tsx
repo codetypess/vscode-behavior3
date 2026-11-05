@@ -47,7 +47,6 @@ const NodeMetaFields: React.FC<{
     fieldEditDisabled: boolean;
     readOnly: boolean;
     canShowOverride: boolean;
-    showNodeDoc: boolean;
     subtreeOriginal: ReturnType<typeof useNodeInspectorViewState>["subtreeOriginal"];
     onCommitName: () => void;
     onQueueCommitName: () => void;
@@ -69,7 +68,6 @@ const NodeMetaFields: React.FC<{
     fieldEditDisabled,
     readOnly,
     canShowOverride,
-    showNodeDoc,
     subtreeOriginal,
     onCommitName,
     onQueueCommitName,
@@ -286,10 +284,6 @@ const NodeMetaFields: React.FC<{
                     onSelect={onQueueCommitPath}
                 />
             </Form.Item>
-
-            {showNodeDoc && nodeDef?.doc ? (
-                <ReactMarkdown className="b3-markdown">{nodeDef.doc}</ReactMarkdown>
-            ) : null}
         </>
     );
 };
@@ -598,7 +592,6 @@ export const NodeInspectorForm: React.FC = () => {
                     fieldEditDisabled={fieldEditDisabled}
                     readOnly={effectiveReadOnly}
                     canShowOverride={canShowOverride}
-                    showNodeDoc={!showRawNodeJson}
                     subtreeOriginal={subtreeOriginal}
                     onCommitName={commitName}
                     onQueueCommitName={commitName}
@@ -666,6 +659,13 @@ export const NodeInspectorForm: React.FC = () => {
                     onCommit={commitOutputField}
                     onQueueCommit={commitOutputField}
                 />
+
+                {!showRawNodeJson && nodeDef?.doc ? (
+                    <>
+                        <SectionDivider>{t("node.doc")}</SectionDivider>
+                        <ReactMarkdown className="b3-markdown">{nodeDef.doc}</ReactMarkdown>
+                    </>
+                ) : null}
 
                 {canOpenSubtree ? (
                     <Button

@@ -143,6 +143,7 @@
   "node.oneof.error": "Only one is allowed between input '{{input}}' and argument '{{desc}}({{arg}})'",
   "node.oneof.inputNotfound": "Input '{{input}}' not found",
   "node.outputVariable": "Output variables",
+  "node.doc": "Node doc",
   "node.pasteDataError": "Paste data error",
   "node.rootNodeAsSubtree": "Root node cann't be save as subtree",
   "node.subtree": "Subtree",
