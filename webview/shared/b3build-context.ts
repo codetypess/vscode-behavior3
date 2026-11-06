@@ -36,6 +36,7 @@ const unknownNodeDef: NodeDef = {
     name: "unknown",
     desc: "",
     type: "Action",
+    group: [],
 };
 
 type BuildAlertHandler = (msg: string, duration?: number) => void;

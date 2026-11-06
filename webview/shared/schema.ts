@@ -268,9 +268,10 @@ const normalizeNodeDef = (value: unknown, label: string): NodeDef => {
     }
 
     const groupValue = record.group;
+    // behavior3 requires `group`; a node config without one has no groups.
     const group =
         groupValue === undefined
-            ? undefined
+            ? []
             : Array.isArray(groupValue)
               ? groupValue.map((entry, index) =>
                     asRequiredString(entry, `${nodeLabel}.group[${index}]`)

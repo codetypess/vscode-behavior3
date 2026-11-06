@@ -6,7 +6,7 @@
   "publisher": "codetypess",
   "repository": {
     "type": "git",
-    "url": "https://github.com/codetypess/vscode-behavior3"
+    "url": "git+https://github.com/codetypess/vscode-behavior3.git"
   },
   "keywords": [
     "behavior3",
@@ -16,7 +16,7 @@
     "game-ai"
   ],
   "bin": {
-    "behavior3-build": "./dist/build-cli.js"
+    "behavior3-build": "dist/build-cli.js"
   },
   "exports": {
     "./build": {
