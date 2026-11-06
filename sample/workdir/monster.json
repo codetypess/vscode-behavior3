@@ -6,7 +6,8 @@
   "export": true,
   "group": [
     "Core",
-    "Test"
+    "Test",
+    "Example"
   ],
   "name": "monster",
   "overrides": {
@@ -67,7 +68,8 @@
                   "maintainPriority": 8
                 },
                 "root": {
-                  "id": "9",
+                  "desc": "依次执行子节点",
+                  "id": "8.1-1",
                   "name": "Sequence",
                   "uuid": "bZTL93cEDr"
                 }
@@ -90,7 +92,7 @@
           "message": "Run!"
         },
         "desc": "逃跑",
-        "id": "12",
+        "id": "11",
         "name": "Log",
         "uuid": "JSrq3ZHiO1"
       }

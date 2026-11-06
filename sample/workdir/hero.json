@@ -7,7 +7,8 @@
   "group": [
     "Client",
     "Core",
-    "Server"
+    "Server",
+    "Example"
   ],
   "name": "hero",
   "overrides": {
@@ -67,6 +68,21 @@
                   "id": "2.1-2",
                   "name": "Log",
                   "uuid": "bXn4neW77U"
+                },
+                {
+                  "children": [
+                    {
+                      "args": {
+                        "message": "hello"
+                      },
+                      "id": "2.1-4",
+                      "name": "Log",
+                      "uuid": "be0xcTH3BV"
+                    }
+                  ],
+                  "id": "2.1-3",
+                  "name": "Listen",
+                  "uuid": "N1NwP8L5XZ"
                 }
               ],
               "id": "2.1-1",
@@ -159,6 +175,13 @@
         "uuid": "stz3gzpVVn"
       },
       {
+        "children": [
+          {
+            "id": "14",
+            "name": "Listen",
+            "uuid": "NXCjosmFhf"
+          }
+        ],
         "id": "13",
         "name": "Idle",
         "uuid": "wbqne3xYgD"
