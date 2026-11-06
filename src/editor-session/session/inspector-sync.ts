@@ -116,6 +116,7 @@ export function createSessionInspectorSync(
             usingVars: {},
             importDecls: [],
             subtreeDecls: [],
+            conditionImportVars: {},
         };
     };
 

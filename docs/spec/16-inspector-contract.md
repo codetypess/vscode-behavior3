@@ -171,11 +171,12 @@ Inspector 暴露同一组 project/document quick actions，但承载位置随模
 7. `debug`
 8. `disabled`
 9. `path`
-10. input slots（若当前不在 JSON 视图）
-11. structured args（若当前不在 JSON 视图）；JSON 视图时为 raw node JSON view
-12. output slots（若当前不在 JSON 视图）
-13. nodeDef markdown doc（若存在，且当前不在 JSON 视图）：放在输出变量下面，不挡住要编辑的字段；和其他区块一样带分隔标题「节点文档」
-14. edit subtree action（仅可打开 subtree 的节点）
+10. 条件（仅节点有条件时）：分隔标题「条件」，按数组顺序每项一行，显示条件图标（和画布卡片同一个 `media/icons/Flush.svg`，跟随文字颜色）、根节点名、说明（根节点的 `desc`，没有时用节点定义的 `desc`）和右侧 `abort`。不合法的一项（判断规则同画布 `attachedConditions.invalid`，见 `15-graph-contract.md`）用错误色边框、底色和文字，悬停提示打开条件文件查看；合法与否按工作区当前的变量、分组和设置实时计算。单击一行选中对应的条件卡片（切到条件面板），双击打开这一项的条件文件
+11. input slots（若当前不在 JSON 视图）
+12. structured args（若当前不在 JSON 视图）；JSON 视图时为 raw node JSON view
+13. output slots（若当前不在 JSON 视图）
+14. nodeDef markdown doc（若存在，且当前不在 JSON 视图）：放在输出变量下面，不挡住要编辑的字段；和其他区块一样带分隔标题「节点文档」
+15. edit subtree action（仅可打开 subtree 的节点）
 
 ### Readonly Meta
 

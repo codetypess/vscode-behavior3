@@ -152,5 +152,11 @@ export const normalizeHostVarsMessage = (
         allFiles: message.allFiles?.map(normalizeWorkdirRelativePath),
         importDecls: (message.importDecls ?? []).map(normalizeImportDecl),
         subtreeDecls: (message.subtreeDecls ?? []).map(normalizeImportDecl),
+        conditionImportVars: Object.fromEntries(
+            Object.entries(message.conditionImportVars ?? {}).map(([importPath, vars]) => [
+                importPath,
+                vars.map((variable) => ({ name: variable.name, desc: variable.desc ?? "" })),
+            ])
+        ),
     };
 };

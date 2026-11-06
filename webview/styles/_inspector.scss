@@ -457,3 +457,77 @@
     background: color-mix(in srgb, var(--ant-color-fill) 72%, transparent);
     white-space: break-spaces;
 }
+
+// The node's condition items, between the meta fields and the input variables.
+.b3-node-condition-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.b3-node-condition-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    height: var(--b3-inspector-control-height);
+    padding: 0 10px;
+    border: 1px solid var(--b3-panel-border);
+    border-radius: 6px;
+    cursor: pointer;
+
+    &:hover {
+        background: var(--b3-filter-hover-bg);
+    }
+
+    &:focus-visible {
+        outline: 1px solid var(--b3-node-focus-color);
+        outline-offset: -1px;
+    }
+}
+
+.b3-node-condition-icon {
+    flex: 0 0 auto;
+    width: 14px;
+    height: 14px;
+    background-color: currentColor;
+    mask: var(--b3-node-condition-icon-url) center / contain no-repeat;
+    -webkit-mask: var(--b3-node-condition-icon-url) center / contain no-repeat;
+}
+
+.b3-node-condition-name {
+    flex: 0 0 auto;
+    font-weight: 600;
+}
+
+.b3-node-condition-desc {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--b3-text-muted);
+}
+
+.b3-node-condition-abort {
+    flex: 0 0 auto;
+    margin-left: auto;
+    color: var(--b3-text-muted);
+}
+
+.b3-node-condition-item-invalid {
+    --b3-node-condition-error: var(--vscode-errorForeground, var(--ant-color-error, #ff4d4f));
+    border-color: var(--b3-node-condition-error);
+    background: color-mix(in srgb, var(--b3-node-condition-error) 18%, transparent);
+    color: var(--b3-node-condition-error);
+
+    &:hover {
+        background: color-mix(in srgb, var(--b3-node-condition-error) 28%, transparent);
+    }
+
+    .b3-node-condition-desc,
+    .b3-node-condition-abort {
+        color: var(--b3-node-condition-error);
+    }
+}

@@ -52,6 +52,7 @@ export const createInitialWorkspaceState = (): WorkspaceState => ({
     usingGroups: null,
     importDecls: [],
     subtreeDecls: [],
+    conditionImportVars: {},
     subtreeSources: {},
     nodeFieldDiagnostics: {},
     selectedNodeFieldVisibility: { args: {}, input: {}, output: {} },

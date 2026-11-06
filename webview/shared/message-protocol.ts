@@ -164,5 +164,6 @@ export type HostToEditorMessage =
           allFiles?: string[];
           importDecls?: Array<{ path: string; vars: Array<{ name: string; desc: string }> }>;
           subtreeDecls?: Array<{ path: string; vars: Array<{ name: string; desc: string }> }>;
+          conditionImportVars?: Record<string, Array<{ name: string; desc: string }>>;
       }
     | { type: "themeChanged"; theme: "dark" | "light" };

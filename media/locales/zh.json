@@ -129,6 +129,8 @@
   "node.editFailed": "节点 {{name}} 编辑失败",
   "node.group": "节点分组",
   "node.groupNotEnabled": "节点分组 “{{group}}” 任意一个未在当前文件中启用",
+  "node.conditions": "条件",
+  "node.conditionInvalid": "条件不合法，打开条件文件查看",
   "node.deferredInCondition": "“{{name}}” 是 deferred 节点，不能放在条件树里：条件可能被反复求值，每次都会多注册一次",
   "node.id": "节点标识",
   "node.inputVariable": "输入变量",

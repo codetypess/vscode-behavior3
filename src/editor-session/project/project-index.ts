@@ -7,6 +7,7 @@ import {
     collectReachableSubtreePaths,
     collectTransitivePaths,
     parsePersistedTreeContent,
+    walkPersistedNodes,
 } from "../../../webview/shared/tree";
 
 /**
@@ -18,6 +19,8 @@ export interface VarDeclResult {
     usingVars: Record<string, { name: string; desc: string }>;
     importDecls: Array<{ path: string; vars: Array<{ name: string; desc: string }> }>;
     subtreeDecls: Array<{ path: string; vars: Array<{ name: string; desc: string }> }>;
+    /** The variables of each file a condition imports, imports of imports included. */
+    conditionImportVars: Record<string, Array<{ name: string; desc: string }>>;
 }
 
 interface CachedTreeEntry {
@@ -30,6 +33,21 @@ const isSameUri = (left: vscode.Uri, right: vscode.Uri) =>
 
 const collectSubtreePaths = (node: PersistedNodeModel | undefined): string[] =>
     node ? collectReachableSubtreePaths(node) : [];
+
+/** The files the conditions of this tree import, overrides included. */
+const collectConditionImportPaths = (tree: PersistedTreeModel, paths: Set<string>) => {
+    const addImports = (conditions: PersistedNodeModel["conditions"]) => {
+        for (const condition of conditions ?? []) {
+            for (const importPath of condition.variables?.imports ?? []) {
+                paths.add(importPath);
+            }
+        }
+    };
+    walkPersistedNodes(tree.root, (node) => addImports(node.conditions));
+    for (const override of Object.values(tree.overrides ?? {})) {
+        addImports(override.conditions);
+    }
+};
 
 const normalizePathList = (paths: Iterable<string>): string[] => {
     const normalized: string[] = [];
@@ -160,10 +178,27 @@ export class ProjectIndex {
             })
         );
 
+        // Conditions in this tree and in the subtrees it shows are checked on its canvas.
+        const conditionImportPaths = new Set<string>();
+        collectConditionImportPaths(tree, conditionImportPaths);
+        for (const subtreeDecl of subtreeDecls) {
+            const subtree = await this.readTreeFile(subtreeDecl.path);
+            if (subtree) {
+                collectConditionImportPaths(subtree, conditionImportPaths);
+            }
+        }
+        const conditionImportVars: VarDeclResult["conditionImportVars"] = {};
+        for (const importPath of conditionImportPaths) {
+            const vars: Record<string, { name: string; desc: string }> = {};
+            await this.readVarsFromFile(importPath, new Set(), vars);
+            conditionImportVars[importPath] = Object.values(vars);
+        }
+
         return {
             usingVars,
             importDecls,
             subtreeDecls,
+            conditionImportVars,
         };
     }
 

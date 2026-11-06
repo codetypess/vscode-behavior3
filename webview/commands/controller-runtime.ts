@@ -893,6 +893,7 @@ export const createControllerRuntime = (deps: ControllerDeps): ControllerRuntime
                     checkExpr: workspace.settings.checkExpr,
                     nodeFieldDiagnostics,
                     conditionFile: workspace.settings.conditionFile,
+                    conditionImportVars: workspace.conditionImportVars,
                 }
             ),
             anchorNodeKey ? { anchorNodeKey } : undefined

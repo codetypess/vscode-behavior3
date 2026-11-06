@@ -62,7 +62,7 @@ graph adapter 允许保留实现自有的 graph-local 视觉缓存，例如节�
 - `typeLabel`
 - `icon`
 - `nodeStyleKind`
-- `nodeStyleKind` 的 `Error` 包括 resolution error、共享 validation diagnostic（含固定 children 数量不匹配、required / oneof、参数类型和 options 范围等节点约束）和 custom checker diagnostic
+- `nodeStyleKind` 的 `Error` 包括 resolution error、共享 validation diagnostic（含固定 children 数量不匹配、required / oneof、参数类型和 options 范围等节点约束）、custom checker diagnostic，以及任一项条件不合法（`attachedConditions[i].invalid`）
 - options 范围校验与构建、Inspector 复用共享参数值校验器，按节点完整 args 匹配条件 bucket，逐项检查数组参数；修正为合法值后恢复正常节点风格
 - `accentColor`
 - `debug`
@@ -74,8 +74,8 @@ graph adapter 允许保留实现自有的 graph-local 视觉缓存，例如节�
 - `inputs`
 - `outputs`
 - `argsText`
-- `attachedConditions`：每项条件在节点卡片上方画一张卡片，按数组顺序从上到下排列，没有条件时不画。左侧为条件图标（`media/icons/Flush.svg`，`currentColor` 换成白色）和根节点名，不显示「条件」二字和序号；根节点名后面隔 8px 显示根节点的说明（`desc`，没有时用节点定义的 `desc`，和节点卡片的备注规则一样），白色 70% 不透明度，放不下时截断加省略号，剩余宽度不足 24px 时不显示；根节点名和下面节点的标题左对齐（`G6_GRAPH_NODE_CONTENT_X`），图标在它左边 19px 处。图标是 SVG 内联成的 data URL，绘制前把 `currentColor` 改成白色（图片不继承文字颜色，否则会画成黑色）；右侧显示该项 `abort`，颜色都为白色
-    - 条件卡片和节点同宽，像 Scratch 积木一样直接叠在一起、不留缝：只有最上面一张的顶角是圆的，节点有条件时顶角是直角。每张卡片底边靠左垂下一个梯形卡扣，落进下面一张卡片，最后一张落进节点左侧色条；上面的卡片 zIndex 更高。Inspector 当前显示的那一项卡片颜色更亮（45% 叠色）。出错的那一项（`invalid`：宿主是树的根节点，或 `lower` / `both` 但父节点不是 preemptive）卡片描边和右侧 `abort` 文字用错误色。卡片颜色是节点主题色以 22% 叠在画布背景上的不透明色，所以卡扣能盖住色条。条件卡片算节点的一部分：节点的 key shape 是覆盖卡片加主体整块的矩形（和没有条件时一样从 `y = 0` 开始），卡片不透明地画在它上部。所以 G6 的连线锚点、连线连接点、halo 都按整块计算，左侧 display id 和右侧折叠按钮也对齐整块的垂直中点；命中、拖放判断和状态样式不受影响
+- `attachedConditions`：每项条件在节点卡片上方画一张卡片，按数组顺序从上到下排列，没有条件时不画。左侧为条件图标（`media/icons/Flush.svg`，和节点 Inspector「条件」分组用的同一个图标；`currentColor` 换成白色）和根节点名，不显示「条件」二字和序号；根节点名后面隔 8px 显示根节点的说明（`desc`，没有时用节点定义的 `desc`，和节点卡片的备注规则一样），白色 70% 不透明度，放不下时截断加省略号，剩余宽度不足 24px 时不显示；根节点名和下面节点的标题左对齐（`G6_GRAPH_NODE_CONTENT_X`），图标在它左边 19px 处。图标是 SVG 内联成的 data URL，绘制前把 `currentColor` 改成白色（图片不继承文字颜色，否则会画成黑色）；右侧显示该项 `abort`，颜色都为白色
+    - 条件卡片和节点同宽，像 Scratch 积木一样直接叠在一起、不留缝：只有最上面一张的顶角是圆的，节点有条件时顶角是直角。每张卡片底边靠左垂下一个梯形卡扣，落进下面一张卡片，最后一张落进节点左侧色条；上面的卡片 zIndex 更高。Inspector 当前显示的那一项卡片颜色更亮（45% 叠色）。出错的那一项（`invalid`：宿主是树的根节点；`lower` / `both` 但父节点不是 preemptive；或条件树里有节点没通过共享 validation——变量用宿主的 `usingVars` 加这一项自己的 `variables`（导入文件的变量来自宿主消息的 `conditionImportVars`），节点和祖先都没禁用时 `deferred` 报错，子树引用节点跳过，不跑 custom checker）卡片底色改为错误色叠在画布背景上（未选中 60%、选中 85%），`abort` 文字加粗；宿主节点同时进入 `Error` 态。卡片颜色是节点主题色以 22% 叠在画布背景上的不透明色，所以卡扣能盖住色条。条件卡片算节点的一部分：节点的 key shape 是覆盖卡片加主体整块的矩形（和没有条件时一样从 `y = 0` 开始），卡片不透明地画在它上部。所以 G6 的连线锚点、连线连接点、halo 都按整块计算，左侧 display id 和右侧折叠按钮也对齐整块的垂直中点；命中、拖放判断和状态样式不受影响
 
 ### GraphEdgeVM
 

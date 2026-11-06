@@ -98,12 +98,17 @@ export const createDocumentCommands = (
             const allFilesChanged = !isJsonEqual(current.allFiles, nextAllFiles);
             const importDeclsChanged = !isJsonEqual(current.importDecls, payload.importDecls);
             const subtreeDeclsChanged = !isJsonEqual(current.subtreeDecls, payload.subtreeDecls);
+            const conditionImportVarsChanged = !isJsonEqual(
+                current.conditionImportVars,
+                payload.conditionImportVars
+            );
 
             if (
                 !usingVarsChanged &&
                 !allFilesChanged &&
                 !importDeclsChanged &&
-                !subtreeDeclsChanged
+                !subtreeDeclsChanged &&
+                !conditionImportVarsChanged
             ) {
                 return;
             }
@@ -114,9 +119,11 @@ export const createDocumentCommands = (
                 allFiles: payload.allFiles ?? state.allFiles,
                 importDecls: payload.importDecls,
                 subtreeDecls: payload.subtreeDecls,
+                conditionImportVars: payload.conditionImportVars,
             }));
 
-            if (usingVarsChanged) {
+            // Condition import vars decide whether condition cards are invalid.
+            if (usingVarsChanged || conditionImportVarsChanged) {
                 await runtime.rebuildGraph({ preserveSelection: true });
             }
         },

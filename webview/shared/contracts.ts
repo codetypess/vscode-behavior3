@@ -103,6 +103,8 @@ export interface HostVarsPayload {
     allFiles?: WorkdirRelativeJsonPath[];
     importDecls: ImportDecl[];
     subtreeDecls: ImportDecl[];
+    /** The variables of each file a condition imports, imports of imports included. */
+    conditionImportVars: Record<string, VarDecl[]>;
 }
 
 export interface NodeInstanceRef {
@@ -168,6 +170,8 @@ export interface WorkspaceState {
     usingGroups: Record<string, boolean> | null;
     importDecls: ImportDecl[];
     subtreeDecls: ImportDecl[];
+    /** The variables of each file a condition imports, for checking condition trees. */
+    conditionImportVars: Record<string, VarDecl[]>;
     subtreeSources: Record<WorkdirRelativeJsonPath, SubtreeSourceCacheEntry>;
     nodeFieldDiagnostics: Record<string, NodeFieldDiagnostic[]>;
     selectedNodeFieldVisibility: NodeFieldVisibilityState;
@@ -456,13 +460,16 @@ export interface GraphNodeVM {
     outputs: Array<{ label: string; variable?: string }>;
     argsText?: string;
     /** Condition cards stacked above the node, first item on top. */
-    /** `invalid`: on a tree root, or `lower`/`both` without a preemptive parent (build errors). */
+    /** `invalid`: on a tree root, `lower`/`both` without a preemptive parent, or a condition */
+    /** tree node failing validation (build errors). Any invalid item makes the node an error. */
     /** `desc`: the condition root's description, or its node definition's when it has none. */
+    /** `abortInvalid`: only the first two, where the abort mode has no scope to show. */
     attachedConditions: Array<{
         name: string;
         desc?: string;
         abort: AbortMode;
         invalid?: boolean;
+        abortInvalid?: boolean;
     }>;
 }
 

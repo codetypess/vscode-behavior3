@@ -375,7 +375,8 @@ export class G6GraphAdapter implements GraphAdapter {
             selectedConditionIndex !== null && selectedConditionIndex !== undefined
                 ? node?.attachedConditions[selectedConditionIndex]
                 : undefined;
-        if (!this.model || !node || !condition || condition.invalid) {
+        // An invalid node in the condition tree doesn't change what the abort mode covers.
+        if (!this.model || !node || !condition || condition.abortInvalid) {
             this.conditionAbortScope = null;
             return;
         }
@@ -912,8 +913,7 @@ export class G6GraphAdapter implements GraphAdapter {
                     ),
                 getWidth: (datum: G6NodeData) =>
                     Number(
-                        (datum.data as { width?: number } | undefined)?.width ??
-                            G6_GRAPH_NODE_WIDTH
+                        (datum.data as { width?: number } | undefined)?.width ?? G6_GRAPH_NODE_WIDTH
                     ),
                 getVGap: () => G6_GRAPH_NODE_V_GAP,
                 getHGap: () => G6_GRAPH_NODE_H_GAP,
@@ -970,8 +970,8 @@ export class G6GraphAdapter implements GraphAdapter {
 
     async render(model: ResolvedGraphModel, opts?: GraphRenderOptions): Promise<void> {
         const anchor = opts?.anchorNodeKey
-            ? this.readViewportAnchor(opts.anchorNodeKey, { skipMissingCandidates: true }) ??
-              this.readViewportCenterAnchor()
+            ? (this.readViewportAnchor(opts.anchorNodeKey, { skipMissingCandidates: true }) ??
+              this.readViewportCenterAnchor())
             : this.readViewportCenterAnchor();
         this.model = model;
         this.updateConditionAbortScope();

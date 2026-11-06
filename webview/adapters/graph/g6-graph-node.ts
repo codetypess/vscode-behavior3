@@ -85,6 +85,9 @@ const CONDITION_TAB_SLANT = 5;
 const CONDITION_TAB_CORNER = 3;
 const CONDITION_CARD_TINT = 0.22;
 const CONDITION_CARD_SELECTED_TINT = 0.45;
+// An invalid card is the error color, strong enough to stand out from the host's red cards.
+const CONDITION_CARD_INVALID_TINT = 0.6;
+const CONDITION_CARD_INVALID_SELECTED_TINT = 0.85;
 const CONDITION_ICON_SIZE = 14;
 const CONDITION_ICON_GAP = 19;
 // The bolt's glyph sits high in its box; nudge it down to sit on the text's center line.
@@ -600,8 +603,9 @@ class GraphNode extends Rect {
         const top = index * G6_GRAPH_CONDITION_TAB_HEIGHT;
         const zIndex = CONDITION_CARD_Z_INDEX + (conditions.length - index) * 2;
         const className = conditionCardClassName(index);
-        // A condition on a tree root, or an abort mode that cannot take effect, is a build error.
-        const errorColor = condition?.invalid ? accentColorMap.Error : undefined;
+        // A condition on a tree root, an abort mode that cannot take effect, or an invalid node in
+        // the condition tree is a build error: the card is filled with the error color.
+        const invalid = Boolean(condition?.invalid);
         // Left: the condition icon and the root name, which lines up with the node title below,
         // then the root's description in what room is left; right: the abort mode.
         const nameLeft = G6_GRAPH_NODE_CONTENT_X;
@@ -616,8 +620,8 @@ class GraphNode extends Rect {
             condition
                 ? {
                       d: toPathString(this.getConditionCardPath(index)),
-                      ...this.getConditionCardFill(selected),
-                      stroke: errorColor ?? this.accent,
+                      ...this.getConditionCardFill(selected, invalid),
+                      stroke: this.accent,
                       lineWidth: 2,
                       lineJoin: "round",
                       cursor: "pointer",
@@ -707,10 +711,10 @@ class GraphNode extends Rect {
                       y: textY,
                       text: abortType,
                       fontSize: 12,
-                      fontWeight: errorColor ? "bold" : "normal",
+                      fontWeight: invalid ? "bold" : "normal",
                       textAlign: "right",
                       textBaseline: "middle",
-                      fill: errorColor ?? "#ffffff",
+                      fill: "#ffffff",
                       cursor: "pointer",
                       zIndex: zIndex + 1,
                   }
@@ -732,10 +736,19 @@ class GraphNode extends Rect {
     }
 
     /** The selected card is a brighter tint, so the inspector's item stands out in the stack. */
-    private getConditionCardFill(selected: boolean) {
-        const tint = selected ? CONDITION_CARD_SELECTED_TINT : CONDITION_CARD_TINT;
-        const fill = mixColor(this.accent, this.palette.graphBg, tint);
-        return fill ? { fill, fillOpacity: 1 } : { fill: this.accent, fillOpacity: tint };
+    private getConditionCardFill(selected: boolean, invalid: boolean) {
+        // The host of an invalid card is an error node, whose accent is the (configurable) error color.
+        const errorColor = this.node.nodeStyleKind === "Error" ? this.accent : accentColorMap.Error;
+        const color = invalid ? errorColor : this.accent;
+        const tint = invalid
+            ? selected
+                ? CONDITION_CARD_INVALID_SELECTED_TINT
+                : CONDITION_CARD_INVALID_TINT
+            : selected
+              ? CONDITION_CARD_SELECTED_TINT
+              : CONDITION_CARD_TINT;
+        const fill = mixColor(color, this.palette.graphBg, tint);
+        return fill ? { fill, fillOpacity: 1 } : { fill: color, fillOpacity: tint };
     }
 
     /**

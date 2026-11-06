@@ -695,6 +695,162 @@ export const validationMaterializationSharedTests = defineSharedTests([
         },
     },
     {
+        name: "marks a condition card and its host red when the condition tree has an invalid node",
+        run() {
+            const nodeDefs: NodeDef[] = [
+                { name: "Sequence", type: "Composite", desc: "", children: -1 },
+                { name: "Attack", type: "Action", desc: "" },
+                {
+                    name: "Check",
+                    type: "Condition",
+                    desc: "",
+                    input: ["target"],
+                    args: [{ name: "value", type: "int", desc: "value" }],
+                },
+                { name: "Listen", type: "Decorator", desc: "", deferred: true },
+            ];
+            type ConditionRoot = NonNullable<
+                ReturnType<typeof createTestTree>["root"]["conditions"]
+            >[number];
+            const cardsFor = (
+                conditions: ConditionRoot[],
+                opts?: {
+                    usingVars?: Record<string, { name: string; desc: string }>;
+                    conditionImportVars?: Record<string, { name: string; desc: string }[]>;
+                }
+            ) => {
+                const tree = createTestTree();
+                tree.root.name = "Sequence";
+                tree.root.children = [{ uuid: "attack", id: "2", name: "Attack", conditions }];
+                const { graph } = resolveDocumentGraph({
+                    persistedTree: tree,
+                    nodeDefs,
+                    subtreeSources: {},
+                    subtreeEditable: true,
+                });
+                const attack = buildResolvedGraphModel(graph, nodeDefs, undefined, {
+                    usingVars: opts?.usingVars ?? null,
+                    usingGroups: null,
+                    checkExpr: false,
+                    conditionImportVars: opts?.conditionImportVars,
+                }).nodes.find((node) => node.title === "Attack");
+                return {
+                    style: attack?.nodeStyleKind,
+                    invalid: attack?.attachedConditions.map((condition) => !!condition.invalid),
+                };
+            };
+            const check = (input: string, args: Record<string, unknown> = { value: 1 }) => ({
+                uuid: `check-${input}`,
+                id: "",
+                name: "Check",
+                input: [input],
+                args,
+            });
+            const vars = { hp: { name: "hp", desc: "" } };
+
+            // Valid condition trees keep the host's own style.
+            assert.deepEqual(
+                cardsFor([{ abort: "none", root: check("hp") }], { usingVars: vars }),
+                { style: "Action", invalid: [false] }
+            );
+            // A missing arg in a nested node marks only that item, and the host is an error.
+            assert.deepEqual(
+                cardsFor(
+                    [
+                        { abort: "none", root: check("hp") },
+                        {
+                            abort: "none",
+                            root: {
+                                uuid: "seq",
+                                id: "",
+                                name: "Sequence",
+                                children: [check("hp", {})],
+                            },
+                        },
+                    ],
+                    { usingVars: vars }
+                ),
+                { style: "Error", invalid: [false, true] }
+            );
+            // Unknown node in the condition tree.
+            assert.deepEqual(
+                cardsFor([{ abort: "none", root: { uuid: "x", id: "", name: "Nope" } }]),
+                { style: "Error", invalid: [true] }
+            );
+            // Undeclared variable, then declared by the condition itself or by its import.
+            assert.deepEqual(
+                cardsFor([{ abort: "none", root: check("mp") }], { usingVars: vars }),
+                {
+                    style: "Error",
+                    invalid: [true],
+                }
+            );
+            assert.deepEqual(
+                cardsFor(
+                    [
+                        {
+                            abort: "none",
+                            variables: { imports: [], locals: [{ name: "mp", desc: "" }] },
+                            root: check("mp"),
+                        },
+                    ],
+                    { usingVars: vars }
+                ),
+                { style: "Action", invalid: [false] }
+            );
+            assert.deepEqual(
+                cardsFor(
+                    [
+                        {
+                            abort: "none",
+                            variables: { imports: ["vars/mp.json"], locals: [] },
+                            root: check("mp"),
+                        },
+                    ],
+                    {
+                        usingVars: vars,
+                        conditionImportVars: { "vars/mp.json": [{ name: "mp", desc: "" }] },
+                    }
+                ),
+                { style: "Action", invalid: [false] }
+            );
+            // A deferred node counts only while it and its ancestors are enabled.
+            const listen = (disabled?: boolean) => ({
+                uuid: "listen",
+                id: "",
+                name: "Listen",
+                disabled,
+                children: [check("hp")],
+            });
+            assert.deepEqual(
+                cardsFor([{ abort: "none", root: listen() }], { usingVars: vars }).invalid,
+                [true]
+            );
+            assert.deepEqual(
+                cardsFor([{ abort: "none", root: listen(true) }], { usingVars: vars }).invalid,
+                [false]
+            );
+            // A subtree reference is checked in its own file.
+            assert.deepEqual(
+                cardsFor([
+                    {
+                        abort: "none",
+                        root: { uuid: "ref", id: "", name: "Nope", path: "sub/check.json" },
+                    },
+                ]).invalid,
+                [false]
+            );
+            // An abort mode that cannot take effect also makes the host an error.
+            assert.deepEqual(
+                cardsFor([{ abort: "lower", root: check("hp") }], { usingVars: vars }),
+                {
+                    style: "Error",
+                    invalid: [true],
+                }
+            );
+        },
+    },
+    {
         name: "shows the condition root description on condition cards",
         run() {
             const nodeDefs: NodeDef[] = [

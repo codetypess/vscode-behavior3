@@ -121,6 +121,7 @@ export async function createTreeEditorSessionContext(
             usingVars: {},
             importDecls: [],
             subtreeDecls: [],
+            conditionImportVars: {},
         },
         sharedSelection: normalizeHostSelectionState(params.initialSelection),
         selectionRevision: 0,

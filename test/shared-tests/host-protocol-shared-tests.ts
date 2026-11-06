@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import b3path from "../../webview/shared/b3path";
 import {
     normalizeHostDocumentSnapshot,
+    normalizeHostVarsMessage,
     parseWorkdirRelativeJsonPath,
 } from "../../webview/shared/protocol";
 import type { NodeInstanceRef } from "../../webview/shared/contracts";
@@ -18,6 +19,24 @@ export const hostProtocolSharedTests = defineSharedTests([
             assert.equal(parseWorkdirRelativeJsonPath("C:\\absolute.json"), null);
             assert.equal(parseWorkdirRelativeJsonPath("tree.txt"), null);
             assert.equal(parseWorkdirRelativeJsonPath("http://example.com/tree.json"), null);
+        },
+    },
+    {
+        name: "normalizes condition import vars in host var messages",
+        run() {
+            const legacy = normalizeHostVarsMessage({ type: "varDeclLoaded", usingVars: [] });
+            assert.deepEqual(legacy.conditionImportVars, {});
+
+            const normalized = normalizeHostVarsMessage({
+                type: "varDeclLoaded",
+                usingVars: [],
+                conditionImportVars: {
+                    "vars/mp.json": [{ name: "mp", desc: undefined as unknown as string }],
+                },
+            });
+            assert.deepEqual(normalized.conditionImportVars, {
+                "vars/mp.json": [{ name: "mp", desc: "" }],
+            });
         },
     },
     {

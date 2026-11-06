@@ -24,6 +24,7 @@ export function buildVarDeclLoadedMessage(
         allFiles,
         importDecls: result.importDecls,
         subtreeDecls: result.subtreeDecls,
+        conditionImportVars: result.conditionImportVars,
     };
 }
 

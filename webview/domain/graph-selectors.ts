@@ -11,15 +11,16 @@ import type {
     ResolvedGraphModel,
     VarDecl,
 } from "../shared/contracts";
-import {
-    getAbortModeViolation,
-    isActiveInConditionFile,
-    isConditionOnRoot,
-} from "../shared/condition-branch";
+import { isActiveInConditionFile } from "../shared/condition-branch";
 import { stringifyCompactJson5, stringifySearchValueAsJson5 } from "../shared/json";
 import { hasNodeOverrideDiff } from "../shared/node-overrides";
 import { createNodeDefMap, findNodeDef } from "../shared/node-utils";
 import { collectResolvedNodeDiagnostics, parseExpressionVariables } from "../shared/validation";
+import {
+    hasInvalidConditionTreeNode,
+    isConditionAbortInvalid,
+    type ConditionValidationContext,
+} from "./condition-validation";
 
 const DEFAULT_NODE_COLORS: Record<GraphNodeVM["nodeStyleKind"], string> = {
     Composite: "#34d800",
@@ -83,9 +84,19 @@ export const buildResolvedGraphModel = (
         nodeFieldDiagnostics?: Record<string, NodeFieldDiagnostic[]>;
         /** The document is a condition file: its nodes are a condition tree. */
         conditionFile?: boolean;
+        /** The variables of each file a condition imports. */
+        conditionImportVars?: Record<string, VarDecl[]>;
     }
 ): ResolvedGraphModel => {
     const defsByName = createNodeDefMap(nodeDefs);
+    const conditionContext: ConditionValidationContext = {
+        defsByName,
+        usingVars: validation?.usingVars ?? null,
+        usingGroups: validation?.usingGroups ?? null,
+        strictGroup: validation?.strictGroup ?? false,
+        checkExpr: validation?.checkExpr ?? false,
+        conditionImportVars: validation?.conditionImportVars,
+    };
     const nodes: GraphNodeVM[] = [];
     const edges = [];
 
@@ -93,8 +104,26 @@ export const buildResolvedGraphModel = (
         const node = graph.nodesByInstanceKey[key];
         const def = findNodeDef(defsByName, node.name);
         const customDiagnostics = validation?.nodeFieldDiagnostics?.[node.ref.instanceKey] ?? [];
-        // Built-in validation and user build-script diagnostics both drive the error style.
+        const conditionParent = node.conditions?.length
+            ? getConditionParent(graph, node, defsByName)
+            : null;
+        const attachedConditions = (node.conditions ?? []).map((condition) => {
+            const abortInvalid = isConditionAbortInvalid(condition.abort, conditionParent);
+            return {
+                name: condition.root.name,
+                desc: pickNodeSubtitle(
+                    condition.root.desc,
+                    findNodeDef(defsByName, condition.root.name)?.desc
+                ),
+                abort: condition.abort,
+                invalid: abortInvalid || hasInvalidConditionTreeNode(condition, conditionContext),
+                abortInvalid,
+            };
+        });
+        // Built-in validation, user build-script diagnostics and invalid conditions all drive
+        // the error style.
         const invalid =
+            attachedConditions.some((condition) => condition.invalid) ||
             collectResolvedNodeDiagnostics({
                 node,
                 def,
@@ -107,7 +136,8 @@ export const buildResolvedGraphModel = (
                     node,
                     validation?.conditionFile ?? false
                 ),
-            }).length > 0 || customDiagnostics.length > 0;
+            }).length > 0 ||
+            customDiagnostics.length > 0;
         const nodeStyleKind =
             node.resolutionError || invalid ? "Error" : def ? getNodeType(def) : "Error";
         const accentColor =
@@ -151,20 +181,7 @@ export const buildResolvedGraphModel = (
                 node.args && Object.keys(node.args).length > 0
                     ? stringifyCompactJson5(node.args)
                     : undefined,
-            attachedConditions: (node.conditions ?? []).map((condition) => {
-                const parent = getConditionParent(graph, node, defsByName);
-                return {
-                    name: condition.root.name,
-                    desc: pickNodeSubtitle(
-                        condition.root.desc,
-                        findNodeDef(defsByName, condition.root.name)?.desc
-                    ),
-                    abort: condition.abort,
-                    invalid:
-                        isConditionOnRoot(parent) ||
-                        Boolean(getAbortModeViolation(condition.abort, parent)),
-                };
-            }),
+            attachedConditions,
         });
 
         for (const childKey of node.childKeys) {

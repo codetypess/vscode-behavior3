@@ -246,6 +246,7 @@ Scope: <short boundary>
 - [`condition-node-id-prefix.md`](condition-node-id-prefix.md)：Status `Verifying`。条件树不占主树编号，节点编号为 `<宿主 id>.<n>-<k>`（例如 `2.1-1`）；条件文件用树前缀 `<宿主 id>.<n>-` 显示同样的编号。
 - [`custom-field-script-hooks.md`](custom-field-script-hooks.md)：Status `Verifying`。用 `@behavior3.customField` 脚本钩子决定条件字段的值（例如原装饰器的优先级规则）。
 - [`condition-file-host-variables.md`](condition-file-host-variables.md)：Status `Verifying`。条件文件的分组和宿主的变量只读继承；条件项有自己的 `variables`，在条件文件里自由添加和导入。
+- [`invalid-condition-tree-host.md`](invalid-condition-tree-host.md)：Status `Verifying`。条件树里有不合法的节点时，宿主树上这张条件卡片标红、宿主节点进入错误态；节点 Inspector 在「子树」下面列出各项条件，不合法的为红色。
 - [`strict-node-groups.md`](strict-node-groups.md)：Status `Verifying`。`Core` 分组默认始终启用，和运行时一致；`settings.strictGroup` 打开后树必须先选分组，没勾选 `Core` 时内置节点不合法。
 
 新增 work-item 时，请继续按以上格式补充；完成后如果长期规则已同步进编号基线 spec，直接从目录中删除对应 work-item。

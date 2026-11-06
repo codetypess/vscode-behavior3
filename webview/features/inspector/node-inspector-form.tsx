@@ -34,6 +34,7 @@ import { useInspectorMode } from "./inspector-mode";
 import { useNodeInspectorCommitters } from "./node-inspector-committers";
 import { NodeStructuredArgsSection } from "./node-inspector-args-section";
 import { NodeVariableSection } from "./node-inspector-variable-section";
+import { NodeConditionSection } from "./node-inspector-condition-section";
 
 const { TextArea } = Input;
 
@@ -604,6 +605,8 @@ export const NodeInspectorForm: React.FC = () => {
                     onResetDebug={resetDebug}
                     onResetDisabled={resetDisabled}
                 />
+
+                <NodeConditionSection selectedNode={selectedNode} />
 
                 <NodeVariableSection
                     form={form}

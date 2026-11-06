@@ -67,6 +67,7 @@ const applySidebarVars = (runtime: EditorRuntime, payload: HostVarsPayload) => {
         allFiles: payload.allFiles ?? state.allFiles,
         importDecls: payload.importDecls,
         subtreeDecls: payload.subtreeDecls,
+        conditionImportVars: payload.conditionImportVars,
     }));
 };
 
